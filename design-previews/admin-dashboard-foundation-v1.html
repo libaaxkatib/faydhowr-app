@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fayadhowr — Admin Executive Dashboard Foundation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #0E339D; --teal: #0694AC; --bg: #F4F7FB; --surface: #FFF;
+      --text: #1F2937; --muted: #6B7280; --border: #E5E7EB;
+      --shadow: 0 8px 24px rgba(15,23,42,.06); --radius: 16px;
+      --sidebar-w: 248px; --ok: #059669; --warn: #D97706; --danger: #DC2626;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif; color: var(--text);
+      background: linear-gradient(165deg, #DCE6F8 0%, #E8F4F7 45%, #EEF2F7 100%);
+      padding: 32px 24px 72px;
+    }
+    .board-title { max-width: 1480px; margin: 0 auto 24px; }
+    .board-title h1 { font-size: 28px; font-weight: 700; letter-spacing: -.03em; color: var(--primary); }
+    .board-title p { margin-top: 8px; font-size: 14px; color: var(--muted); max-width: 960px; line-height: 1.5; }
+    .flow-label {
+      font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--primary); margin: 40px auto 14px; max-width: 1480px;
+    }
+
+    .shell {
+      max-width: 1480px; margin: 0 auto; min-height: 980px;
+      display: grid; grid-template-columns: var(--sidebar-w) 1fr;
+      background: var(--bg); border-radius: 24px; overflow: hidden;
+      box-shadow: 0 32px 64px rgba(14,51,157,.12); border: 1px solid rgba(14,51,157,.08);
+    }
+    .shell.compact { min-height: 560px; max-width: 1080px; }
+
+    .sidebar {
+      background: linear-gradient(180deg, #0A2778 0%, #0E339D 55%, #0C4A6E 140%);
+      color: #fff; padding: 24px 14px; display: flex; flex-direction: column; gap: 2px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; padding: 4px 10px 20px; }
+    .brand-mark {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: linear-gradient(135deg, #0694AC, #38BDF8);
+      display: grid; place-items: center; font-weight: 800; font-size: 14px;
+    }
+    .brand-text .name { font-size: 15px; font-weight: 700; }
+    .brand-text .sub { font-size: 11px; opacity: .7; margin-top: 2px; }
+    .nav-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+      opacity: .5; padding: 14px 12px 6px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
+      font-size: 13px; font-weight: 600; color: rgba(255,255,255,.8);
+    }
+    .nav-item .ico {
+      width: 30px; height: 30px; border-radius: 9px; background: rgba(255,255,255,.1);
+      display: grid; place-items: center; font-size: 11px; flex-shrink: 0;
+    }
+    .nav-item.active { background: rgba(255,255,255,.14); color: #fff; }
+    .nav-item.active .ico { background: var(--teal); }
+    .sidebar-foot { margin-top: auto; padding: 14px 8px 4px; border-top: 1px solid rgba(255,255,255,.12); }
+    .admin-chip {
+      display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px;
+      background: rgba(255,255,255,.08);
+    }
+    .admin-av {
+      width: 36px; height: 36px; border-radius: 10px; background: var(--teal);
+      display: grid; place-items: center; font-size: 12px; font-weight: 800;
+    }
+    .admin-chip .n { font-size: 13px; font-weight: 700; }
+    .admin-chip .r { font-size: 11px; opacity: .7; margin-top: 2px; }
+
+    .main { display: flex; flex-direction: column; min-width: 0; }
+    .topbar {
+      min-height: 72px; background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .welcome h2 { font-size: 18px; font-weight: 700; letter-spacing: -.02em; }
+    .welcome .role { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+    .welcome .role strong { color: var(--primary); }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .search {
+      width: 240px; height: 42px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 12px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+      font-size: 13px; color: var(--muted);
+    }
+    .icon-btn {
+      width: 42px; height: 42px; border-radius: 12px; background: var(--bg);
+      border: 1px solid var(--border); display: grid; place-items: center; color: var(--primary); font-weight: 700;
+    }
+
+    .content { padding: 20px 24px 28px; display: flex; flex-direction: column; gap: 20px; }
+    .purpose {
+      font-size: 13px; font-weight: 600; color: var(--primary);
+      background: linear-gradient(90deg, rgba(14,51,157,.08), rgba(6,148,172,.06));
+      border: 1px solid rgba(14,51,157,.12); border-radius: 12px; padding: 12px 14px;
+    }
+    .section-head {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 10px;
+    }
+    .section-head h3 { font-size: 14px; font-weight: 700; }
+    .section-head span { font-size: 11px; color: var(--muted); font-weight: 500; }
+
+    .kpis {
+      display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px;
+    }
+    .kpi {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px 14px; box-shadow: var(--shadow); position: relative; overflow: hidden;
+      cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+      user-select: none;
+    }
+    .kpi:hover {
+      border-color: rgba(14,51,157,.35);
+      box-shadow: 0 12px 28px rgba(14,51,157,.12);
+      transform: translateY(-2px);
+    }
+    .kpi:active {
+      transform: translateY(0);
+      box-shadow: 0 4px 12px rgba(14,51,157,.1);
+      border-color: var(--primary);
+    }
+    .kpi::after {
+      content: ""; position: absolute; width: 70px; height: 70px; border-radius: 50%;
+      background: rgba(14,51,157,.04); top: -20px; right: -16px; pointer-events: none;
+    }
+    .kpi .go {
+      position: absolute; top: 14px; right: 12px; z-index: 1;
+      font-size: 14px; font-weight: 700; color: var(--muted); opacity: 0;
+      transition: opacity .15s ease;
+    }
+    .kpi:hover .go { opacity: 1; color: var(--primary); }
+    .kpi .ico {
+      width: 34px; height: 34px; border-radius: 10px; margin-bottom: 10px;
+      display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #fff;
+      background: linear-gradient(135deg, #0E339D, #1246C4);
+    }
+    .kpi.teal .ico { background: linear-gradient(135deg, #0694AC, #0AB0CC); }
+    .kpi .l { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .kpi .v { font-size: 26px; font-weight: 800; letter-spacing: -.03em; color: var(--primary); margin-top: 6px; line-height: 1; }
+    .kpi.teal .v { color: var(--teal); }
+    .kpi .trend {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11px; font-weight: 700; margin-top: 8px;
+    }
+    .kpi .trend.up { color: var(--ok); }
+    .kpi .trend.down { color: var(--danger); }
+    .kpi .nav-hint {
+      display: block; font-size: 10px; font-weight: 600; color: var(--muted);
+      margin-top: 4px; opacity: .85;
+    }
+
+    .mini {
+      border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+      background: linear-gradient(180deg, #fff, #F8FAFC);
+      cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+      user-select: none; position: relative;
+    }
+    .mini:hover {
+      border-color: rgba(14,51,157,.35);
+      box-shadow: 0 8px 18px rgba(14,51,157,.1);
+      background: #fff;
+    }
+    .mini:active { border-color: var(--primary); }
+    .mini .l { font-size: 11px; font-weight: 600; color: var(--muted); }
+    .mini .v { font-size: 20px; font-weight: 800; color: var(--primary); margin-top: 4px; }
+    .mini .goto {
+      font-size: 10px; font-weight: 600; color: var(--primary); margin-top: 6px;
+      opacity: 0; transition: opacity .15s ease;
+    }
+    .mini:hover .goto { opacity: 1; }
+    .mini .bar {
+      height: 6px; border-radius: 999px; background: #E5E7EB; margin-top: 10px; overflow: hidden;
+    }
+    .mini .bar > i {
+      display: block; height: 100%; border-radius: 999px;
+      background: linear-gradient(90deg, #0E339D, #0694AC);
+    }
+    .mini.warn .v { color: var(--warn); }
+    .mini.ok .v { color: var(--ok); }
+    .mini.danger .v { color: var(--danger); }
+
+    .svc-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 11px 10px; margin: 0 -10px; border-bottom: 1px solid var(--border);
+      border-radius: 10px; cursor: pointer; transition: background .15s ease;
+      user-select: none;
+    }
+    .svc-row:last-of-type { border-bottom: 1px solid var(--border); }
+    .svc-row:hover { background: rgba(14,51,157,.05); }
+    .svc-row:active { background: rgba(14,51,157,.1); }
+    .svc-row .t { font-size: 13px; font-weight: 600; }
+    .svc-row .chev { color: var(--muted); font-weight: 700; opacity: 0; transition: opacity .15s ease; }
+    .svc-row:hover .chev { opacity: 1; color: var(--primary); }
+    .svc-row .n {
+      min-width: 36px; height: 28px; padding: 0 10px; border-radius: 8px;
+      display: grid; place-items: center; font-size: 13px; font-weight: 800;
+      background: rgba(14,51,157,.08); color: var(--primary);
+    }
+    .svc-row .n.warn { background: rgba(217,119,6,.12); color: var(--warn); }
+    .svc-row .n.danger { background: rgba(220,38,38,.1); color: var(--danger); }
+
+    .rev-top { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+    .rev-pill {
+      border-radius: 12px; padding: 12px; text-align: center;
+      background: rgba(14,51,157,.04); border: 1px solid rgba(14,51,157,.1);
+      cursor: pointer; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+      user-select: none;
+    }
+    .rev-pill:hover {
+      border-color: rgba(14,51,157,.4);
+      background: rgba(14,51,157,.08);
+      box-shadow: 0 6px 14px rgba(14,51,157,.1);
+    }
+    .rev-pill:active { border-color: var(--primary); }
+    .rev-pill .l { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+    .rev-pill .v { font-size: 18px; font-weight: 800; color: var(--primary); margin-top: 4px; }
+    .rev-pill .drill { font-size: 9px; font-weight: 600; color: var(--primary); margin-top: 4px; opacity: 0; transition: opacity .15s ease; }
+    .rev-pill:hover .drill { opacity: 1; }
+
+    .legend .item {
+      display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; margin-bottom: 8px;
+      padding: 6px 8px; margin-left: -8px; margin-right: -8px; border-radius: 8px;
+      cursor: pointer; transition: background .15s ease;
+    }
+    .legend .item:hover { background: rgba(14,51,157,.05); }
+    .legend .item:active { background: rgba(14,51,157,.1); }
+
+    .grid-2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1.1fr; gap: 16px; }
+    .panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px 18px;
+    }
+    .mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .chart-bars {
+      display: flex; align-items: flex-end; gap: 8px; height: 120px; padding-top: 8px;
+    }
+    .chart-bars .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+    .chart-bars .col b {
+      width: 100%; border-radius: 8px 8px 4px 4px;
+      background: linear-gradient(180deg, #1246C4, #0E339D);
+    }
+    .chart-bars .col.teal b { background: linear-gradient(180deg, #0AB0CC, #0694AC); }
+    .chart-bars .col span { font-size: 10px; font-weight: 600; color: var(--muted); }
+    .split-donut { display: flex; align-items: center; gap: 16px; margin-top: 12px; }
+    .donut {
+      width: 88px; height: 88px; border-radius: 50%; flex-shrink: 0;
+      background: conic-gradient(#0E339D 0 62%, #0694AC 62% 100%);
+      mask: radial-gradient(circle at center, transparent 52%, #000 53%);
+      -webkit-mask: radial-gradient(circle at center, transparent 52%, #000 53%);
+    }
+    .legend .sw { width: 10px; height: 10px; border-radius: 3px; }
+    .legend .sw.p { background: #0E339D; }
+    .legend .sw.t { background: #0694AC; }
+    .legend .val { margin-left: auto; color: var(--muted); font-weight: 700; }
+
+    .act {
+      display: flex; align-items: flex-start; gap: 12px; padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .act:last-child { border-bottom: none; }
+    .act .badge {
+      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+      display: grid; place-items: center; font-size: 9px; font-weight: 800; color: #fff;
+    }
+    .act .badge.bk { background: #0E339D; }
+    .act .badge.qt { background: #0694AC; }
+    .act .badge.pay { background: #059669; }
+    .act .badge.ord { background: #1D4ED8; }
+    .act .title { font-size: 13px; font-weight: 700; }
+    .act .desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .act .time { margin-left: auto; font-size: 11px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+
+    .login-card {
+      width: 400px; background: #fff; border-radius: 24px; border: 1px solid var(--border);
+      box-shadow: 0 24px 48px rgba(14,51,157,.1); padding: 28px; margin: 0 auto 0 0;
+    }
+    .login-card .mark {
+      width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 12px;
+      background: linear-gradient(135deg, #0E339D, #0694AC);
+      display: grid; place-items: center; color: #fff; font-weight: 800;
+    }
+    .login-card h2 { text-align: center; font-size: 18px; color: var(--primary); }
+    .login-card p { text-align: center; font-size: 12px; color: var(--muted); margin: 6px 0 18px; }
+    .field { margin-bottom: 10px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+    .input {
+      height: 46px; border: 1px solid var(--border); border-radius: 12px; background: #fff;
+      display: flex; align-items: center; padding: 0 12px; font-size: 14px; box-shadow: var(--shadow);
+    }
+    .btn {
+      height: 48px; border-radius: 12px; margin-top: 8px; width: 100%;
+      display: grid; place-items: center; font-size: 14px; font-weight: 700; color: #fff;
+      background: linear-gradient(135deg, #0E339D, #1246C4);
+      box-shadow: 0 8px 18px rgba(14,51,157,.28);
+    }
+    .role-row { display: flex; flex-wrap: wrap; gap: 20px; max-width: 1480px; margin: 0 auto; }
+
+    @media (max-width: 1280px) {
+      .kpis { grid-template-columns: repeat(3, 1fr); }
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="board-title">
+    <h1>Admin Executive Dashboard — Foundation Refinement</h1>
+    <p>
+      Roles: <strong>Admin</strong>, <strong>Sales</strong>, <strong>Accountant</strong> only.
+      One login · one panel · role-based sidebar. Executive KPIs, business monitoring, customer service metrics, revenue analytics, and live activity — no staff analytics. Sidebar shows approved modules only (no “Later” tags).
+    </p>
+  </div>
+
+  <div class="flow-label">1 · Admin Login (single page)</div>
+  <div class="login-card">
+    <div class="mark">FD</div>
+    <h2>Fayadhowr Admin</h2>
+    <p>One login for Admin, Sales, and Accountant. Role loads automatically.</p>
+    <div class="field"><label>Email</label><div class="input">asad@fayadhowr.com</div></div>
+    <div class="field"><label>Password</label><div class="input">••••••••</div></div>
+    <div class="btn">Sign in</div>
+  </div>
+
+  <div class="flow-label">2 · Executive Dashboard — Admin</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">FD</div>
+        <div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div>
+      </div>
+      <div class="nav-label">Overview</div>
+      <div class="nav-item active"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div>
+      <div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div>
+      <div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div>
+      <div class="nav-item"><div class="ico">INV</div> Invoices</div>
+      <div class="nav-item"><div class="ico">RCP</div> Receipts</div>
+      <div class="nav-item"><div class="ico">▤</div> Reports</div>
+      <div class="nav-label">Catalog</div>
+      <div class="nav-item"><div class="ico">✦</div> Services</div>
+      <div class="nav-item"><div class="ico">▦</div> Store</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item"><div class="ico">bell</div> Notifications</div>
+      <div class="nav-item"><div class="ico">⚙</div> Settings</div>
+      <div class="nav-item"><div class="ico">⌘</div> Audit / Logs</div>
+      <div class="sidebar-foot">
+        <div class="admin-chip">
+          <div class="admin-av">AS</div>
+          <div><div class="n">Asad</div><div class="r">Admin</div></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="welcome">
+          <h2>Welcome, Asad</h2>
+          <div class="role">Role: <strong>Admin</strong></div>
+        </div>
+        <div class="top-actions">
+          <div class="search"><span>⌕</span> Search…</div>
+          <div class="icon-btn">🔔</div>
+          <div class="icon-btn">⎋</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="purpose">Executive Dashboard — interactive KPIs and widgets drill into filtered modules. Hover / click to navigate.</div>
+
+        <!-- KPI OVERVIEW -->
+        <section>
+          <div class="section-head"><h3>Dashboard Overview</h3><span>Click any KPI to open its module</span></div>
+          <div class="kpis">
+            <div class="kpi" title="Open Customers Module"><span class="go">›</span><div class="ico">CUS</div><div class="l">Total Customers</div><div class="v">1,284</div><div class="trend up">▲ +8 Today</div><span class="nav-hint">→ Customers</span></div>
+            <div class="kpi teal" title="Open Bookings Module"><span class="go">›</span><div class="ico">BK</div><div class="l">Active Bookings</div><div class="v">46</div><div class="trend up">▲ +12 Today</div><span class="nav-hint">→ Bookings</span></div>
+            <div class="kpi" title="Open Quotations · Pending"><span class="go">›</span><div class="ico">QT</div><div class="l">Pending Quotations</div><div class="v">18</div><div class="trend down">▼ -3 Yesterday</div><span class="nav-hint">→ Quotations (Pending)</span></div>
+            <div class="kpi teal" title="Open Orders Module"><span class="go">›</span><div class="ico">ORD</div><div class="l">Orders</div><div class="v">312</div><div class="trend up">▲ +5 Today</div><span class="nav-hint">→ Orders</span></div>
+            <div class="kpi" title="Open Payments Module"><span class="go">›</span><div class="ico">PAY</div><div class="l">Payments</div><div class="v">867</div><div class="trend up">▲ +12% vs Last Month</div><span class="nav-hint">→ Payments</span></div>
+            <div class="kpi teal" title="Open Reports → Revenue"><span class="go">›</span><div class="ico">$</div><div class="l">Revenue</div><div class="v">$48.2k</div><div class="trend up">▲ +8% vs Last Month</div><span class="nav-hint">→ Reports · Revenue</span></div>
+          </div>
+        </section>
+
+        <div class="grid-3">
+          <!-- BUSINESS MONITORING -->
+          <section class="panel">
+            <div class="section-head"><h3>Business Monitoring</h3><span>Opens filtered module</span></div>
+            <div class="mini-grid">
+              <div class="mini" title="Bookings · Pending"><div class="l">Pending Bookings</div><div class="v">14</div><div class="goto">→ Bookings (Pending)</div><div class="bar"><i style="width:55%"></i></div></div>
+              <div class="mini" title="Bookings · In Progress"><div class="l">In Progress</div><div class="v">22</div><div class="goto">→ Bookings (In Progress)</div><div class="bar"><i style="width:70%"></i></div></div>
+              <div class="mini ok" title="Bookings · Completed Today"><div class="l">Completed Today</div><div class="v">9</div><div class="goto">→ Bookings (Completed)</div><div class="bar"><i style="width:40%"></i></div></div>
+              <div class="mini warn" title="Bookings · Delayed"><div class="l">Delayed Bookings</div><div class="v">3</div><div class="goto">→ Bookings (Delayed)</div><div class="bar"><i style="width:18%"></i></div></div>
+              <div class="mini" title="Quotations · Pending"><div class="l">Pending Quotes</div><div class="v">8</div><div class="goto">→ Quotations (Pending)</div><div class="bar"><i style="width:45%"></i></div></div>
+              <div class="mini" title="Quotations · Under Discussion"><div class="l">Under Discussion</div><div class="v">6</div><div class="goto">→ Quotations (Under Discussion)</div><div class="bar"><i style="width:35%"></i></div></div>
+              <div class="mini ok" title="Quotations · Accepted"><div class="l">Accepted Quotes</div><div class="v">11</div><div class="goto">→ Quotations (Accepted)</div><div class="bar"><i style="width:60%"></i></div></div>
+              <div class="mini danger" title="Quotations · Expired"><div class="l">Expired Quotes</div><div class="v">2</div><div class="goto">→ Quotations (Expired)</div><div class="bar"><i style="width:12%"></i></div></div>
+            </div>
+          </section>
+
+          <!-- CUSTOMER SERVICE -->
+          <section class="panel">
+            <div class="section-head"><h3>Customer Service</h3><span>Click to open queue</span></div>
+            <div class="svc-row" title="Discussion Module · Unanswered"><div class="t">Unanswered Discussions</div><div class="n danger">7</div><span class="chev">›</span></div>
+            <div class="svc-row" title="Discussion Module · Waiting"><div class="t">Customer Replies Waiting</div><div class="n warn">12</div><span class="chev">›</span></div>
+            <div class="svc-row" title="Customer Requests"><div class="t">Open Customer Requests</div><div class="n">9</div><span class="chev">›</span></div>
+            <div class="svc-row" title="Customers · Today's registrations"><div class="t">New Customers Today</div><div class="n">5</div><span class="chev">›</span></div>
+            <div style="margin-top:14px;">
+              <div class="section-head" style="margin-bottom:6px;"><h3 style="font-size:12px;">Response load</h3></div>
+              <div class="chart-bars" style="height:72px;">
+                <div class="col"><b style="height:40%"></b><span>Mon</span></div>
+                <div class="col teal"><b style="height:55%"></b><span>Tue</span></div>
+                <div class="col"><b style="height:35%"></b><span>Wed</span></div>
+                <div class="col teal"><b style="height:70%"></b><span>Thu</span></div>
+                <div class="col"><b style="height:50%"></b><span>Fri</span></div>
+                <div class="col teal"><b style="height:30%"></b><span>Sat</span></div>
+                <div class="col"><b style="height:25%"></b><span>Sun</span></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- REVENUE -->
+          <section class="panel">
+            <div class="section-head"><h3>Revenue Analytics</h3><span>Drill-down to reports</span></div>
+            <div class="rev-top">
+              <div class="rev-pill" title="Daily Revenue Report"><div class="l">Today</div><div class="v">$1.2k</div><div class="drill">→ Daily Report</div></div>
+              <div class="rev-pill" title="Weekly Revenue Report"><div class="l">Weekly</div><div class="v">$8.6k</div><div class="drill">→ Weekly Report</div></div>
+              <div class="rev-pill" title="Monthly Revenue Report"><div class="l">Monthly</div><div class="v">$48.2k</div><div class="drill">→ Monthly Report</div></div>
+            </div>
+            <div class="chart-bars">
+              <div class="col"><b style="height:35%"></b><span>W1</span></div>
+              <div class="col teal"><b style="height:48%"></b><span>W2</span></div>
+              <div class="col"><b style="height:62%"></b><span>W3</span></div>
+              <div class="col teal"><b style="height:55%"></b><span>W4</span></div>
+              <div class="col"><b style="height:78%"></b><span>W5</span></div>
+              <div class="col teal"><b style="height:70%"></b><span>W6</span></div>
+            </div>
+            <div class="split-donut">
+              <div class="donut"></div>
+              <div class="legend" style="flex:1;">
+                <div class="item" title="Service Revenue Report"><span class="sw p"></span> Services Revenue <span class="val">$29.8k ›</span></div>
+                <div class="item" title="Store Revenue Report"><span class="sw t"></span> Store Revenue <span class="val">$18.4k ›</span></div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ACTIVITY -->
+        <section class="panel">
+          <div class="section-head"><h3>Recent Activity</h3><span>Live feed</span></div>
+          <div class="act"><div class="badge bk">BK</div><div><div class="title">Booking Created</div><div class="desc">Deep Home Cleaning · BK-2026-000418</div></div><div class="time">12m</div></div>
+          <div class="act"><div class="badge qt">QT</div><div><div class="title">Quotation Updated</div><div class="desc">Revision 2 issued · QT-2026-000221</div></div><div class="time">34m</div></div>
+          <div class="act"><div class="badge pay">PAY</div><div><div class="title">Payment Received</div><div class="desc">EVC Plus · PAY-2026-000774</div></div><div class="time">1h</div></div>
+          <div class="act"><div class="badge ord">ORD</div><div><div class="title">Order Placed</div><div class="desc">Cleaning kit · ORD-2026-001092</div></div><div class="time">2h</div></div>
+          <div class="act"><div class="badge ord">ORD</div><div><div class="title">Order Delivered</div><div class="desc">ORD-2026-001088 · Hodan</div></div><div class="time">3h</div></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-label">3 · Same panel — Sales &amp; Accountant (role-adapted sidebar)</div>
+  <div class="role-row">
+    <div>
+      <div class="shell compact" style="width:520px;">
+        <aside class="sidebar">
+          <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div></div>
+          <div class="nav-label">Sales</div>
+          <div class="nav-item active"><div class="ico">▦</div> Dashboard</div>
+          <div class="nav-item"><div class="ico">☺</div> Customers</div>
+          <div class="nav-item"><div class="ico">QT</div> Quotations</div>
+          <div class="nav-item"><div class="ico">ORD</div> Orders</div>
+          <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">SA</div><div><div class="n">Sara</div><div class="r">Sales</div></div></div></div>
+        </aside>
+        <div class="main">
+          <header class="topbar">
+            <div class="welcome"><h2>Welcome, Sara</h2><div class="role">Role: <strong>Sales</strong></div></div>
+          </header>
+          <div class="content">
+            <div class="purpose">Sales sees Customers, Quotations, and Orders only.</div>
+            <div class="kpis" style="grid-template-columns:1fr 1fr 1fr;">
+              <div class="kpi" title="Open Customers"><span class="go">›</span><div class="ico">CUS</div><div class="l">Customers</div><div class="v">1,284</div><div class="trend up">▲ +8 Today</div></div>
+              <div class="kpi teal" title="Quotations · Pending"><span class="go">›</span><div class="ico">QT</div><div class="l">Pending Quotes</div><div class="v">18</div><div class="trend down">▼ -3 Yesterday</div></div>
+              <div class="kpi" title="Open Orders"><span class="go">›</span><div class="ico">ORD</div><div class="l">Orders</div><div class="v">312</div><div class="trend up">▲ +5 Today</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="shell compact" style="width:520px;">
+        <aside class="sidebar">
+          <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div></div>
+          <div class="nav-label">Finance</div>
+          <div class="nav-item active"><div class="ico">▦</div> Dashboard</div>
+          <div class="nav-item"><div class="ico">$</div> Payments</div>
+          <div class="nav-item"><div class="ico">INV</div> Invoices</div>
+          <div class="nav-item"><div class="ico">RCP</div> Receipts</div>
+          <div class="nav-item"><div class="ico">ORD</div> Orders</div>
+          <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">HA</div><div><div class="n">Hassan</div><div class="r">Accountant</div></div></div></div>
+        </aside>
+        <div class="main">
+          <header class="topbar">
+            <div class="welcome"><h2>Welcome, Hassan</h2><div class="role">Role: <strong>Accountant</strong></div></div>
+          </header>
+          <div class="content">
+            <div class="purpose">Accountant sees Payments, Invoices, Receipts, and Orders.</div>
+            <div class="kpis" style="grid-template-columns:1fr 1fr;">
+              <div class="kpi teal" title="Reports → Revenue"><span class="go">›</span><div class="ico">$</div><div class="l">Revenue MTD</div><div class="v">$48.2k</div><div class="trend up">▲ +8% vs Last Month</div></div>
+              <div class="kpi" title="Open Payments"><span class="go">›</span><div class="ico">PAY</div><div class="l">Payments</div><div class="v">867</div><div class="trend up">▲ +12% vs Last Month</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

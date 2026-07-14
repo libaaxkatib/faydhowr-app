@@ -345,7 +345,36 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.5 `password_reset_tokens`
+### 3.1.5 `customer_notes` (Admin internal)
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `customer_notes` |
+| **Purpose** | Internal staff notes on a customer. **Never** exposed on customer mobile APIs. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `customer_id` → `customers.id`, `admin_id` → `admins.id` |
+| **Relationships** | N:1 → `customers`, N:1 → `admins` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `customer_id` | BIGINT UNSIGNED | R | FK |
+| `admin_id` | BIGINT UNSIGNED | R | Author (Admin / Sales / Accountant operator) |
+| `body` | TEXT | R | Note content |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
+
+#### Validation Rules
+
+- Visible only in Admin Panel customer profile context.
+- Customers never see these notes.
+- Does not rewrite commercial history or timeline events.
+
+---
+
+### 3.1.6 `password_reset_tokens`
 
 | Attribute | Detail |
 | --- | --- |
@@ -383,7 +412,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.6 `admins`
+### 3.1.7 `admins`
 
 | Attribute | Detail |
 | --- | --- |
@@ -423,12 +452,12 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.7 `roles`
+### 3.1.8 `roles`
 
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `roles` |
-| **Purpose** | Admin RBAC roles (Super, Operations, Catalog, Finance, Support). |
+| **Purpose** | Admin RBAC roles. Approved system roles only: **Admin**, **Sales**, **Accountant**. |
 | **Primary Key** | `id` |
 
 #### Columns
@@ -448,7 +477,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.8 `permissions`
+### 3.1.9 `permissions`
 
 | Attribute | Detail |
 | --- | --- |
@@ -469,7 +498,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.9 `admin_role` (pivot)
+### 3.1.10 `admin_role` (pivot)
 
 | Attribute | Detail |
 | --- | --- |
@@ -488,7 +517,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.10 `role_permission` (pivot)
+### 3.1.11 `role_permission` (pivot)
 
 | Attribute | Detail |
 | --- | --- |
@@ -1540,7 +1569,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 | Parent | Children | Description |
 | --- | --- | --- |
-| `customers` | `customer_addresses`, `customer_payment_methods`, `customer_devices`, `carts`, `bookings`, `quotation_requests`, `orders`, `payments`, `notifications`, `reviews` | Customer owns transactional and profile data |
+| `customers` | `customer_addresses`, `customer_payment_methods`, `customer_devices`, `customer_notes`, `carts`, `bookings`, `quotation_requests`, `orders`, `payments`, `notifications`, `reviews` | Customer owns transactional and profile data |
 | `service_categories` | `services` | Category catalog |
 | `services` | `service_media`, `service_blackout_dates`, `bookings`, `quotation_requests` | Service definition and usage |
 | `product_categories` | `products` | Store taxonomy |

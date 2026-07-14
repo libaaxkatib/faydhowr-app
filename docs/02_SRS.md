@@ -129,11 +129,11 @@ Exact numeric targets shall be defined by product leadership after baseline anal
 
 | Persona | Description | Primary Goals |
 | --- | --- | --- |
-| **Operations Admin** | Manages bookings, quotes, orders | Fulfill requests, update statuses |
-| **Catalog Admin** | Manages products and services | Keep catalog accurate and available |
-| **Finance / Payment Operator** | Reviews payments and refunds | Reconcile transactions, handle exceptions |
-| **Support Agent** | Assists customers | View customer history and resolve issues |
-| **System Administrator** | Configures system settings | Roles, payment config, notification templates |
+| **Admin** | Full operational and configuration control of the Admin Panel (combines former Super Admin + Manager scope) | Executive oversight, all modules, settings, audit |
+| **Sales** | Commerce-facing Admin Panel operator | Customers, quotations, orders |
+| **Accountant** | Finance-facing Admin Panel operator | Payments, invoices, receipts, orders |
+
+Admin users share **one Admin Login** and **one Admin Panel**. Role is detected after authentication; the sidebar, dashboard visibility, and actions adapt automatically.
 
 ### 3.3 User Characteristics
 
@@ -152,11 +152,20 @@ Exact numeric targets shall be defined by product leadership after baseline anal
 | --- | --- | --- |
 | **Guest** | Mobile | Limited browse of public catalog/content (if enabled); cannot transact |
 | **Customer** | Mobile | Full customer features after authentication |
-| **Admin (Super)** | Admin Panel | Full administrative control |
-| **Admin (Operations)** | Admin Panel | Bookings, quotations, orders, status updates |
-| **Admin (Catalog)** | Admin Panel | Products, services, categories, media, pricing |
-| **Admin (Finance)** | Admin Panel | Payments, refunds, settlement views |
-| **Admin (Support)** | Admin Panel | Read customer profiles/history; limited status actions as permitted |
+| **Admin** | Admin Panel | Access to **all** approved admin modules; Executive Dashboard |
+| **Sales** | Admin Panel | Customers, Quotations, Orders (and Dashboard) |
+| **Accountant** | Admin Panel | Payments, Invoices, Receipts, Orders (and Dashboard); internal customer notes when profile is in context |
+
+> Admin Panel roles are exactly these three: **Admin**, **Sales**, **Accountant**. Do **not** invent additional admin roles. There is no Staff Management module in v1.
+
+### 4.1A Admin Panel Authentication & RBAC
+
+- **One Admin Login** page only — no separate login pages per role.
+- **One Admin Panel** application — no separate dashboards per role.
+- After authentication, the system detects the admin user’s role and loads the permitted **dashboard**, **sidebar**, **statistics**, and **actions**.
+- Header displays **Welcome, {User Name}** and **Role: {Role Name}**.
+- Permissions are role-based (least privilege).
+- The Admin Dashboard is an **Executive Dashboard**: overall business health without opening individual modules.
 
 ### 4.2 Authentication & Authorization Principles
 
@@ -283,13 +292,15 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-080 | Admins shall manage products, services, categories, pricing, and availability. | Must |
-| FR-081 | Admins shall manage bookings and update booking statuses. | Must |
-| FR-082 | Admins shall review quotation requests and issue/revise quotations. | Must |
-| FR-083 | Admins shall manage store orders and fulfillment statuses. | Must |
-| FR-084 | Admins shall manage customers (view profile/history; suspend if policy requires). | Must |
-| FR-085 | Admins shall configure notification templates and operational settings. | Should |
-| FR-086 | Admins shall access payment/refund views for reconciliation. | Must |
+| FR-080 | Admins shall manage products, services, categories, pricing, and availability (subject to role — **Admin**). | Must |
+| FR-081 | Admins shall manage bookings and update booking statuses (**Admin**). | Must |
+| FR-082 | Admins shall review quotation requests and issue/revise quotations (**Admin**, **Sales**). | Must |
+| FR-083 | Admins shall manage store orders and fulfillment statuses (**Admin**, **Sales**, **Accountant** as permitted). | Must |
+| FR-084 | Admins shall manage customers (list/search/filter with default **Active Customers**; view profile, Member Since, business summary including **Total Spent**, timeline with icons, linked records; internal staff notes with name/role/date/time audit; set Inactive / suspend per policy). Customer Number is auto-generated and read-only. Classification is **Lead** vs **Active Customer** (no VIP). Customer records are never permanently deleted. | Must |
+| FR-085 | Admins shall configure notification templates and operational settings (**Admin**). | Should |
+| FR-086 | Admins shall access payment/refund views for reconciliation (**Admin**, **Accountant**). | Must |
+| FR-087 | The Admin Panel shall use **one login** and **one panel**; after sign-in the system loads role-based dashboard, sidebar, and permissions for **Admin**, **Sales**, or **Accountant** only. | Must |
+| FR-088 | The Admin Dashboard shall provide an executive view: KPI overview (interactive shortcuts with trend indicators), business monitoring (filtered module links), customer service metrics (clickable queues), revenue analytics (report drill-downs), and live activity — without staff-performance analytics (no Staff Management in v1). | Must |
 
 ---
 
@@ -777,14 +788,14 @@ The Admin Panel is the operational control plane for Fayadhowr. It is **not** pa
 
 | Domain | Responsibilities |
 | --- | --- |
-| **Dashboard** | Operational snapshot: open bookings, pending quotes, unpaid orders, recent payments |
+| **Dashboard** | Executive snapshot: KPIs, business monitoring, customer service metrics, revenue analytics, live activity |
 | **Catalog — Services** | Create/edit services, pricing model, media, schedule rules, visibility |
 | **Catalog — Store** | Create/edit products, stock, categories, visibility, pricing |
 | **Bookings** | List/filter bookings, assign, update status, add internal notes |
 | **Quotations** | Review requests, issue/revise quotes, set validity and terms |
 | **Orders** | Fulfill store orders, update shipping/pickup status |
 | **Payments** | View transactions, initiate refunds, reconcile exceptions |
-| **Customers** | Search customers, view history, suspend/reinstate per policy |
+| **Customers** | Search/filter customers; view profile, business summary, timeline, linked records; internal staff notes; Inactive/suspend per policy — never permanent delete |
 | **Notifications** | Templates, manual broadcast (optional), delivery diagnostics |
 | **Settings** | Business info, currency, payment provider config, roles/permissions |
 | **Audit / Logs** | Sensitive action history for accountability |
@@ -798,10 +809,40 @@ The Admin Panel is the operational control plane for Fayadhowr. It is **not** pa
 
 ### 14.4 Admin Security Requirements
 
-- Strong authentication for admin users.
-- RBAC with least privilege.
+- Strong authentication for admin users via **one shared Admin Login**.
+- RBAC with least privilege using only: **Admin**, **Sales**, **Accountant**.
+- Role-based **sidebar**, **dashboard statistics**, and **actions** after login.
 - Session timeout and access logging.
 - Separation between production configuration and routine operations where feasible.
+
+### 14.5 Role Access Matrix (Foundation)
+
+| Module / Area | Admin | Sales | Accountant |
+| --- | --- | --- | --- |
+| Executive Dashboard | Yes (full) | Yes (scoped) | Yes (scoped) |
+| Customers | Yes | Yes | No |
+| Bookings | Yes | No | No |
+| Quotations | Yes | Yes | No |
+| Orders | Yes | Yes | Yes |
+| Payments | Yes | No | Yes |
+| Invoices | Yes | No | Yes |
+| Receipts | Yes | No | Yes |
+| Reports | Yes | No | No |
+| Services (Catalog) | Yes | No | No |
+| Store (Catalog) | Yes | No | No |
+| Notifications | Yes | No | No |
+| Settings | Yes | No | No |
+| Audit / Logs | Yes | No | No |
+
+### 14.6 Executive Dashboard Contents
+
+- **Overview KPIs:** Total Customers, Active Bookings, Pending Quotations, Orders, Payments, Revenue — each card is clickable and navigates to its module/report; each shows a compact green/red trend indicator  
+- **Business monitoring:** Pending / In Progress / Completed Today / Delayed Bookings; Pending / Under Discussion / Accepted / Expired Quotations — each widget opens the filtered module  
+- **Customer service:** Unanswered discussions, replies waiting, open requests, new customers today — each metric is clickable  
+- **Revenue analytics:** Today / Weekly / Monthly; Services vs Store revenue — drill-down to Daily / Weekly / Monthly / Service / Store reports  
+- **Recent activity:** Booking Created, Quotation Updated, Payment Received, Order Placed, Order Delivered  
+
+**Excluded (v1):** Staff Performance, Staff on Duty, Jobs Assigned, Team Workload — Staff Management is out of scope; assignments are handled manually outside the system.
 
 ---
 

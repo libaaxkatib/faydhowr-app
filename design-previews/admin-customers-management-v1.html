@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fayadhowr — Admin Customers Management V1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #0E339D; --teal: #0694AC; --bg: #F4F7FB; --surface: #FFF;
+      --text: #1F2937; --muted: #6B7280; --border: #E5E7EB;
+      --shadow: 0 8px 24px rgba(15,23,42,.06); --radius: 16px;
+      --sidebar-w: 248px; --ok: #059669; --danger: #DC2626; --warn: #D97706;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif; color: var(--text);
+      background: linear-gradient(165deg, #DCE6F8 0%, #E8F4F7 45%, #EEF2F7 100%);
+      padding: 32px 24px 72px;
+    }
+    .board-title { max-width: 1480px; margin: 0 auto 24px; }
+    .board-title h1 { font-size: 28px; font-weight: 700; letter-spacing: -.03em; color: var(--primary); }
+    .board-title p { margin-top: 8px; font-size: 14px; color: var(--muted); max-width: 920px; line-height: 1.5; }
+    .flow-label {
+      font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--primary); margin: 40px auto 14px; max-width: 1480px;
+    }
+
+    .shell {
+      max-width: 1480px; margin: 0 auto; min-height: 920px;
+      display: grid; grid-template-columns: var(--sidebar-w) 1fr;
+      background: var(--bg); border-radius: 24px; overflow: hidden;
+      box-shadow: 0 32px 64px rgba(14,51,157,.12); border: 1px solid rgba(14,51,157,.08);
+    }
+    .sidebar {
+      background: linear-gradient(180deg, #0A2778 0%, #0E339D 55%, #0C4A6E 140%);
+      color: #fff; padding: 24px 14px; display: flex; flex-direction: column; gap: 2px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; padding: 4px 10px 20px; }
+    .brand-mark {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: linear-gradient(135deg, #0694AC, #38BDF8);
+      display: grid; place-items: center; font-weight: 800; font-size: 14px;
+    }
+    .brand-text .name { font-size: 15px; font-weight: 700; }
+    .brand-text .sub { font-size: 11px; opacity: .7; margin-top: 2px; }
+    .nav-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+      opacity: .5; padding: 14px 12px 6px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
+      font-size: 13px; font-weight: 600; color: rgba(255,255,255,.8);
+    }
+    .nav-item .ico {
+      width: 30px; height: 30px; border-radius: 9px; background: rgba(255,255,255,.1);
+      display: grid; place-items: center; font-size: 11px; flex-shrink: 0;
+    }
+    .nav-item.active { background: rgba(255,255,255,.14); color: #fff; }
+    .nav-item.active .ico { background: var(--teal); }
+    .sidebar-foot { margin-top: auto; padding: 14px 8px 4px; border-top: 1px solid rgba(255,255,255,.12); }
+    .admin-chip {
+      display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px;
+      background: rgba(255,255,255,.08);
+    }
+    .admin-av {
+      width: 36px; height: 36px; border-radius: 10px; background: var(--teal);
+      display: grid; place-items: center; font-size: 12px; font-weight: 800;
+    }
+    .admin-chip .n { font-size: 13px; font-weight: 700; }
+    .admin-chip .r { font-size: 11px; opacity: .7; margin-top: 2px; }
+
+    .main { display: flex; flex-direction: column; min-width: 0; }
+    .topbar {
+      min-height: 72px; background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .topbar h2 { font-size: 18px; font-weight: 700; letter-spacing: -.02em; }
+    .crumb { font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .icon-btn {
+      width: 42px; height: 42px; border-radius: 12px; background: var(--bg);
+      border: 1px solid var(--border); display: grid; place-items: center; color: var(--primary); font-weight: 700;
+    }
+    .content { padding: 20px 24px 28px; display: flex; flex-direction: column; gap: 16px; }
+
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px 16px; box-shadow: var(--shadow);
+    }
+    .search {
+      flex: 1; min-width: 240px; height: 44px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 12px; display: flex; align-items: center; gap: 8px; padding: 0 14px;
+      font-size: 13px; color: var(--muted);
+    }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: #fff; font-size: 12px; font-weight: 600; color: var(--text);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .chip.on { background: rgba(14,51,157,.08); border-color: rgba(14,51,157,.3); color: var(--primary); }
+    .btn {
+      height: 44px; padding: 0 16px; border-radius: 12px; font-size: 13px; font-weight: 700;
+      display: inline-flex; align-items: center; gap: 8px; border: none; cursor: pointer;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0E339D, #1246C4); color: #fff;
+      box-shadow: 0 8px 18px rgba(14,51,157,.28);
+    }
+    .btn-secondary { background: #fff; color: var(--primary); border: 1.5px solid var(--primary); }
+    .btn-ghost { background: rgba(14,51,157,.06); color: var(--primary); }
+    .btn-sm { height: 34px; padding: 0 12px; font-size: 12px; border-radius: 10px; }
+
+    .panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden;
+    }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 980px; }
+    th {
+      text-align: left; font-size: 11px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .04em;
+      padding: 14px 16px; background: #F8FAFC; border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 14px 16px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(14,51,157,.03); }
+    .cus {
+      font-size: 12px; font-weight: 700; color: var(--primary);
+      background: rgba(14,51,157,.08); padding: 3px 8px; border-radius: 6px;
+    }
+    .name { font-weight: 700; }
+    .muted { color: var(--muted); }
+    .pill {
+      display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
+      border-radius: 999px; font-size: 11px; font-weight: 700;
+    }
+    .pill.active { background: rgba(5,150,105,.12); color: var(--ok); }
+    .pill.inactive { background: #F3F4F6; color: var(--muted); }
+    .pill.biz {
+      background: linear-gradient(135deg, rgba(14,51,157,.12), rgba(6,148,172,.12));
+      color: var(--primary);
+    }
+    .pill.lead { background: rgba(217,119,6,.12); color: var(--warn); }
+    .member-badge {
+      display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px;
+      margin-top: 10px; padding: 8px 12px; border-radius: 12px;
+      background: rgba(14,51,157,.06); border: 1px solid rgba(14,51,157,.12);
+    }
+    .member-badge .l {
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .04em;
+    }
+    .member-badge .v { font-size: 13px; font-weight: 700; color: var(--primary); }
+
+    .tl .t { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .tl .ico-ev {
+      width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+      display: grid; place-items: center; font-size: 13px;
+      background: rgba(14,51,157,.08);
+    }
+    .table-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted);
+    }
+    .pager { display: flex; gap: 6px; }
+    .page {
+      width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+      display: grid; place-items: center; font-weight: 700; font-size: 12px; background: #fff;
+    }
+    .page.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    .note-bar {
+      font-size: 12px; color: var(--muted); line-height: 1.45;
+      background: rgba(6,148,172,.06); border: 1px solid rgba(6,148,172,.18);
+      border-radius: 12px; padding: 12px 14px;
+    }
+
+    /* Profile */
+    .profile-head {
+      display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px; box-shadow: var(--shadow);
+    }
+    .avatar {
+      width: 88px; height: 88px; border-radius: 24px;
+      background: linear-gradient(145deg, #0E339D, #0694AC);
+      display: grid; place-items: center; color: #fff; font-size: 28px; font-weight: 800;
+      box-shadow: 0 12px 24px rgba(14,51,157,.25);
+    }
+    .ph-name { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+    .ph-cus { margin-top: 6px; display: inline-flex; }
+    .ph-meta {
+      display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 12px;
+      font-size: 13px; color: var(--muted);
+    }
+    .ph-meta strong { color: var(--text); font-weight: 600; }
+    .ph-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+
+    .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+    .kpi {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; box-shadow: var(--shadow); cursor: pointer;
+      transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+    }
+    .kpi:hover {
+      border-color: rgba(14,51,157,.35); box-shadow: 0 12px 28px rgba(14,51,157,.12);
+      transform: translateY(-2px);
+    }
+    .kpi .l { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .kpi .v { font-size: 28px; font-weight: 800; color: var(--primary); margin-top: 6px; letter-spacing: -.03em; }
+    .kpi.teal .v { color: var(--teal); }
+    .kpi .h { font-size: 11px; color: var(--muted); margin-top: 6px; font-weight: 600; }
+
+    .split { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; align-items: start; }
+    .section-h {
+      display: flex; align-items: baseline; justify-content: space-between;
+      padding: 16px 18px 0; margin-bottom: 4px;
+    }
+    .section-h h3 { font-size: 14px; font-weight: 700; }
+    .section-h span { font-size: 11px; color: var(--muted); }
+
+    .timeline { padding: 8px 18px 18px; }
+    .tl {
+      display: grid; grid-template-columns: 16px 1fr; gap: 12px;
+      padding: 12px 0; position: relative;
+    }
+    .tl::before {
+      content: ""; position: absolute; left: 7px; top: 28px; bottom: -4px;
+      width: 2px; background: var(--border);
+    }
+    .tl:last-child::before { display: none; }
+    .dot {
+      width: 16px; height: 16px; border-radius: 50%; margin-top: 2px;
+      background: var(--primary); box-shadow: 0 0 0 4px rgba(14,51,157,.12);
+    }
+    .dot.teal { background: var(--teal); box-shadow: 0 0 0 4px rgba(6,148,172,.15); }
+    .dot.ok { background: var(--ok); box-shadow: 0 0 0 4px rgba(5,150,105,.15); }
+    .tl .d { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+    .tl .when { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 4px; }
+    .tl .ref {
+      display: inline-block; margin-top: 6px; font-size: 10px; font-weight: 700; color: var(--primary);
+      background: rgba(14,51,157,.08); padding: 2px 8px; border-radius: 6px;
+    }
+
+    .links { padding: 8px 18px 18px; display: flex; flex-direction: column; gap: 8px; }
+    .link-row {
+      display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+      border: 1px solid var(--border); border-radius: 12px; background: linear-gradient(135deg, rgba(14,51,157,.03), #fff 60%);
+      cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    .link-row:hover { border-color: rgba(14,51,157,.35); box-shadow: 0 8px 18px rgba(14,51,157,.08); }
+    .link-row .ico {
+      width: 40px; height: 40px; border-radius: 12px; color: #fff; font-size: 11px; font-weight: 800;
+      display: grid; place-items: center; background: linear-gradient(135deg, #0E339D, #0694AC);
+    }
+    .link-row .t { font-size: 14px; font-weight: 700; }
+    .link-row .s { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .link-row .chev { margin-left: auto; color: var(--muted); font-weight: 700; }
+
+    .notes { padding: 8px 18px 18px; }
+    .note-item {
+      border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px;
+      background: #FFFBEF;
+    }
+    .note-audit {
+      display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px;
+    }
+    .note-av {
+      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+      background: linear-gradient(135deg, #0E339D, #0694AC);
+      color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center;
+    }
+    .note-who .name { font-size: 13px; font-weight: 700; }
+    .note-who .role { font-size: 11px; font-weight: 600; color: var(--primary); margin-top: 1px; }
+    .note-who .when { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+    .note-item .body { font-size: 13px; line-height: 1.45; }
+    .staff-only {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 700; color: var(--warn);
+      background: rgba(217,119,6,.12); padding: 2px 8px; border-radius: 6px;
+    }
+    .compose {
+      border: 1px dashed rgba(14,51,157,.3); border-radius: 12px; padding: 12px;
+      background: rgba(14,51,157,.02);
+    }
+    .compose textarea {
+      width: 100%; min-height: 72px; border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 12px; font: inherit; font-size: 13px; color: var(--muted); resize: none;
+      background: #fff;
+    }
+    .compose .row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 10px; }
+
+    .back {
+      height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: #fff; font-size: 12px; font-weight: 700; color: var(--primary);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+
+    @media (max-width: 1100px) {
+      .kpis { grid-template-columns: 1fr 1fr; }
+      .split { grid-template-columns: 1fr; }
+      .profile-head { grid-template-columns: 1fr; }
+      .ph-actions { align-items: flex-start; flex-direction: row; }
+    }
+  </style>
+</head>
+<body>
+  <div class="board-title">
+    <h1>Customers Management Module — V1</h1>
+    <p>
+      List defaults to <strong>Active Customers</strong> · Lead vs Active Customer classification ·
+      Member Since · Total Spent · timeline icons · notes audit (name, role, date, time).
+      No VIP · No delete · Layout unchanged from approved structure.
+    </p>
+  </div>
+
+  <!-- SCREEN 1 LIST -->
+  <div class="flow-label">1 · Customers List</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">FD</div>
+        <div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div>
+      </div>
+      <div class="nav-label">Overview</div>
+      <div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item active"><div class="ico">☺</div> Customers</div>
+      <div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div>
+      <div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div>
+      <div class="nav-item"><div class="ico">INV</div> Invoices</div>
+      <div class="nav-item"><div class="ico">RCP</div> Receipts</div>
+      <div class="nav-item"><div class="ico">▤</div> Reports</div>
+      <div class="nav-label">Catalog</div>
+      <div class="nav-item"><div class="ico">✦</div> Services</div>
+      <div class="nav-item"><div class="ico">▦</div> Store</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item"><div class="ico">bell</div> Notifications</div>
+      <div class="nav-item"><div class="ico">⚙</div> Settings</div>
+      <div class="nav-item"><div class="ico">⌘</div> Audit / Logs</div>
+      <div class="sidebar-foot">
+        <div class="admin-chip">
+          <div class="admin-av">AS</div>
+          <div><div class="n">Asad</div><div class="r">Admin</div></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <h2>Customers</h2>
+          <div class="crumb">Registered customers · Never permanently deleted</div>
+        </div>
+        <div class="top-actions">
+          <div class="icon-btn">🔔</div>
+          <div class="icon-btn">⎋</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="note-bar">
+          Default view: <strong>⭐ Active Customers</strong> (at least one booking, quotation, or order).
+          Use filters for Leads, All, account Active/Inactive. No delete. CUS is automatic and read-only.
+        </div>
+
+        <div class="toolbar">
+          <div class="search"><span>⌕</span> Search by name, CUS number, phone, or email…</div>
+          <div class="filters">
+            <div class="chip on">⭐ Active Customers</div>
+            <div class="chip">Leads (Registered Only)</div>
+            <div class="chip">All Customers</div>
+            <div class="chip">Active</div>
+            <div class="chip">Inactive</div>
+            <div class="chip">Advanced Filters</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Customer Number</th>
+                  <th>Full Name</th>
+                  <th>Classification</th>
+                  <th>Phone Number</th>
+                  <th>Email</th>
+                  <th>Registration Date</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="cus">CUS-2026-000001</span></td>
+                  <td class="name">Amina Hassan</td>
+                  <td><span class="pill biz">Active Customer</span></td>
+                  <td>+252 61 234 5678</td>
+                  <td class="muted">amina@email.com</td>
+                  <td>12 Jan 2026</td>
+                  <td><span class="pill active">Active</span></td>
+                  <td><div class="btn btn-ghost btn-sm">View Profile</div></td>
+                </tr>
+                <tr>
+                  <td><span class="cus">CUS-2026-000048</span></td>
+                  <td class="name">Omar Ali</td>
+                  <td><span class="pill biz">Active Customer</span></td>
+                  <td>+252 61 555 0199</td>
+                  <td class="muted">omar.ali@email.com</td>
+                  <td>03 Feb 2026</td>
+                  <td><span class="pill active">Active</span></td>
+                  <td><div class="btn btn-ghost btn-sm">View Profile</div></td>
+                </tr>
+                <tr>
+                  <td><span class="cus">CUS-2026-000112</span></td>
+                  <td class="name">Hodan Yusuf</td>
+                  <td><span class="pill biz">Active Customer</span></td>
+                  <td>+252 65 221 0088</td>
+                  <td class="muted">hodan@email.com</td>
+                  <td>18 Mar 2026</td>
+                  <td><span class="pill active">Active</span></td>
+                  <td><div class="btn btn-ghost btn-sm">View Profile</div></td>
+                </tr>
+                <tr>
+                  <td><span class="cus">CUS-2026-000201</span></td>
+                  <td class="name">Fartun Mohamed</td>
+                  <td><span class="pill biz">Active Customer</span></td>
+                  <td>+252 61 333 4455</td>
+                  <td class="muted">fartun@email.com</td>
+                  <td>01 Apr 2026</td>
+                  <td><span class="pill active">Active</span></td>
+                  <td><div class="btn btn-ghost btn-sm">View Profile</div></td>
+                </tr>
+                <tr>
+                  <td><span class="cus">CUS-2026-000266</span></td>
+                  <td class="name">Suleiman Warsame</td>
+                  <td><span class="pill biz">Active Customer</span></td>
+                  <td>+252 63 118 7722</td>
+                  <td class="muted">suleiman@email.com</td>
+                  <td>15 May 2026</td>
+                  <td><span class="pill active">Active</span></td>
+                  <td><div class="btn btn-ghost btn-sm">View Profile</div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-foot">
+            <span>Showing Active Customers · 1–5 of 842</span>
+            <div class="pager">
+              <div class="page on">1</div>
+              <div class="page">2</div>
+              <div class="page">3</div>
+              <div class="page">›</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 2 PROFILE -->
+  <div class="flow-label">2 · Customer Profile</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">FD</div>
+        <div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div>
+      </div>
+      <div class="nav-label">Overview</div>
+      <div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item active"><div class="ico">☺</div> Customers</div>
+      <div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div>
+      <div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div>
+      <div class="sidebar-foot">
+        <div class="admin-chip">
+          <div class="admin-av">AS</div>
+          <div><div class="n">Asad</div><div class="r">Admin</div></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <div class="back">← Customers</div>
+          <h2 style="margin-top:8px;">Customer Profile</h2>
+          <div class="crumb">Identity · Summary · Timeline · Linked records · Staff notes</div>
+        </div>
+        <div class="top-actions">
+          <div class="btn btn-secondary btn-sm">Set Inactive</div>
+          <div class="icon-btn">🔔</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="profile-head">
+          <div class="avatar">AH</div>
+          <div>
+            <div class="ph-name">Amina Hassan</div>
+            <div class="ph-cus" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;">
+              <span class="cus">CUS-2026-000001 🔒</span>
+              <span class="pill biz">Active Customer</span>
+              <span class="pill active">Active</span>
+            </div>
+            <div class="member-badge">
+              <span class="l">Member Since</span>
+              <span class="v">12 Jan 2026</span>
+            </div>
+            <div class="ph-meta">
+              <span>Phone <strong>+252 61 234 5678</strong></span>
+              <span>Email <strong>amina@email.com</strong></span>
+              <span>Language <strong>English</strong></span>
+              <span>Registered <strong>12 Jan 2026</strong></span>
+            </div>
+          </div>
+          <div class="ph-actions">
+            <div class="staff-only">Staff view</div>
+            <div class="muted" style="font-size:11px;font-weight:600;">CUS is read-only</div>
+          </div>
+        </div>
+
+        <!-- Business Summary -->
+        <section>
+          <div class="section-h" style="padding:0;"><h3>Business Summary</h3><span>Opens filtered records for this customer</span></div>
+          <div class="kpis">
+            <div class="kpi" title="Bookings for this customer">
+              <div class="l">Total Bookings</div>
+              <div class="v">8</div>
+              <div class="h">→ Bookings</div>
+            </div>
+            <div class="kpi teal" title="Quotations for this customer">
+              <div class="l">Total Quotations</div>
+              <div class="v">3</div>
+              <div class="h">→ Quotations</div>
+            </div>
+            <div class="kpi" title="Orders for this customer">
+              <div class="l">Total Orders</div>
+              <div class="v">12</div>
+              <div class="h">→ Orders</div>
+            </div>
+            <div class="kpi teal" title="Payments for this customer">
+              <div class="l">Total Payments</div>
+              <div class="v">15</div>
+              <div class="h">→ Payments</div>
+            </div>
+            <div class="kpi" title="Completed payments total">
+              <div class="l">Total Spent</div>
+              <div class="v">$2,450</div>
+              <div class="h">Completed payments only</div>
+            </div>
+          </div>
+        </section>
+
+        <div class="split">
+          <!-- Timeline -->
+          <section class="panel">
+            <div class="section-h">
+              <h3>Customer Timeline</h3>
+              <span>Read-only audit history</span>
+            </div>
+            <div class="timeline">
+              <div class="tl">
+                <div class="dot ok"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">💳</span> Payment Received</div>
+                  <div class="d">EVC Plus · Booking payment successful</div>
+                  <div class="when">14 Jul 2026 · 10:22</div>
+                  <span class="ref">PAY-2026-000774</span>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">🛒</span> Order Placed</div>
+                  <div class="d">Cleaning kit + accessories</div>
+                  <div class="when">13 Jul 2026 · 16:05</div>
+                  <span class="ref">ORD-2026-001092</span>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot teal"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">✅</span> Quotation Accepted</div>
+                  <div class="d">Customer accepted latest revision</div>
+                  <div class="when">10 Jul 2026 · 11:40</div>
+                  <span class="ref">QT-2026-000221</span>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot teal"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">💬</span> Quotation Requested</div>
+                  <div class="d">Office deep clean request submitted</div>
+                  <div class="when">08 Jul 2026 · 09:12</div>
+                  <span class="ref">QT-2026-000221</span>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">📅</span> Booking Created</div>
+                  <div class="d">Deep Home Cleaning · Hodan</div>
+                  <div class="when">02 Jul 2026 · 14:18</div>
+                  <span class="ref">BK-2026-000418</span>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">👤</span> Customer Registered</div>
+                  <div class="d">Account created via phone + OTP · Lead until first business activity</div>
+                  <div class="when">12 Jan 2026 · 08:04</div>
+                  <span class="ref">CUS-2026-000001</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <!-- Linked Records -->
+            <section class="panel">
+              <div class="section-h">
+                <h3>Linked Records</h3>
+                <span>Filtered module shortcuts</span>
+              </div>
+              <div class="links">
+                <div class="link-row">
+                  <div class="ico">BK</div>
+                  <div><div class="t">Bookings</div><div class="s">8 records for this customer</div></div>
+                  <div class="chev">›</div>
+                </div>
+                <div class="link-row">
+                  <div class="ico">QT</div>
+                  <div><div class="t">Quotations</div><div class="s">3 records for this customer</div></div>
+                  <div class="chev">›</div>
+                </div>
+                <div class="link-row">
+                  <div class="ico">ORD</div>
+                  <div><div class="t">Orders</div><div class="s">12 records for this customer</div></div>
+                  <div class="chev">›</div>
+                </div>
+                <div class="link-row">
+                  <div class="ico">PAY</div>
+                  <div><div class="t">Payments</div><div class="s">15 records for this customer</div></div>
+                  <div class="chev">›</div>
+                </div>
+                <div class="link-row">
+                  <div class="ico">NTF</div>
+                  <div><div class="t">Notifications</div><div class="s">Customer notification history</div></div>
+                  <div class="chev">›</div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Notes -->
+            <section class="panel">
+              <div class="section-h">
+                <h3>Customer Notes</h3>
+                <span class="staff-only">Internal · Staff only</span>
+              </div>
+              <div class="notes">
+                <div class="note-item">
+                  <div class="note-audit">
+                    <div class="note-av">AS</div>
+                    <div class="note-who">
+                      <div class="name">Asad</div>
+                      <div class="role">Admin</div>
+                      <div class="when">14 Jul 2026 · 12:05</div>
+                    </div>
+                  </div>
+                  <div class="body">Preferred morning cleaning schedule.</div>
+                </div>
+                <div class="note-item">
+                  <div class="note-audit">
+                    <div class="note-av">SA</div>
+                    <div class="note-who">
+                      <div class="name">Sara</div>
+                      <div class="role">Sales</div>
+                      <div class="when">08 Jul 2026 · 09:30</div>
+                    </div>
+                  </div>
+                  <div class="body">Discussed office quotation scope — waiting on additional room photos.</div>
+                </div>
+                <div class="compose">
+                  <textarea placeholder="Add an internal note (visible to Admin, Sales, Accountant only)…"></textarea>
+                  <div class="row">
+                    <span class="muted" style="font-size:11px;font-weight:600;">Customers never see these notes · Audit trail records staff name, role, date &amp; time</span>
+                    <div class="btn btn-primary btn-sm">Save Note</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

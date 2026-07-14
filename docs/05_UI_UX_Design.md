@@ -1175,6 +1175,131 @@ Responsive changes adjust **layout density only**. They must not change:
 
 ---
 
+# 17. Admin Panel UI (Foundation)
+
+> The Admin Panel is **web / desktop-first** and separate from the customer mobile app (SRS §14). This section covers the approved **Dashboard Foundation** plus **role-based architecture**. Management modules are designed later.
+
+## 17.0 Admin Authentication & Roles
+
+| Rule | Specification |
+| --- | --- |
+| **Login** | **One** Admin Login page only (email + password). No per-role login pages. |
+| **Panel** | **One** Admin Panel application for all roles. |
+| **Roles** | **Admin** · **Sales** · **Accountant** only |
+| **After login** | System detects role and loads permitted dashboard, sidebar, statistics, and actions |
+| **Header** | `Welcome, {Name}` and `Role: {Role Name}` (e.g., Welcome, Asad · Role: Admin) |
+| **Purpose** | Executive Dashboard — business health at a glance |
+
+### Sidebar by role (approved modules only — no “Later” placeholders)
+
+| Role | Visible navigation |
+| --- | --- |
+| **Admin** | Dashboard, Customers, Bookings, Quotations, Orders, Payments, Invoices, Receipts, Reports, Services, Store, Notifications, Settings, Audit / Logs |
+| **Sales** | Dashboard, Customers, Quotations, Orders |
+| Accountant | Dashboard, Payments, Invoices, Receipts, Orders; may add/view **internal customer notes** when profile is opened from a linked finance record |
+
+## 17.1 Desktop Shell
+
+| Region | Specification |
+| --- | --- |
+| **Left Sidebar** | Brand; **role-adapted** approved modules only |
+| **Top Navigation** | Welcome + Role; search; notifications; session |
+| **Main Area** | Executive Dashboard content |
+
+## 17.2 Dashboard Overview (KPI Cards)
+
+Total Customers · Active Bookings · Pending Quotations · Orders · Payments · Revenue
+
+Each KPI card is a **navigation shortcut** (hover + click states):
+
+| KPI | Opens |
+| --- | --- |
+| Total Customers | Customers Module |
+| Active Bookings | Bookings Module |
+| Pending Quotations | Quotations Module (Pending filter) |
+| Orders | Orders Module |
+| Payments | Payments Module |
+| Revenue | Reports → Revenue |
+
+Every KPI shows a compact **trend indicator** (green ▲ positive / red ▼ negative), e.g. `▲ +8 Today`, `▲ +12% vs Last Month`, `▼ -3 Yesterday`.
+
+## 17.3 Business Monitoring
+
+Widgets/charts for: Pending Bookings, In Progress Bookings, Completed Today, Delayed Bookings, Pending Quotations, Under Discussion Quotations, Accepted Quotations, Expired Quotations.
+
+Each widget opens the related **filtered** module (hover + click), e.g. Delayed Bookings → Bookings (Delayed); Under Discussion → Quotations (Under Discussion).
+
+## 17.4 Customer Service Monitoring
+
+Unanswered Customer Discussions · Customer Replies Waiting · Open Customer Requests · New Customers Today
+
+All metrics are clickable (e.g. Unanswered Discussions → Discussion Module · Unanswered; New Customers Today → Customers · today’s registrations).
+
+## 17.5 Revenue Analytics
+
+Today’s · Weekly · Monthly revenue; Services Revenue vs Store Revenue (clean charts).
+
+Drill-down: Today → Daily Revenue Report; Weekly → Weekly Report; Monthly → Monthly Report; Services / Store segments → respective revenue reports.
+
+## 17.6 Recent Activity
+
+Live feed examples: Booking Created, Quotation Updated, Payment Received, Order Placed, Order Delivered.
+
+## 17.7 Explicit Exclusions (v1)
+
+Do **not** show Staff Performance, Staff on Duty, Jobs Assigned, or Team Workload. Staff Management is not in v1.
+
+## 17.8 Out of Scope for This Foundation
+
+Detailed management UIs for Bookings, Quotations, Orders, Payments, Invoices, Receipts, Catalog, Settings — designed separately.
+
+---
+
+# 18. Admin Customers Management Module
+
+Desktop-first Admin Panel module. Accessible to **Admin** and **Sales** (list/profile). **Accountant** may add/view internal notes when on the profile context. Customers never see staff notes.
+
+## 18.1 Customers List
+
+| Element | Specification |
+| --- | --- |
+| **Purpose** | Browse registered customers; prioritize business activity |
+| **Default filter** | ⭐ **Active Customers** (at least one Booking **or** Quotation **or** Order) |
+| **Filters** | Active Customers · Leads (Registered Only) · All Customers · Active · Inactive · Advanced Filters |
+| **Search** | Name, CUS number, phone, email |
+| **Columns** | Customer Number (`CUS-…`, auto-generated, read-only), Full Name, **Classification** (Lead / Active Customer), Phone, Email, Registration Date, Status (Active / Inactive) |
+| **Row action** | **View Profile** only |
+| **Forbidden** | Permanent delete · VIP status |
+
+### Classification (computed, no VIP)
+
+| Classification | Rule |
+| --- | --- |
+| **Lead** | Account registered only — Bookings = 0 **and** Quotations = 0 **and** Orders = 0 |
+| **Active Customer** | At least one Booking **or** Quotation **or** Order completed/created |
+
+Every successful registration is a Customer with an automatic unique `CUS-…` number. Classification is business prioritization only — leads remain in the system.
+
+## 18.2 Customer Profile
+
+| Block | Content |
+| --- | --- |
+| **Identity** | Profile photo, Customer Number (read-only), Full Name, Phone, Email, Preferred Language, Registration Date, Current Status, Classification, **Member Since** badge (registration date) |
+| **Business Summary** | Clickable cards: Total Bookings, Total Quotations, Total Orders, Total Payments, **Total Spent** (sum of completed/successful payments only) |
+| **Timeline** | Read-only chronological audit with category icons (e.g. 👤 Registered, 📅 Booking, 💬 Quotation Requested, ✅ Accepted, 🛒 Order, 💳 Payment) |
+| **Linked Records** | Shortcuts: Bookings, Quotations, Orders, Payments, Notifications (customer-filtered) |
+| **Customer Notes** | Internal notes with full audit: **Staff Name**, **Staff Role**, **Date**, **Time**, then body. Admin / Sales / Accountant. **Never** visible to customers |
+
+## 18.3 Business Rules
+
+- Customer records are never permanently deleted (Inactive / suspend / deactivate per policy).
+- Customer Number (`CUS-YYYY-######`) is auto-generated and read-only.
+- Related commercial records remain linked to the customer.
+- Timeline is read-only audit history.
+- No VIP tier.
+
+---
+
 ## Traceability
 
 | UI/UX area | Source documents |
