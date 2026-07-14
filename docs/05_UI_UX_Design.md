@@ -1251,7 +1251,7 @@ Do **not** show Staff Performance, Staff on Duty, Jobs Assigned, or Team Workloa
 
 ## 17.8 Out of Scope for This Foundation
 
-Detailed management UIs for Bookings, Quotations, Orders, Payments, Invoices, Receipts, Catalog, Settings — designed separately.
+Detailed management UIs for Quotations, Orders, Payments, Invoices, Receipts, Catalog, Settings — designed separately.
 
 ---
 
@@ -1297,6 +1297,58 @@ Every successful registration is a Customer with an automatic unique `CUS-…` n
 - Related commercial records remain linked to the customer.
 - Timeline is read-only audit history.
 - No VIP tier.
+
+---
+
+# 19. Admin Bookings Management Module
+
+Desktop-first. Primary access: **Admin**. Linked modules for Sales/Accountant via Related Records. No Staff Management.
+
+## 19.1 Bookings List
+
+| Element | Specification |
+| --- | --- |
+| **Search** | Booking number, customer, service |
+| **Advanced filters** | Status, priority, service date, assigned to, etc. |
+| **Columns** | Booking Number (`BK-…`), Customer, Service, Booking Date (+ **booking age** e.g. Created 2 days ago / Waiting 5 days), Preferred Service Date, Status, **Priority** (High / Medium / Low, read-only badge), Assigned To (Manual), Last Updated |
+| **Row action** | **View Booking** only |
+| **Forbidden** | Permanent delete |
+
+### Booking statuses (Admin display — only; controlled dropdown)
+
+Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Cancelled  
+
+(`Rejected` is never used. No custom status values.)
+
+### Priority (read-only)
+
+High · Medium · Low — Fayadhowr color badges on list and details.
+
+## 19.2 Booking Details
+
+| Block | Content |
+| --- | --- |
+| **Header** | Booking Number (read-only), service title, status, **Priority** badge, **booking age**, customer/CUS, dates, **Assigned To** (manual informational name) |
+| **Status update** | Controlled dropdown limited to the eight approved statuses (no free-text) |
+| **Customer Information** | Name, phone, email, CUS |
+| **Service Details** | Service, pricing model, duration, linked quotation when applicable |
+| **Property Details** | Address / property snapshot |
+| **Media** | Uploaded images, videos, documents with **counters** e.g. Images (12), Videos (3), Documents (2) |
+| **Customer Notes** | Notes from the booking request (customer-origin) |
+| **Timeline** | Read-only audit; each event shows action, **actor** (e.g. By Sara (Sales) or System), date · time |
+| **Linked Records** | Customer Profile, Quotations, Orders, Payments, Notifications |
+| **Internal Notes** | Staff notes with Name, Role, Date, Time — Admin / Sales / Accountant; never customer-visible |
+
+## 19.3 Business Rules
+
+- Booking Number is read-only and auto-generated.
+- Booking records are never permanently deleted.
+- Every booking remains linked to its customer.
+- Timeline is read-only audit history (includes actor).
+- Status changes use the approved enum only.
+- Priority is read-only display (High / Medium / Low).
+- Manual assignment (`Assigned To`) is informational only — no Staff Management module in v1.
+- No Booking Value / Estimated Value on this module.
 
 ---
 

@@ -886,16 +886,17 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 | `customer_id` | BIGINT UNSIGNED | R | FK — **login required** |
 | `service_id` | BIGINT UNSIGNED | R | FK |
 | `quotation_id` | BIGINT UNSIGNED | O | When booking follows accepted quote |
-| `status` | VARCHAR(30) | R | See SRS booking statuses |
-| `scheduled_start_at` | TIMESTAMP | O | Requested/confirmed slot start |
+| `status` | VARCHAR(30) | R | Admin/customer operational statuses (see below) |
+| `priority` | VARCHAR(10) | R | Read-only operational badge: `high`, `medium`, `low` |
+| `scheduled_start_at` | TIMESTAMP | O | Preferred / confirmed service start |
 | `scheduled_end_at` | TIMESTAMP | O | |
 | `service_name_snapshot` | VARCHAR(200) | R | Immutable commercial snapshot |
 | `pricing_model_snapshot` | VARCHAR(30) | R | |
 | `quoted_or_base_amount` | DECIMAL(12,2) | O | Amount due context |
 | `currency` | CHAR(3) | R | |
-| `address_snapshot` | JSON/TEXT | O | Copied address |
-| `customer_notes` | TEXT | O | |
-| `admin_notes` | TEXT | O | Internal only |
+| `address_snapshot` | JSON/TEXT | O | Copied address / property details |
+| `customer_notes` | TEXT | O | Customer-visible request notes |
+| `assigned_to_name` | VARCHAR(150) | O | **Manual** informational assignee (v1 — no Staff Management module) |
 | `cancellation_reason` | VARCHAR(255) | O | |
 | `cancelled_at` | TIMESTAMP | O | |
 | `created_at` | TIMESTAMP | R | |
@@ -905,7 +906,10 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 
 - Unique `booking_number`
 - `customer_id` NOT NULL
-- Status in: `requested`, `confirmed`, `in_progress`, `awaiting_payment`, `paid`, `completed`, `cancelled`, `rejected`
+- Status in: `pending_review`, `quotation_ready`, `under_discussion`, `accepted`, `scheduled`, `in_progress`, `completed`, `cancelled`  
+  (Admin display labels: Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Cancelled)  
+  **Never** `rejected`. No custom status values. Status updates use a controlled dropdown only.
+- Priority in: `high`, `medium`, `low` (Admin badges: High · Medium · Low).
 
 #### Validation Rules
 
@@ -913,10 +917,36 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 - Service must be `is_active` and bookable under its pricing model rules.
 - Capacity / blackout / lead-time checks enforced before insert/update of schedule.
 - Customer cancel only when policy allows.
+- Booking records are never permanently deleted.
+- `assigned_to_name` is informational only (manual assignment outside the system).
 
 #### Notes
 
 - Draft status is client-side only and not persisted as a server booking (SRS §9.6).
+- Internal staff notes use `booking_notes` (not a single `admin_notes` blob) for audit (name/role/date/time).
+- Media attachments follow quotation/booking upload patterns (images, videos, documents).
+
+---
+
+### 3.4.1B `booking_notes` (Admin internal)
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `booking_notes` |
+| **Purpose** | Internal staff notes on a booking. Never visible to customers. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `booking_id` → `bookings.id`, `admin_id` → `admins.id` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `booking_id` | BIGINT UNSIGNED | R | FK |
+| `admin_id` | BIGINT UNSIGNED | R | Author |
+| `body` | TEXT | R | |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
 
 ---
 
@@ -942,9 +972,10 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 | `note` | VARCHAR(255) | O | |
 | `created_at` | TIMESTAMP | R | |
 
----
+#### Notes
 
-## 3.5 Quotation Management
+- Admin Booking Timeline is read-only and must show **who** performed each event (resolved actor name + role for admins, customer name, or **System**).
+- Prefer a general booking activity/timeline feed when events are broader than status-only (e.g. Images Uploaded, Payment Received); status transitions still land here.
 
 Supports:
 

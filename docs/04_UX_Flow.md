@@ -822,6 +822,35 @@ Account Tab
 
 ---
 
+# 14. Admin Bookings Management (Panel)
+
+## 14.1 Objective
+
+Operations staff review and manage all service bookings without permanently deleting records.
+
+## 14.2 Primary Path
+
+1. Admin opens **Bookings** from the sidebar.
+2. Searches / applies advanced filters (status, priority, service date, assigned to).
+3. Scans **Priority** badges and **booking age** (Created … / Waiting …) for aging work.
+4. Opens **View Booking** on a row.
+5. Reviews customer, service, property, media (**Images (n)**, **Videos (n)**, **Documents (n)**), customer notes.
+6. Updates status only via the **controlled status dropdown** (approved statuses only).
+7. Uses **Linked Records** for Customer Profile, Quotations, Orders, Payments, Notifications.
+8. Reads **Booking Timeline** (audit only — each event shows actor, e.g. By Sara (Sales) or System).
+9. Optionally adds an **Internal Note** (Admin / Sales / Accountant) — never customer-visible.
+10. **Assigned To** is displayed as informational manual assignment only (no Staff Management).
+
+## 14.3 Rules
+
+- Booking Number (`BK-…`) is read-only.
+- Priority is read-only: High · Medium · Low.
+- Statuses: Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Cancelled (never Rejected; no custom values).
+- No permanent delete; booking always remains linked to its customer.
+- No Booking Value / Estimated Value on this module.
+
+---
+
 ## Traceability Summary
 
 | UX area | SRS / Design alignment |

@@ -293,7 +293,7 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | ID | Requirement | Priority |
 | --- | --- | --- |
 | FR-080 | Admins shall manage products, services, categories, pricing, and availability (subject to role — **Admin**). | Must |
-| FR-081 | Admins shall manage bookings and update booking statuses (**Admin**). | Must |
+| FR-081 | Admins shall manage bookings (list/search/filter; view details with media counters, timeline with actor audit, linked records; status updates via controlled dropdown of approved statuses only; read-only Priority High/Medium/Low; booking age; informational manual Assigned To; internal staff notes with name/role/date/time). Booking Number is read-only. Bookings are never permanently deleted. No Booking Value / Estimated Value on this module. | Must |
 | FR-082 | Admins shall review quotation requests and issue/revise quotations (**Admin**, **Sales**). | Must |
 | FR-083 | Admins shall manage store orders and fulfillment statuses (**Admin**, **Sales**, **Accountant** as permitted). | Must |
 | FR-084 | Admins shall manage customers (list/search/filter with default **Active Customers**; view profile, Member Since, business summary including **Total Spent**, timeline with icons, linked records; internal staff notes with name/role/date/time audit; set Inactive / suspend per policy). Customer Number is auto-generated and read-only. Classification is **Lead** vs **Active Customer** (no VIP). Customer records are never permanently deleted. | Must |
@@ -480,7 +480,7 @@ Allow a customer to reserve a bookable service, track its lifecycle, and proceed
 2. Customer reviews service details and pricing model.
 3. Customer chooses preferred date/time (or available slot) and enters required details.
 4. System validates eligibility, lead time, and capacity.
-5. System creates a **Booking** in an initial status (e.g., `Requested` or `Confirmed` — exact status model to be finalized in process design).
+5. System creates a **Booking** in initial status **Pending Review** (see §9.6).
 6. System notifies customer and operations of the new booking.
 7. Operations reviews/assigns/fulfills as needed and updates status.
 8. Customer pays when the booking becomes payable (immediately, on confirmation, or on completion — per service policy).
@@ -500,16 +500,22 @@ Allow a customer to reserve a bookable service, track its lifecycle, and proceed
 
 ### 9.6 Booking Status Model (Logical)
 
-Illustrative statuses (final enum to be approved in design):
+Approved Admin Panel booking statuses (display labels):
 
-- `Draft` (optional, client-side only)
-- `Requested`
-- `Confirmed`
+- `Pending Review`
+- `Quotation Ready`
+- `Under Discussion`
+- `Accepted`
+- `Scheduled`
 - `In Progress`
-- `Awaiting Payment` / `Paid`
 - `Completed`
 - `Cancelled`
-- `Rejected` (by operations, if used)
+
+Notes:
+
+- `Draft` remains client-side only and is not persisted as a server booking.
+- **`Rejected` is never used.**
+- Payment events appear on the booking timeline and in linked Payments/Orders; they are not separate booking status values.
 
 ### 9.7 Postconditions
 

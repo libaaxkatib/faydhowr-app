@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fayadhowr — Admin Bookings Management V1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #0E339D; --teal: #0694AC; --bg: #F4F7FB; --surface: #FFF;
+      --text: #1F2937; --muted: #6B7280; --border: #E5E7EB;
+      --shadow: 0 8px 24px rgba(15,23,42,.06); --radius: 16px;
+      --sidebar-w: 248px; --ok: #059669; --warn: #D97706; --danger: #DC2626;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif; color: var(--text);
+      background: linear-gradient(165deg, #DCE6F8 0%, #E8F4F7 45%, #EEF2F7 100%);
+      padding: 32px 24px 72px;
+    }
+    .board-title { max-width: 1480px; margin: 0 auto 24px; }
+    .board-title h1 { font-size: 28px; font-weight: 700; letter-spacing: -.03em; color: var(--primary); }
+    .board-title p { margin-top: 8px; font-size: 14px; color: var(--muted); max-width: 960px; line-height: 1.5; }
+    .flow-label {
+      font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--primary); margin: 40px auto 14px; max-width: 1480px;
+    }
+    .shell {
+      max-width: 1480px; margin: 0 auto; min-height: 920px;
+      display: grid; grid-template-columns: var(--sidebar-w) 1fr;
+      background: var(--bg); border-radius: 24px; overflow: hidden;
+      box-shadow: 0 32px 64px rgba(14,51,157,.12); border: 1px solid rgba(14,51,157,.08);
+    }
+    .sidebar {
+      background: linear-gradient(180deg, #0A2778 0%, #0E339D 55%, #0C4A6E 140%);
+      color: #fff; padding: 24px 14px; display: flex; flex-direction: column; gap: 2px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; padding: 4px 10px 20px; }
+    .brand-mark {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: linear-gradient(135deg, #0694AC, #38BDF8);
+      display: grid; place-items: center; font-weight: 800; font-size: 14px;
+    }
+    .brand-text .name { font-size: 15px; font-weight: 700; }
+    .brand-text .sub { font-size: 11px; opacity: .7; margin-top: 2px; }
+    .nav-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+      opacity: .5; padding: 14px 12px 6px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
+      font-size: 13px; font-weight: 600; color: rgba(255,255,255,.8);
+    }
+    .nav-item .ico {
+      width: 30px; height: 30px; border-radius: 9px; background: rgba(255,255,255,.1);
+      display: grid; place-items: center; font-size: 11px; flex-shrink: 0;
+    }
+    .nav-item.active { background: rgba(255,255,255,.14); color: #fff; }
+    .nav-item.active .ico { background: var(--teal); }
+    .sidebar-foot { margin-top: auto; padding: 14px 8px 4px; border-top: 1px solid rgba(255,255,255,.12); }
+    .admin-chip {
+      display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px;
+      background: rgba(255,255,255,.08);
+    }
+    .admin-av {
+      width: 36px; height: 36px; border-radius: 10px; background: var(--teal);
+      display: grid; place-items: center; font-size: 12px; font-weight: 800;
+    }
+    .admin-chip .n { font-size: 13px; font-weight: 700; }
+    .admin-chip .r { font-size: 11px; opacity: .7; margin-top: 2px; }
+
+    .main { display: flex; flex-direction: column; min-width: 0; }
+    .topbar {
+      min-height: 72px; background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .topbar h2 { font-size: 18px; font-weight: 700; letter-spacing: -.02em; }
+    .crumb { font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .icon-btn {
+      width: 42px; height: 42px; border-radius: 12px; background: var(--bg);
+      border: 1px solid var(--border); display: grid; place-items: center; color: var(--primary); font-weight: 700;
+    }
+    .content { padding: 20px 24px 28px; display: flex; flex-direction: column; gap: 16px; }
+    .note-bar {
+      font-size: 12px; color: var(--muted); line-height: 1.45;
+      background: rgba(6,148,172,.06); border: 1px solid rgba(6,148,172,.18);
+      border-radius: 12px; padding: 12px 14px;
+    }
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px 16px; box-shadow: var(--shadow);
+    }
+    .search {
+      flex: 1; min-width: 240px; height: 44px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 12px; display: flex; align-items: center; gap: 8px; padding: 0 14px;
+      font-size: 13px; color: var(--muted);
+    }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: #fff; font-size: 12px; font-weight: 600; color: var(--text);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .chip.on { background: rgba(14,51,157,.08); border-color: rgba(14,51,157,.3); color: var(--primary); }
+    .btn {
+      height: 44px; padding: 0 16px; border-radius: 12px; font-size: 13px; font-weight: 700;
+      display: inline-flex; align-items: center; gap: 8px; border: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0E339D, #1246C4); color: #fff;
+      box-shadow: 0 8px 18px rgba(14,51,157,.28);
+    }
+    .btn-secondary { background: #fff; color: var(--primary); border: 1.5px solid var(--primary); }
+    .btn-ghost { background: rgba(14,51,157,.06); color: var(--primary); }
+    .btn-sm { height: 34px; padding: 0 12px; font-size: 12px; border-radius: 10px; }
+
+    .panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden;
+    }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 1280px; }
+    th {
+      text-align: left; font-size: 11px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .04em;
+      padding: 14px 16px; background: #F8FAFC; border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 14px 16px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(14,51,157,.03); }
+    .ref {
+      font-size: 12px; font-weight: 700; color: var(--primary);
+      background: rgba(14,51,157,.08); padding: 3px 8px; border-radius: 6px;
+    }
+    .name { font-weight: 700; }
+    .muted { color: var(--muted); }
+    .pill {
+      display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
+      border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+    .st-pending { background: rgba(245,158,11,.14); color: #B45309; }
+    .st-ready { background: rgba(6,148,172,.14); color: #0E7490; }
+    .st-discuss { background: rgba(14,51,157,.1); color: var(--primary); }
+    .st-accepted { background: rgba(5,150,105,.12); color: var(--ok); }
+    .st-scheduled { background: rgba(29,78,216,.12); color: #1D4ED8; }
+    .st-progress { background: rgba(6,148,172,.16); color: #0F766E; }
+    .st-done { background: rgba(5,150,105,.16); color: #047857; }
+    .st-cancel { background: #F3F4F6; color: var(--muted); }
+    .pr-high { background: rgba(220,38,38,.12); color: var(--danger); }
+    .pr-med { background: rgba(14,51,157,.1); color: var(--primary); }
+    .pr-low { background: rgba(6,148,172,.12); color: #0E7490; }
+    .age {
+      display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 4px;
+    }
+    .age.wait { color: #B45309; }
+    .table-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted);
+    }
+    .pager { display: flex; gap: 6px; }
+    .page {
+      width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+      display: grid; place-items: center; font-weight: 700; font-size: 12px; background: #fff;
+    }
+    .page.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    .back {
+      height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: #fff; font-size: 12px; font-weight: 700; color: var(--primary);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .detail-head {
+      display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px; box-shadow: var(--shadow);
+    }
+    .dh-title { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+    .dh-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+    .dh-meta strong { color: var(--text); font-weight: 600; }
+    .assign-box {
+      min-width: 200px; padding: 14px 16px; border-radius: 14px;
+      background: linear-gradient(135deg, rgba(14,51,157,.06), rgba(6,148,172,.06));
+      border: 1px solid rgba(14,51,157,.12);
+    }
+    .assign-box .l { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .assign-box .v { font-size: 15px; font-weight: 700; color: var(--primary); margin-top: 6px; }
+    .assign-box .h { font-size: 11px; color: var(--muted); margin-top: 4px; font-weight: 500; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1.15fr 1fr .95fr; gap: 16px; align-items: start; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px 18px;
+    }
+    .card h3 {
+      font-size: 13px; font-weight: 700; margin-bottom: 12px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card h3 span { font-size: 11px; font-weight: 500; color: var(--muted); }
+    .kv { display: grid; grid-template-columns: 120px 1fr; gap: 8px 12px; font-size: 13px; }
+    .kv .k { color: var(--muted); font-weight: 600; }
+    .kv .v { font-weight: 600; }
+
+    .media-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .media {
+      aspect-ratio: 1; border-radius: 12px; background: linear-gradient(145deg, #E8EEF9, #D9F1F5);
+      border: 1px solid var(--border); display: grid; place-items: center;
+      font-size: 11px; font-weight: 700; color: var(--primary);
+    }
+    .media.video { background: linear-gradient(145deg, #E0E7FF, #E0F2FE); }
+    .media.doc { background: #F8FAFC; color: var(--muted); aspect-ratio: auto; min-height: 56px; padding: 10px; }
+
+    .timeline { padding-top: 4px; }
+    .tl {
+      display: grid; grid-template-columns: 16px 1fr; gap: 12px;
+      padding: 12px 0; position: relative;
+    }
+    .tl::before {
+      content: ""; position: absolute; left: 7px; top: 28px; bottom: -4px;
+      width: 2px; background: var(--border);
+    }
+    .tl:last-child::before { display: none; }
+    .dot {
+      width: 16px; height: 16px; border-radius: 50%; margin-top: 2px;
+      background: var(--primary); box-shadow: 0 0 0 4px rgba(14,51,157,.12);
+    }
+    .dot.teal { background: var(--teal); box-shadow: 0 0 0 4px rgba(6,148,172,.15); }
+    .dot.ok { background: var(--ok); box-shadow: 0 0 0 4px rgba(5,150,105,.15); }
+    .tl .t { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .tl .ico-ev {
+      width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
+      font-size: 13px; background: rgba(14,51,157,.08);
+    }
+    .tl .d { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+    .tl .by { font-size: 12px; font-weight: 600; color: var(--primary); margin-top: 4px; }
+    .tl .by.sys { color: var(--muted); }
+    .tl .when { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+    .status-dd {
+      display: flex; flex-direction: column; gap: 4px; min-width: 200px;
+    }
+    .status-dd label {
+      font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+    }
+    .status-dd select {
+      height: 42px; padding: 0 12px; border-radius: 12px; border: 1.5px solid rgba(14,51,157,.35);
+      background: #fff; color: var(--primary); font: inherit; font-size: 13px; font-weight: 700;
+      appearance: auto; cursor: pointer;
+    }
+
+    .links { display: flex; flex-direction: column; gap: 8px; }
+    .link-row {
+      display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+      border: 1px solid var(--border); border-radius: 12px;
+      background: linear-gradient(135deg, rgba(14,51,157,.03), #fff 60%);
+      cursor: pointer;
+    }
+    .link-row:hover { border-color: rgba(14,51,157,.35); }
+    .link-row .ico {
+      width: 40px; height: 40px; border-radius: 12px; color: #fff; font-size: 11px; font-weight: 800;
+      display: grid; place-items: center; background: linear-gradient(135deg, #0E339D, #0694AC);
+    }
+    .link-row .tt { font-size: 14px; font-weight: 700; }
+    .link-row .ss { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .link-row .chev { margin-left: auto; color: var(--muted); font-weight: 700; }
+
+    .note-item {
+      border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px;
+      background: #FFFBEF;
+    }
+    .note-audit { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+    .note-av {
+      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+      background: linear-gradient(135deg, #0E339D, #0694AC);
+      color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center;
+    }
+    .note-who .name { font-size: 13px; font-weight: 700; }
+    .note-who .role { font-size: 11px; font-weight: 600; color: var(--primary); margin-top: 1px; }
+    .note-who .when { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+    .note-item .body { font-size: 13px; line-height: 1.45; }
+    .staff-only {
+      display: inline-flex; font-size: 10px; font-weight: 700; color: var(--warn);
+      background: rgba(217,119,6,.12); padding: 2px 8px; border-radius: 6px;
+    }
+    .compose {
+      border: 1px dashed rgba(14,51,157,.3); border-radius: 12px; padding: 12px;
+      background: rgba(14,51,157,.02);
+    }
+    .compose textarea {
+      width: 100%; min-height: 72px; border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 12px; font: inherit; font-size: 13px; color: var(--muted); resize: none; background: #fff;
+    }
+    .compose .row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 10px; }
+    .cust-note {
+      background: #F8FAFC; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px;
+      font-size: 13px; line-height: 1.5; color: var(--text);
+    }
+
+    @media (max-width: 1200px) {
+      .grid-3, .grid-2 { grid-template-columns: 1fr; }
+      .detail-head { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="board-title">
+    <h1>Bookings Management Module — V1</h1>
+    <p>
+      Bookings List · Booking Details · Timeline · Linked records · Manual assignment (informational) · Internal notes.
+      BK number read-only · never permanently deleted · no Staff Management module.
+      Dashboard, Customers, Authentication, and customer app unchanged.
+    </p>
+  </div>
+
+  <!-- LIST -->
+  <div class="flow-label">1 · Bookings List</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">FD</div>
+        <div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div>
+      </div>
+      <div class="nav-label">Overview</div>
+      <div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div>
+      <div class="nav-item active"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div>
+      <div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div>
+      <div class="nav-item"><div class="ico">INV</div> Invoices</div>
+      <div class="nav-item"><div class="ico">RCP</div> Receipts</div>
+      <div class="nav-item"><div class="ico">▤</div> Reports</div>
+      <div class="nav-label">Catalog</div>
+      <div class="nav-item"><div class="ico">✦</div> Services</div>
+      <div class="nav-item"><div class="ico">▦</div> Store</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item"><div class="ico">bell</div> Notifications</div>
+      <div class="nav-item"><div class="ico">⚙</div> Settings</div>
+      <div class="nav-item"><div class="ico">⌘</div> Audit / Logs</div>
+      <div class="sidebar-foot">
+        <div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <h2>Bookings</h2>
+          <div class="crumb">All bookings · Never permanently deleted</div>
+        </div>
+        <div class="top-actions">
+          <div class="icon-btn">🔔</div>
+          <div class="icon-btn">⎋</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="note-bar">
+          Search and filter bookings. <strong>Priority</strong> and <strong>booking age</strong> help spot aging work. <strong>Assigned To</strong> is informational (manual). No delete. Open <strong>View Booking</strong> for details, timeline, media, and staff notes.
+        </div>
+
+        <div class="toolbar">
+          <div class="search"><span>⌕</span> Search BK number, customer, service…</div>
+          <div class="filters">
+            <div class="chip on">Status: All ▾</div>
+            <div class="chip">Priority ▾</div>
+            <div class="chip">Service Date ▾</div>
+            <div class="chip">Assigned To ▾</div>
+            <div class="chip">Advanced Filters</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Booking Number</th>
+                  <th>Customer</th>
+                  <th>Service</th>
+                  <th>Booking Date</th>
+                  <th>Preferred Service Date</th>
+                  <th>Status</th>
+                  <th>Priority</th>
+                  <th>Assigned To (Manual)</th>
+                  <th>Last Updated</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="ref">BK-2026-000418</span></td>
+                  <td class="name">Amina Hassan</td>
+                  <td>Deep Home Cleaning</td>
+                  <td>02 Jul 2026<span class="age">Created 12 days ago</span></td>
+                  <td>16 Jul 2026</td>
+                  <td><span class="pill st-scheduled">Scheduled</span></td>
+                  <td><span class="pill pr-high">High</span></td>
+                  <td>Ahmed Ali</td>
+                  <td class="muted">14 Jul · 10:22</td>
+                  <td><div class="btn btn-ghost btn-sm">View Booking</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">BK-2026-000401</span></td>
+                  <td class="name">Omar Ali</td>
+                  <td>Sofa Cleaning</td>
+                  <td>28 Jun 2026<span class="age">Created 16 days ago</span></td>
+                  <td>15 Jul 2026</td>
+                  <td><span class="pill st-progress">In Progress</span></td>
+                  <td><span class="pill pr-med">Medium</span></td>
+                  <td>Fatima Nur</td>
+                  <td class="muted">14 Jul · 09:10</td>
+                  <td><div class="btn btn-ghost btn-sm">View Booking</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">BK-2026-000388</span></td>
+                  <td class="name">Hodan Yusuf</td>
+                  <td>Office Cleaning</td>
+                  <td>20 Jun 2026<span class="age wait">Waiting 24 days</span></td>
+                  <td>12 Jul 2026</td>
+                  <td><span class="pill st-ready">Quotation Ready</span></td>
+                  <td><span class="pill pr-high">High</span></td>
+                  <td>—</td>
+                  <td class="muted">13 Jul · 16:40</td>
+                  <td><div class="btn btn-ghost btn-sm">View Booking</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">BK-2026-000372</span></td>
+                  <td class="name">Hodan Yusuf</td>
+                  <td>Window Cleaning</td>
+                  <td>18 Jun 2026<span class="age wait">Waiting 5 days</span></td>
+                  <td>14 Jul 2026</td>
+                  <td><span class="pill st-discuss">Under Discussion</span></td>
+                  <td><span class="pill pr-med">Medium</span></td>
+                  <td>—</td>
+                  <td class="muted">12 Jul · 11:20</td>
+                  <td><div class="btn btn-ghost btn-sm">View Booking</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">BK-2026-000360</span></td>
+                  <td class="name">Leyla Abdi</td>
+                  <td>Sofa Cleaning</td>
+                  <td>12 Jul 2026<span class="age">Created 2 days ago</span></td>
+                  <td>18 Jul 2026</td>
+                  <td><span class="pill st-accepted">Accepted</span></td>
+                  <td><span class="pill pr-low">Low</span></td>
+                  <td>Fatima Nur</td>
+                  <td class="muted">13 Jul · 08:45</td>
+                  <td><div class="btn btn-ghost btn-sm">View Booking</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">BK-2026-000355</span></td>
+                  <td class="name">Fartun Mohamed</td>
+                  <td>Carpet Cleaning</td>
+                  <td>10 Jun 2026<span class="age">Created 34 days ago</span></td>
+                  <td>08 Jul 2026</td>
+                  <td><span class="pill st-done">Completed</span></td>
+                  <td><span class="pill pr-med">Medium</span></td>
+                  <td>Ahmed Ali</td>
+                  <td class="muted">08 Jul · 18:05</td>
+                  <td><div class="btn btn-ghost btn-sm">View Booking</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">BK-2026-000340</span></td>
+                  <td class="name">Suleiman Warsame</td>
+                  <td>Deep Home Cleaning</td>
+                  <td>02 Jun 2026<span class="age wait">Waiting 42 days</span></td>
+                  <td>20 Jun 2026</td>
+                  <td><span class="pill st-pending">Pending Review</span></td>
+                  <td><span class="pill pr-high">High</span></td>
+                  <td>—</td>
+                  <td class="muted">02 Jun · 11:00</td>
+                  <td><div class="btn btn-ghost btn-sm">View Booking</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">BK-2026-000312</span></td>
+                  <td class="name">Abdi Nur</td>
+                  <td>Move-out Cleaning</td>
+                  <td>15 May 2026<span class="age">Created 60 days ago</span></td>
+                  <td>01 Jun 2026</td>
+                  <td><span class="pill st-cancel">Cancelled</span></td>
+                  <td><span class="pill pr-low">Low</span></td>
+                  <td>—</td>
+                  <td class="muted">18 May · 09:22</td>
+                  <td><div class="btn btn-ghost btn-sm">View Booking</div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-foot">
+            <span>Showing 1–8 of 46 active queue · 1,102 total bookings</span>
+            <div class="pager">
+              <div class="page on">1</div>
+              <div class="page">2</div>
+              <div class="page">3</div>
+              <div class="page">›</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAILS -->
+  <div class="flow-label">2 · Booking Details</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">FD</div>
+        <div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div>
+      </div>
+      <div class="nav-label">Overview</div>
+      <div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div>
+      <div class="nav-item active"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div>
+      <div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div>
+      <div class="sidebar-foot">
+        <div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <div class="back">← Bookings</div>
+          <h2 style="margin-top:8px;">Booking Details</h2>
+          <div class="crumb">Identity · Media · Timeline · Linked records · Staff notes</div>
+        </div>
+        <div class="top-actions">
+          <div class="status-dd">
+            <label for="bk-status">Update Status</label>
+            <select id="bk-status" aria-label="Booking status">
+              <option>Pending Review</option>
+              <option>Quotation Ready</option>
+              <option>Under Discussion</option>
+              <option>Accepted</option>
+              <option selected>Scheduled</option>
+              <option>In Progress</option>
+              <option>Completed</option>
+              <option>Cancelled</option>
+            </select>
+          </div>
+          <div class="icon-btn">🔔</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="detail-head">
+          <div>
+            <div class="dh-title">Deep Home Cleaning</div>
+            <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+              <span class="ref">BK-2026-000418 🔒</span>
+              <span class="pill st-scheduled">Scheduled</span>
+              <span class="pill pr-high">High</span>
+            </div>
+            <div class="dh-meta">
+              <span>Customer <strong>Amina Hassan</strong></span>
+              <span>CUS <strong>CUS-2026-000001</strong></span>
+              <span>Booked <strong>02 Jul 2026</strong></span>
+              <span>Age <strong>Created 12 days ago</strong></span>
+              <span>Preferred service <strong>16 Jul 2026 · 09:00</strong></span>
+              <span>Updated <strong>14 Jul 2026 · 10:22</strong></span>
+            </div>
+          </div>
+          <div class="assign-box">
+            <div class="l">Assigned To</div>
+            <div class="v">Ahmed Ali</div>
+            <div class="h">Manual · informational only</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>Customer Information</h3>
+            <div class="kv">
+              <div class="k">Name</div><div class="v">Amina Hassan</div>
+              <div class="k">Phone</div><div class="v">+252 61 234 5678</div>
+              <div class="k">Email</div><div class="v">amina@email.com</div>
+              <div class="k">CUS</div><div class="v">CUS-2026-000001</div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Service Details</h3>
+            <div class="kv">
+              <div class="k">Service</div><div class="v">Deep Home Cleaning</div>
+              <div class="k">Pricing</div><div class="v">Quotation-based</div>
+              <div class="k">Duration</div><div class="v">~4 hours</div>
+              <div class="k">Linked QT</div><div class="v">QT-2026-000221</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>Property Details</h3>
+            <div class="kv">
+              <div class="k">Label</div><div class="v">Home</div>
+              <div class="k">Address</div><div class="v">Hodan District, Mogadishu</div>
+              <div class="k">City</div><div class="v">Mogadishu</div>
+              <div class="k">Notes</div><div class="v">Gate code 214 · blue door</div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Customer Notes <span>Visible on booking request</span></h3>
+            <div class="cust-note">
+              Please focus on kitchen and bathrooms. Pets on site — please knock before entering.
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>Uploaded Images <span>Images (12)</span></h3>
+            <div class="media-grid">
+              <div class="media">IMG · Living</div>
+              <div class="media">IMG · Kitchen</div>
+              <div class="media">IMG · Bath</div>
+            </div>
+            <div class="muted" style="font-size:11px;font-weight:600;margin-top:10px;">+ 9 more images</div>
+          </div>
+          <div class="card">
+            <h3>Uploaded Videos <span>Videos (3)</span></h3>
+            <div class="media-grid" style="grid-template-columns:1fr 1fr 1fr;">
+              <div class="media video">VIDEO · Walkthrough</div>
+              <div class="media video">VIDEO · Kitchen</div>
+              <div class="media video">VIDEO · Entrance</div>
+            </div>
+            <h3 style="margin-top:16px;">Uploaded Documents <span>Documents (2)</span></h3>
+            <div class="media doc">PDF · Floor plan.pdf</div>
+            <div class="media doc" style="margin-top:8px;">PDF · Access notes.pdf</div>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="card">
+            <h3>Booking Timeline <span>Read-only audit</span></h3>
+            <div class="timeline">
+              <div class="tl">
+                <div class="dot ok"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">💳</span> Payment Received</div>
+                  <div class="d">EVC Plus · deposit confirmed</div>
+                  <div class="by sys">System</div>
+                  <div class="when">14 Jul 2026 · 11:05</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot teal"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">📝</span> Quotation Updated</div>
+                  <div class="d">Line items adjusted after bathroom scope</div>
+                  <div class="by">By Sara (Sales)</div>
+                  <div class="when">14 Jul 2026 · 10:22</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">📅</span> Service Scheduled</div>
+                  <div class="d">Preferred date locked · 16 Jul 09:00</div>
+                  <div class="by">By Asad (Admin)</div>
+                  <div class="when">12 Jul 2026 · 15:10</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot teal"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">✅</span> Quotation Accepted</div>
+                  <div class="d">Customer accepted QT-2026-000221</div>
+                  <div class="by">By Amina Hassan (Customer)</div>
+                  <div class="when">10 Jul 2026 · 11:40</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot teal"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">💬</span> Under Discussion</div>
+                  <div class="d">Scope clarifications with customer</div>
+                  <div class="by">By Sara (Sales)</div>
+                  <div class="when">09 Jul 2026 · 13:05</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot teal"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">📝</span> Quotation Requested</div>
+                  <div class="d">Linked quotation created</div>
+                  <div class="by">By Sara (Sales)</div>
+                  <div class="when">08 Jul 2026 · 09:12</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">🖼</span> Images Uploaded</div>
+                  <div class="d">12 images · 3 videos · 2 documents</div>
+                  <div class="by">By Amina Hassan (Customer)</div>
+                  <div class="when">02 Jul 2026 · 14:25</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">📌</span> Booking Created</div>
+                  <div class="d">Deep Home Cleaning request submitted</div>
+                  <div class="by">By Amina Hassan (Customer)</div>
+                  <div class="when">02 Jul 2026 · 14:18</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Linked Records</h3>
+            <div class="links">
+              <div class="link-row">
+                <div class="ico">CUS</div>
+                <div><div class="tt">Customer Profile</div><div class="ss">Amina Hassan · CUS-2026-000001</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">QT</div>
+                <div><div class="tt">Quotations</div><div class="ss">QT-2026-000221</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">ORD</div>
+                <div><div class="tt">Orders</div><div class="ss">Related store orders</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">PAY</div>
+                <div><div class="tt">Payments</div><div class="ss">PAY-2026-000774</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">NTF</div>
+                <div><div class="tt">Notifications</div><div class="ss">Booking notifications</div></div>
+                <div class="chev">›</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Internal Notes <span class="staff-only">Staff only</span></h3>
+            <div class="note-item">
+              <div class="note-audit">
+                <div class="note-av">AS</div>
+                <div class="note-who">
+                  <div class="name">Asad</div>
+                  <div class="role">Admin</div>
+                  <div class="when">14 Jul 2026 · 10:30</div>
+                </div>
+              </div>
+              <div class="body">Assigned Ahmed Ali for 16 Jul morning slot. Confirm chemicals for kitchen grease.</div>
+            </div>
+            <div class="note-item">
+              <div class="note-audit">
+                <div class="note-av">SA</div>
+                <div class="note-who">
+                  <div class="name">Sara</div>
+                  <div class="role">Sales</div>
+                  <div class="when">10 Jul 2026 · 12:00</div>
+                </div>
+              </div>
+              <div class="body">Customer accepted quotation after bathroom scope clarification.</div>
+            </div>
+            <div class="compose">
+              <textarea placeholder="Add an internal note (Admin, Sales, Accountant)…"></textarea>
+              <div class="row">
+                <span class="muted" style="font-size:11px;font-weight:600;">Customers never see these notes</span>
+                <div class="btn btn-primary btn-sm">Save Note</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
