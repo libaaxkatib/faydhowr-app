@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fayadhowr — Admin Quotations Management V1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #0E339D; --teal: #0694AC; --bg: #F4F7FB; --surface: #FFF;
+      --text: #1F2937; --muted: #6B7280; --border: #E5E7EB;
+      --shadow: 0 8px 24px rgba(15,23,42,.06); --radius: 16px;
+      --sidebar-w: 248px; --ok: #059669; --warn: #D97706; --danger: #DC2626;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif; color: var(--text);
+      background: linear-gradient(165deg, #DCE6F8 0%, #E8F4F7 45%, #EEF2F7 100%);
+      padding: 32px 24px 72px;
+    }
+    .board-title { max-width: 1480px; margin: 0 auto 24px; }
+    .board-title h1 { font-size: 28px; font-weight: 700; letter-spacing: -.03em; color: var(--primary); }
+    .board-title p { margin-top: 8px; font-size: 14px; color: var(--muted); max-width: 1000px; line-height: 1.5; }
+    .flow-label {
+      font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--primary); margin: 40px auto 14px; max-width: 1480px;
+    }
+    .shell {
+      max-width: 1480px; margin: 0 auto; min-height: 920px;
+      display: grid; grid-template-columns: var(--sidebar-w) 1fr;
+      background: var(--bg); border-radius: 24px; overflow: hidden;
+      box-shadow: 0 32px 64px rgba(14,51,157,.12); border: 1px solid rgba(14,51,157,.08);
+    }
+    .sidebar {
+      background: linear-gradient(180deg, #0A2778 0%, #0E339D 55%, #0C4A6E 140%);
+      color: #fff; padding: 24px 14px; display: flex; flex-direction: column; gap: 2px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; padding: 4px 10px 20px; }
+    .brand-mark {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: linear-gradient(135deg, #0694AC, #38BDF8);
+      display: grid; place-items: center; font-weight: 800; font-size: 14px;
+    }
+    .brand-text .name { font-size: 15px; font-weight: 700; }
+    .brand-text .sub { font-size: 11px; opacity: .7; margin-top: 2px; }
+    .nav-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+      opacity: .5; padding: 14px 12px 6px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
+      font-size: 13px; font-weight: 600; color: rgba(255,255,255,.8);
+    }
+    .nav-item .ico {
+      width: 30px; height: 30px; border-radius: 9px; background: rgba(255,255,255,.1);
+      display: grid; place-items: center; font-size: 11px; flex-shrink: 0;
+    }
+    .nav-item.active { background: rgba(255,255,255,.14); color: #fff; }
+    .nav-item.active .ico { background: var(--teal); }
+    .sidebar-foot { margin-top: auto; padding: 14px 8px 4px; border-top: 1px solid rgba(255,255,255,.12); }
+    .admin-chip {
+      display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px;
+      background: rgba(255,255,255,.08);
+    }
+    .admin-av {
+      width: 36px; height: 36px; border-radius: 10px; background: var(--teal);
+      display: grid; place-items: center; font-size: 12px; font-weight: 800;
+    }
+    .admin-chip .n { font-size: 13px; font-weight: 700; }
+    .admin-chip .r { font-size: 11px; opacity: .7; margin-top: 2px; }
+
+    .main { display: flex; flex-direction: column; min-width: 0; }
+    .topbar {
+      min-height: 72px; background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .topbar h2 { font-size: 18px; font-weight: 700; letter-spacing: -.02em; }
+    .crumb { font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .icon-btn {
+      width: 42px; height: 42px; border-radius: 12px; background: var(--bg);
+      border: 1px solid var(--border); display: grid; place-items: center; color: var(--primary); font-weight: 700;
+    }
+    .content { padding: 20px 24px 28px; display: flex; flex-direction: column; gap: 16px; }
+    .note-bar {
+      font-size: 12px; color: var(--muted); line-height: 1.45;
+      background: rgba(6,148,172,.06); border: 1px solid rgba(6,148,172,.18);
+      border-radius: 12px; padding: 12px 14px;
+    }
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px 16px; box-shadow: var(--shadow);
+    }
+    .search {
+      flex: 1; min-width: 240px; height: 44px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 12px; display: flex; align-items: center; gap: 8px; padding: 0 14px;
+      font-size: 13px; color: var(--muted);
+    }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: #fff; font-size: 12px; font-weight: 600; color: var(--text);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .chip.on { background: rgba(14,51,157,.08); border-color: rgba(14,51,157,.3); color: var(--primary); }
+    .btn {
+      height: 44px; padding: 0 16px; border-radius: 12px; font-size: 13px; font-weight: 700;
+      display: inline-flex; align-items: center; gap: 8px; border: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0E339D, #1246C4); color: #fff;
+      box-shadow: 0 8px 18px rgba(14,51,157,.28);
+    }
+    .btn-secondary { background: #fff; color: var(--primary); border: 1.5px solid var(--primary); }
+    .btn-ghost { background: rgba(14,51,157,.06); color: var(--primary); }
+    .btn-sm { height: 34px; padding: 0 12px; font-size: 12px; border-radius: 10px; }
+
+    .panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden;
+    }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 1320px; }
+    th {
+      text-align: left; font-size: 11px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .04em;
+      padding: 14px 16px; background: #F8FAFC; border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 14px 16px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(14,51,157,.03); }
+    .ref {
+      font-size: 12px; font-weight: 700; color: var(--primary);
+      background: rgba(14,51,157,.08); padding: 3px 8px; border-radius: 6px;
+    }
+    .name { font-weight: 700; }
+    .muted { color: var(--muted); }
+    .amt { font-weight: 700; color: var(--text); white-space: nowrap; }
+    .pill {
+      display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
+      border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+    .st-pending { background: rgba(245,158,11,.14); color: #B45309; }
+    .st-ready { background: rgba(6,148,172,.14); color: #0E7490; }
+    .st-discuss { background: rgba(14,51,157,.1); color: var(--primary); }
+    .st-accepted { background: rgba(5,150,105,.12); color: var(--ok); }
+    .st-expired { background: rgba(217,119,6,.12); color: var(--warn); }
+    .st-cancel { background: #F3F4F6; color: var(--muted); }
+    .src-bk { background: rgba(14,51,157,.1); color: var(--primary); }
+    .src-pr { background: rgba(6,148,172,.14); color: #0E7490; }
+    .rev-badge {
+      font-size: 11px; font-weight: 700; color: var(--teal);
+      background: rgba(6,148,172,.1); padding: 3px 8px; border-radius: 6px;
+    }
+    .table-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted);
+    }
+    .pager { display: flex; gap: 6px; }
+    .page {
+      width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+      display: grid; place-items: center; font-weight: 700; font-size: 12px; background: #fff;
+    }
+    .page.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    .back {
+      height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: #fff; font-size: 12px; font-weight: 700; color: var(--primary);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .detail-head {
+      display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px; box-shadow: var(--shadow);
+    }
+    .dh-title { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+    .dh-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+    .dh-meta strong { color: var(--text); font-weight: 600; }
+    .total-box {
+      min-width: 220px; padding: 14px 16px; border-radius: 14px;
+      background: linear-gradient(135deg, rgba(14,51,157,.06), rgba(6,148,172,.06));
+      border: 1px solid rgba(14,51,157,.12);
+    }
+    .total-box .l { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .total-box .v { font-size: 22px; font-weight: 800; color: var(--primary); margin-top: 6px; }
+    .total-box .h { font-size: 11px; color: var(--muted); margin-top: 4px; font-weight: 500; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1.1fr 1fr .95fr; gap: 16px; align-items: start; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px 18px;
+    }
+    .card h3 {
+      font-size: 13px; font-weight: 700; margin-bottom: 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .card h3 span { font-size: 11px; font-weight: 500; color: var(--muted); }
+    .kv { display: grid; grid-template-columns: 130px 1fr; gap: 8px 12px; font-size: 13px; }
+    .kv .k { color: var(--muted); font-weight: 600; }
+    .kv .v { font-weight: 600; }
+
+    .price-table { width: 100%; border-collapse: collapse; min-width: 0; }
+    .price-table th, .price-table td {
+      padding: 10px 8px; font-size: 13px; border-bottom: 1px solid var(--border); text-align: left;
+    }
+    .price-table th {
+      font-size: 11px; text-transform: uppercase; letter-spacing: .04em; background: transparent; padding-top: 0;
+    }
+    .price-table td.num, .price-table th.num { text-align: right; }
+    .price-table tfoot td { border-bottom: none; font-weight: 800; color: var(--primary); padding-top: 12px; }
+
+    .rev-item {
+      border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;
+      background: #fff;
+    }
+    .rev-item.current {
+      border-color: rgba(6,148,172,.35);
+      background: linear-gradient(135deg, rgba(6,148,172,.06), #fff 55%);
+    }
+    .rev-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .rev-sum { font-size: 13px; line-height: 1.45; color: var(--text); }
+    .rev-meta { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 8px; }
+    .rev-meta .role { color: var(--primary); }
+    .rev-creator {
+      margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);
+      display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px;
+    }
+    .rev-creator .l {
+      font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+      grid-column: 1 / -1;
+    }
+    .rev-creator .n { font-weight: 700; color: var(--text); }
+    .rev-creator .role { font-weight: 600; color: var(--primary); }
+    .rev-creator .when { grid-column: 1 / -1; font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+
+    .validity {
+      font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.35;
+    }
+    .validity .sub {
+      display: block; font-size: 11px; font-weight: 700; margin-top: 4px;
+    }
+    .validity .sub.ok { color: var(--ok); }
+    .validity .sub.warn { color: #B45309; }
+    .validity .sub.exp { color: var(--danger); }
+    .validity-box {
+      min-width: 160px; margin-top: 12px; padding: 12px 14px; border-radius: 12px;
+      background: rgba(6,148,172,.06); border: 1px solid rgba(6,148,172,.2);
+    }
+    .validity-box .l {
+      font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+    }
+    .validity-box .d { font-size: 15px; font-weight: 800; color: var(--text); margin-top: 4px; }
+    .validity-box .r { font-size: 12px; font-weight: 700; color: var(--ok); margin-top: 4px; }
+    .validity-box.exp {
+      background: rgba(220,38,38,.06); border-color: rgba(220,38,38,.2);
+    }
+    .validity-box.exp .r { color: var(--danger); }
+
+    .compare-bar {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px;
+    }
+    .compare-bar select {
+      height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--border);
+      font: inherit; font-size: 12px; font-weight: 700; color: var(--primary); background: #fff;
+    }
+    .compare-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+    .compare-col {
+      border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: #F8FAFC;
+    }
+    .compare-col h4 {
+      font-size: 12px; font-weight: 800; color: var(--primary); margin-bottom: 10px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .diff-list { display: flex; flex-direction: column; gap: 8px; }
+    .diff-row {
+      font-size: 12px; line-height: 1.4; padding: 8px 10px; border-radius: 8px;
+      border: 1px solid var(--border); background: #fff;
+    }
+    .diff-row .tag {
+      display: inline-flex; font-size: 10px; font-weight: 800; letter-spacing: .03em;
+      text-transform: uppercase; padding: 2px 6px; border-radius: 4px; margin-bottom: 4px;
+    }
+    .tag-add { background: rgba(5,150,105,.12); color: var(--ok); }
+    .tag-rem { background: rgba(220,38,38,.1); color: var(--danger); }
+    .tag-chg { background: rgba(14,51,157,.1); color: var(--primary); }
+    .tag-tot { background: rgba(6,148,172,.14); color: #0E7490; }
+    .tag-note { background: rgba(217,119,6,.12); color: var(--warn); }
+    .diff-summary {
+      margin-top: 12px; padding: 12px 14px; border-radius: 12px;
+      background: linear-gradient(135deg, rgba(14,51,157,.05), rgba(6,148,172,.05));
+      border: 1px solid rgba(14,51,157,.12); font-size: 13px;
+    }
+    .diff-summary strong { color: var(--primary); }
+
+    .disc-search {
+      height: 40px; margin-bottom: 10px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+      font-size: 13px; color: var(--muted);
+    }
+    .disc-search .q { color: var(--text); font-weight: 600; }
+    .att-summary {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+    }
+    .att-pill {
+      height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: rgba(14,51,157,.04); font-size: 11px; font-weight: 700; color: var(--primary);
+      display: inline-flex; align-items: center;
+    }
+    .msg.match {
+      border-color: rgba(6,148,172,.45);
+      box-shadow: 0 0 0 2px rgba(6,148,172,.12);
+    }
+    .msg-body mark {
+      background: rgba(245,158,11,.28); color: inherit; border-radius: 2px; padding: 0 2px;
+    }
+
+    .msg {
+      border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;
+      background: #fff;
+    }
+    .msg.staff { background: linear-gradient(135deg, rgba(14,51,157,.03), #fff 60%); }
+    .msg.cust { background: #F8FAFC; }
+    .msg-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+    .msg-av {
+      width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+      background: linear-gradient(135deg, #0E339D, #0694AC);
+      color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center;
+    }
+    .msg-av.cust { background: linear-gradient(135deg, #64748B, #94A3B8); }
+    .msg-who .n { font-size: 13px; font-weight: 700; }
+    .msg-who .r { font-size: 11px; font-weight: 600; color: var(--primary); margin-top: 1px; }
+    .msg-who .t { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+    .msg-body { font-size: 13px; line-height: 1.45; }
+    .msg-files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .file-chip {
+      height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: #F8FAFC; font-size: 11px; font-weight: 700; color: var(--primary);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+
+    .timeline { padding-top: 4px; }
+    .tl {
+      display: grid; grid-template-columns: 16px 1fr; gap: 12px;
+      padding: 12px 0; position: relative;
+    }
+    .tl::before {
+      content: ""; position: absolute; left: 7px; top: 28px; bottom: -4px;
+      width: 2px; background: var(--border);
+    }
+    .tl:last-child::before { display: none; }
+    .dot {
+      width: 16px; height: 16px; border-radius: 50%; margin-top: 2px;
+      background: var(--primary); box-shadow: 0 0 0 4px rgba(14,51,157,.12);
+    }
+    .dot.teal { background: var(--teal); box-shadow: 0 0 0 4px rgba(6,148,172,.15); }
+    .dot.ok { background: var(--ok); box-shadow: 0 0 0 4px rgba(5,150,105,.15); }
+    .tl .t { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .tl .ico-ev {
+      width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
+      font-size: 13px; background: rgba(14,51,157,.08);
+    }
+    .tl .d { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+    .tl .by { font-size: 12px; font-weight: 600; color: var(--primary); margin-top: 4px; }
+    .tl .by.sys { color: var(--muted); }
+    .tl .when { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+
+    .links { display: flex; flex-direction: column; gap: 8px; }
+    .link-row {
+      display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+      border: 1px solid var(--border); border-radius: 12px;
+      background: linear-gradient(135deg, rgba(14,51,157,.03), #fff 60%);
+      cursor: pointer;
+    }
+    .link-row:hover { border-color: rgba(14,51,157,.35); }
+    .link-row .ico {
+      width: 40px; height: 40px; border-radius: 12px; color: #fff; font-size: 11px; font-weight: 800;
+      display: grid; place-items: center; background: linear-gradient(135deg, #0E339D, #0694AC);
+    }
+    .link-row .tt { font-size: 14px; font-weight: 700; }
+    .link-row .ss { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .link-row .chev { margin-left: auto; color: var(--muted); font-weight: 700; }
+
+    .note-item {
+      border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px;
+      background: #FFFBEF;
+    }
+    .note-audit { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+    .note-av {
+      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+      background: linear-gradient(135deg, #0E339D, #0694AC);
+      color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center;
+    }
+    .note-who .name { font-size: 13px; font-weight: 700; }
+    .note-who .role { font-size: 11px; font-weight: 600; color: var(--primary); margin-top: 1px; }
+    .note-who .when { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+    .note-item .body { font-size: 13px; line-height: 1.45; }
+    .staff-only {
+      display: inline-flex; font-size: 10px; font-weight: 700; color: var(--warn);
+      background: rgba(217,119,6,.12); padding: 2px 8px; border-radius: 6px;
+    }
+    .compose {
+      border: 1px dashed rgba(14,51,157,.3); border-radius: 12px; padding: 12px;
+      background: rgba(14,51,157,.02);
+    }
+    .compose textarea {
+      width: 100%; min-height: 72px; border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 12px; font: inherit; font-size: 13px; color: var(--muted); resize: none; background: #fff;
+    }
+    .compose .row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 10px; }
+
+    .status-dd {
+      display: flex; flex-direction: column; gap: 4px; min-width: 200px;
+    }
+    .status-dd label {
+      font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+    }
+    .status-dd select {
+      height: 42px; padding: 0 12px; border-radius: 12px; border: 1.5px solid rgba(14,51,157,.35);
+      background: #fff; color: var(--primary); font: inherit; font-size: 13px; font-weight: 700;
+      appearance: auto; cursor: pointer;
+    }
+
+    @media (max-width: 1200px) {
+      .grid-3, .grid-2, .compare-grid { grid-template-columns: 1fr; }
+      .detail-head { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="board-title">
+    <h1>Quotations Management Module — V1</h1>
+    <p>
+      Quotations List · Quotation Details · Compare Revisions · Discussion search · Validity countdown.
+      Every QT originates from a <strong>Booking</strong> or <strong>Product Request</strong> only — no standalone create.
+      QT number read-only · never permanently deleted · only latest revision accept-eligible.
+      Auth, Customer App, Dashboard, Customers, and Bookings unchanged.
+    </p>
+  </div>
+
+  <!-- LIST -->
+  <div class="flow-label">1 · Quotations List</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">FD</div>
+        <div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div>
+      </div>
+      <div class="nav-label">Overview</div>
+      <div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div>
+      <div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item active"><div class="ico">QT</div> Quotations</div>
+      <div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div>
+      <div class="nav-item"><div class="ico">INV</div> Invoices</div>
+      <div class="nav-item"><div class="ico">RCP</div> Receipts</div>
+      <div class="nav-item"><div class="ico">▤</div> Reports</div>
+      <div class="nav-label">Catalog</div>
+      <div class="nav-item"><div class="ico">✦</div> Services</div>
+      <div class="nav-item"><div class="ico">▦</div> Store</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item"><div class="ico">bell</div> Notifications</div>
+      <div class="nav-item"><div class="ico">⚙</div> Settings</div>
+      <div class="nav-item"><div class="ico">⌘</div> Audit / Logs</div>
+      <div class="sidebar-foot">
+        <div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <h2>Quotations</h2>
+          <div class="crumb">All quotations · Linked to Booking or Product Request · Never permanently deleted</div>
+        </div>
+        <div class="top-actions">
+          <div class="icon-btn">🔔</div>
+          <div class="icon-btn">⎋</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="note-bar">
+          Search and filter quotations. Every QT must remain linked to its originating <strong>Booking</strong> or <strong>Product Request</strong>.
+          Admin / Sales / Accountant never create a standalone quotation. No delete. Open <strong>View Quotation</strong> for details, revisions, discussion, and timeline.
+        </div>
+
+        <div class="toolbar">
+          <div class="search"><span>⌕</span> Search QT number, customer, service or product…</div>
+          <div class="filters">
+            <div class="chip on">Status: All ▾</div>
+            <div class="chip">Source ▾</div>
+            <div class="chip">Valid Until ▾</div>
+            <div class="chip">Advanced Filters</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Quotation Number</th>
+                  <th>Source</th>
+                  <th>Customer</th>
+                  <th>Service or Product</th>
+                  <th>Current Revision</th>
+                  <th>Amount</th>
+                  <th>Valid Until</th>
+                  <th>Status</th>
+                  <th>Last Updated</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="ref">QT-2026-000221</span></td>
+                  <td><span class="pill src-bk">Booking</span></td>
+                  <td class="name">Amina Hassan</td>
+                  <td>Deep Home Cleaning</td>
+                  <td><span class="rev-badge">v3 (Current)</span></td>
+                  <td class="amt">$185.00</td>
+                  <td>
+                    <div class="validity">28 Jul 2026<span class="sub ok">4 days remaining</span></div>
+                  </td>
+                  <td><span class="pill st-ready">Quotation Ready</span></td>
+                  <td class="muted">14 Jul · 10:22</td>
+                  <td><div class="btn btn-ghost btn-sm">View Quotation</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">QT-2026-000218</span></td>
+                  <td><span class="pill src-pr">Product</span></td>
+                  <td class="name">Omar Ali</td>
+                  <td>Bulk Cleaning Kit · Custom qty</td>
+                  <td><span class="rev-badge">v2 (Current)</span></td>
+                  <td class="amt">$640.00</td>
+                  <td>
+                    <div class="validity">20 Jul 2026<span class="sub warn">6 days remaining</span></div>
+                  </td>
+                  <td><span class="pill st-discuss">Under Discussion</span></td>
+                  <td class="muted">14 Jul · 09:05</td>
+                  <td><div class="btn btn-ghost btn-sm">View Quotation</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">QT-2026-000205</span></td>
+                  <td><span class="pill src-bk">Booking</span></td>
+                  <td class="name">Hodan Yusuf</td>
+                  <td>Office Cleaning</td>
+                  <td><span class="rev-badge">v1 (Current)</span></td>
+                  <td class="amt">—</td>
+                  <td>
+                    <div class="validity muted">—<span class="sub">Not issued yet</span></div>
+                  </td>
+                  <td><span class="pill st-pending">Pending Review</span></td>
+                  <td class="muted">13 Jul · 16:40</td>
+                  <td><div class="btn btn-ghost btn-sm">View Quotation</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">QT-2026-000198</span></td>
+                  <td><span class="pill src-bk">Booking</span></td>
+                  <td class="name">Leyla Abdi</td>
+                  <td>Sofa Cleaning</td>
+                  <td><span class="rev-badge">v2 (Current)</span></td>
+                  <td class="amt">$95.00</td>
+                  <td>
+                    <div class="validity">15 Jul 2026<span class="sub warn">1 day remaining</span></div>
+                  </td>
+                  <td><span class="pill st-accepted">Accepted</span></td>
+                  <td class="muted">11 Jul · 08:45</td>
+                  <td><div class="btn btn-ghost btn-sm">View Quotation</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">QT-2026-000174</span></td>
+                  <td><span class="pill src-pr">Product</span></td>
+                  <td class="name">Fartun Mohamed</td>
+                  <td>Commercial Detergent · 40 units</td>
+                  <td><span class="rev-badge">v1 (Current)</span></td>
+                  <td class="amt">$420.00</td>
+                  <td>
+                    <div class="validity">12 Jul 2026<span class="sub exp">Expired · 2 days ago</span></div>
+                  </td>
+                  <td><span class="pill st-expired">Expired</span></td>
+                  <td class="muted">12 Jul · 00:01</td>
+                  <td><div class="btn btn-ghost btn-sm">View Quotation</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">QT-2026-000160</span></td>
+                  <td><span class="pill src-bk">Booking</span></td>
+                  <td class="name">Abdi Nur</td>
+                  <td>Move-out Cleaning</td>
+                  <td><span class="rev-badge">v1 (Current)</span></td>
+                  <td class="amt">$210.00</td>
+                  <td>
+                    <div class="validity">10 Jun 2026<span class="sub">Cancelled</span></div>
+                  </td>
+                  <td><span class="pill st-cancel">Cancelled</span></td>
+                  <td class="muted">18 May · 09:22</td>
+                  <td><div class="btn btn-ghost btn-sm">View Quotation</div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-foot">
+            <span>Showing 1–6 of 38 open queue · 886 total quotations</span>
+            <div class="pager">
+              <div class="page on">1</div>
+              <div class="page">2</div>
+              <div class="page">3</div>
+              <div class="page">›</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAILS -->
+  <div class="flow-label">2 · Quotation Details</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">FD</div>
+        <div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div>
+      </div>
+      <div class="nav-label">Overview</div>
+      <div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div>
+      <div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item active"><div class="ico">QT</div> Quotations</div>
+      <div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div>
+      <div class="sidebar-foot">
+        <div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <div class="back">← Quotations</div>
+          <h2 style="margin-top:8px;">Quotation Details</h2>
+          <div class="crumb">Source link · Revisions · Discussion · Timeline · Staff notes</div>
+        </div>
+        <div class="top-actions">
+          <div class="status-dd">
+            <label for="qt-status">Update Status</label>
+            <select id="qt-status" aria-label="Quotation status">
+              <option>Pending Review</option>
+              <option>Under Discussion</option>
+              <option selected>Quotation Ready</option>
+              <option>Accepted</option>
+              <option>Expired</option>
+              <option>Cancelled</option>
+            </select>
+          </div>
+          <div class="btn btn-secondary btn-sm">Compare Revisions</div>
+          <div class="btn btn-secondary btn-sm">Issue Revision</div>
+          <div class="icon-btn">🔔</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="detail-head">
+          <div>
+            <div class="dh-title">Deep Home Cleaning</div>
+            <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+              <span class="ref">QT-2026-000221 🔒</span>
+              <span class="pill src-bk">Booking</span>
+              <span class="pill st-ready">Quotation Ready</span>
+              <span class="rev-badge">Revision v3 (Current)</span>
+            </div>
+            <div class="dh-meta">
+              <span>Customer <strong>Amina Hassan</strong></span>
+              <span>CUS <strong>CUS-2026-000001</strong></span>
+              <span>Linked Booking <strong>BK-2026-000418</strong></span>
+              <span>Updated <strong>14 Jul 2026 · 10:22</strong></span>
+            </div>
+            <div class="validity-box">
+              <div class="l">Valid Until</div>
+              <div class="d">28 Jul 2026</div>
+              <div class="r">4 days remaining</div>
+            </div>
+          </div>
+          <div class="total-box">
+            <div class="l">Total Amount</div>
+            <div class="v">$185.00</div>
+            <div class="h">Latest revision only · Accept-eligible</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>Customer Information</h3>
+            <div class="kv">
+              <div class="k">Name</div><div class="v">Amina Hassan</div>
+              <div class="k">Phone</div><div class="v">+252 61 234 5678</div>
+              <div class="k">Email</div><div class="v">amina@email.com</div>
+              <div class="k">CUS</div><div class="v">CUS-2026-000001</div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Source &amp; Linkage</h3>
+            <div class="kv">
+              <div class="k">Source</div><div class="v"><span class="pill src-bk">Booking</span></div>
+              <div class="k">Linked Booking</div><div class="v">BK-2026-000418</div>
+              <div class="k">Service</div><div class="v">Deep Home Cleaning</div>
+              <div class="k">Origin rule</div><div class="v">Permanent · never detach</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Price Breakdown <span>Revision v3 (Current)</span></h3>
+          <table class="price-table">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th class="num">Qty</th>
+                <th class="num">Unit</th>
+                <th class="num">Line total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Deep clean · living + kitchen</td>
+                <td class="num">1</td>
+                <td class="num">$110.00</td>
+                <td class="num">$110.00</td>
+              </tr>
+              <tr>
+                <td>Bathrooms (×2)</td>
+                <td class="num">2</td>
+                <td class="num">$30.00</td>
+                <td class="num">$60.00</td>
+              </tr>
+              <tr>
+                <td>Kitchen grease treatment</td>
+                <td class="num">1</td>
+                <td class="num">$15.00</td>
+                <td class="num">$15.00</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3">Total Amount</td>
+                <td class="num">$185.00</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>Revision History <span>Only latest accept-eligible</span></h3>
+            <div class="rev-item current">
+              <div class="rev-top">
+                <span class="rev-badge">v3 (Current)</span>
+                <span class="pill st-ready">Quotation Ready</span>
+              </div>
+              <div class="rev-sum">Added kitchen grease treatment (+$15). Bathroom unit price clarified.</div>
+              <div class="rev-creator">
+                <div class="l">Created By</div>
+                <div class="n">Sara</div>
+                <div class="role">Sales</div>
+                <div class="when">14 Jul 2026 · 10:22</div>
+              </div>
+            </div>
+            <div class="rev-item">
+              <div class="rev-top">
+                <span class="rev-badge" style="color:var(--muted);background:#F3F4F6;">v2 · Read-only</span>
+              </div>
+              <div class="rev-sum">Bathroom scope expanded to two rooms after customer discussion.</div>
+              <div class="rev-creator">
+                <div class="l">Created By</div>
+                <div class="n">Sara</div>
+                <div class="role">Sales</div>
+                <div class="when">10 Jul 2026 · 16:05</div>
+              </div>
+            </div>
+            <div class="rev-item">
+              <div class="rev-top">
+                <span class="rev-badge" style="color:var(--muted);background:#F3F4F6;">v1 · Read-only</span>
+              </div>
+              <div class="rev-sum">Initial formal quotation issued from Booking BK-2026-000418.</div>
+              <div class="rev-creator">
+                <div class="l">Created By</div>
+                <div class="n">Asad</div>
+                <div class="role">Admin</div>
+                <div class="when">08 Jul 2026 · 09:40</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Discussion <span>Messages · Images · Videos · PDFs</span></h3>
+            <div class="disc-search"><span>⌕</span> Search: <span class="q">kitchen</span></div>
+            <div class="att-summary">
+              <span class="att-pill">Images (6)</span>
+              <span class="att-pill">Videos (2)</span>
+              <span class="att-pill">PDF Files (3)</span>
+            </div>
+            <div class="muted" style="font-size:11px;font-weight:600;margin-bottom:10px;">2 messages match “kitchen”</div>
+            <div class="msg staff">
+              <div class="msg-head">
+                <div class="msg-av">SA</div>
+                <div class="msg-who">
+                  <div class="n">Sara</div>
+                  <div class="r">Sales</div>
+                  <div class="t">14 Jul 2026 · 10:18</div>
+                </div>
+              </div>
+              <div class="msg-body">Updated quotation to v3 with grease treatment included. Please review the latest revision.</div>
+              <div class="msg-files">
+                <div class="file-chip">📄 Scope notes.pdf</div>
+              </div>
+            </div>
+            <div class="msg cust match">
+              <div class="msg-head">
+                <div class="msg-av cust">AH</div>
+                <div class="msg-who">
+                  <div class="n">Amina Hassan</div>
+                  <div class="r">Customer</div>
+                  <div class="t">13 Jul 2026 · 19:02</div>
+                </div>
+              </div>
+              <div class="msg-body"><mark>Kitchen</mark> has heavy grease near the stove. Sharing a short video and photos.</div>
+              <div class="msg-files">
+                <div class="file-chip">🖼 Kitchen-1.jpg</div>
+                <div class="file-chip">🖼 Stove.jpg</div>
+                <div class="file-chip">🎬 Grease walkthrough.mp4</div>
+              </div>
+            </div>
+            <div class="msg staff match">
+              <div class="msg-head">
+                <div class="msg-av">SA</div>
+                <div class="msg-who">
+                  <div class="n">Sara</div>
+                  <div class="r">Sales</div>
+                  <div class="t">09 Jul 2026 · 13:05</div>
+                </div>
+              </div>
+              <div class="msg-body">Thanks — confirming both bathrooms are included. Can you share the <mark>kitchen</mark> condition?</div>
+            </div>
+            <div class="compose" style="margin-top:4px;">
+              <textarea placeholder="Reply in discussion (Admin, Sales)…"></textarea>
+              <div class="row">
+                <span class="muted" style="font-size:11px;font-weight:600;">Attach images · videos · PDFs · history never deleted</span>
+                <div class="btn btn-primary btn-sm">Send</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Compare Revisions <span>Read-only · any two revisions</span></h3>
+          <div class="compare-bar">
+            <select aria-label="From revision">
+              <option>v1</option>
+              <option selected>v2</option>
+              <option>v3</option>
+            </select>
+            <span style="font-weight:800;color:var(--primary);">↔</span>
+            <select aria-label="To revision">
+              <option>v1</option>
+              <option>v2</option>
+              <option selected>v3</option>
+            </select>
+            <span class="rev-badge">v2 ↔ v3</span>
+          </div>
+          <div class="compare-grid">
+            <div class="compare-col">
+              <h4>v2 <span class="muted" style="font-weight:600;">$170.00</span></h4>
+              <div class="diff-list">
+                <div class="diff-row">Deep clean · living + kitchen · Qty 1 · $110.00</div>
+                <div class="diff-row">Bathrooms · Qty 2 · $25.00 → $50.00</div>
+              </div>
+            </div>
+            <div class="compare-col">
+              <h4>v3 (Current) <span class="muted" style="font-weight:600;">$185.00</span></h4>
+              <div class="diff-list">
+                <div class="diff-row">Deep clean · living + kitchen · Qty 1 · $110.00</div>
+                <div class="diff-row">Bathrooms · Qty 2 · $30.00 → $60.00</div>
+                <div class="diff-row">Kitchen grease treatment · Qty 1 · $15.00</div>
+              </div>
+            </div>
+          </div>
+          <div class="diff-summary">
+            <div class="diff-list" style="margin-top:0;">
+              <div class="diff-row"><span class="tag tag-add">Added Items</span><br>Kitchen grease treatment (+$15.00)</div>
+              <div class="diff-row"><span class="tag tag-rem">Removed Items</span><br>None</div>
+              <div class="diff-row"><span class="tag tag-chg">Quantity Changes</span><br>None</div>
+              <div class="diff-row"><span class="tag tag-chg">Unit Price Changes</span><br>Bathrooms: $25.00 → $30.00</div>
+              <div class="diff-row"><span class="tag tag-tot">Total Amount Difference</span><br>$170.00 → $185.00 · <strong>+$15.00</strong></div>
+              <div class="diff-row"><span class="tag tag-note">Notes Changes</span><br>v2: Bathroom scope expanded · v3: Grease treatment + bathroom unit price clarified</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="card">
+            <h3>Quotation Timeline <span>Read-only audit</span></h3>
+            <div class="timeline">
+              <div class="tl">
+                <div class="dot teal"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">📝</span> Revision Issued</div>
+                  <div class="d">v3 published · grease treatment added</div>
+                  <div class="by">By Sara (Sales)</div>
+                  <div class="when">14 Jul 2026 · 10:22</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">💬</span> Customer Replied</div>
+                  <div class="d">Message + kitchen media</div>
+                  <div class="by">By Amina Hassan (Customer)</div>
+                  <div class="when">13 Jul 2026 · 19:02</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">🖼</span> Files Uploaded</div>
+                  <div class="d">2 images · 1 video</div>
+                  <div class="by">By Amina Hassan (Customer)</div>
+                  <div class="when">13 Jul 2026 · 19:01</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot teal"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">💬</span> Discussion Started</div>
+                  <div class="d">Status moved to Under Discussion</div>
+                  <div class="by">By Amina Hassan (Customer)</div>
+                  <div class="when">09 Jul 2026 · 12:50</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot teal"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">✅</span> Quotation Ready</div>
+                  <div class="d">v1 issued to customer</div>
+                  <div class="by">By Asad (Admin)</div>
+                  <div class="when">08 Jul 2026 · 09:40</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">📌</span> Quotation Created</div>
+                  <div class="d">Originated from Booking BK-2026-000418</div>
+                  <div class="by sys">System</div>
+                  <div class="when">02 Jul 2026 · 14:20</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Linked Records</h3>
+            <div class="links">
+              <div class="link-row">
+                <div class="ico">CUS</div>
+                <div><div class="tt">Customer Profile</div><div class="ss">Amina Hassan · CUS-2026-000001</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">BK</div>
+                <div><div class="tt">Booking</div><div class="ss">BK-2026-000418 · Deep Home Cleaning</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">ORD</div>
+                <div><div class="tt">Orders</div><div class="ss">Related store orders</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">PAY</div>
+                <div><div class="tt">Payments</div><div class="ss">Awaiting acceptance · none yet</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">NTF</div>
+                <div><div class="tt">Notifications</div><div class="ss">Quotation notifications</div></div>
+                <div class="chev">›</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Internal Notes <span class="staff-only">Staff only</span></h3>
+            <div class="note-item">
+              <div class="note-audit">
+                <div class="note-av">SA</div>
+                <div class="note-who">
+                  <div class="name">Sara</div>
+                  <div class="role">Sales</div>
+                  <div class="when">14 Jul 2026 · 10:25</div>
+                </div>
+              </div>
+              <div class="body">Customer likely to accept v3 after kitchen treatment clarity. Keep BK link visible.</div>
+            </div>
+            <div class="note-item">
+              <div class="note-audit">
+                <div class="note-av">AS</div>
+                <div class="note-who">
+                  <div class="name">Asad</div>
+                  <div class="role">Admin</div>
+                  <div class="when">08 Jul 2026 · 09:45</div>
+                </div>
+              </div>
+              <div class="body">Origin confirmed from booking — do not detach source.</div>
+            </div>
+            <div class="compose">
+              <textarea placeholder="Add an internal note (Admin, Sales, Accountant)…"></textarea>
+              <div class="row">
+                <span class="muted" style="font-size:11px;font-weight:600;">Customers never see these notes</span>
+                <div class="btn btn-primary btn-sm">Save Note</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

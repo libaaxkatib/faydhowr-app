@@ -999,8 +999,9 @@ Supports:
 | `id` | BIGINT UNSIGNED | R | PK |
 | `request_number` | VARCHAR(40) | R | Unique public reference; may match or link to canonical `QT-YYYY-######` once quotation family is created |
 | `customer_id` | BIGINT UNSIGNED | R | FK — authenticated |
-| `request_target_type` | VARCHAR(20) | R | Quotation **source**: `service` or `product` (business/admin use; not a customer-facing field unless needed) |
-| `service_id` | BIGINT UNSIGNED | O | Required if target=service |
+| `request_target_type` | VARCHAR(20) | R | Quotation **origin** for Admin: `booking` (service booking path) or `product` (product request). Display: Booking / Product. Standalone quotes forbidden. |
+| `booking_id` | BIGINT UNSIGNED | O | Required when origin is Booking — permanent FK to `bookings.id` |
+| `service_id` | BIGINT UNSIGNED | O | Service context (often via booking) |
 | `product_id` | BIGINT UNSIGNED | O | Required if target=product |
 | `status` | VARCHAR(30) | R | Aligns to V1 quotation lifecycle: `pending_review`, `quotation_ready`, `under_discussion`, `accepted`, `expired`, `cancelled` (never `rejected` / `declined`) |
 | `title` | VARCHAR(200) | O | |
@@ -1015,9 +1016,11 @@ Supports:
 
 #### Constraints
 
-- Exactly one of `service_id` / `product_id` populated according to `request_target_type`
+- Exactly one origin populated: `booking_id` when `request_target_type=booking`, or `product_id` when `request_target_type=product`
 - For `product` target: product should allow optional quotation (`allow_optional_quotation=true`)
-- For `service` target: service pricing model should allow quotation (`quotation` or `hybrid`)
+- For `booking` origin: linked booking must exist and remain permanently referenced
+- Origin link is permanent — never null after create; Admin/Sales/Accountant cannot create a quotation without an origin
+- Status never `rejected` / `declined`
 
 #### Validation Rules
 
@@ -1152,6 +1155,34 @@ These files help administrators accurately assess the requested work and prepare
 
 - Payment targets the accepted latest quotation revision.
 - Remove any `rejected_at` column / `rejected` status from V1 implementations.
+- Quotation records are never permanently deleted.
+- Admin timeline events must record actor (admin name + role, customer, or System).
+- Discussion messages and attachments are append-only (cannot be deleted).
+- Each revision permanently retains **Created By** via `issued_by_admin_id` (+ role at read time) and `created_at` for audit.
+- Admin **Compare Revisions** is a read-only derived view between any two `version_no` rows (line items / qty / unit price / totals / notes).
+- Admin UI shows Valid Until countdown derived from `valid_until` vs now.
+
+---
+
+### 3.5.3Z `quotation_notes` (Admin internal)
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `quotation_notes` |
+| **Purpose** | Internal staff notes on a quotation. Never visible to customers. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `quotation_number` family or `quotation_id` → latest/`quotations.id`; `admin_id` → `admins.id` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `quotation_id` | BIGINT UNSIGNED | R | FK — typically points at latest revision row or stable family key |
+| `admin_id` | BIGINT UNSIGNED | R | Author |
+| `body` | TEXT | R | |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
 
 ---
 

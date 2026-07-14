@@ -851,6 +851,37 @@ Operations staff review and manage all service bookings without permanently dele
 
 ---
 
+# 15. Admin Quotations Management (Panel)
+
+## 15.1 Objective
+
+Operations staff manage all quotations that originate from a Booking or Product Request — never as standalone creates.
+
+## 15.2 Primary Path
+
+1. Admin / Sales opens **Quotations** from the sidebar.
+2. Searches / applies advanced filters (status, source, valid until).
+3. Opens **View Quotation** on a row (sees Valid Until + countdown e.g. 4 days remaining / Expired · 2 days ago).
+4. Confirms **Source** (Booking / Product) and permanent linked record.
+5. Reviews customer, price breakdown, total, validity countdown, current revision.
+6. Updates status only via the **controlled status dropdown** (approved statuses only).
+7. Issues a new revision when required (each revision shows **Created By**, Staff Role, Date, Time permanently).
+8. Optionally opens **Compare Revisions** (any two revisions, e.g. v2 ↔ v3) — read-only diff of items, quantities, prices, total, notes.
+9. Participates in **Discussion** (search by keyword; attachment counters Images/Videos/PDF Files; messages + files); history never deleted.
+10. Reads **Timeline** (audit only — each event shows actor + role or Customer/System).
+11. Uses **Linked Records** for Customer Profile, Booking, Orders, Payments, Notifications.
+12. Optionally adds an **Internal Note** (Admin / Sales / Accountant) — never customer-visible.
+
+## 15.3 Rules
+
+- Quotation Number (`QT-…`) is read-only.
+- Origin: **Booking** or **Product Request** only; link never removed.
+- Statuses: Pending Review · Under Discussion · Quotation Ready · Accepted · Expired · Cancelled (never Rejected; no custom values).
+- Only the **latest** revision can be accepted.
+- No permanent delete; discussion history cannot be deleted.
+
+---
+
 ## Traceability Summary
 
 | UX area | SRS / Design alignment |

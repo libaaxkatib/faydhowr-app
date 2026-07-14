@@ -1251,7 +1251,7 @@ Do **not** show Staff Performance, Staff on Duty, Jobs Assigned, or Team Workloa
 
 ## 17.8 Out of Scope for This Foundation
 
-Detailed management UIs for Quotations, Orders, Payments, Invoices, Receipts, Catalog, Settings — designed separately.
+Detailed management UIs for Orders, Payments, Invoices, Receipts, Catalog, Settings — designed separately.
 
 ---
 
@@ -1349,6 +1349,63 @@ High · Medium · Low — Fayadhowr color badges on list and details.
 - Priority is read-only display (High / Medium / Low).
 - Manual assignment (`Assigned To`) is informational only — no Staff Management module in v1.
 - No Booking Value / Estimated Value on this module.
+
+---
+
+# 20. Admin Quotations Management Module
+
+Desktop-first. Access: **Admin**, **Sales** (primary); **Accountant** (notes / linked finance views as permitted). No standalone quotation create.
+
+## 20.1 Origin Rule (mandatory)
+
+Every quotation **must** originate from exactly one approved source:
+
+| Source (Admin display) | Meaning |
+| --- | --- |
+| **Booking** | Quotation linked to a service booking (`BK-…`) |
+| **Product** | Quotation linked to a product quotation request |
+
+**Forbidden:** Admin / Sales / Accountant creating a standalone quotation with no originating Booking or Product Request. The source link is permanent.
+
+## 20.2 Quotations List
+
+| Element | Specification |
+| --- | --- |
+| **Search** | QT number, customer, service or product |
+| **Advanced filters** | Status, source, valid until, etc. |
+| **Columns** | Quotation Number (`QT-…`), Source (Booking / Product), Customer, Service or Product, Current Revision, Amount, **Valid Until** (date + countdown e.g. 4 days remaining / Expired · 2 days ago), Status, Last Updated |
+| **Row action** | **View Quotation** only |
+| **Forbidden** | Permanent delete; Create Quotation (standalone) |
+
+### Approved statuses (only)
+
+Pending Review · Under Discussion · Quotation Ready · Accepted · Expired · Cancelled  
+
+(`Rejected` is never used. Status updates use a controlled dropdown.)
+
+## 20.3 Quotation Details
+
+| Block | Content |
+| --- | --- |
+| **Header** | QT Number (read-only), Source, Status, Current Revision, **Valid Until** + countdown, linked Booking or Product, Total Amount |
+| **Customer Information** | Name, phone, email, CUS |
+| **Source & Linkage** | Booking or Product origin; permanent link |
+| **Price Breakdown** | Line items + Total Amount (latest revision) |
+| **Revision History** | Revision Number, Summary of Changes, **Created By**, Staff Role, Date, Time (permanent audit). Only **latest** accept-eligible; older revisions read-only |
+| **Compare Revisions** | Action to compare any two revisions (e.g. v2 ↔ v3). Read-only side-by-side: Added Items, Removed Items, Quantity Changes, Unit Price Changes, Total Amount Difference, Notes Changes |
+| **Discussion** | Keyword **search** across messages; attachment counters **Images (n)**, **Videos (n)**, **PDF Files (n)** above attachments; full thread with Sender, Role, Date, Time. History never deleted |
+| **Timeline** | Read-only audit with Performed By, Staff Role (or Customer/System), Date, Time |
+| **Linked Records** | Customer Profile, Booking, Orders, Payments, Notifications |
+| **Internal Notes** | Staff notes with Name, Role, Date, Time — Admin / Sales / Accountant; never customer-visible |
+
+## 20.4 Business Rules
+
+- Quotation Number is read-only and auto-generated.
+- Quotations are never permanently deleted.
+- Every quotation remains permanently linked to its source (Booking or Product Request).
+- Timeline is read-only audit history.
+- Discussion history cannot be deleted.
+- Only the latest revision can be accepted.
 
 ---
 
