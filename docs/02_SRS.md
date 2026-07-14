@@ -264,10 +264,16 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-070 | The customer shall be able to view and update profile information. | Must |
-| FR-071 | The customer shall be able to manage saved addresses (if address is required for delivery/service). | Should |
-| FR-072 | The customer shall be able to view consolidated history of orders, bookings, quotations, and payments. | Must |
-| FR-073 | The customer shall be able to manage notification preferences (where legally/operationally allowed). | Could |
+| FR-070 | The customer shall be able to view My Account (photo, name, **read-only** Customer Reference `CUS-YYYY-######`, email, phone, preferred language, member since) plus quick stats for Bookings / Quotations / Orders. | Must |
+| FR-071 | The customer shall be able to add/edit saved addresses and set a default. Addresses shall **never be permanently deleted**; unused addresses are marked **Inactive**. | Must |
+| FR-072 | The customer shall be able to view consolidated history of orders, bookings, quotations, and payments via account navigation. | Must |
+| FR-073 | The customer shall be able to manage notification preferences (Push, Email, and category toggles). | Must |
+| FR-074 | The customer shall be able to edit profile photo, full name, email, and phone. Customer Reference Number remains read-only. | Must |
+| FR-075 | The customer shall be able to select preferred language: Somali, English, or Arabic; selection updates the entire application. | Must |
+| FR-076 | The customer shall be able to manage saved payment methods (add / set default) for EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, and Debit/Credit Card. Payment **history** is never deleted by the customer. | Must |
+| FR-077 | Security screens shall support Change Password, optional Change PIN, and placeholders for Two-Factor Authentication and Active Devices. | Should |
+| FR-078 | Help Center shall provide FAQs and Contact Fayadhowr channels (WhatsApp, Phone, Email). About Fayadhowr shall present a company profile (story, mission, vision, years of experience, certificates & licenses, awards, partners & clients, statistics) plus Privacy Policy, Terms & Conditions, and app version. | Must |
+| FR-079 | Logout shall require confirmation (Cancel / Log Out) and must never log the customer out immediately on first tap. | Must |
 
 ### 5.9 Admin Panel (Functional Summary)
 
@@ -720,12 +726,16 @@ Provide a secure personal space for identity, contact details, preferences, and 
 
 ### 13.2 Profile Data (Logical)
 
-- Identity: name, phone, email (as applicable)
+- Identity: name, phone, email, avatar (as applicable)
+- Customer Reference Number: `CUS-YYYY-######` (system-assigned, read-only)
+- Preferred language: Somali / English / Arabic
 - Authentication metadata (not displayed secrets)
-- Addresses / service locations (if used)
+- Addresses / service locations (`is_active`; never customer hard-deleted)
+- Saved payment methods (masked; distinct from payment history ledger)
 - Notification preferences
 - Account status (active, suspended, pending verification)
 - Activity summaries: orders, bookings, quotations, payments
+- Member since (`created_at`)
 
 ### 13.3 Profile Capabilities
 
@@ -733,17 +743,23 @@ Provide a secure personal space for identity, contact details, preferences, and 
 | --- | --- |
 | View profile | Customer reads current personal data |
 | Update profile | Customer edits allowed fields with validation |
-| Manage addresses | Add/edit/delete saved locations |
+| Manage addresses | Add / edit / set default; mark **Inactive** (never hard-delete) |
+| Payment methods | Add / set default for Somali-first methods; history never customer-deleted |
+| Language | Somali · English · Arabic (app-wide) |
+| Security | Change password; optional PIN; 2FA & Active Devices placeholders; re-auth for sensitive changes |
+| Help / About | FAQ & Contact Fayadhowr; full company profile (story, mission, vision, experience, trust blocks, stats); Privacy; Terms; app version |
 | View history | Access lists and details of past/present commercial activity |
-| Security | Change password / re-authenticate for sensitive changes |
-| Account control | Logout; request deactivation/deletion |
+| Account control | Logout with confirmation dialog; request deactivation/deletion |
 
 ### 13.4 Profile Rules
 
-- Customers cannot edit system-controlled fields (account ID, verification flags, suspension state).
+- Customers cannot edit system-controlled fields (`customer_number` / CUS reference, verification flags, suspension state).
 - Profile updates must not alter historical invoice/order legal snapshots incorrectly (e.g., past order address remains as fulfilled).
 - Suspended customers cannot create new bookings, quotes, or orders.
 - Personal data access is strictly owner-scoped on customer APIs.
+- Addresses are never permanently deleted by customers; mark Inactive instead.
+- Payment history is never deleted by customers.
+- Preferred language (Somali / English / Arabic) updates the entire application UI.
 
 ---
 

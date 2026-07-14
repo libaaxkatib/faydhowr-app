@@ -110,7 +110,7 @@ Most transactional tables include:
 
 | Module | Responsibility | Primary Tables |
 | --- | --- | --- |
-| **User Management** | Customers, addresses, devices, auth recovery; admin operators & roles | `customers`, `customer_addresses`, `customer_devices`, `password_reset_tokens`, `admins`, `roles`, `admin_role`, `permissions`, `role_permission` |
+| **User Management** | Customers, addresses, saved payment methods, devices, auth recovery; admin operators & roles | `customers`, `customer_addresses`, `customer_payment_methods`, `customer_devices`, `password_reset_tokens`, `admins`, `roles`, `admin_role`, `permissions`, `role_permission` |
 | **Service Management** | Service categories, services, media, schedule constraints | `service_categories`, `services`, `service_media`, `service_blackout_dates` |
 | **Store Management** | Product categories, products, media, cart | `product_categories`, `products`, `product_media`, `carts`, `cart_items` |
 | **Booking Management** | Service bookings and status history | `bookings`, `booking_status_histories` |
@@ -173,31 +173,34 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | **Purpose** | Registered mobile customers (identity, profile, account status). |
 | **Primary Key** | `id` |
 | **Foreign Keys** | None |
-| **Relationships** | 1:N → addresses, devices, carts, bookings, quotation_requests, orders, payments, notifications, reviews |
+| **Relationships** | 1:N → addresses, payment_methods, devices, carts, bookings, quotation_requests, orders, payments, notifications, reviews |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | Surrogate PK |
+| `customer_number` | VARCHAR(40) | R | Unique public reference `CUS-YYYY-######` (read-only to customers) |
 | `full_name` | VARCHAR(150) | R | Display name |
 | `email` | VARCHAR(191) | O | Unique when present |
 | `phone` | VARCHAR(30) | R | Unique; primary login identifier candidate |
 | `password_hash` | VARCHAR(255) | R | One-way hash only |
+| `avatar_url` | VARCHAR(500) | O | Profile photo |
+| `preferred_language` | VARCHAR(10) | R | `so` · `en` · `ar` (app-wide UI language) |
 | `email_verified_at` | TIMESTAMP | O | Verification marker |
 | `phone_verified_at` | TIMESTAMP | O | Verification marker |
 | `status` | VARCHAR(30) | R | `pending_verification`, `active`, `suspended`, `deactivated` |
-| `notification_preferences` | JSON | O | Optional preference map |
+| `notification_preferences` | JSON | O | Push/email + category toggles |
 | `last_login_at` | TIMESTAMP | O | Audit/support |
-| `created_at` | TIMESTAMP | R | |
+| `created_at` | TIMESTAMP | R | Member since |
 | `updated_at` | TIMESTAMP | R | |
 | `deleted_at` | TIMESTAMP | O | Soft delete / account closure |
 
 #### Constraints
 
-- Unique: `phone`
+- Unique: `customer_number`, `phone`
 - Unique: `email` (nullable unique)
-- Check/enum: `status` in defined set
+- Check/enum: `status` in defined set; `preferred_language` in `so|en|ar`
 
 #### Validation Rules
 
@@ -240,18 +243,19 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | `latitude` | DECIMAL(10,7) | O | |
 | `longitude` | DECIMAL(10,7) | O | |
 | `is_default` | BOOLEAN | R | Default false |
+| `is_active` | BOOLEAN | R | Default true; unused addresses marked **Inactive** (never hard-deleted by customer) |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
-| `deleted_at` | TIMESTAMP | O | Soft delete |
 
 #### Constraints
 
-- FK cascade behavior: restrict/soft-delete preferred over hard cascade of history.
-- At most one `is_default = true` per customer (enforced in app + partial unique index where supported).
+- FK cascade behavior: restrict preferred; **do not hard-delete** customer addresses from the customer app.
+- At most one `is_default = true` among **active** addresses per customer.
 
 #### Validation Rules
 
 - Address required fields must be present when used for delivery/service booking.
+- Customers may Add / Edit / Set Default / Mark Inactive — never permanently delete.
 - Updating an address must not rewrite historical order/booking address snapshots.
 
 #### Notes
@@ -260,7 +264,48 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.3 `customer_devices`
+### 3.1.3 `customer_payment_methods`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `customer_payment_methods` |
+| **Purpose** | Saved checkout instruments for a customer (separate from immutable `payments` history). |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `customer_id` → `customers.id` |
+| **Relationships** | N:1 → `customers` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `customer_id` | BIGINT UNSIGNED | R | FK |
+| `type` | VARCHAR(40) | R | `evc_plus`, `edahab`, `jeeb`, `salaam_somali_bank`, `bank_transfer`, `card` |
+| `display_label` | VARCHAR(100) | O | Customer-facing nickname |
+| `masked_account` | VARCHAR(60) | R | Masked phone / account / last4 |
+| `provider_token` | VARCHAR(191) | O | Tokenized card/wallet reference (never PAN/CVV) |
+| `is_default` | BOOLEAN | R | Default false |
+| `is_active` | BOOLEAN | R | Default true |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
+
+#### Constraints
+
+- At most one `is_default = true` among active methods per customer.
+- Check/enum: `type` in defined set.
+
+#### Validation Rules
+
+- Customers may Add / Set Default. **Payment history** in `payments` is never customer-deleted.
+- No full card PAN or CVV stored.
+
+#### Notes
+
+- Distinct from `payments` ledger rows (`PAY-…` references).
+
+---
+
+### 3.1.4 `customer_devices`
 
 | Attribute | Detail |
 | --- | --- |
@@ -298,7 +343,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.4 `password_reset_tokens`
+### 3.1.5 `password_reset_tokens`
 
 | Attribute | Detail |
 | --- | --- |
@@ -336,7 +381,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.5 `admins`
+### 3.1.6 `admins`
 
 | Attribute | Detail |
 | --- | --- |
@@ -376,7 +421,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.6 `roles`
+### 3.1.7 `roles`
 
 | Attribute | Detail |
 | --- | --- |
@@ -401,7 +446,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.7 `permissions`
+### 3.1.8 `permissions`
 
 | Attribute | Detail |
 | --- | --- |
@@ -422,7 +467,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.8 `admin_role` (pivot)
+### 3.1.9 `admin_role` (pivot)
 
 | Attribute | Detail |
 | --- | --- |
@@ -441,7 +486,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.9 `role_permission` (pivot)
+### 3.1.10 `role_permission` (pivot)
 
 | Attribute | Detail |
 | --- | --- |
@@ -1493,7 +1538,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 | Parent | Children | Description |
 | --- | --- | --- |
-| `customers` | `customer_addresses`, `customer_devices`, `carts`, `bookings`, `quotation_requests`, `orders`, `payments`, `notifications`, `reviews` | Customer owns transactional and profile data |
+| `customers` | `customer_addresses`, `customer_payment_methods`, `customer_devices`, `carts`, `bookings`, `quotation_requests`, `orders`, `payments`, `notifications`, `reviews` | Customer owns transactional and profile data |
 | `service_categories` | `services` | Category catalog |
 | `services` | `service_media`, `service_blackout_dates`, `bookings`, `quotation_requests` | Service definition and usage |
 | `product_categories` | `products` | Store taxonomy |

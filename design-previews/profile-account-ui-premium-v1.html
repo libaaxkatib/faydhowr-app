@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fayadhowr — Profile / My Account Module Premium V1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #0E339D; --secondary: #0694AC; --white: #FFF; --bg: #F8FAFC;
+      --text: #1F2937; --muted: #6B7280; --border: #E5E7EB;
+      --shadow: 0 8px 20px rgba(31,41,55,.07); --radius: 16px;
+      --success: #059669; --warn: #D97706;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: linear-gradient(165deg, #DCE6F8 0%, #E8F4F7 50%, #EEF2F7 100%);
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif; color: var(--text);
+      padding: 40px 24px 80px;
+    }
+    .board-title { max-width: 1680px; margin: 0 auto 28px; }
+    .board-title h1 { font-size: 28px; font-weight: 700; letter-spacing: -.03em; color: var(--primary); }
+    .board-title p { margin-top: 8px; font-size: 14px; color: var(--muted); max-width: 920px; line-height: 1.5; }
+    .flow-label {
+      font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--primary); margin: 36px auto 14px; max-width: 1680px;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 24px; max-width: 1680px; margin: 0 auto; align-items: flex-start; }
+    .phone-wrap { width: 390px; }
+    .phone-caption { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+    .phone-caption span { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+    .phone {
+      width: 390px; background: var(--bg); border-radius: 28px; overflow: hidden;
+      box-shadow: 0 24px 48px rgba(14,51,157,.12);
+      display: flex; flex-direction: column; position: relative; min-height: 844px;
+    }
+    .status {
+      height: 44px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between;
+      font-size: 14px; font-weight: 600; background: var(--white);
+    }
+    .status .r { font-size: 12px; font-weight: 500; color: var(--muted); }
+    .app-bar {
+      height: 56px; padding: 0 8px 0 4px; background: var(--white);
+      display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--border);
+    }
+    .app-bar h1 { font-size: 17px; font-weight: 700; letter-spacing: -.02em; flex: 1; }
+    .back, .icon {
+      width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+      color: var(--primary); background: rgba(14,51,157,.06); flex-shrink: 0;
+    }
+    .back { background: transparent; }
+    .scroll { flex: 1; overflow: hidden; padding-bottom: 88px; }
+    .pad { padding: 16px; }
+    .sticky {
+      position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px 20px;
+      background: linear-gradient(180deg, rgba(248,250,252,0), var(--bg) 28%, var(--bg));
+    }
+    .tabbar {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 72px;
+      background: #fff; border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-around; padding: 0 8px 8px;
+    }
+    .tab-item {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 600; color: var(--muted); width: 64px;
+    }
+    .tab-item.on { color: var(--primary); }
+    .tab-item .t { width: 24px; height: 24px; border-radius: 8px; background: rgba(14,51,157,.08); display: grid; place-items: center; font-size: 11px; }
+    .tab-item.on .t { background: var(--primary); color: #fff; }
+
+    .btn {
+      height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+      gap: 8px; font-size: 14px; font-weight: 700; width: 100%;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0E339D, #1246C4); color: #fff;
+      box-shadow: 0 8px 18px rgba(14,51,157,.28);
+    }
+    .btn-secondary { background: #fff; color: var(--primary); border: 1.5px solid var(--primary); }
+    .btn-ghost { background: rgba(14,51,157,.06); color: var(--primary); }
+    .btn-teal {
+      background: linear-gradient(135deg, #0694AC, #0AB0CC); color: #fff;
+      box-shadow: 0 8px 18px rgba(6,148,172,.28);
+    }
+    .btn-sm { height: 36px; font-size: 12px; border-radius: 10px; padding: 0 12px; width: auto; }
+    .btn-set-default {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 32px; padding: 0 12px; width: auto; flex-shrink: 0;
+      border-radius: 10px; font-size: 11px; font-weight: 700;
+      background: #fff; color: var(--primary); border: 1.5px solid var(--primary);
+      white-space: nowrap; box-shadow: none;
+    }
+    .pay-row {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .pay-info {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column; justify-content: center;
+    }
+    .pay-info h3 {
+      font-size: 14px; font-weight: 700; line-height: 1.25; margin: 0;
+    }
+    .pay-info .meta {
+      font-size: 12px; color: var(--muted); line-height: 1.35; margin-top: 2px;
+    }
+    .pay-info .pill.default {
+      margin-top: 8px; align-self: flex-start;
+      height: 22px; padding: 0 8px; font-size: 10px;
+      box-shadow: 0 2px 6px rgba(14,51,157,.18);
+    }
+    .card.pay-method {
+      padding: 14px 16px;
+    }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .hero-card {
+      background: linear-gradient(145deg, #0E339D 0%, #1246C4 55%, #0694AC 140%);
+      border-radius: 20px; padding: 20px 16px 18px; color: #fff;
+      box-shadow: 0 16px 32px rgba(14,51,157,.22); margin-bottom: 16px;
+      position: relative; overflow: hidden;
+    }
+    .hero-card::after {
+      content: ""; position: absolute; width: 160px; height: 160px; border-radius: 50%;
+      background: rgba(255,255,255,.08); top: -48px; right: -36px;
+    }
+    .avatar-wrap { display: flex; align-items: center; gap: 14px; position: relative; z-index: 1; }
+    .avatar {
+      width: 72px; height: 72px; border-radius: 20px; background: rgba(255,255,255,.2);
+      border: 2px solid rgba(255,255,255,.45); display: grid; place-items: center;
+      font-size: 26px; font-weight: 700; flex-shrink: 0;
+    }
+    .avatar.lg { width: 88px; height: 88px; border-radius: 24px; font-size: 32px; margin: 0 auto 12px; }
+    .avatar.edit {
+      width: 96px; height: 96px; border-radius: 28px; margin: 0 auto;
+      background: linear-gradient(135deg, rgba(14,51,157,.12), rgba(6,148,172,.16));
+      border: 2px dashed rgba(14,51,157,.35); color: var(--primary); position: relative;
+    }
+    .avatar.edit .cam {
+      position: absolute; right: -4px; bottom: -4px; width: 32px; height: 32px;
+      border-radius: 10px; background: var(--primary); color: #fff;
+      display: grid; place-items: center; font-size: 14px; border: 2px solid #fff;
+    }
+    .hero-name { font-size: 20px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 4px; }
+    .cus-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 700; background: rgba(255,255,255,.16);
+      padding: 4px 10px; border-radius: 999px; letter-spacing: .02em;
+    }
+    .lock { opacity: .85; font-size: 10px; }
+
+    .info-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; position: relative; z-index: 1; }
+    .info-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+    .info-row .k { opacity: .75; }
+    .info-row .v { font-weight: 600; text-align: right; }
+
+    .stats {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px;
+    }
+    .stat {
+      background: #fff; border: 1px solid var(--border); border-radius: 14px;
+      padding: 14px 10px; text-align: center; box-shadow: var(--shadow);
+    }
+    .stat .n { font-size: 22px; font-weight: 700; color: var(--primary); letter-spacing: -.03em; }
+    .stat .l { font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+
+    .section-h {
+      font-size: 12px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .04em; margin: 8px 0 10px;
+    }
+
+    .action {
+      display: flex; align-items: center; gap: 12px;
+      background: #fff; border: 1px solid var(--border); border-radius: 14px;
+      padding: 14px; margin-bottom: 8px; box-shadow: var(--shadow);
+    }
+    .action .ico {
+      width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+      display: grid; place-items: center; font-size: 14px; font-weight: 800; color: #fff;
+      background: linear-gradient(135deg, #0E339D, #0694AC);
+    }
+    .action .ico.teal { background: linear-gradient(135deg, #0694AC, #0AB0CC); }
+    .action .ico.muted { background: #64748B; }
+    .action .body { flex: 1; min-width: 0; }
+    .action h3 { font-size: 14px; font-weight: 700; }
+    .action p { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .chev { color: var(--muted); font-size: 16px; font-weight: 700; }
+
+    .card {
+      background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 14px; margin-bottom: 10px;
+    }
+    .card.head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+    .card h3 { font-size: 14px; font-weight: 700; }
+    .card .meta { font-size: 12px; color: var(--muted); line-height: 1.45; }
+    .pill {
+      display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+      border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap;
+    }
+    .pill.default {
+      background: linear-gradient(135deg, #0E339D, #1246C4); color: #fff;
+      box-shadow: 0 4px 10px rgba(14,51,157,.25); height: 24px; padding: 0 10px; font-size: 11px;
+    }
+    .pill.active { background: rgba(5,150,105,.12); color: var(--success); }
+    .pill.inactive { background: #F3F4F6; color: var(--muted); }
+    .pill.soon { background: rgba(217,119,6,.12); color: var(--warn); }
+    .card.is-default {
+      border-color: rgba(14,51,157,.35);
+      background: linear-gradient(135deg, rgba(14,51,157,.04), #fff 45%);
+      box-shadow: 0 8px 20px rgba(14,51,157,.1);
+    }
+    .modal-scrim {
+      position: absolute; inset: 0; background: rgba(15,23,42,.45);
+      display: flex; align-items: flex-end; justify-content: center;
+      padding: 16px; z-index: 5;
+    }
+    .dialog {
+      width: 100%; background: #fff; border-radius: 20px; padding: 22px 18px 18px;
+      box-shadow: 0 24px 48px rgba(15,23,42,.25);
+    }
+    .dialog h2 { font-size: 18px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 8px; }
+    .dialog p { font-size: 14px; color: var(--muted); line-height: 1.5; margin-bottom: 20px; }
+    .dialog .btn-row .btn { flex: 1; height: 48px; }
+    .btn-danger-solid {
+      background: linear-gradient(135deg, #DC2626, #EF4444); color: #fff;
+      box-shadow: 0 8px 18px rgba(220,38,38,.28);
+    }
+    .about-sec { margin-bottom: 12px; }
+    .about-sec .ico-row {
+      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+      display: grid; place-items: center; font-size: 14px; font-weight: 800; color: #fff;
+      background: linear-gradient(135deg, #0E339D, #0694AC);
+    }
+    .about-sec h3 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+    .about-sec p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .chip-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .chip {
+      font-size: 11px; font-weight: 600; padding: 8px 10px; border-radius: 10px;
+      background: rgba(14,51,157,.06); color: var(--primary); border: 1px solid rgba(14,51,157,.12);
+    }
+    .co-stats {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 8px;
+    }
+    .co-stat {
+      background: rgba(14,51,157,.04); border: 1px solid rgba(14,51,157,.1);
+      border-radius: 12px; padding: 12px 8px; text-align: center;
+    }
+    .co-stat .n { font-size: 18px; font-weight: 700; color: var(--primary); }
+    .co-stat .l { font-size: 10px; font-weight: 600; color: var(--muted); margin-top: 2px; line-height: 1.3; }
+    .years-banner {
+      display: flex; align-items: center; gap: 12px; margin-top: 12px;
+      background: linear-gradient(135deg, rgba(6,148,172,.12), rgba(14,51,157,.08));
+      border: 1px solid rgba(6,148,172,.2); border-radius: 14px; padding: 12px 14px;
+    }
+    .years-banner .y { font-size: 28px; font-weight: 800; color: var(--secondary); letter-spacing: -.03em; }
+    .years-banner .t { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.35; }
+
+    .field { margin-bottom: 12px; }
+    .field label {
+      display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px;
+    }
+    .field .input {
+      height: 48px; background: #fff; border: 1px solid var(--border); border-radius: 14px;
+      display: flex; align-items: center; padding: 0 14px; font-size: 14px; font-weight: 500;
+      box-shadow: var(--shadow);
+    }
+    .field .input.ro {
+      background: #F3F4F6; color: var(--muted); border-style: dashed;
+    }
+    .field .hint { font-size: 11px; color: var(--muted); margin-top: 6px; }
+    .field .input.textarea { height: 72px; align-items: flex-start; padding-top: 12px; }
+
+    .lang {
+      display: flex; align-items: center; gap: 12px;
+      background: #fff; border: 1.5px solid var(--border); border-radius: 16px;
+      padding: 16px; margin-bottom: 10px; box-shadow: var(--shadow);
+    }
+    .lang.on { border-color: var(--primary); background: linear-gradient(90deg, rgba(14,51,157,.05), #fff 50%); }
+    .lang .flag {
+      width: 44px; height: 44px; border-radius: 12px; background: rgba(14,51,157,.08);
+      display: grid; place-items: center; font-size: 12px; font-weight: 800; color: var(--primary);
+    }
+    .lang .body { flex: 1; }
+    .lang h3 { font-size: 15px; font-weight: 700; }
+    .lang p { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .radio {
+      width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border);
+      display: grid; place-items: center;
+    }
+    .lang.on .radio { border-color: var(--primary); }
+    .lang.on .radio::after {
+      content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--primary);
+    }
+
+    .faq {
+      background: #fff; border: 1px solid var(--border); border-radius: 14px;
+      margin-bottom: 8px; overflow: hidden; box-shadow: var(--shadow);
+    }
+    .faq .q {
+      padding: 14px; display: flex; justify-content: space-between; align-items: center;
+      font-size: 13px; font-weight: 700; gap: 12px;
+    }
+    .faq .a {
+      padding: 0 14px 14px; font-size: 12px; color: var(--muted); line-height: 1.5;
+      border-top: 1px solid transparent;
+    }
+    .faq.open .a { border-top-color: var(--border); padding-top: 12px; }
+    .note {
+      font-size: 11px; color: var(--muted); line-height: 1.45;
+      background: rgba(6,148,172,.06); border: 1px solid rgba(6,148,172,.15);
+      border-radius: 12px; padding: 12px; margin-bottom: 12px;
+    }
+    .logout {
+      margin-top: 8px; height: 48px; border-radius: 14px;
+      display: grid; place-items: center; font-size: 13px; font-weight: 700;
+      color: #EF4444; background: rgba(239,68,68,.06); border: 1px solid rgba(239,68,68,.15);
+    }
+    .about-logo {
+      width: 64px; height: 64px; border-radius: 18px; margin: 8px auto 12px;
+      background: linear-gradient(135deg, #0E339D, #0694AC);
+      display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 18px;
+      box-shadow: 0 12px 24px rgba(14,51,157,.25);
+    }
+    .center { text-align: center; }
+    .ver { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .link-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 0; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 600;
+    }
+    .link-row:last-child { border-bottom: none; }
+    .pay-ico {
+      width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
+      font-size: 10px; font-weight: 800; color: #fff; flex-shrink: 0;
+    }
+    .pay-ico.evc { background: #0E339D; }
+    .pay-ico.edahab { background: #0694AC; }
+    .pay-ico.jeeb { background: #1D4ED8; }
+    .pay-ico.salaam { background: #047857; }
+    .pay-ico.bank { background: #475569; }
+    .pay-ico.pay-card { background: #7C3AED; }
+  </style>
+</head>
+<body>
+  <div class="board-title">
+    <h1>Profile / My Account Module — Premium V1</h1>
+    <p>
+      My Account · Edit Profile · Saved Addresses · Payment Methods · Language · Security · Help Center · About.
+      Logout requires confirmation. Default badges on addresses &amp; payment methods. About is a full company profile.
+      Previously approved modules unchanged.
+    </p>
+  </div>
+
+  <!-- 1 MY ACCOUNT -->
+  <div class="flow-label">1 · My Account</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">My Account<span>Identity · CUS ref · stats · quick actions</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back" style="visibility:hidden">←</div>
+          <h1>My Account</h1>
+          <div class="icon">⎋</div>
+        </div>
+        <div class="scroll pad" style="padding-bottom:96px;">
+          <div class="hero-card">
+            <div class="avatar-wrap">
+              <div class="avatar">AH</div>
+              <div>
+                <div class="hero-name">Amina Hassan</div>
+                <div class="cus-badge"><span class="lock">🔒</span> CUS-2026-000001</div>
+              </div>
+            </div>
+            <div class="info-list">
+              <div class="info-row"><span class="k">Email</span><span class="v">amina@email.com</span></div>
+              <div class="info-row"><span class="k">Phone</span><span class="v">+252 61 234 5678</span></div>
+              <div class="info-row"><span class="k">Language</span><span class="v">English</span></div>
+              <div class="info-row"><span class="k">Member since</span><span class="v">Jan 2026</span></div>
+            </div>
+          </div>
+
+          <div class="stats">
+            <div class="stat"><div class="n">8</div><div class="l">Bookings</div></div>
+            <div class="stat"><div class="n">3</div><div class="l">Quotations</div></div>
+            <div class="stat"><div class="n">12</div><div class="l">Orders</div></div>
+          </div>
+
+          <div class="section-h">Quick actions</div>
+          <div class="action"><div class="ico">✎</div><div class="body"><h3>Edit Profile</h3><p>Photo, name, email, phone</p></div><div class="chev">›</div></div>
+          <div class="action"><div class="ico teal">⌂</div><div class="body"><h3>Saved Addresses</h3><p>Default · Active · Inactive</p></div><div class="chev">›</div></div>
+          <div class="action"><div class="ico">💳</div><div class="body"><h3>Payment Methods</h3><p>EVC · eDahab · Card &amp; more</p></div><div class="chev">›</div></div>
+          <div class="action"><div class="ico teal">🔔</div><div class="body"><h3>Notifications</h3><p>Push &amp; Email preferences</p></div><div class="chev">›</div></div>
+          <div class="action"><div class="ico">文</div><div class="body"><h3>Language</h3><p>Somali · English · Arabic</p></div><div class="chev">›</div></div>
+          <div class="action"><div class="ico muted">⛨</div><div class="body"><h3>Security</h3><p>Password · PIN · Devices</p></div><div class="chev">›</div></div>
+          <div class="action"><div class="ico teal">?</div><div class="body"><h3>Help Center</h3><p>FAQ &amp; contact channels</p></div><div class="chev">›</div></div>
+          <div class="action"><div class="ico">ⓘ</div><div class="body"><h3>About Fayadhowr</h3><p>Story · Mission · Trust · Legal</p></div><div class="chev">›</div></div>
+
+          <div class="logout">Log out</div>
+        </div>
+        <div class="tabbar">
+          <div class="tab-item"><div class="t">⌂</div>Home</div>
+          <div class="tab-item"><div class="t">✦</div>Services</div>
+          <div class="tab-item"><div class="t">▦</div>Store</div>
+          <div class="tab-item"><div class="t">▤</div>Cart</div>
+          <div class="tab-item on"><div class="t">☺</div>Account</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone-caption">Logout Confirmation<span>Never logs out immediately</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back" style="visibility:hidden">←</div>
+          <h1>My Account</h1>
+          <div class="icon">⎋</div>
+        </div>
+        <div class="scroll pad" style="padding-bottom:96px;opacity:.35;pointer-events:none;">
+          <div class="hero-card">
+            <div class="avatar-wrap">
+              <div class="avatar">AH</div>
+              <div>
+                <div class="hero-name">Amina Hassan</div>
+                <div class="cus-badge"><span class="lock">🔒</span> CUS-2026-000001</div>
+              </div>
+            </div>
+          </div>
+          <div class="stats">
+            <div class="stat"><div class="n">8</div><div class="l">Bookings</div></div>
+            <div class="stat"><div class="n">3</div><div class="l">Quotations</div></div>
+            <div class="stat"><div class="n">12</div><div class="l">Orders</div></div>
+          </div>
+          <div class="logout">Log out</div>
+        </div>
+        <div class="tabbar" style="opacity:.35;">
+          <div class="tab-item"><div class="t">⌂</div>Home</div>
+          <div class="tab-item"><div class="t">✦</div>Services</div>
+          <div class="tab-item"><div class="t">▦</div>Store</div>
+          <div class="tab-item"><div class="t">▤</div>Cart</div>
+          <div class="tab-item on"><div class="t">☺</div>Account</div>
+        </div>
+        <div class="modal-scrim">
+          <div class="dialog">
+            <h2>Log Out</h2>
+            <p>Are you sure you want to log out?</p>
+            <div class="btn-row">
+              <div class="btn btn-secondary">Cancel</div>
+              <div class="btn btn-danger-solid">Log Out</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 EDIT PROFILE -->
+  <div class="flow-label">2 · Edit Profile</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Edit Profile<span>CUS read-only · Save Changes</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Edit Profile</h1>
+          <div class="icon" style="visibility:hidden">·</div>
+        </div>
+        <div class="scroll pad">
+          <div class="center" style="margin-bottom:20px;">
+            <div class="avatar edit">AH<div class="cam">📷</div></div>
+            <div style="font-size:12px;font-weight:600;color:var(--primary);margin-top:10px;">Change photo</div>
+          </div>
+
+          <div class="field">
+            <label>Customer Reference Number</label>
+            <div class="input ro">CUS-2026-000001&nbsp;&nbsp;🔒</div>
+            <div class="hint">Assigned by Fayadhowr — cannot be changed</div>
+          </div>
+          <div class="field">
+            <label>Full Name</label>
+            <div class="input">Amina Hassan</div>
+          </div>
+          <div class="field">
+            <label>Email</label>
+            <div class="input">amina@email.com</div>
+          </div>
+          <div class="field">
+            <label>Phone Number</label>
+            <div class="input">+252 61 234 5678</div>
+          </div>
+        </div>
+        <div class="sticky">
+          <div class="btn btn-primary">Save Changes</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 SAVED ADDRESSES -->
+  <div class="flow-label">3 · Saved Addresses</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Saved Addresses<span>Add · Edit · Set Default · Mark Inactive</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Saved Addresses</h1>
+          <div class="icon">＋</div>
+        </div>
+        <div class="scroll pad">
+          <div class="note">Addresses are never permanently deleted. Mark unused locations as Inactive so history stays intact.</div>
+
+          <div class="card is-default">
+            <div class="head" style="align-items:center;">
+              <div>
+                <h3>Home</h3>
+                <div style="margin-top:6px;"><span class="pill active">Active</span></div>
+              </div>
+              <span class="pill default">Default</span>
+            </div>
+            <div class="meta">Hodan District, Mogadishu<br/>+252 61 234 5678</div>
+            <div class="btn-row" style="margin-top:12px;">
+              <div class="btn btn-ghost btn-sm">Edit</div>
+              <div class="btn btn-ghost btn-sm">Mark Inactive</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="head">
+              <div>
+                <h3>Office</h3>
+                <div style="margin-top:6px;"><span class="pill active">Active</span></div>
+              </div>
+            </div>
+            <div class="meta">Makka Al-Mukarama Rd, Mogadishu<br/>+252 61 987 6543</div>
+            <div class="btn-row" style="margin-top:12px;">
+              <div class="btn btn-ghost btn-sm">Edit</div>
+              <div class="btn btn-primary btn-sm">Set Default</div>
+              <div class="btn btn-ghost btn-sm">Mark Inactive</div>
+            </div>
+          </div>
+
+          <div class="card" style="opacity:.72;">
+            <div class="head">
+              <div>
+                <h3>Previous Flat</h3>
+                <div style="margin-top:6px;"><span class="pill inactive">Inactive</span></div>
+              </div>
+            </div>
+            <div class="meta">Waberi, Mogadishu</div>
+            <div class="btn-row" style="margin-top:12px;">
+              <div class="btn btn-ghost btn-sm">Edit</div>
+              <div class="btn btn-ghost btn-sm">Reactivate</div>
+            </div>
+          </div>
+        </div>
+        <div class="sticky">
+          <div class="btn btn-teal">＋ Add Address</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone-caption">Add / Edit Address<span>No delete control</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Add Address</h1>
+          <div class="icon" style="visibility:hidden">·</div>
+        </div>
+        <div class="scroll pad">
+          <div class="field"><label>Label</label><div class="input">Home</div></div>
+          <div class="field"><label>Contact Name</label><div class="input">Amina Hassan</div></div>
+          <div class="field"><label>Phone</label><div class="input">+252 61 234 5678</div></div>
+          <div class="field"><label>Address Line</label><div class="input">Hodan District, near Zoo</div></div>
+          <div class="field"><label>City</label><div class="input">Mogadishu</div></div>
+          <div class="field"><label>Notes</label><div class="input textarea">Gate code 214 · blue door</div></div>
+          <div class="setting" style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:var(--shadow);">
+            <div>
+              <h3 style="font-size:14px;font-weight:700;">Set as default</h3>
+              <p style="font-size:11px;color:var(--muted);">Used first at booking &amp; checkout</p>
+            </div>
+            <div style="width:48px;height:28px;border-radius:999px;background:var(--primary);position:relative;">
+              <span style="position:absolute;top:3px;left:23px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.15);display:block;"></span>
+            </div>
+          </div>
+        </div>
+        <div class="sticky">
+          <div class="btn btn-primary">Save Address</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 PAYMENT METHODS -->
+  <div class="flow-label">4 · Payment Methods</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Payment Methods<span>Add · Change default · history never deleted</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Payment Methods</h1>
+          <div class="icon">＋</div>
+        </div>
+        <div class="scroll pad">
+          <div class="note">Saved methods can be used at checkout. Payment history remains in Orders &amp; Bookings — customers cannot delete it.</div>
+
+          <div class="card pay-method is-default">
+            <div class="pay-row">
+              <div class="pay-ico evc">EVC</div>
+              <div class="pay-info">
+                <h3>EVC Plus</h3>
+                <div class="meta">+252 61•••5678</div>
+                <span class="pill default">Default</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card pay-method">
+            <div class="pay-row">
+              <div class="pay-ico edahab">eD</div>
+              <div class="pay-info">
+                <h3>eDahab</h3>
+                <div class="meta">+252 65•••4412</div>
+              </div>
+              <div class="btn-set-default">Set Default</div>
+            </div>
+          </div>
+
+          <div class="card pay-method">
+            <div class="pay-row">
+              <div class="pay-ico salaam">SSB</div>
+              <div class="pay-info">
+                <h3>Salaam Somali Bank</h3>
+                <div class="meta">•••• 8842</div>
+              </div>
+              <div class="btn-set-default">Set Default</div>
+            </div>
+          </div>
+
+          <div class="card pay-method">
+            <div class="pay-row">
+              <div class="pay-ico pay-card">CARD</div>
+              <div class="pay-info">
+                <h3>Debit / Credit Card</h3>
+                <div class="meta">Visa •••• 4242</div>
+              </div>
+              <div class="btn-set-default">Set Default</div>
+            </div>
+          </div>
+        </div>
+        <div class="sticky">
+          <div class="btn btn-teal">＋ Add Payment Method</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone-caption">Add Payment Method<span>Supported wallets &amp; rails</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Add Method</h1>
+          <div class="icon" style="visibility:hidden">·</div>
+        </div>
+        <div class="scroll pad">
+          <div class="section-h">Choose type</div>
+          <div class="action"><div class="pay-ico evc">EVC</div><div class="body"><h3>EVC Plus</h3><p>Mobile wallet</p></div><div class="chev">›</div></div>
+          <div class="action"><div class="pay-ico edahab">eD</div><div class="body"><h3>eDahab</h3><p>Mobile wallet</p></div><div class="chev">›</div></div>
+          <div class="action"><div class="pay-ico jeeb">JEB</div><div class="body"><h3>Jeeb</h3><p>Mobile wallet</p></div><div class="chev">›</div></div>
+          <div class="action"><div class="pay-ico salaam">SSB</div><div class="body"><h3>Salaam Somali Bank</h3><p>Bank account</p></div><div class="chev">›</div></div>
+          <div class="action"><div class="pay-ico bank">BNK</div><div class="body"><h3>Bank Transfer</h3><p>Manual transfer details</p></div><div class="chev">›</div></div>
+          <div class="action"><div class="pay-ico pay-card">CARD</div><div class="body"><h3>Debit / Credit Card</h3><p>Tokenized — no PAN stored</p></div><div class="chev">›</div></div>
+
+          <div class="field" style="margin-top:16px;">
+            <label>Mobile number / Account</label>
+            <div class="input">+252 61 234 5678</div>
+          </div>
+          <div class="setting" style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:var(--shadow);margin-bottom:20px;">
+            <div>
+              <h3 style="font-size:14px;font-weight:700;">Set as default</h3>
+              <p style="font-size:11px;color:var(--muted);">Preferred at checkout</p>
+            </div>
+            <div style="width:48px;height:28px;border-radius:999px;background:var(--primary);position:relative;">
+              <span style="position:absolute;top:3px;left:23px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.15);display:block;"></span>
+            </div>
+          </div>
+        </div>
+        <div class="sticky">
+          <div class="btn btn-primary">Save Payment Method</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 LANGUAGE -->
+  <div class="flow-label">5 · Language</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Language<span>Somali · English · Arabic — app-wide</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Language</h1>
+          <div class="icon" style="visibility:hidden">·</div>
+        </div>
+        <div class="scroll pad">
+          <div class="note">Changing language updates the entire Fayadhowr customer app immediately (navigation, product copy, and system screens).</div>
+
+          <div class="lang">
+            <div class="flag">SO</div>
+            <div class="body"><h3>Somali</h3><p>Af-Soomaali</p></div>
+            <div class="radio"></div>
+          </div>
+          <div class="lang on">
+            <div class="flag">EN</div>
+            <div class="body"><h3>English</h3><p>Currently selected</p></div>
+            <div class="radio"></div>
+          </div>
+          <div class="lang">
+            <div class="flag">AR</div>
+            <div class="body"><h3>Arabic</h3><p>العربية · RTL layout</p></div>
+            <div class="radio"></div>
+          </div>
+        </div>
+        <div class="sticky">
+          <div class="btn btn-primary">Apply Language</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 SECURITY -->
+  <div class="flow-label">6 · Security</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Security hub<span>Password · PIN · placeholders</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Security</h1>
+          <div class="icon" style="visibility:hidden">·</div>
+        </div>
+        <div class="scroll pad">
+          <div class="action">
+            <div class="ico">🔑</div>
+            <div class="body"><h3>Change Password</h3><p>Current + new password</p></div>
+            <div class="chev">›</div>
+          </div>
+          <div class="action">
+            <div class="ico teal">PIN</div>
+            <div class="body"><h3>Change PIN</h3><p>Shown when PIN is enabled</p></div>
+            <div class="chev">›</div>
+          </div>
+          <div class="action" style="opacity:.85;">
+            <div class="ico muted">2FA</div>
+            <div class="body">
+              <h3>Two-Factor Authentication <span class="pill soon">Soon</span></h3>
+              <p>Placeholder — coming in a later release</p>
+            </div>
+            <div class="chev">›</div>
+          </div>
+          <div class="action" style="opacity:.85;">
+            <div class="ico muted">📱</div>
+            <div class="body">
+              <h3>Active Devices <span class="pill soon">Soon</span></h3>
+              <p>Placeholder — manage signed-in devices</p>
+            </div>
+            <div class="chev">›</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone-caption">Change Password<span>Sensitive action</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Change Password</h1>
+          <div class="icon" style="visibility:hidden">·</div>
+        </div>
+        <div class="scroll pad">
+          <div class="field"><label>Current Password</label><div class="input">••••••••</div></div>
+          <div class="field"><label>New Password</label><div class="input">••••••••</div></div>
+          <div class="field"><label>Confirm New Password</label><div class="input">••••••••</div></div>
+          <div class="note">You will stay signed in on this device after a successful change.</div>
+        </div>
+        <div class="sticky">
+          <div class="btn btn-primary">Update Password</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7 HELP CENTER -->
+  <div class="flow-label">7 · Help Center</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Help Center<span>FAQ · Contact Fayadhowr</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Help Center</h1>
+          <div class="icon" style="visibility:hidden">·</div>
+        </div>
+        <div class="scroll pad">
+          <div class="section-h">Frequently Asked Questions</div>
+          <div class="faq open">
+            <div class="q">How do I track my booking? <span>▾</span></div>
+            <div class="a">Open My Account → stats or Booking History. Each booking shows status and your BK reference.</div>
+          </div>
+          <div class="faq">
+            <div class="q">Can I delete a saved address? <span>›</span></div>
+          </div>
+          <div class="faq">
+            <div class="q">Which payment methods are supported? <span>›</span></div>
+          </div>
+          <div class="faq">
+            <div class="q">How do quotations work? <span>›</span></div>
+          </div>
+
+          <div class="section-h" style="margin-top:20px;">Contact Fayadhowr</div>
+          <div class="action">
+            <div class="ico" style="background:#25D366;">WA</div>
+            <div class="body"><h3>WhatsApp</h3><p>+252 61 000 1111</p></div>
+            <div class="chev">›</div>
+          </div>
+          <div class="action">
+            <div class="ico teal">☎</div>
+            <div class="body"><h3>Phone</h3><p>+252 61 000 2222</p></div>
+            <div class="chev">›</div>
+          </div>
+          <div class="action">
+            <div class="ico">✉</div>
+            <div class="body"><h3>Email</h3><p>support@fayadhowr.com</p></div>
+            <div class="chev">›</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8 ABOUT -->
+  <div class="flow-label">8 · About Fayadhowr (Company Profile)</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">About Fayadhowr<span>Company profile · trust · legal · version</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>About Fayadhowr</h1>
+          <div class="icon" style="visibility:hidden">·</div>
+        </div>
+        <div class="scroll pad" style="padding-bottom:24px;">
+          <div class="card center" style="padding:20px 16px;">
+            <div class="about-logo">FD</div>
+            <h2 style="font-size:18px;font-weight:700;letter-spacing:-.02em;">Fayadhowr</h2>
+            <p style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.45;">
+              Professional cleaning services &amp; care products for homes and businesses across Somalia.
+            </p>
+            <div class="years-banner">
+              <div class="y">12+</div>
+              <div class="t">Years of experience delivering trusted cleaning excellence</div>
+            </div>
+          </div>
+
+          <div class="card about-sec">
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div class="ico-row">📖</div>
+              <div>
+                <h3>Company Story</h3>
+                <p>Founded in Mogadishu, Fayadhowr grew from a local cleaning team into a full-service platform connecting customers with trained professionals, quality products, and transparent booking.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card about-sec">
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div class="ico-row">🎯</div>
+              <div>
+                <h3>Mission</h3>
+                <p>Make premium cleaning simple, reliable, and accessible — with clear pricing, accountable service, and customer care at every step.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card about-sec">
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div class="ico-row">👁</div>
+              <div>
+                <h3>Vision</h3>
+                <p>Become Somalia’s most trusted cleaning brand — digitally enabled, professionally staffed, and known for consistency.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card about-sec">
+            <h3 style="margin-bottom:8px;">Company Statistics</h3>
+            <div class="co-stats">
+              <div class="co-stat"><div class="n">4.8k+</div><div class="l">Completed Projects</div></div>
+              <div class="co-stat"><div class="n">3.2k+</div><div class="l">Happy Customers</div></div>
+              <div class="co-stat"><div class="n">85+</div><div class="l">Team Members</div></div>
+            </div>
+          </div>
+
+          <div class="card about-sec">
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div class="ico-row">📜</div>
+              <div style="flex:1;">
+                <h3>Certificates &amp; Licenses</h3>
+                <div class="chip-grid">
+                  <span class="chip">Business License</span>
+                  <span class="chip">Hygiene Standards</span>
+                  <span class="chip">Staff Safety Cert.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card about-sec">
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div class="ico-row">🏆</div>
+              <div style="flex:1;">
+                <h3>Awards &amp; Recognition</h3>
+                <div class="chip-grid">
+                  <span class="chip">Best Local Service 2024</span>
+                  <span class="chip">Customer Choice</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card about-sec">
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div class="ico-row">🤝</div>
+              <div style="flex:1;">
+                <h3>Partners &amp; Clients</h3>
+                <div class="chip-grid">
+                  <span class="chip">Hotels &amp; Residences</span>
+                  <span class="chip">Offices</span>
+                  <span class="chip">Retail</span>
+                  <span class="chip">Clinics</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="padding:4px 16px;">
+            <div class="link-row">Privacy Policy <span class="chev">›</span></div>
+            <div class="link-row">Terms &amp; Conditions <span class="chev">›</span></div>
+          </div>
+
+          <p class="center ver" style="margin-top:14px;">App Version 1.0.0 (Build 100)</p>
+          <p class="center" style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5;">
+            © 2026 Fayadhowr. All rights reserved.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

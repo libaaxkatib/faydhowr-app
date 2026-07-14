@@ -189,18 +189,27 @@ Complete customer-facing screen list for Version 1.
 
 | Screen ID | Screen Name | Auth |
 | --- | --- | --- |
-| S-080 | Account Hub / Profile Home | Yes |
+| S-080 | My Account | Yes |
 | S-081 | Edit Profile | Yes |
-| S-082 | Address List | Yes |
+| S-082 | Saved Addresses | Yes |
+| S-082B | Payment Methods | Yes |
+| S-082C | Add / Edit Payment Method | Yes |
 | S-083 | Address Form (Add/Edit) | Yes |
 | S-084 | Order History | Yes |
 | S-085 | Order Details | Yes |
 | S-086 | Notifications Center | Yes |
 | S-086A | Notification Details | Yes |
 | S-086B | Notification Settings | Yes |
-| S-087 | Settings | Yes |
+| S-087 | Language | Yes |
+| S-087B | Security Hub | Yes |
 | S-088 | Change Password | Yes |
+| S-088B | Change PIN | Yes (if enabled) |
+| S-088C | Two-Factor Auth (placeholder) | Yes |
+| S-088D | Active Devices (placeholder) | Yes |
 | S-089 | Favorites | Yes |
+| S-034 | Help Center | Guest/Yes |
+| S-035 | About Fayadhowr | Guest/Yes |
+| S-036 | Privacy / Terms | Guest/Yes |
 
 ## 3.10 Authentication
 
@@ -550,19 +559,49 @@ Prioritize Somali payment methods in this order:
 
 ---
 
-## 4.15 Profile, Addresses, Settings, Legal (S-080–S-089, S-034–S-036)
+## 4.15 Profile / My Account Module (S-080–S-089, S-034–S-036)
 
-### Profile Home
+### My Account (S-080)
 
 | Field | Specification |
 | --- | --- |
 | **Purpose** | Account hub |
-| **Components** | Identity summary; menu rows (Orders, Bookings, Quotations, Favorites, Addresses, Notifications, Settings, About, FAQ, Contact, Privacy, Terms); Logout |
-| **Buttons** | Edit profile; menu navigation; Logout |
-| **Empty** | N/A |
+| **Components** | Profile photo; full name; **CUS-YYYY-######** (read-only); email; phone; preferred language; member since; quick stats (Bookings / Quotations / Orders); quick actions menu |
+| **Quick actions** | Edit Profile · Saved Addresses · Payment Methods · Notifications · Language · Security · Help Center · About Fayadhowr |
+| **Buttons** | Quick action rows; Logout (opens confirmation — never immediate) |
+| **Navigation** | Soft auth; all account sub-screens; Favorites / Histories via hub or menus |
 | **Loading** | Profile skeleton |
-| **Error** | Retry profile load; suspended banner if applicable |
-| **Success** | Hub ready |
+| **Error** | Retry; suspended banner if applicable |
+
+### Edit Profile (S-081)
+
+Editable: profile photo, full name, email, phone. **Customer Reference Number read-only.** Primary: **Save Changes**.
+
+### Saved Addresses (S-082 / S-083)
+
+List + Add / Edit / Set Default / Mark Inactive. **Visible `Default` badge** on the current default address; **Active** / **Inactive** status badges. Non-default active addresses show **Set Default**. **Never permanently delete.**
+
+### Payment Methods (S-082B)
+
+Saved methods for EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card. **Visible `Default` badge** on the current default method; other methods show **Set Default**. Add + Change Default. **Payment history never deleted.**
+
+### Language (S-087B)
+
+Somali · English · Arabic — selection updates entire app UI.
+
+### Security (S-088+)
+
+Change Password; Change PIN (if enabled); Two-Factor Authentication (placeholder); Active Devices (placeholder).
+
+### Help Center / About
+
+FAQ; Contact Fayadhowr (WhatsApp, Phone, Email).
+
+**About Fayadhowr (company profile):** Company Story, Mission, Vision, Years of Experience, Certificates & Licenses, Awards & Recognition, Partners & Clients, Company Statistics (Completed Projects, Happy Customers, Team Members), Privacy Policy, Terms & Conditions, App Version. Premium trust-building layout with cards, icons, and branding.
+
+### Logout Confirmation (S-094)
+
+Triggered from My Account → Log out. Title: **Log Out**. Message: **Are you sure you want to log out?** Buttons: **Cancel** · **Log Out**. Session ends only after confirm.
 
 ### Favorites (S-089)
 
@@ -571,20 +610,8 @@ Prioritize Somali payment methods in this order:
 | **Purpose** | Allow customers to view all their saved favorite services and products |
 | **Components** | App bar title Favorites; grouped or tabbed lists of favorite Service Cards and Product Cards; heart controls on cards |
 | **Buttons** | Open service/product detail; remove favorite (heart); Browse Services / Browse Store from empty state |
-| **Inputs** | None |
 | **Navigation** | Account → Favorites (auth required); opens Service Details or Product Details; back to Account |
 | **Empty** | Empty Favorites state with guidance to save items from Services/Store |
-| **Loading** | List skeletons |
-| **Error** | Retry load |
-| **Success** | Favorite list rendered |
-
-### Edit Profile / Address Form / Settings / Change Password
-
-Standard form patterns: labeled inputs, validation, save primary button, success snackbar, error inline.
-
-### About / FAQ / Contact / Privacy / Terms
-
-Read-oriented content screens; Contact includes actionable business channels; FAQ uses expandable items.
 
 ---
 
@@ -978,10 +1005,16 @@ Service Details → Book → Auth? → Booking Form → Review → Submit → Co
 
 # 13. Profile Experience
 
-## 13.1 Profile
+## 13.1 My Account
 
-- Auth required
-- Identity summary + navigation to commercial histories and settings
+- Auth required (soft auth from Account tab)
+- Profile photo, name, read-only **CUS-YYYY-######**, email, phone, preferred language, member since
+- Quick stats: Bookings / Quotations / Orders
+- Quick actions: Edit Profile, Saved Addresses, Payment Methods, Notifications, Language, Security, Help Center, About Fayadhowr
+- Logout opens confirmation (Cancel / Log Out) — never immediate
+- Addresses: visible **Default** badge + Active/Inactive; payment methods: visible **Default** badge + Set Default on others
+- Addresses never permanently deleted (Inactive); payment history never deleted; language is app-wide
+- About Fayadhowr is a trust-building company profile (story, mission, vision, experience, certificates, awards, partners, stats, legal, version)
 - Suspended users see blocking banner for new transactions
 
 ## 13.2 Orders
@@ -1007,8 +1040,17 @@ Service Details → Book → Auth? → Booking Form → Review → Submit → Co
 
 ## 13.5 Logout
 
-- Confirmation dialog
-- After logout: browsing remains available; protected areas re-gate
+- Tapping **Log out** never ends the session immediately
+- Confirmation dialog: title **Log Out**; message **Are you sure you want to log out?**; buttons **Cancel** · **Log Out**
+- After confirmed logout: browsing remains available; protected areas re-gate
+
+## 13.6 About Fayadhowr (Company Profile)
+
+- Brand header + years of experience
+- Company Story, Mission, Vision
+- Statistics: Completed Projects, Happy Customers, Team Members
+- Certificates & Licenses, Awards & Recognition, Partners & Clients
+- Privacy Policy, Terms & Conditions, App Version
 
 ### Favorites Experience
 

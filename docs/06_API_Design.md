@@ -284,22 +284,39 @@ Base: authenticated customer scope; customers only access **their own** data.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/v1/customer/profile` | Retrieve profile |
+| `GET` | `/api/v1/customer/profile` | Retrieve profile + quick stats |
 | `PUT` / `PATCH` | `/api/v1/customer/profile` | Update editable fields |
 | `POST` | `/api/v1/customer/change-password` | Change password |
+| `POST` | `/api/v1/customer/change-pin` | Change PIN (when enabled) |
+| `PUT` / `PATCH` | `/api/v1/customer/preferred-language` | Set `so` \| `en` \| `ar` (app-wide) |
 
-**Data includes:** `id`, `full_name`, `phone`, `email`, `status`, verification timestamps, notification preferences (if used). System flags are read-only.
+**Data includes:** `customer_number` (CUS, **read-only**), `full_name`, `phone`, `email`, `avatar_url`, `preferred_language`, `member_since` / `created_at`, `status`, verification timestamps, notification preferences, quick stats (`bookings_count`, `quotations_count`, `orders_count`). System flags and `customer_number` are never writable by the customer.
 
 ## 4.2 Addresses
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/v1/customer/addresses` | List addresses |
+| `GET` | `/api/v1/customer/addresses` | List addresses (include Inactive) |
 | `POST` | `/api/v1/customer/addresses` | Create address |
 | `GET` | `/api/v1/customer/addresses/{id}` | Address detail |
 | `PUT` / `PATCH` | `/api/v1/customer/addresses/{id}` | Update |
-| `DELETE` | `/api/v1/customer/addresses/{id}` | Soft-delete |
-| `POST` | `/api/v1/customer/addresses/{id}/default` | Set default |
+| `POST` | `/api/v1/customer/addresses/{id}/default` | Set default (active only) |
+| `POST` | `/api/v1/customer/addresses/{id}/inactive` | Mark Inactive (never hard-delete) |
+| `POST` | `/api/v1/customer/addresses/{id}/reactivate` | Reactivate inactive address |
+
+**Rule:** Customer APIs must **not** expose permanent delete for addresses.
+
+## 4.2B Payment Methods (Saved Instruments)
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/v1/customer/payment-methods` | List saved methods |
+| `POST` | `/api/v1/customer/payment-methods` | Add method (tokenized / masked) |
+| `POST` | `/api/v1/customer/payment-methods/{id}/default` | Change default |
+
+Supported `type` values: `evc_plus`, `edahab`, `jeeb`, `salaam_somali_bank`, `bank_transfer`, `card`.
+
+**Rules:** No full PAN/CVV storage. Customer cannot delete payment **history** (`payments` ledger). Deactivating a saved instrument (if offered later) must not erase ledger rows.
 
 ## 4.3 Notifications
 

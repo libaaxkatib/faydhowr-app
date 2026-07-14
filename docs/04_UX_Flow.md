@@ -629,26 +629,30 @@ Login (if required)
 Profile Home
 ```
 
-## 10.2 Profile Home Capabilities
+## 10.2 My Account Capabilities
 
 | Area | Customer can |
 | --- | --- |
-| Identity | View/update name, phone, email (per editable rules) |
-| Security | Change password / re-authenticate for sensitive changes |
-| Addresses | Add, edit, delete, set default |
-| Booking History | List and open bookings |
-| Order History | List and open orders |
-| Quotation History | List quotations; Accept / Discuss when applicable; open timeline & revision history |
-| Payments context | Reach payable items via related entities |
-| Notifications entry | Open Notification Center / preferences if offered |
-| Legal | Access privacy policy and terms |
-| Session | Log out |
+| Identity | View photo, name, **read-only** `CUS-YYYY-######`, email, phone, language, member since |
+| Quick stats | See Bookings / Quotations / Orders counts (deep-link to histories) |
+| Edit Profile | Update photo, name, email, phone; CUS remains read-only |
+| Addresses | Add, edit, set default; **mark Inactive** (never permanently delete) |
+| Payment methods | Add / set default for EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card; **payment history never deleted** |
+| Language | Select Somali / English / Arabic — updates entire app UI |
+| Security | Change Password; Change PIN (if enabled); 2FA & Active Devices placeholders |
+| Notifications | Open Notification Center / preferences |
+| Help / About | FAQ, WhatsApp / Phone / Email; company profile (story, mission, vision, experience, certificates, awards, partners, stats); Privacy; Terms; app version |
+| Booking / Order / Quotation History | List and open commercial activity |
+| Session | Log out via confirmation dialog (Cancel / Log Out) — never immediate |
 | Account control | Request deactivation/deletion per policy |
 
 ## 10.3 Profile Rules in UX
 
-- System-controlled fields (account status, verification flags) are visible as status, not freely editable.
+- System-controlled fields (`customer_number` / CUS, account status, verification flags) are visible, not freely editable.
 - Editing profile does not silently rewrite historical order/booking address snapshots.
+- Addresses are never permanently deleted by customers — mark **Inactive** instead.
+- Payment history is never deleted by customers.
+- Language selection applies app-wide immediately.
 - Suspended accounts see a clear blocked state for new bookings/orders/quotes.
 
 ---
@@ -773,14 +777,17 @@ Store Tab
  └── Cart → Auth? → Checkout → Payment → Order Confirmation
 
 Account Tab
- └── Auth? → Profile Home
-      ├── Edit Profile
-      ├── Addresses
+ └── Auth? → My Account
+      ├── Edit Profile (CUS read-only)
+      ├── Saved Addresses (Inactive allowed; never delete)
+      ├── Payment Methods (add / set default; history never deleted)
+      ├── Language (Somali / English / Arabic — app-wide)
+      ├── Security (Password · PIN · 2FA/Devices placeholders)
+      ├── Help Center · About Fayadhowr
       ├── Booking History → Booking Details → Pay / Cancel (policy)
       ├── Order History → Order Details → Pay / Track
       ├── Quotation History → Quotation Details → Accept / Discuss → Pay (after Accept)
       ├── Notifications → Entity deep link
-      ├── Legal
       └── Logout
 ```
 
