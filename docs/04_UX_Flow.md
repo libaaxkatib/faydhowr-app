@@ -568,38 +568,50 @@ Keep customers informed of lifecycle changes without requiring them to poll hist
 
 | Channel | Behavior |
 | --- | --- |
-| **Push** | Time-sensitive alert when permissions allow |
-| **In-app Notification Center** | Persistent list of events; mark read |
-| Optional email/SMS | If configured later; not required to understand core in-app flow |
+| **Push** | Time-sensitive alert when permissions allow and Push toggle is on |
+| **In-app Notification Center** | Searchable list; All / Unread / Read; Mark as Read / Mark All as Read only (no delete) |
+| **Notification Details** | Full message, Read/Unread status, reference number, action to related record |
+| **Notification Settings** | Push + Email masters; category toggles |
+| Optional email/SMS | If configured later; not required for core in-app flow |
 
 ## 9.3 Customer Journey
 
 ```text
-Domain event occurs (booking/quote/order/payment/account)
+Domain event occurs
         ↓
-In-app notification created
+In-app notification created (category + reference number)
         ↓
-Push attempted (if token + permission)
+Push attempted (if enabled)
         ↓
-Customer opens notification
+Customer opens Notifications List or Push
         ↓
-Lands on related entity detail (booking, quote, order, payment context)
+Notification Details
         ↓
-Mark as read (on open and/or manual)
+Action → related record (Booking / Quotation / Order / Payment / …)
+        ↓
+Mark as read / Mark all as read (no delete — permanent history)
 ```
 
-## 9.4 Key Events Customers Should Feel
+## 9.4 Categories & Example Events
 
-- Booking created / confirmed / status changed / cancelled / payment due or received
-- Quotation request updates / Quotation Ready / quotation updated (revision) / Under Discussion messages / Accepted / Expired / Cancelled
-- Order placed / paid / fulfillment update / cancelled
-- Payment success / failure / refund
+| Category | Example titles |
+| --- | --- |
+| **Booking** | Booking Submitted, Confirmed, Rescheduled, Cleaner Assigned, Cleaning Started, Cleaning Completed, Cancelled |
+| **Quotation** | Quotation Ready, Updated, Accepted, Expired, Cancelled |
+| **Discussion** | New Discussion Reply |
+| **Order** | Order Placed, Confirmed, Packed, Shipped, Out for Delivery, Delivered, Cancelled |
+| **Payment** | Payment Received, Failed, Refund Processed |
+| **Delivery** | Delivery progress events |
+| **Account** | Password Changed, Email/Phone Updated, Security Alert |
+| **General Announcements** | Service announcements |
 
 ## 9.5 UX Rules
 
 - Notifications never expose secrets (full payment credentials, etc.).
-- Preference controls may reduce non-critical noise without hiding legally/operationally required notices.
-- Badge/count on navigation entry to Notification Center when unread items exist.
+- Preference controls (Push, Email, categories including Marketing) may reduce non-critical noise without hiding legally/operationally required notices.
+- Badge/count on Account / Notifications entry when unread items exist.
+- Always deep-link to the correct related record using reference numbers (`BK-`, `QT-`, `ORD-`, `PAY-`, …).
+- Customers never delete notifications.
 
 ---
 

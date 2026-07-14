@@ -196,6 +196,8 @@ Complete customer-facing screen list for Version 1.
 | S-084 | Order History | Yes |
 | S-085 | Order Details | Yes |
 | S-086 | Notifications Center | Yes |
+| S-086A | Notification Details | Yes |
+| S-086B | Notification Settings | Yes |
 | S-087 | Settings | Yes |
 | S-088 | Change Password | Yes |
 | S-089 | Favorites | Yes |
@@ -508,19 +510,43 @@ Prioritize Somali payment methods in this order:
 
 ---
 
-## 4.14 Notifications Center (S-086)
+## 4.14 Notifications Module (S-086 / S-086A / S-086B)
+
+### Notifications List (S-086)
 
 | Field | Specification |
 | --- | --- |
-| **Purpose** | In-app lifecycle inbox |
-| **Components** | Notification rows (title, body, time, unread dot); mark read |
-| **Buttons** | Open item; Mark all read (optional) |
-| **Inputs** | None |
-| **Navigation** | Deep link to booking/quote/order/payment |
+| **Purpose** | In-app lifecycle inbox for all customer notifications |
+| **Components** | Search; filters All / Unread / Read; category accents; rows with icon, title, short message, date/time, read/unread indicator |
+| **Buttons** | Open notification; **Mark as Read**; **Mark All as Read** |
+| **Inputs** | Search query |
+| **Navigation** | Notification Details → related record (Booking / Quotation / Order / Payment / Account) |
 | **Empty** | “No notifications yet” |
 | **Loading** | List skeletons |
 | **Error** | Retry |
-| **Success** | Opens related entity |
+| **Success** | Opens details / related entity |
+| **Do not include** | Delete Notification; Clear All Read (notifications are permanent history) |
+
+**Categories (icon + color accent each):** Booking · Quotation · Discussion · Order · Payment · Delivery · Account · General Announcements
+
+### Notification Details (S-086A)
+
+| Field | Specification |
+| --- | --- |
+| **Purpose** | Full message + deep-link action |
+| **Components** | Title; date/time; **status Read / Unread**; full message; related reference number (`BK-` / `QT-` / `ORD-` / `PAY-`…); primary action |
+| **Buttons** | View Booking / View Quotation / View Order / View Payment (context-specific); Mark as Read (when Unread) |
+| **Navigation** | Related entity details |
+| **Do not include** | Delete Notification |
+
+### Notification Settings (S-086B)
+
+| Field | Specification |
+| --- | --- |
+| **Purpose** | Customer preference toggles |
+| **Components** | Switches for **Push Notifications**; **Email Notifications**; Booking; Quotation; Discussion; Order; Payment; Marketing |
+| **Buttons** | Save (or auto-save toggles) |
+| **Navigation** | Back to Notifications / Settings |
 
 ---
 

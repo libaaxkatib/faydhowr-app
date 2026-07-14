@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fayadhowr — Notifications Module Premium V1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #0E339D; --secondary: #0694AC; --white: #FFF; --bg: #F8FAFC;
+      --text: #1F2937; --muted: #6B7280; --border: #E5E7EB;
+      --shadow: 0 8px 20px rgba(31,41,55,.07); --radius: 16px;
+      --c-booking: #0E339D; --c-quote: #0694AC; --c-discuss: #0E7490;
+      --c-order: #1D4ED8; --c-pay: #059669; --c-delivery: #D97706;
+      --c-account: #7C3AED; --c-announce: #64748B;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: linear-gradient(165deg, #DCE6F8 0%, #E8F4F7 50%, #EEF2F7 100%);
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif; color: var(--text);
+      padding: 40px 24px 80px;
+    }
+    .board-title { max-width: 1280px; margin: 0 auto 28px; }
+    .board-title h1 { font-size: 28px; font-weight: 700; letter-spacing: -.03em; color: var(--primary); }
+    .board-title p { margin-top: 8px; font-size: 14px; color: var(--muted); max-width: 820px; line-height: 1.5; }
+    .flow-label {
+      font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--primary); margin: 36px auto 14px; max-width: 1280px;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 24px; max-width: 1280px; margin: 0 auto; align-items: flex-start; }
+    .phone-wrap { width: 390px; }
+    .phone-caption { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+    .phone-caption span { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+    .phone {
+      width: 390px; background: var(--bg); border-radius: 28px; overflow: hidden;
+      box-shadow: 0 24px 48px rgba(14,51,157,.12);
+      display: flex; flex-direction: column; position: relative; min-height: 844px;
+    }
+    .status {
+      height: 44px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between;
+      font-size: 14px; font-weight: 600; background: var(--white);
+    }
+    .status .r { font-size: 12px; font-weight: 500; color: var(--muted); }
+    .app-bar {
+      height: 56px; padding: 0 8px 0 4px; background: var(--white);
+      display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--border);
+    }
+    .app-bar h1 { font-size: 17px; font-weight: 700; letter-spacing: -.02em; flex: 1; }
+    .back, .icon {
+      width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+      color: var(--primary); background: rgba(14,51,157,.06); flex-shrink: 0;
+    }
+    .back { background: transparent; }
+    .scroll { flex: 1; overflow: hidden; padding-bottom: 24px; }
+    .pad { padding: 16px; }
+    .sticky {
+      position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px 20px;
+      background: linear-gradient(180deg, rgba(248,250,252,0), var(--bg) 28%, var(--bg));
+    }
+    .btn {
+      height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+      gap: 8px; font-size: 14px; font-weight: 700; width: 100%;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0E339D, #1246C4); color: #fff;
+      box-shadow: 0 8px 18px rgba(14,51,157,.28);
+    }
+    .btn-secondary { background: #fff; color: var(--primary); border: 1.5px solid var(--primary); }
+    .btn-ghost { background: rgba(14,51,157,.06); color: var(--primary); }
+    .btn-danger { background: rgba(239,68,68,.08); color: #EF4444; }
+    .btn-pair { display: flex; flex-direction: column; gap: 10px; }
+    .btn-row { display: flex; gap: 8px; }
+    .btn-row .btn { flex: 1; font-size: 12px; height: 44px; }
+
+    .search {
+      height: 48px; background: #fff; border: 1px solid var(--border); border-radius: 16px;
+      display: flex; align-items: center; gap: 10px; padding: 0 14px;
+      box-shadow: var(--shadow); color: var(--muted); font-size: 14px; margin-bottom: 12px;
+    }
+    .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .tab {
+      flex: 1; height: 36px; border-radius: 999px; border: 1px solid var(--border);
+      background: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center;
+    }
+    .tab.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+    .n-row {
+      display: flex; gap: 12px; padding: 14px; margin-bottom: 10px;
+      background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); position: relative;
+    }
+    .n-row.unread { border-color: rgba(14,51,157,.25); background: linear-gradient(90deg, rgba(14,51,157,.04), #fff 40%); }
+    .n-ico {
+      width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+      display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #fff;
+    }
+    .n-ico.booking { background: var(--c-booking); }
+    .n-ico.quote { background: var(--c-quote); }
+    .n-ico.discuss { background: var(--c-discuss); }
+    .n-ico.order { background: var(--c-order); }
+    .n-ico.pay { background: var(--c-pay); }
+    .n-ico.delivery { background: var(--c-delivery); }
+    .n-ico.account { background: var(--c-account); }
+    .n-ico.announce { background: var(--c-announce); }
+    .n-body { flex: 1; min-width: 0; }
+    .n-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .n-msg { font-size: 12px; color: var(--muted); line-height: 1.4; margin-bottom: 6px; }
+    .n-meta { font-size: 11px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--primary);
+      position: absolute; top: 16px; right: 14px;
+    }
+    .ref {
+      font-size: 10px; font-weight: 700; color: var(--primary);
+      background: rgba(14,51,157,.08); padding: 2px 6px; border-radius: 6px;
+    }
+
+    .legend {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;
+    }
+    .legend .item {
+      display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600;
+      background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px;
+    }
+    .legend .swatch { width: 10px; height: 10px; border-radius: 3px; }
+
+    .detail-card {
+      background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px; margin-bottom: 12px;
+    }
+    .detail-card .cat {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 11px; font-weight: 700; margin-bottom: 12px;
+    }
+    .detail-card h2 { font-size: 20px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 6px; }
+    .detail-card .when { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+    .detail-card .full { font-size: 14px; line-height: 1.55; color: var(--text); margin-bottom: 16px; }
+    .ref-box {
+      background: rgba(14,51,157,.04); border: 1px solid rgba(14,51,157,.12);
+      border-radius: 12px; padding: 12px 14px;
+    }
+    .ref-box .k { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .ref-box .v { font-size: 16px; font-weight: 700; color: var(--primary); }
+
+    .setting {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      background: #fff; border: 1px solid var(--border); border-radius: 14px;
+      padding: 14px; margin-bottom: 10px; box-shadow: var(--shadow);
+    }
+    .setting h3 { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+    .setting p { font-size: 11px; color: var(--muted); }
+    .switch {
+      width: 48px; height: 28px; border-radius: 999px; background: #D1D5DB; position: relative; flex-shrink: 0;
+    }
+    .switch.on { background: var(--primary); }
+    .switch::after {
+      content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px;
+      border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.15);
+    }
+    .switch.on::after { left: 23px; }
+    .section-h { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 10px; }
+  </style>
+</head>
+<body>
+  <div class="board-title">
+    <h1>Notifications Module — Premium V1</h1>
+    <p>
+      List · Details · Settings. Mark as Read only (no delete). Push + Email masters.
+      Category accents and reference deep-links. Previously approved screens unchanged.
+    </p>
+  </div>
+
+  <!-- LIST -->
+  <div class="flow-label">1 · Notifications List</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Notifications List<span>Search · All / Unread / Read · category icons</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Notifications</h1>
+          <div class="icon">⚙</div>
+        </div>
+        <div class="scroll pad">
+          <div class="search"><span>⌕</span><span>Search notifications…</span></div>
+          <div class="tabs">
+            <div class="tab on">All</div>
+            <div class="tab">Unread</div>
+            <div class="tab">Read</div>
+          </div>
+          <div class="btn-row" style="margin-bottom:12px;">
+            <div class="btn btn-ghost">Mark All as Read</div>
+          </div>
+
+          <div class="n-row unread">
+            <div class="n-ico booking">BK</div>
+            <div class="n-body">
+              <div class="n-title">Booking Confirmed</div>
+              <div class="n-msg">Your booking is confirmed for Tue, 14 Jul at 11:00.</div>
+              <div class="n-meta"><span class="ref">BK-2026-000021</span><span>Today · 09:14</span></div>
+            </div>
+            <div class="dot"></div>
+          </div>
+
+          <div class="n-row unread">
+            <div class="n-ico quote">QT</div>
+            <div class="n-body">
+              <div class="n-title">Quotation Ready</div>
+              <div class="n-msg">Your quotation has been issued. Please review the latest version.</div>
+              <div class="n-meta"><span class="ref">QT-2026-000041</span><span>Today · 08:02</span></div>
+            </div>
+            <div class="dot"></div>
+          </div>
+
+          <div class="n-row unread">
+            <div class="n-ico discuss">💬</div>
+            <div class="n-body">
+              <div class="n-title">New Discussion Reply</div>
+              <div class="n-msg">Fayadhowr replied to your quotation discussion.</div>
+              <div class="n-meta"><span class="ref">QT-2026-000041</span><span>Yesterday · 18:40</span></div>
+            </div>
+            <div class="dot"></div>
+          </div>
+
+          <div class="n-row">
+            <div class="n-ico order">OR</div>
+            <div class="n-body">
+              <div class="n-title">Out for Delivery</div>
+              <div class="n-msg">Your order is on the way.</div>
+              <div class="n-meta"><span class="ref">ORD-2026-000081</span><span>13 Jul · 11:20</span></div>
+            </div>
+          </div>
+
+          <div class="n-row">
+            <div class="n-ico pay">$</div>
+            <div class="n-body">
+              <div class="n-title">Payment Received</div>
+              <div class="n-msg">We received your payment via EVC Plus.</div>
+              <div class="n-meta"><span class="ref">PAY-2026-000032</span><span>12 Jul · 16:05</span></div>
+            </div>
+          </div>
+
+          <div class="n-row">
+            <div class="n-ico account">AC</div>
+            <div class="n-body">
+              <div class="n-title">Password Changed</div>
+              <div class="n-msg">Your account password was updated successfully.</div>
+              <div class="n-meta"><span>11 Jul · 20:11</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone-caption">Category accents<span>Icon + color system</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar"><div class="back">←</div><h1>Categories</h1></div>
+        <div class="scroll pad">
+          <div class="legend">
+            <div class="item"><span class="swatch" style="background:var(--c-booking)"></span>Booking</div>
+            <div class="item"><span class="swatch" style="background:var(--c-quote)"></span>Quotation</div>
+            <div class="item"><span class="swatch" style="background:var(--c-discuss)"></span>Discussion</div>
+            <div class="item"><span class="swatch" style="background:var(--c-order)"></span>Order</div>
+            <div class="item"><span class="swatch" style="background:var(--c-pay)"></span>Payment</div>
+            <div class="item"><span class="swatch" style="background:var(--c-delivery)"></span>Delivery</div>
+            <div class="item"><span class="swatch" style="background:var(--c-account)"></span>Account</div>
+            <div class="item"><span class="swatch" style="background:var(--c-announce)"></span>Announcements</div>
+          </div>
+
+          <div class="section-h" style="margin-top:20px;">Example events</div>
+          <div class="n-row"><div class="n-ico booking">BK</div><div class="n-body"><div class="n-title">Cleaner Assigned</div><div class="n-msg">A cleaner has been assigned to your booking.</div></div></div>
+          <div class="n-row"><div class="n-ico quote">QT</div><div class="n-body"><div class="n-title">Quotation Updated</div><div class="n-msg">Please review the latest version.</div></div></div>
+          <div class="n-row"><div class="n-ico delivery">DV</div><div class="n-body"><div class="n-title">Delivered</div><div class="n-msg">Your order was delivered successfully.</div></div></div>
+          <div class="n-row"><div class="n-ico announce">AN</div><div class="n-body"><div class="n-title">Service Update</div><div class="n-msg">Holiday schedule announcement for next week.</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAILS -->
+  <div class="flow-label">2 · Notification Details</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Quotation notification<span>Reference + View Quotation</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar"><div class="back">←</div><h1>Notification</h1></div>
+        <div class="scroll pad" style="padding-bottom:100px;">
+          <div class="detail-card">
+            <div class="cat"><span class="n-ico quote" style="width:28px;height:28px;font-size:9px;">QT</span> Quotation</div>
+            <h2>Quotation Ready</h2>
+            <div class="when">14 Jul 2026 · 08:02 · <span class="ref" style="background:rgba(14,51,157,.1);">Unread</span></div>
+            <div class="full">Your quotation has been issued. Please review the latest version and choose Accept Quotation or Discuss Quotation.</div>
+            <div class="ref-box">
+              <div class="k">Related reference</div>
+              <div class="v">QT-2026-000041</div>
+            </div>
+          </div>
+        </div>
+        <div class="sticky btn-pair">
+          <div class="btn btn-primary">View Quotation</div>
+          <div class="btn btn-secondary">Mark as Read</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone-caption">Booking / Order / Payment actions<span>Context-specific CTAs</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar"><div class="back">←</div><h1>Notification</h1></div>
+        <div class="scroll pad" style="padding-bottom:160px;">
+          <div class="detail-card">
+            <div class="cat"><span class="n-ico booking" style="width:28px;height:28px;font-size:9px;">BK</span> Booking</div>
+            <h2>Cleaning Completed</h2>
+            <div class="when">10 Jul 2026 · 15:40 · <span class="ref" style="background:rgba(34,197,94,.12);color:#16A34A;">Read</span></div>
+            <div class="full">Your cleaning service has been marked completed. You can review the booking details anytime.</div>
+            <div class="ref-box"><div class="k">Related reference</div><div class="v">BK-2026-000021</div></div>
+          </div>
+          <div class="detail-card">
+            <div class="cat"><span class="n-ico order" style="width:28px;height:28px;font-size:9px;">OR</span> Order</div>
+            <h2>Order Placed</h2>
+            <div class="when">09 Jul 2026 · 12:11</div>
+            <div class="full">We received your store order and will prepare it for fulfillment.</div>
+            <div class="ref-box"><div class="k">Related reference</div><div class="v">ORD-2026-000081</div></div>
+          </div>
+          <div class="detail-card">
+            <div class="cat"><span class="n-ico pay" style="width:28px;height:28px;font-size:9px;">$</span> Payment</div>
+            <h2>Payment Failed</h2>
+            <div class="when">08 Jul 2026 · 19:02</div>
+            <div class="full">We could not complete this payment. You can retry from the payment screen.</div>
+            <div class="ref-box"><div class="k">Related reference</div><div class="v">PAY-2026-000032</div></div>
+          </div>
+        </div>
+        <div class="sticky btn-pair">
+          <div class="btn btn-primary">View Booking</div>
+          <div class="btn-row">
+            <div class="btn btn-secondary">View Order</div>
+            <div class="btn btn-secondary">View Payment</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="flow-label">3 · Notification Settings</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Notification Settings<span>Push + category toggles</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar"><div class="back">←</div><h1>Notification Settings</h1></div>
+        <div class="scroll pad" style="padding-bottom:90px;">
+          <div class="section-h" style="margin-top:0;">Master</div>
+          <div class="setting">
+            <div><h3>Push Notifications</h3><p>Device alerts when the app is closed</p></div>
+            <div class="switch on"></div>
+          </div>
+          <div class="setting">
+            <div><h3>Email Notifications</h3><p>Email delivery for allowed notification types</p></div>
+            <div class="switch on"></div>
+          </div>
+
+          <div class="section-h">Categories</div>
+          <div class="setting"><div><h3>Booking Notifications</h3><p>Submitted, confirmed, completed, cancelled</p></div><div class="switch on"></div></div>
+          <div class="setting"><div><h3>Quotation Notifications</h3><p>Ready, updated, accepted, expired</p></div><div class="switch on"></div></div>
+          <div class="setting"><div><h3>Discussion Notifications</h3><p>New replies on quotations</p></div><div class="switch on"></div></div>
+          <div class="setting"><div><h3>Order Notifications</h3><p>Placed, shipped, delivered</p></div><div class="switch on"></div></div>
+          <div class="setting"><div><h3>Payment Notifications</h3><p>Received, failed, refunds</p></div><div class="switch on"></div></div>
+          <div class="setting"><div><h3>Marketing Notifications</h3><p>Promotional announcements (optional)</p></div><div class="switch"></div></div>
+        </div>
+        <div class="sticky"><div class="btn btn-primary">Save Preferences</div></div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

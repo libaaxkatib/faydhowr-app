@@ -777,22 +777,44 @@ Guest heart tap without token → API `401` → client soft auth → retry add.
 | --- | --- | --- |
 | `GET` | `/api/v1/notifications` | Required |
 
-Paginated; newest first. Includes `reference_type`, `reference_id` for deep links.
+Paginated; newest first. Query: `status=all|unread|read`, `category`, `q` (search).  
+Payload includes `category`, `title`, `body`, `is_read`, `created_at`, `reference_type`, `reference_id`, `reference_number` (e.g. `QT-2026-000041`) for deep links.
 
-## 13.2 Mark As Read
+**Categories:** `booking` | `quotation` | `discussion` | `order` | `payment` | `delivery` | `account` | `announcement`
+
+## 13.2 Notification Details
+
+| Method | Path | Auth |
+| --- | --- | --- |
+| `GET` | `/api/v1/notifications/{id}` | Required |
+
+Returns full message + deep-link target metadata.
+
+## 13.3 Mark As Read
 
 | Method | Path | Auth |
 | --- | --- | --- |
 | `POST` | `/api/v1/notifications/{id}/read` | Required |
 | `POST` | `/api/v1/notifications/read-all` | Required |
 
-## 13.3 Unread Count
+## 13.4 Unread Count
 
 | Method | Path | Auth |
 | --- | --- | --- |
 | `GET` | `/api/v1/notifications/unread-count` | Required |
 
 **Returns:** `{ "unread_count": 3 }` inside `data`.
+
+> **V1 rule:** There is **no** customer delete/clear API for notifications. Notification records are permanent business history. Only mark-as-read actions are supported.
+
+## 13.5 Notification Preferences
+
+| Method | Path | Auth |
+| --- | --- | --- |
+| `GET` | `/api/v1/notifications/preferences` | Required |
+| `PUT` | `/api/v1/notifications/preferences` | Required |
+
+Toggles: `push_enabled`, `email_enabled`, `booking`, `quotation`, `discussion`, `order`, `payment`, `marketing`.
 
 ---
 

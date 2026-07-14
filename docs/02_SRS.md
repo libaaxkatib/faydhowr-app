@@ -253,10 +253,12 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-060 | The system shall send notifications for key lifecycle events (booking, quote, order, payment). | Must |
-| FR-061 | Customers shall be able to view an in-app notification list. | Must |
-| FR-062 | Customers shall be able to mark notifications as read. | Should |
+| FR-060 | The system shall create an in-app notification for every major business event (booking, quotation, discussion, order, payment, delivery, account, general announcements). | Must |
+| FR-061 | The customer shall be able to view a searchable, filterable notification list (All / Unread / Read) with category icons. | Must |
+| FR-062 | The customer shall be able to mark a notification as read and mark all as read. Customers shall **never** delete notification records (notifications are permanent business history). | Must |
 | FR-063 | The system shall support push notifications where device permissions allow. | Must |
+| FR-064 | Opening a notification shall deep-link to the correct related record and display the reference number when applicable (`BK-`, `QT-`, `ORD-`, `PAY-`, etc.). Notification Details shall show Read / Unread status. | Must |
+| FR-065 | Customers shall be able to manage notification preferences: Push Notifications, Email Notifications, plus Booking, Quotation, Discussion, Order, Payment, and Marketing toggles. | Must |
 
 ### 5.8 Customer Profile & Support Context
 
@@ -674,20 +676,29 @@ Deliver timely, relevant updates to customers (and optionally admins) about comm
 
 | Domain | Events |
 | --- | --- |
-| **Account** | Registration/verification success, security alerts |
-| **Booking** | Created, confirmed, status changed, cancelled, payment due/received |
-| **Quotation** | Pending Review (ops), Quotation Ready, updated (revision), Under Discussion message, expiring, Accepted, Expired, Cancelled |
-| **Store** | Order placed, paid, fulfillment update, cancelled |
-| **Payment** | Success, failure, refund |
+| **Booking** | Booking Submitted, Confirmed, Rescheduled, Cleaner Assigned, Cleaning Started, Cleaning Completed, Booking Cancelled |
+| **Quotation** | Quotation Ready, Quotation Updated, New Discussion Reply, Quotation Accepted, Quotation Expired, Quotation Cancelled |
+| **Discussion** | New message / reply on an open quotation discussion |
+| **Order** | Order Placed, Confirmed, Packed, Shipped, Out for Delivery, Delivered, Order Cancelled |
+| **Payment** | Payment Received, Payment Failed, Refund Processed |
+| **Delivery** | Shipment / delivery progress events (aligned with order fulfillment) |
+| **Account** | Password Changed, Email Updated, Phone Updated, Security Alert |
+| **General Announcements** | Operational or service announcements (non-transactional) |
+
+### 12.3A Categories
+
+Each notification has a category with a distinct icon and color accent: Booking · Quotation · Discussion · Order · Payment · Delivery · Account · General Announcements.
+
+Reference numbers (`BK-`, `QT-`, `ORD-`, `PAY-`, etc.) are included in the payload/UI wherever applicable.
 
 ### 12.4 Notification Flow
 
 1. Domain event occurs in the backend.
-2. Notification service selects template and recipients.
-3. System persists an in-app notification for the customer.
-4. System attempts push delivery if device token and permissions exist.
-5. Customer opens notification and navigates to the related entity (deep link / in-app route).
-6. Customer marks as read (manual or on open).
+2. Notification service selects template, category, and recipients (respecting preference toggles for non-critical types).
+3. System persists an in-app notification for the customer (with `reference_type` / `reference_number` for deep links).
+4. System attempts push delivery if Push Notifications are enabled and device permissions allow.
+5. Customer opens the list or a push → Notification Details → action opens the related record.
+6. Customer may mark as read / mark all as read (no delete).
 
 ### 12.5 Rules
 
@@ -695,7 +706,9 @@ Deliver timely, relevant updates to customers (and optionally admins) about comm
 - Customers see only their own notifications.
 - Template content is admin-configurable where practical.
 - Delivery failures must not roll back the underlying business transaction.
-- Preference controls may suppress non-critical notifications but not legally required notices.
+- Preference controls may suppress non-critical notifications (including Marketing) but not legally/operationally required notices.
+- Every major business event automatically creates a notification.
+- Notifications must always open the correct related record.
 
 ---
 
