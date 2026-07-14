@@ -201,11 +201,16 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-020 | The customer shall be able to add products to a cart with quantity. | Must |
+| FR-020 | The customer shall be able to add products to a cart with quantity using the standard `−` / `+` control. | Must |
 | FR-021 | The customer shall be able to update or remove cart items. | Must |
 | FR-022 | The system shall validate stock/availability before checkout confirmation. | Must |
-| FR-023 | The customer shall be able to place a store order and receive an order reference. | Must |
-| FR-024 | The customer shall be able to view order history and order detail/status. | Must |
+| FR-023 | The customer shall be able to place a store order and receive an order reference (`ORD-YYYY-######`). | Must |
+| FR-024 | The customer shall be able to view order history and order detail/status (Active / Completed / Cancelled; search and filter). | Must |
+| FR-025 | Every product shall display availability status: In Stock, Low Stock, Out of Stock, or Available on Request. | Must |
+| FR-026 | Every product shall have a unique SKU and a selling unit displayed with price (e.g. `12.00 / Bottle`). | Must |
+| FR-027 | Products may optionally define quantity tier pricing; when configured, tiers are displayed and applied by quantity. | Should |
+| FR-028 | Checkout shall capture a Contact Phone Number for delivery coordination (prefill from profile when available). | Must |
+| FR-029 | Payment method presentation shall prioritize Somali methods: EVC Plus (default), eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, then optional Card and future Digital Wallet. | Must |
 
 ### 5.4 Bookings
 
@@ -232,6 +237,7 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | FR-048 | Every quotation shall have a unique Quotation Number (e.g. `QT-2026-000123`) displayed on details, PDF, notifications, revision history, admin panel, payments, support views, and receipts. | Must |
 | FR-049 | The system shall maintain a full quotation timeline (created, discussion, team replies, updates, acceptance, payment, service completion) and allow customers to view read-only revision history. | Must |
 | FR-049A | Quotation updates and new discussion messages shall generate notifications for the other party (customer or team, as applicable). | Must |
+| FR-049B | Every quotation shall record its **source** as `Service` or `Product` for business logic and database use (not a required customer-facing label). Product quotations shall use the **same** Quotation Module as services (Accept / Discuss / revisions / uploads) — no separate Product Discussion module. | Must |
 
 ### 5.6 Payments
 
@@ -386,26 +392,33 @@ The Store Module enables customers to browse and purchase physical or digital pr
 ### 8.2 Store Capabilities
 
 - Product categories and catalog browsing.
-- Product detail: title, description, images, price, variants (if any), stock/availability.
+- Product detail: title, description, **swipeable image gallery**, price **with unit**, optional **tier pricing**, SKU, availability badge, optional marketing badge, specifications, related products.
+- Quantity control **`−` / `+`** on detail and cart.
 - Cart management (add, update quantity, remove).
-- Checkout with delivery/pickup details as applicable.
-- Order creation with unique order reference.
-- Order status tracking (e.g., pending payment, paid, processing, shipped/ready, completed, cancelled).
-- Order history in the customer account.
+- Checkout with delivery/pickup, **saved address reuse**, and **Contact Phone Number**.
+- Payment with Somali-first method order (EVC Plus default).
+- Order creation with unique order reference (`ORD-YYYY-######`).
+- Order confirmation with receipt PDF download (no Estimated Delivery block).
+- Order history (Active / Completed / Cancelled), search/filter, Order Details with **Buy Again** and **Track Order** (track is UI placeholder until logistics backend is connected).
 
 ### 8.3 Store Business Rules
 
-- Cart prices are indicative until checkout confirmation against backend prices.
+- Cart prices are indicative until checkout confirmation against backend prices (including applicable quantity tiers).
 - Checkout must re-validate availability and price.
-- Out-of-stock items cannot be purchased.
+- Availability statuses: **In Stock**, **Low Stock**, **Out of Stock**, **Available on Request**.
+- Out of Stock items cannot be purchased via Add to Cart.
 - Partial fulfillment policies (if any) must be defined by operations; v1 may assume whole-order fulfillment unless otherwise approved.
 - Store orders are commercially separate from service bookings unless an explicit bundle product/service offering is introduced later.
+- Optional product badges: New, Best Seller, Popular, Limited Stock.
+- Selling units include Piece, Pack, Box, Carton, Bottle, Liter, Kg (extensible by admin).
 
 ### Store Product Pricing
 
-- All store products shall display their prices to customers.
+- All store products shall display their prices to customers, with unit (e.g. `$12.00 / Bottle`).
+- If quantity tier pricing is configured for a product, display the tiers and apply the matching tier to quantity.
+- If only a single fixed price exists, display that price.
 - Customers can browse products, view prices, add products to the cart, and complete purchases.
-- If a customer needs a quotation for products (such as bulk orders, custom quantities, or special requests), they can submit a quotation request through the application.
+- If a customer needs a quotation for products (such as bulk orders, custom quantities, or special requests), they submit a quotation request through the **shared Quotation Module** (same Accept / Discuss / revision rules as Services). Source = `Product`.
 - This quotation process is optional and does not replace the normal fixed-price purchasing workflow.
 
 ### 8.4 Store ↔ Other Modules

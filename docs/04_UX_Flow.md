@@ -403,10 +403,12 @@ If Accept (latest revision only) → Payment / next fulfillment step
 
 ## 6.3 Product Quotation Flow
 
+Product quotations use the **same Quotation Module** as services (same statuses, Accept / Discuss, revisions, timeline, uploads). Do **not** create a separate Product Discussion module.
+
 ```text
-Product Details (optional quotation enabled)
+Product Details (allow_optional_quotation)
         ↓
-Request Quotation (secondary CTA)
+Request Quotation (secondary CTA; price remains visible)
         ↓
 Login (if required)
         ↓
@@ -414,17 +416,19 @@ Enter requirements + quantity/special needs
         ↓
 Upload files (images / videos / PDFs as enabled)
         ↓
-Review & Submit  →  Pending Review
+Review & Submit  →  Pending Review  (source = Product, QT-YYYY-######)
         ↓
 Request Confirmation
         ↓
-(Team issues quotation)
+(Team issues quotation revision v1)
         ↓
-Notification → Quotation Ready → View Quotation
+Notification → Quotation Ready → View Quotation (Latest Version)
         ↓
 Accept Quotation  ——or——  Discuss Quotation
         ↓
-If Accept → Payment / order fulfillment path as applicable
+If Discuss → Under Discussion (messages + files + optional revised v2…)
+        ↓
+If Accept (latest revision only) → Payment / order fulfillment path as applicable
 ```
 
 **Notes:**
@@ -433,6 +437,7 @@ If Accept → Payment / order fulfillment path as applicable
 - Does not block the normal cart checkout journey.
 - Used for bulk, custom quantities, or special requests.
 - Same Discuss / revision / status rules as service quotations.
+- Quotation `source` = `Product` (recorded for business logic / database; not a customer label by default).
 
 ## 6.4 File Upload UX Rules (Quotation)
 

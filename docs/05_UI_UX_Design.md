@@ -327,14 +327,18 @@ For each screen: Purpose, Components, Buttons, Inputs, Navigation, Empty / Loadi
 | Field | Specification |
 | --- | --- |
 | **Purpose** | Inspect product, see price, purchase or optionally quote |
-| **Components** | Gallery; name; **price (mandatory)**; description; availability; quantity stepper; primary commerce CTA; secondary **Request Quotation** when enabled |
-| **Buttons** | **Add to Cart** (primary); **Request Quotation** (secondary/outlined); open cart |
-| **Inputs** | Quantity |
-| **Navigation** | Cart; Quotation Request; Image Viewer; back |
-| **Empty** | Out-of-stock state disables purchase CTA with explanation |
+| **Components** | Swipeable image gallery (placeholders + pagination; zoom-ready); name; **price with unit** (e.g. `12.00 / Bottle`); optional **tier pricing** table; availability badge; optional marketing badge (New / Best Seller / Popular / Limited Stock); SKU; rating & reviews; description; specifications; quantity control **`−  Qty  +`**; related products |
+| **Buttons** | **Add to Cart** (primary; disabled when Out of Stock); **Request Quotation** (secondary/outlined when enabled); Favorite; open cart |
+| **Inputs** | Quantity (`−` / `+`) |
+| **Navigation** | Cart; shared Quotation Module (same as Services); Image Viewer / zoom; back |
+| **Empty** | Out of Stock / Available on Request CTAs per status rules |
 | **Loading** | Detail skeleton |
 | **Error** | Retry; stock conflict messaging on add |
 | **Success** | Snackbar “Added to cart” with View Cart action |
+
+**Availability badges (required):** In Stock · Low Stock · Out of Stock · Available on Request  
+
+**Product quotation:** Uses the **same** Quotation Module as Services (Request → Quotation Ready → Accept **or** Discuss). Do **not** create a separate Product Discussion module. Source recorded as `Product` server-side.
 
 ---
 
@@ -361,24 +365,27 @@ For each screen: Purpose, Components, Buttons, Inputs, Navigation, Empty / Loadi
 | Field | Specification |
 | --- | --- |
 | **Purpose** | Collect fulfillment details and confirm order totals |
-| **Components** | Order summary; fulfillment type; address selector/form; notes; payment entry point |
+| **Components** | Order summary; fulfillment type; **saved address selector**; **Contact Phone Number** (for delivery team); notes; payment entry point |
 | **Buttons** | Place order / Proceed to payment; edit address; back to cart |
-| **Inputs** | Fulfillment fields; address; notes |
+| **Inputs** | Fulfillment fields; address (reuse saved — never re-ask full address if already collected); contact phone; notes |
 | **Navigation** | Requires auth; Payment; soft auth return-to-intent |
 | **Empty** | Guard: if cart empty, redirect to Empty Cart |
 | **Loading** | Submitting / validating overlay |
 | **Error** | Field errors; stock/price change dialog; server/offline retry |
 | **Success** | Moves to Payment or Order Confirmation per payment timing policy |
 
+**Contact Phone Number:** Shown on Checkout for delivery coordination. Prefill from profile phone when available; do not ask again elsewhere in this flow if already on file.
+
 ### Order Confirmation
 
 | Field | Specification |
 | --- | --- |
 | **Purpose** | Close commerce loop with order reference |
-| **Components** | Success banner; order number; item summary; totals; next-step copy |
-| **Buttons** | View Order; Back to Home; Continue shopping |
+| **Components** | Success banner; **Order Reference Number** (`ORD-YYYY-######`); item summary; totals; next-step copy |
+| **Buttons** | **View Order**; **Download Receipt (PDF)**; **Continue Shopping** |
 | **Inputs** | None |
 | **Navigation** | Order Details; Home; Store |
+| **Do not show** | Estimated Delivery section |
 | **Empty** | N/A |
 | **Loading** | Brief confirm fetch if needed |
 | **Error** | If confirmation uncertain, “Confirming…” then resolve |
@@ -465,9 +472,23 @@ For each screen: Purpose, Components, Buttons, Inputs, Navigation, Empty / Loadi
 | Success | Authoritative paid | Amount, payment ref, entity status, next steps |
 | Failure | Failed capture | Message, Retry Payment, Contact |
 
-**Buttons:** Pay; Retry; View entity; Home  
+**Buttons:** Confirm Payment / Pay; Retry; View entity; Home  
 **Inputs:** Provider-managed; Fayadhowr shows amount summary only  
 **Navigation:** From order/booking/accepted quote  
+
+**Order Summary on Payment (required lines):** Subtotal · Delivery Fee · Tax (default `0.00`) · Total  
+
+### Payment method display order (customer app)
+
+Prioritize Somali payment methods in this order:
+
+1. **EVC Plus** (Default)  
+2. **eDahab**  
+3. **Jeeb**  
+4. **Salaam Somali Bank**  
+5. **Bank Transfer**  
+6. **Debit / Credit Card** (Optional)  
+7. **Digital Wallet** (Future-ready placeholder)
 
 ---
 
@@ -595,7 +616,9 @@ White surface, `#E5E7EB` border, 12–16 px radius, 12–16 px padding, Level 0�
 
 ## 5.4 Product Card
 
-- Image, name, **mandatory visible price**, optional stock cue
+- Image, name, **mandatory visible price with unit** (e.g. `12.00 / Bottle`)
+- **Availability badge:** In Stock · Low Stock · Out of Stock · Available on Request
+- Optional marketing badge: New · Best Seller · Popular · Limited Stock
 - Opens Product Details
 - Clean retail layout; no hidden pricing
 - **Favorite (Heart) icon** in the top-right corner
@@ -857,9 +880,11 @@ Follow Brand Guide: bright, real, professional uniforms; no clipart, cartoons, o
 
 ## 10.2 Quantity
 
-- Stepper +/- with minimum 1
+- Standard control: **`−`  quantity  `+`** (never a free-typed primary control on Product Details / Cart)
+- Minimum 1
 - Respect stock ceilings when tracking stock
 - Recalculate totals immediately
+- On Product Details, quantity applies to Add to Cart
 
 ## 10.3 Remove Item
 
@@ -936,7 +961,10 @@ Service Details → Book → Auth? → Booking Form → Review → Submit → Co
 ## 13.2 Orders
 
 - Order History → Order Details
+- History tabs/filters: **Active** · **Completed** · **Cancelled**
+- Search orders; filter by status
 - Pay / track fulfillment per status
+- Order Details actions: **Buy Again** (primary alternate), **Track Order** (secondary placeholder — UI only, no backend logic in v1 design), **Download Receipt (PDF)** when available
 
 ## 13.3 Bookings
 

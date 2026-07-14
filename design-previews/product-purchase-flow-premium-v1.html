@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fayadhowr — Product Purchase Flow Premium V1 (Refined)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #0E339D; --secondary: #0694AC; --white: #FFFFFF; --bg: #F8FAFC;
+      --text: #1F2937; --muted: #6B7280; --border: #E5E7EB; --star: #F59E0B;
+      --shadow: 0 8px 20px rgba(31, 41, 55, 0.07); --radius: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: linear-gradient(165deg, #DCE6F8 0%, #E8F4F7 50%, #EEF2F7 100%);
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif; color: var(--text);
+      padding: 40px 24px 80px;
+    }
+    .board-title { max-width: 1280px; margin: 0 auto 28px; }
+    .board-title h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; color: var(--primary); }
+    .board-title p { margin-top: 8px; font-size: 14px; color: var(--muted); max-width: 820px; line-height: 1.5; }
+    .flow-label {
+      font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--primary); margin: 36px auto 14px; max-width: 1280px;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 24px; max-width: 1280px; margin: 0 auto 8px; align-items: flex-start; }
+    .phone-wrap { width: 390px; }
+    .phone-caption { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+    .phone-caption span { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+    .phone {
+      width: 390px; background: var(--bg); border-radius: 28px; overflow: hidden;
+      box-shadow: 0 24px 48px rgba(14, 51, 157, 0.12);
+      display: flex; flex-direction: column; position: relative; min-height: 844px;
+    }
+    .status {
+      height: 44px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between;
+      font-size: 14px; font-weight: 600; background: var(--white);
+    }
+    .status .r { font-size: 12px; font-weight: 500; color: var(--muted); }
+    .app-bar {
+      height: 56px; padding: 0 8px 0 4px; background: var(--white);
+      display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--border);
+    }
+    .app-bar h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; flex: 1; }
+    .back, .icon {
+      width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+      color: var(--primary); background: rgba(14,51,157,0.06); flex-shrink: 0;
+    }
+    .back { background: transparent; }
+    .scroll { flex: 1; overflow: hidden; padding-bottom: 100px; }
+    .scroll.pb140 { padding-bottom: 140px; }
+    .pad { padding: 16px; }
+    .sticky-cta {
+      position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px 20px;
+      background: linear-gradient(180deg, rgba(248,250,252,0) 0%, var(--bg) 28%, var(--bg) 100%);
+    }
+    .btn {
+      height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+      gap: 8px; font-size: 15px; font-weight: 700; width: 100%;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0E339D, #1246C4); color: #fff;
+      box-shadow: 0 8px 18px rgba(14, 51, 157, 0.28);
+    }
+    .btn-secondary { background: var(--white); color: var(--primary); border: 1.5px solid var(--primary); }
+    .btn-pair { display: flex; flex-direction: column; gap: 10px; }
+    .btn-row { display: flex; gap: 10px; }
+    .btn-row .btn { flex: 1; font-size: 13px; }
+
+    .img-ph {
+      background: linear-gradient(135deg, rgba(14,51,157,0.12), rgba(6,148,172,0.14));
+      border: 1px dashed rgba(14,51,157,0.2);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    }
+    .img-ph .lab { font-size: 11px; font-weight: 700; color: var(--primary); letter-spacing: 0.04em; }
+    .img-ph .sub { font-size: 10px; font-weight: 500; color: var(--muted); text-align: center; padding: 0 16px; }
+
+    /* Swipeable gallery */
+    .gallery { position: relative; background: var(--white); }
+    .gallery-track {
+      display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    }
+    .gallery-track::-webkit-scrollbar { display: none; }
+    .slide {
+      flex: 0 0 100%; height: 260px; scroll-snap-align: start; position: relative;
+      border: 0; border-bottom: 1px dashed rgba(14,51,157,0.15);
+    }
+    .gallery-dots {
+      position: absolute; bottom: 12px; left: 0; right: 0;
+      display: flex; justify-content: center; gap: 6px; pointer-events: none;
+    }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(14,51,157,0.25); }
+    .dot.on { width: 18px; border-radius: 999px; background: var(--primary); }
+    .zoom-hint {
+      position: absolute; left: 12px; bottom: 12px; z-index: 2;
+      font-size: 10px; font-weight: 600; color: var(--primary);
+      background: rgba(255,255,255,0.92); border: 1px solid var(--border);
+      border-radius: 8px; padding: 4px 8px;
+    }
+    .fav-abs {
+      position: absolute; top: 12px; right: 12px; z-index: 2;
+      width: 40px; height: 40px; border-radius: 12px;
+      background: rgba(255,255,255,0.95); border: 1px solid var(--border);
+      display: grid; place-items: center; color: var(--muted); box-shadow: var(--shadow);
+    }
+    .badge-row {
+      position: absolute; top: 12px; left: 12px; z-index: 2; display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .mkt {
+      font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 8px;
+      background: var(--primary); color: #fff;
+    }
+    .mkt.pop { background: var(--secondary); }
+    .mkt.lim { background: #D97706; }
+
+    .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .tag {
+      font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 8px;
+      background: rgba(34,197,94,0.12); color: #16A34A;
+    }
+    .tag.low { background: rgba(245,158,11,0.14); color: #D97706; }
+    .tag.out { background: rgba(239,68,68,0.1); color: #EF4444; }
+    .tag.req { background: rgba(14,51,157,0.1); color: var(--primary); }
+    .tag.quote { background: rgba(14,51,157,0.1); color: var(--primary); }
+    .rating { font-size: 12px; font-weight: 600; }
+    .rating .s { color: var(--star); }
+    .rating .c { color: var(--muted); font-weight: 500; }
+    .title { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 6px; }
+    .sku { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+    .price { font-size: 22px; font-weight: 700; color: var(--primary); letter-spacing: -0.02em; }
+    .price .unit { font-size: 14px; font-weight: 600; color: var(--muted); }
+    .price-label { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+    .body-text { font-size: 14px; line-height: 1.55; color: var(--muted); margin: 14px 0; }
+    .section-h { font-size: 14px; font-weight: 700; margin: 16px 0 10px; }
+
+    .qty {
+      display: inline-flex; align-items: center; border: 1.5px solid var(--border);
+      border-radius: 12px; overflow: hidden; background: var(--white); box-shadow: var(--shadow);
+    }
+    .qty button, .qty span {
+      width: 40px; height: 40px; display: grid; place-items: center;
+      font-size: 16px; font-weight: 700; color: var(--primary); border: 0; background: transparent;
+    }
+    .qty span {
+      width: 48px; background: var(--bg); color: var(--text); font-size: 15px;
+      border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+    }
+    .qty-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0 4px;
+    }
+    .qty-label { font-size: 13px; font-weight: 600; }
+
+    .tiers {
+      background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden; margin-top: 10px;
+    }
+    .tier {
+      display: flex; justify-content: space-between; padding: 12px 14px;
+      border-bottom: 1px solid var(--border); font-size: 13px;
+    }
+    .tier:last-child { border-bottom: 0; }
+    .tier .k { color: var(--muted); font-weight: 500; }
+    .tier .v { font-weight: 700; color: var(--primary); }
+    .tier.on { background: rgba(14,51,157,0.04); }
+
+    .specs {
+      background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden;
+    }
+    .spec-row {
+      display: flex; justify-content: space-between; gap: 12px;
+      padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px;
+    }
+    .spec-row:last-child { border-bottom: 0; }
+    .spec-row .k { color: var(--muted); font-weight: 500; }
+    .spec-row .v { font-weight: 600; text-align: right; }
+
+    .related { display: flex; gap: 10px; overflow: hidden; }
+    .rel-card {
+      width: 140px; flex-shrink: 0; background: var(--white); border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden; box-shadow: var(--shadow);
+    }
+    .rel-card .ph { height: 90px; position: relative; }
+    .rel-card .b { padding: 10px; }
+    .rel-card .n { font-size: 12px; font-weight: 700; margin-bottom: 4px; line-height: 1.3; }
+    .rel-card .p { font-size: 12px; font-weight: 700; color: var(--primary); }
+    .rel-card .mini {
+      position: absolute; top: 6px; left: 6px; font-size: 9px; font-weight: 700;
+      padding: 2px 6px; border-radius: 6px; background: rgba(34,197,94,0.9); color: #fff;
+    }
+
+    .cart-item {
+      background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 12px; display: flex; gap: 12px; margin-bottom: 12px; box-shadow: var(--shadow);
+    }
+    .cart-item .ph { width: 72px; height: 72px; border-radius: 12px; flex-shrink: 0; }
+    .cart-item h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .cart-item .unit { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .line-total { margin-left: auto; font-size: 14px; font-weight: 700; color: var(--primary); align-self: flex-end; }
+    .remove { font-size: 11px; font-weight: 600; color: #EF4444; margin-top: 8px; display: inline-block; }
+    .summary-card {
+      background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 4px 0; margin-top: 8px;
+    }
+    .sum-row {
+      display: flex; justify-content: space-between; padding: 12px 16px; font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sum-row:last-child { border-bottom: 0; }
+    .sum-row.total .k, .sum-row.total .v { font-size: 16px; font-weight: 700; }
+    .sum-row.total .v { color: var(--primary); }
+    .sum-row .k { color: var(--muted); font-weight: 500; }
+    .sum-row .v { font-weight: 600; }
+
+    .field { margin-bottom: 14px; }
+    .label { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: block; }
+    .input {
+      height: 48px; width: 100%; border: 1px solid var(--border); border-radius: 14px;
+      background: var(--white); padding: 0 14px; font-size: 14px; color: var(--text);
+      display: flex; align-items: center; box-shadow: var(--shadow);
+    }
+    .input.muted { color: var(--muted); }
+
+    .option {
+      background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius);
+      padding: 14px; margin-bottom: 10px; display: flex; gap: 12px; align-items: flex-start;
+      box-shadow: var(--shadow);
+    }
+    .option.on { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14,51,157,0.1), var(--shadow); }
+    .radio {
+      width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border);
+      margin-top: 2px; flex-shrink: 0; display: grid; place-items: center;
+    }
+    .option.on .radio, .pay-method.on .radio { border-color: var(--primary); }
+    .option.on .radio::after, .pay-method.on .radio::after {
+      content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--primary);
+    }
+    .option h3, .pay-method h3 { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+    .option p, .pay-method p { font-size: 12px; color: var(--muted); line-height: 1.45; }
+    .badge-sm {
+      display: inline-block; font-size: 10px; font-weight: 600;
+      background: rgba(14,51,157,0.08); color: var(--primary);
+      padding: 2px 6px; border-radius: 6px; margin-left: 6px;
+    }
+
+    .pay-method {
+      background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius);
+      padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;
+      box-shadow: var(--shadow);
+    }
+    .pay-method.on { border-color: var(--primary); }
+    .pay-method.future { opacity: 0.72; border-style: dashed; }
+    .pay-ico {
+      width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+      background: rgba(14,51,157,0.08); color: var(--primary);
+      display: grid; place-items: center; font-size: 10px; font-weight: 700; text-align: center;
+    }
+    .pay-ico.teal { background: rgba(6,148,172,0.12); color: var(--secondary); }
+
+    .confirm { padding: 40px 24px 24px; text-align: center; display: flex; flex-direction: column; align-items: center; }
+    .success-ring {
+      width: 88px; height: 88px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(6,148,172,0.15));
+      display: grid; place-items: center; margin-bottom: 20px;
+    }
+    .success-ring .inner {
+      width: 64px; height: 64px; border-radius: 50%; background: #22C55E; color: #fff;
+      display: grid; place-items: center; font-size: 28px; font-weight: 700;
+    }
+    .confirm h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 8px; line-height: 1.25; }
+    .confirm > .lead { font-size: 14px; color: var(--muted); line-height: 1.5; max-width: 300px; margin-bottom: 20px; }
+    .ref-card {
+      width: 100%; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; text-align: left; box-shadow: var(--shadow); margin-bottom: 12px;
+    }
+    .ref-card .k { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .ref-card .v { font-size: 18px; font-weight: 700; color: var(--primary); letter-spacing: 0.02em; }
+    .ref-card .line {
+      margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+      font-size: 13px; color: var(--muted); line-height: 1.45;
+    }
+
+    .search {
+      height: 48px; background: var(--white); border: 1px solid var(--border); border-radius: 16px;
+      display: flex; align-items: center; gap: 10px; padding: 0 14px;
+      box-shadow: var(--shadow); color: var(--muted); font-size: 14px; margin-bottom: 12px;
+    }
+    .tabs { display: flex; gap: 8px; margin-bottom: 14px; overflow: hidden; }
+    .tab {
+      flex-shrink: 0; height: 36px; padding: 0 14px; border-radius: 999px;
+      border: 1px solid var(--border); background: var(--white);
+      font-size: 12px; font-weight: 600; display: grid; place-items: center;
+    }
+    .tab.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .order-card {
+      background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow);
+    }
+    .order-card .top { display: flex; justify-content: space-between; margin-bottom: 10px; }
+    .order-card .num { font-size: 14px; font-weight: 700; }
+    .order-card .date { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .chip { font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 8px; }
+    .chip.active { background: rgba(14,51,157,0.1); color: var(--primary); }
+    .chip.done { background: rgba(34,197,94,0.12); color: #16A34A; }
+    .chip.cancel { background: rgba(239,68,68,0.1); color: #EF4444; }
+    .order-card .items { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+    .order-card .foot {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-top: 10px; border-top: 1px solid var(--border);
+    }
+    .order-card .amt { font-size: 15px; font-weight: 700; color: var(--primary); }
+    .order-card .link { font-size: 12px; font-weight: 700; color: var(--primary); }
+    .detail-block {
+      background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); margin-bottom: 12px; overflow: hidden;
+    }
+    .detail-block .hd {
+      padding: 12px 14px; font-size: 13px; font-weight: 700; border-bottom: 1px solid var(--border);
+      background: rgba(14,51,157,0.03);
+    }
+    .bottom-nav {
+      position: relative; height: 76px; background: rgba(255,255,255,0.97);
+      border-top: 1px solid var(--border); display: flex; align-items: flex-start;
+      justify-content: space-between; padding: 8px 6px 12px; margin-top: auto;
+    }
+    .nav-item {
+      width: 74px; display: flex; flex-direction: column; align-items: center; gap: 4px;
+      color: var(--muted); font-size: 10px; font-weight: 500; padding-top: 4px;
+    }
+    .nav-item .ico { width: 28px; height: 28px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; }
+    .nav-item.active { color: var(--primary); font-weight: 700; }
+    .nav-item.active .ico {
+      width: 52px; height: 32px; border-radius: 16px;
+      background: linear-gradient(135deg, rgba(14,51,157,0.14), rgba(6,148,172,0.12));
+    }
+  </style>
+</head>
+<body>
+  <div class="board-title">
+    <h1>Product Purchase Flow — Premium V1 (Refined)</h1>
+    <p>
+      Gallery swipe · − Qty + · Contact phone · Somali-first payments · Buy Again / Track Order.
+      Availability, unit pricing, SKU, badges, and optional tier pricing reflected.
+      Product quotations use the shared Quotation Module (source = Product). Quotation UI not designed here.
+    </p>
+  </div>
+
+  <div class="flow-label">1 · Product Details</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">1A · Fixed price + tier pricing<span>Swipe gallery · − Qty + · In Stock · Best Seller</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar"><div class="back">←</div><h1>Product Details</h1><div class="icon">🛒</div></div>
+        <div class="scroll pb140">
+          <div class="gallery">
+            <div class="gallery-track">
+              <div class="img-ph slide"><div class="lab">IMAGE PLACEHOLDER</div><div class="sub">Swipe · Photo 1 of 3 · Fayadhowr photography</div></div>
+              <div class="img-ph slide"><div class="lab">IMAGE PLACEHOLDER</div><div class="sub">Swipe · Photo 2 of 3 · Fayadhowr photography</div></div>
+              <div class="img-ph slide"><div class="lab">IMAGE PLACEHOLDER</div><div class="sub">Swipe · Photo 3 of 3 · Fayadhowr photography</div></div>
+            </div>
+            <div class="badge-row"><span class="mkt">Best Seller</span></div>
+            <div class="fav-abs">♡</div>
+            <div class="zoom-hint">Pinch / tap to zoom (ready)</div>
+            <div class="gallery-dots"><div class="dot on"></div><div class="dot"></div><div class="dot"></div></div>
+          </div>
+          <div class="pad">
+            <div class="meta">
+              <span class="tag">In Stock</span>
+              <span class="rating"><span class="s">★</span> 4.8 <span class="c">(64 reviews)</span></span>
+            </div>
+            <h2 class="title">Multi-Surface Cleaner</h2>
+            <div class="sku">SKU CLN-000245</div>
+            <div class="price-label">Price</div>
+            <div class="price">12.00 <span class="unit">/ Bottle</span></div>
+            <div class="section-h" style="margin-top:12px;">Quantity pricing</div>
+            <div class="tiers">
+              <div class="tier on"><span class="k">1–9 Bottles</span><span class="v">12.00 / Bottle</span></div>
+              <div class="tier"><span class="k">10–49 Bottles</span><span class="v">10.50 / Bottle</span></div>
+              <div class="tier"><span class="k">50+ Bottles</span><span class="v">9.25 / Bottle</span></div>
+            </div>
+            <div class="qty-row">
+              <span class="qty-label">Quantity</span>
+              <div class="qty"><button type="button">−</button><span>2</span><button type="button">+</button></div>
+            </div>
+            <p class="body-text">Professional-grade multi-surface cleaner. Leaves a fresh finish without harsh residue.</p>
+            <div class="section-h">Specifications</div>
+            <div class="specs">
+              <div class="spec-row"><span class="k">Unit</span><span class="v">Bottle</span></div>
+              <div class="spec-row"><span class="k">Volume</span><span class="v">750 ml</span></div>
+              <div class="spec-row"><span class="k">SKU</span><span class="v">CLN-000245</span></div>
+            </div>
+            <div class="section-h">Related products</div>
+            <div class="related">
+              <div class="rel-card">
+                <div class="img-ph ph"><span class="mini">In Stock</span><div class="lab" style="font-size:8px;">IMAGE</div></div>
+                <div class="b"><div class="n">Microfiber Pack</div><div class="p">18.50 / Pack</div></div>
+              </div>
+              <div class="rel-card">
+                <div class="img-ph ph"><span class="mini" style="background:#D97706;">Low Stock</span><div class="lab" style="font-size:8px;">IMAGE</div></div>
+                <div class="b"><div class="n">Glass Spray</div><div class="p">15.00 / Bottle</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="sticky-cta"><div class="btn btn-primary">Add to Cart</div></div>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone-caption">1B · Quotation-enabled · Available on Request<span>Shared Quotation Module · Request Quotation secondary</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar"><div class="back">←</div><h1>Product Details</h1><div class="icon">🛒</div></div>
+        <div class="scroll pb140">
+          <div class="gallery">
+            <div class="gallery-track">
+              <div class="img-ph slide"><div class="lab">IMAGE PLACEHOLDER</div><div class="sub">Swipe gallery · Cleaning Kit</div></div>
+              <div class="img-ph slide"><div class="lab">IMAGE PLACEHOLDER</div><div class="sub">Photo 2 · Fayadhowr photography</div></div>
+            </div>
+            <div class="badge-row"><span class="mkt pop">Popular</span></div>
+            <div class="fav-abs">♡</div>
+            <div class="gallery-dots"><div class="dot on"></div><div class="dot"></div></div>
+          </div>
+          <div class="pad">
+            <div class="meta">
+              <span class="tag req">Available on Request</span>
+              <span class="tag quote">Quotation available</span>
+              <span class="rating"><span class="s">★</span> 4.6 <span class="c">(29)</span></span>
+            </div>
+            <h2 class="title">All-Purpose Cleaning Kit</h2>
+            <div class="sku">SKU KIT-000112</div>
+            <div class="price-label">Price</div>
+            <div class="price">79.00 <span class="unit">/ Box</span></div>
+            <div class="qty-row">
+              <span class="qty-label">Quantity</span>
+              <div class="qty"><button type="button">−</button><span>1</span><button type="button">+</button></div>
+            </div>
+            <p class="body-text">Price always shown. For bulk/custom kits use Request Quotation — same Quotation Module as Services (Accept or Discuss).</p>
+          </div>
+        </div>
+        <div class="sticky-cta btn-pair">
+          <div class="btn btn-primary">Add to Cart</div>
+          <div class="btn btn-secondary">Request Quotation</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-label">2 · Cart</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Cart<span>Standard − Quantity + control</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar"><div class="back">←</div><h1>Cart</h1></div>
+        <div class="scroll pad">
+          <div class="cart-item">
+            <div class="img-ph ph"><div class="lab" style="font-size:8px;">IMG</div></div>
+            <div style="flex:1;min-width:0;">
+              <h3>Multi-Surface Cleaner</h3>
+              <div class="unit">12.00 / Bottle</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div class="qty"><button>−</button><span>2</span><button>+</button></div>
+                <div class="line-total">24.00</div>
+              </div>
+              <span class="remove">Remove</span>
+            </div>
+          </div>
+          <div class="cart-item">
+            <div class="img-ph ph"><div class="lab" style="font-size:8px;">IMG</div></div>
+            <div style="flex:1;min-width:0;">
+              <h3>Microfiber Cloth Set</h3>
+              <div class="unit">18.50 / Pack</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div class="qty"><button>−</button><span>1</span><button>+</button></div>
+                <div class="line-total">18.50</div>
+              </div>
+              <span class="remove">Remove</span>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="sum-row"><span class="k">Subtotal</span><span class="v">42.50</span></div>
+            <div class="sum-row total"><span class="k">Total</span><span class="v">42.50</span></div>
+          </div>
+        </div>
+        <div class="sticky-cta btn-pair" style="position:relative;background:var(--bg);">
+          <div class="btn btn-primary">Checkout</div>
+          <div class="btn btn-secondary">Continue Shopping</div>
+        </div>
+        <nav class="bottom-nav">
+          <div class="nav-item"><div class="ico">H</div>Home</div>
+          <div class="nav-item"><div class="ico">S</div>Services</div>
+          <div class="nav-item"><div class="ico">St</div>Store</div>
+          <div class="nav-item active"><div class="ico">C</div>Cart</div>
+          <div class="nav-item"><div class="ico">A</div>Account</div>
+        </nav>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-label">3 · Checkout</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Checkout<span>+ Contact Phone Number · saved address reuse</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar"><div class="back">←</div><h1>Checkout</h1></div>
+        <div class="scroll pad">
+          <div class="section-h" style="margin-top:0;">Delivery Address</div>
+          <div class="option on">
+            <div class="radio"></div>
+            <div><h3>Home <span class="badge-sm">Saved</span></h3><p>Villa 12, Al Reef Villas<br>Abu Dhabi</p></div>
+          </div>
+          <div class="field">
+            <label class="label">Contact Phone Number</label>
+            <div class="input">+252 61 234 5678</div>
+          </div>
+          <div class="section-h">Delivery Method</div>
+          <div class="option on"><div class="radio"></div><div><h3>Standard Delivery</h3><p>2–3 business days</p></div></div>
+          <div class="option"><div class="radio"></div><div><h3>Pickup</h3><p>Collect from Fayadhowr location</p></div></div>
+          <div class="section-h">Order Summary</div>
+          <div class="summary-card">
+            <div class="sum-row"><span class="k">Subtotal</span><span class="v">42.50</span></div>
+            <div class="sum-row"><span class="k">Delivery Fee</span><span class="v">5.00</span></div>
+            <div class="sum-row"><span class="k">Tax</span><span class="v">0.00</span></div>
+            <div class="sum-row total"><span class="k">Total</span><span class="v">47.50</span></div>
+          </div>
+          <div class="section-h">Payment Method</div>
+          <div class="pay-method on">
+            <div class="pay-ico">EVC</div>
+            <div><h3>EVC Plus <span class="badge-sm">Default</span></h3><p>Selected · confirm on Payment</p></div>
+          </div>
+        </div>
+        <div class="sticky-cta"><div class="btn btn-primary">Place Order</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-label">4 · Payment — Somali methods first</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Payment<span>EVC Plus default · expanded summary</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar"><div class="back">←</div><h1>Payment</h1></div>
+        <div class="scroll pad">
+          <div class="section-h" style="margin-top:0;">Select payment method</div>
+          <div class="pay-method on"><div class="pay-ico">EVC</div><div style="flex:1;"><h3>EVC Plus</h3><p>Default · Mobile money</p></div><div class="radio"></div></div>
+          <div class="pay-method"><div class="pay-ico teal">eD</div><div style="flex:1;"><h3>eDahab</h3><p>Mobile money</p></div><div class="radio"></div></div>
+          <div class="pay-method"><div class="pay-ico">JEB</div><div style="flex:1;"><h3>Jeeb</h3><p>Mobile wallet</p></div><div class="radio"></div></div>
+          <div class="pay-method"><div class="pay-ico teal">SSB</div><div style="flex:1;"><h3>Salaam Somali Bank</h3><p>Bank transfer / app</p></div><div class="radio"></div></div>
+          <div class="pay-method"><div class="pay-ico">BT</div><div style="flex:1;"><h3>Bank Transfer</h3><p>Manual reconciliation as configured</p></div><div class="radio"></div></div>
+          <div class="pay-method"><div class="pay-ico">CARD</div><div style="flex:1;"><h3>Debit / Credit Card</h3><p>Optional</p></div><div class="radio"></div></div>
+          <div class="pay-method future"><div class="pay-ico">WAL</div><div style="flex:1;"><h3>Digital Wallet</h3><p>Future-ready placeholder</p></div><div class="radio"></div></div>
+
+          <div class="section-h">Order Summary</div>
+          <div class="summary-card">
+            <div class="sum-row"><span class="k">Subtotal</span><span class="v">42.50</span></div>
+            <div class="sum-row"><span class="k">Delivery Fee</span><span class="v">5.00</span></div>
+            <div class="sum-row"><span class="k">Tax</span><span class="v">0.00</span></div>
+            <div class="sum-row total"><span class="k">Total</span><span class="v">47.50</span></div>
+          </div>
+        </div>
+        <div class="sticky-cta"><div class="btn btn-primary">Confirm Payment</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-label">5 · Order Confirmation</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Order Confirmation<span>No Estimated Delivery · Receipt PDF</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="scroll" style="padding-bottom:180px;">
+          <div class="confirm">
+            <div class="success-ring"><div class="inner">✓</div></div>
+            <h2>Order Placed Successfully</h2>
+            <p class="lead">Thank you. Your order is confirmed and will be prepared for fulfillment.</p>
+            <div class="ref-card">
+              <div class="k">Order reference</div>
+              <div class="v">ORD-2026-000087</div>
+              <div class="line">2 items · Total paid 47.50<br>Status: Confirmed · Paid via EVC Plus</div>
+            </div>
+          </div>
+        </div>
+        <div class="sticky-cta btn-pair">
+          <div class="btn btn-primary">View Order</div>
+          <div class="btn btn-secondary">Download Receipt (PDF)</div>
+          <div class="btn btn-secondary">Continue Shopping</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-label">6 · Order History &amp; Details</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Order History<span>Active / Completed / Cancelled · Search</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar"><div class="back">←</div><h1>Order History</h1></div>
+        <div class="scroll pad">
+          <div class="search"><span>⌕</span><span>Search orders…</span></div>
+          <div class="tabs">
+            <div class="tab on">Active</div>
+            <div class="tab">Completed</div>
+            <div class="tab">Cancelled</div>
+          </div>
+          <div class="order-card">
+            <div class="top">
+              <div><div class="num">ORD-2026-000087</div><div class="date">14 Jul 2026</div></div>
+              <span class="chip active">Active</span>
+            </div>
+            <div class="items">Multi-Surface Cleaner ×2, Microfiber Pack ×1</div>
+            <div class="foot"><span class="amt">47.50</span><span class="link">Order Details →</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone-caption">Order Details<span>Buy Again · Track Order (placeholder)</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar"><div class="back">←</div><h1>Order Details</h1></div>
+        <div class="scroll pad" style="padding-bottom:110px;">
+          <div class="meta"><span class="chip active">Confirmed</span></div>
+          <div class="ref-card">
+            <div class="k">Order reference</div>
+            <div class="v">ORD-2026-000087</div>
+            <div class="line">Payment PAY-2026-000054 · EVC Plus · Paid</div>
+          </div>
+          <div class="detail-block">
+            <div class="hd">Items</div>
+            <div class="sum-row"><span class="k">Cleaner ×2 · Bottle</span><span class="v">24.00</span></div>
+            <div class="sum-row"><span class="k">Microfiber ×1 · Pack</span><span class="v">18.50</span></div>
+          </div>
+          <div class="summary-card">
+            <div class="sum-row"><span class="k">Subtotal</span><span class="v">42.50</span></div>
+            <div class="sum-row"><span class="k">Delivery Fee</span><span class="v">5.00</span></div>
+            <div class="sum-row"><span class="k">Tax</span><span class="v">0.00</span></div>
+            <div class="sum-row total"><span class="k">Total</span><span class="v">47.50</span></div>
+          </div>
+        </div>
+        <div class="sticky-cta btn-pair">
+          <div class="btn-row">
+            <div class="btn btn-secondary">Track Order</div>
+            <div class="btn btn-primary">Buy Again</div>
+          </div>
+          <div class="btn btn-secondary">Download Receipt (PDF)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -649,14 +649,18 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | `category_id` | BIGINT UNSIGNED | R | FK |
 | `name` | VARCHAR(200) | R | |
 | `slug` | VARCHAR(220) | R | Unique |
-| `sku` | VARCHAR(64) | O | Unique when present |
+| `sku` | VARCHAR(64) | R | Unique inventory SKU (e.g. `CLN-000245`) |
 | `short_description` | VARCHAR(500) | O | |
 | `description` | TEXT | O | |
-| `price` | DECIMAL(12,2) | R | **Always required — displayed to customers** |
+| `price` | DECIMAL(12,2) | R | Base unit price — **always displayed** when no active tier applies |
 | `currency` | CHAR(3) | R | |
-| `stock_qty` | INT | R | Availability |
-| `track_stock` | BOOLEAN | R | If false, stock checks may be skipped |
-| `allow_optional_quotation` | BOOLEAN | R | Enables optional product quote requests |
+| `unit` | VARCHAR(30) | R | Selling unit: `piece`, `pack`, `box`, `carton`, `bottle`, `liter`, `kg` (display with price, e.g. `12.00 / Bottle`) |
+| `availability_status` | VARCHAR(30) | R | `in_stock`, `low_stock`, `out_of_stock`, `available_on_request` |
+| `stock_qty` | INT | R | Inventory quantity when tracking |
+| `track_stock` | BOOLEAN | R | If false, stock qty checks may be skipped; status still required |
+| `badge` | VARCHAR(30) | O | Optional marketing badge: `new`, `best_seller`, `popular`, `limited_stock` |
+| `has_tier_pricing` | BOOLEAN | R | When true, use `product_price_tiers` for quantity bands |
+| `allow_optional_quotation` | BOOLEAN | R | Enables optional product quote via **shared** Quotation Module |
 | `is_active` | BOOLEAN | R | |
 | `sort_order` | INT | R | |
 | `created_at` | TIMESTAMP | R | |
@@ -666,18 +670,36 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 #### Constraints
 
 - `price` >= 0 and NOT NULL (store product pricing rule)
-- Unique `slug`; unique `sku` when not null
-- Out-of-stock products (`track_stock=true` and `stock_qty <= 0`) cannot be purchased
+- Unique `slug`; unique `sku` (required)
+- Purchases blocked when `availability_status = out_of_stock` (and when `track_stock=true` and `stock_qty <= 0`)
 
 #### Validation Rules
 
-- Customers can browse, view price, add to cart, and purchase at fixed price.
-- Optional quotation for bulk/custom/special requests does **not** remove or hide `price`.
-- Checkout re-validates price and stock against this table at confirmation time.
+- Customers can browse, view price (+ unit), add to cart, and purchase at fixed or tier price.
+- Optional quotation for bulk/custom/special requests uses the **same** Quotation Module as services (`source = product`); does **not** hide `price`.
+- Checkout re-validates price (including applicable tier), availability, and stock at confirmation time.
 
 #### Notes
 
-- Variants at scale are a future item; v1 keeps a single SKU row per product unless later extended.
+- Gallery images live in `product_media` (ordered); client supports swipe + pagination + future zoom.
+- Variants at scale remain a future item; v1 keeps one sellable row per product with optional tier bands.
+
+### 3.3.2A `product_price_tiers` (optional quantity pricing)
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `product_price_tiers` |
+| **Purpose** | Optional quantity-based unit prices configured by admin. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `product_id` → `products.id` |
+
+| Column | Notes |
+| --- | --- |
+| `min_qty` / `max_qty` | Inclusive band (`max_qty` null = open-ended, e.g. 50+) |
+| `unit_price` | Price per product unit within this band |
+| `sort_order` | Display order |
+
+If a product has only one fixed price (`has_tier_pricing=false`), show the single price. If tier pricing is enabled, display all tiers and apply the matching band to cart/checkout.
 
 ---
 
@@ -870,7 +892,7 @@ Supports:
 | `id` | BIGINT UNSIGNED | R | PK |
 | `request_number` | VARCHAR(40) | R | Unique public reference; may match or link to canonical `QT-YYYY-######` once quotation family is created |
 | `customer_id` | BIGINT UNSIGNED | R | FK — authenticated |
-| `request_target_type` | VARCHAR(20) | R | `service` or `product` |
+| `request_target_type` | VARCHAR(20) | R | Quotation **source**: `service` or `product` (business/admin use; not a customer-facing field unless needed) |
 | `service_id` | BIGINT UNSIGNED | O | Required if target=service |
 | `product_id` | BIGINT UNSIGNED | O | Required if target=product |
 | `status` | VARCHAR(30) | R | Aligns to V1 quotation lifecycle: `pending_review`, `quotation_ready`, `under_discussion`, `accepted`, `expired`, `cancelled` (never `rejected` / `declined`) |

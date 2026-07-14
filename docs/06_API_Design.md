@@ -455,7 +455,7 @@ See §14 for formats and limits. Ownership of quotation request required.
 | --- | --- | --- |
 | `GET` | `/api/v1/products/{id}` | Guest |
 
-Includes price, stock/availability, media, `allow_optional_quotation`, `is_favorite` if authenticated.
+Includes `price`, `currency`, `unit`, `sku`, `availability_status`, optional `badge`, optional `price_tiers[]`, media gallery (ordered), specifications, `allow_optional_quotation`, `is_favorite` if authenticated.
 
 ## 7.3 Categories
 
@@ -489,9 +489,9 @@ Includes price, stock/availability, media, `allow_optional_quotation`, `is_favor
 | --- | --- | --- |
 | `POST` | `/api/v1/checkout` | Required |
 
-**Body:** fulfillment type, address/address_id, notes, optional idempotency key  
-**Behavior:** Validates stock/prices; creates order; returns order + next payment step.  
-**Does not** require a quotation.
+**Body:** fulfillment type, address/address_id, **contact_phone**, notes, optional idempotency key  
+**Behavior:** Validates stock/prices (including quantity tiers); creates order; returns order + next payment step.  
+**Does not** require a quotation. Reuses saved addresses — do not re-collect address data already on file.
 
 ## 7.7 Product Quotation
 
@@ -499,11 +499,13 @@ Includes price, stock/availability, media, `allow_optional_quotation`, `is_favor
 | --- | --- | --- |
 | `POST` | `/api/v1/products/{id}/quotation-requests` | Required |
 
-**Rules:** `allow_optional_quotation = true`; does not remove fixed-price cart path.
+**Rules:** `allow_optional_quotation = true`; does not remove fixed-price cart path; uses **shared** Quotation Module with `source = product` (Accept / Discuss — never Reject).
 
 ## 7.8 Upload Product Images (Quotation)
 
 Same attachment endpoints as §6.7 / §14, scoped to the product quotation request owned by the customer.
+
+Checkout also accepts `contact_phone` for delivery coordination (prefill from profile when available).
 
 ---
 
@@ -682,11 +684,14 @@ Payments attach to payable entities: `order`, `booking`, or `quotation` (accepte
 
 - `payable_type`: `order` | `booking` | `quotation`
 - `payable_id`
+- `payment_method`: preferred Somali-first enum — `evc_plus` (default) | `edahab` | `jeeb` | `salaam_somali_bank` | `bank_transfer` | `card` (optional) | `digital_wallet` (future placeholder)
 - `idempotency_key` (required)
 
 **Result:** Payment record `pending` + provider redirect/SDK payload (provider-specific fields under `data.provider`).
 
-**Rules:** Amount equals server-calculated payable total; quotation must be `accepted`; customer owns entity.
+**UI Order Summary fields:** `subtotal`, `delivery_fee`, `tax` (default `0.00`), `total`.
+
+**Rules:** Amount equals server-calculated payable total; quotation must be `accepted`; customer owns entity. Customer app lists payment methods in the order: EVC Plus (default), eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card (optional), Digital Wallet (future-ready).
 
 ## 11.2 Payment Callback
 
