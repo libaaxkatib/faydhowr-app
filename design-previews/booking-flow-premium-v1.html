@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fayadhowr — Booking Flow Premium V1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #0E339D;
+      --secondary: #0694AC;
+      --white: #FFFFFF;
+      --bg: #F8FAFC;
+      --text: #1F2937;
+      --muted: #6B7280;
+      --border: #E5E7EB;
+      --success: #22C55E;
+      --shadow: 0 8px 20px rgba(31, 41, 55, 0.07);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: linear-gradient(165deg, #DCE6F8 0%, #E8F4F7 50%, #EEF2F7 100%);
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+      color: var(--text);
+      padding: 40px 24px 80px;
+    }
+    .board-title {
+      max-width: 1280px;
+      margin: 0 auto 28px;
+    }
+    .board-title h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      color: var(--primary);
+    }
+    .board-title p {
+      margin-top: 8px;
+      font-size: 14px;
+      color: var(--muted);
+      max-width: 720px;
+      line-height: 1.5;
+    }
+    .flow-label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--primary);
+      margin: 36px auto 14px;
+      max-width: 1280px;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      max-width: 1280px;
+      margin: 0 auto 8px;
+      align-items: flex-start;
+    }
+    .phone-wrap { width: 390px; }
+    .phone-caption {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+    .phone-caption span {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .phone {
+      width: 390px;
+      background: var(--bg);
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: 0 24px 48px rgba(14, 51, 157, 0.12);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      min-height: 844px;
+    }
+    .status {
+      height: 44px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+      font-weight: 600;
+      background: var(--white);
+    }
+    .status.dark {
+      background: transparent;
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      z-index: 3;
+      color: #fff;
+    }
+    .status .r { font-size: 12px; font-weight: 500; color: var(--muted); }
+    .status.dark .r { color: rgba(255,255,255,0.85); }
+
+    .app-bar {
+      height: 56px;
+      padding: 0 8px 0 4px;
+      background: var(--white);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      border-bottom: 1px solid var(--border);
+    }
+    .app-bar h1 {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      flex: 1;
+    }
+    .back {
+      width: 40px; height: 40px;
+      border-radius: 12px;
+      display: grid; place-items: center;
+      color: var(--primary);
+    }
+    .scroll {
+      flex: 1;
+      overflow: hidden;
+      padding-bottom: 96px;
+    }
+    .scroll.pb72 { padding-bottom: 72px; }
+
+    .sticky-cta {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      padding: 12px 16px 20px;
+      background: linear-gradient(180deg, rgba(248,250,252,0) 0%, var(--bg) 28%, var(--bg) 100%);
+    }
+    .btn {
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      width: 100%;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0E339D, #1246C4);
+      color: #fff;
+      box-shadow: 0 8px 18px rgba(14, 51, 157, 0.28);
+    }
+    .btn-secondary {
+      background: var(--white);
+      color: var(--primary);
+      border: 1.5px solid var(--primary);
+    }
+    .btn-pair { display: flex; flex-direction: column; gap: 10px; }
+
+    .img-hero {
+      height: 220px;
+      background: linear-gradient(135deg, rgba(14,51,157,0.14), rgba(6,148,172,0.16));
+      border-bottom: 1px dashed rgba(14,51,157,0.22);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      position: relative;
+    }
+    .img-hero .lab {
+      font-size: 11px; font-weight: 700; color: var(--primary); letter-spacing: 0.05em;
+    }
+    .img-hero .sub {
+      font-size: 10px; font-weight: 500; color: var(--muted); text-align: center; padding: 0 24px;
+    }
+    .fav {
+      position: absolute; top: 56px; right: 16px;
+      width: 40px; height: 40px; border-radius: 12px;
+      background: rgba(255,255,255,0.95);
+      border: 1px solid var(--border);
+      display: grid; place-items: center; color: var(--muted);
+    }
+
+    .pad { padding: 16px; }
+    .title { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 8px; }
+    .meta {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px;
+    }
+    .tag {
+      font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 8px;
+      background: rgba(6,148,172,0.12); color: var(--secondary);
+    }
+    .tag.quote { background: rgba(14,51,157,0.1); color: var(--primary); }
+    .rating { font-size: 12px; font-weight: 600; }
+    .rating .s { color: #F59E0B; }
+    .rating .c { color: var(--muted); font-weight: 500; }
+    .price-line {
+      font-size: 20px; font-weight: 700; color: var(--primary); margin-bottom: 4px;
+    }
+    .price-line.muted { font-size: 16px; color: var(--text); }
+    .cap { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+    .body-text { font-size: 14px; line-height: 1.55; color: var(--muted); margin-bottom: 16px; }
+    .section-h {
+      font-size: 14px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.01em;
+    }
+    .duration {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 16px;
+    }
+    .incl {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 4px 14px;
+      box-shadow: var(--shadow);
+      margin-bottom: 8px;
+    }
+    .incl li {
+      list-style: none;
+      font-size: 13px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .incl li:last-child { border-bottom: 0; }
+    .check {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: rgba(34,197,94,0.14); color: #16A34A;
+      display: grid; place-items: center; flex-shrink: 0; margin-top: 1px;
+      font-size: 11px; font-weight: 700;
+    }
+
+    /* Address cards */
+    .addr {
+      background: var(--white);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+    .addr.selected {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(14,51,157,0.1), var(--shadow);
+    }
+    .radio {
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 2px solid var(--border); margin-top: 2px; flex-shrink: 0;
+      display: grid; place-items: center;
+    }
+    .addr.selected .radio {
+      border-color: var(--primary);
+    }
+    .addr.selected .radio::after {
+      content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--primary);
+    }
+    .addr h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .addr p { font-size: 12px; color: var(--muted); line-height: 1.45; }
+    .badge-sm {
+      display: inline-block; font-size: 10px; font-weight: 600;
+      background: rgba(14,51,157,0.08); color: var(--primary);
+      padding: 2px 6px; border-radius: 6px; margin-left: 6px;
+    }
+    .add-new {
+      height: 52px;
+      border: 1.5px dashed rgba(14,51,157,0.35);
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      color: var(--primary); font-size: 14px; font-weight: 600;
+      background: rgba(14,51,157,0.03);
+      margin-top: 4px;
+    }
+
+    /* Calendar */
+    .cal {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+    .cal-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .cal-head h3 { font-size: 15px; font-weight: 700; }
+    .nav-mini {
+      width: 32px; height: 32px; border-radius: 10px;
+      background: rgba(14,51,157,0.06); color: var(--primary);
+      display: grid; place-items: center; font-weight: 700;
+    }
+    .dow {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      gap: 4px; margin-bottom: 6px;
+    }
+    .dow span {
+      text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); padding: 4px 0;
+    }
+    .days {
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+    }
+    .day {
+      aspect-ratio: 1;
+      display: grid; place-items: center;
+      font-size: 13px; font-weight: 600;
+      border-radius: 12px; color: var(--text);
+    }
+    .day.mute { color: #D1D5DB; font-weight: 500; }
+    .day.sel {
+      background: var(--primary); color: #fff;
+      box-shadow: 0 4px 10px rgba(14,51,157,0.3);
+    }
+    .day.avail { background: rgba(6,148,172,0.1); color: var(--secondary); }
+    .slots {
+      display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .slot {
+      min-width: 88px;
+      height: 40px;
+      padding: 0 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      font-size: 13px; font-weight: 600;
+      display: grid; place-items: center;
+    }
+    .slot.sel {
+      background: var(--primary); color: #fff; border-color: var(--primary);
+    }
+    .slot.dis { color: #D1D5DB; background: #F3F4F6; }
+
+    /* Form */
+    .field { margin-bottom: 14px; }
+    .label {
+      font-size: 13px; font-weight: 600; margin-bottom: 8px; display: block;
+    }
+    .label .opt { color: var(--muted); font-weight: 500; }
+    .textarea {
+      min-height: 110px;
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--white);
+      padding: 12px 14px;
+      font-size: 13px; color: var(--muted); line-height: 1.45;
+      box-shadow: var(--shadow);
+    }
+    .upload {
+      border: 1.5px dashed rgba(14,51,157,0.3);
+      border-radius: var(--radius);
+      background: rgba(14,51,157,0.03);
+      padding: 18px 14px;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .upload strong {
+      display: block; font-size: 13px; font-weight: 700; color: var(--primary); margin: 8px 0 4px;
+    }
+    .upload p { font-size: 11px; color: var(--muted); line-height: 1.4; }
+    .chips-files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .file-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: 10px; padding: 6px 10px; font-size: 11px; font-weight: 600;
+    }
+    .svc-chip {
+      display: flex; gap: 12px; align-items: center;
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px; margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+    .svc-chip .thumb {
+      width: 56px; height: 56px; border-radius: 12px;
+      background: linear-gradient(135deg, rgba(14,51,157,0.12), rgba(6,148,172,0.14));
+      display: grid; place-items: center;
+      font-size: 8px; font-weight: 700; color: var(--primary); text-align: center;
+    }
+    .svc-chip h3 { font-size: 14px; font-weight: 700; }
+    .svc-chip p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* Review rows */
+    .summary {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .sum-row {
+      display: flex; justify-content: space-between; gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sum-row:last-child { border-bottom: 0; }
+    .sum-row .k { font-size: 12px; color: var(--muted); font-weight: 500; margin-bottom: 4px; }
+    .sum-row .v { font-size: 14px; font-weight: 600; }
+    .sum-row .v.right { text-align: right; }
+    .files-list { display: flex; flex-direction: column; gap: 6px; }
+    .total-bar {
+      margin-top: 14px;
+      background: linear-gradient(135deg, rgba(14,51,157,0.08), rgba(6,148,172,0.1));
+      border: 1px solid rgba(14,51,157,0.12);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .total-bar .k { font-size: 13px; font-weight: 600; }
+    .total-bar .v { font-size: 20px; font-weight: 700; color: var(--primary); }
+    .note {
+      margin-top: 12px;
+      font-size: 12px; color: var(--muted); line-height: 1.45;
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px;
+    }
+
+    /* Confirmation */
+    .confirm {
+      padding: 48px 24px 24px;
+      text-align: center;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .success-ring {
+      width: 88px; height: 88px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(6,148,172,0.15));
+      display: grid; place-items: center; margin-bottom: 20px;
+      box-shadow: 0 12px 28px rgba(34,197,94,0.15);
+    }
+    .success-ring .inner {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: #22C55E; color: #fff;
+      display: grid; place-items: center;
+      font-size: 28px; font-weight: 700;
+    }
+    .confirm h2 {
+      font-size: 22px; font-weight: 700; letter-spacing: -0.03em;
+      margin-bottom: 8px; line-height: 1.25;
+    }
+    .confirm > p {
+      font-size: 14px; color: var(--muted); line-height: 1.5;
+      max-width: 300px; margin-bottom: 20px;
+    }
+    .ref-card {
+      width: 100%;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      text-align: left;
+      box-shadow: var(--shadow);
+      margin-bottom: 12px;
+    }
+    .ref-card .k { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .ref-card .v { font-size: 18px; font-weight: 700; color: var(--primary); letter-spacing: 0.02em; }
+    .ref-card .line {
+      margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+      font-size: 13px; color: var(--muted); line-height: 1.45;
+    }
+
+    .stepper {
+      display: flex; gap: 6px; padding: 12px 16px 0;
+      align-items: center;
+    }
+    .step-dot {
+      height: 4px; flex: 1; border-radius: 999px; background: var(--border);
+    }
+    .step-dot.on { background: var(--primary); }
+    .step-dot.done { background: var(--secondary); }
+    .step-meta {
+      padding: 8px 16px 4px;
+      font-size: 12px; font-weight: 600; color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="board-title">
+    <h1>Booking Flow — Premium V1</h1>
+    <p>
+      Service Details → Select Address → Date &amp; Time → Booking Details → Review → Confirmation.
+      Fixed-price and quotation paths share address/schedule once; no duplicate address entry.
+      Home, Services, and Store screens are unchanged.
+    </p>
+  </div>
+
+  <!-- ========== 1. SERVICE DETAILS ========== -->
+  <div class="flow-label">1 · Service Details</div>
+  <div class="row">
+
+    <div class="phone-wrap">
+      <div class="phone-caption">1A · Fixed Price<span>Primary CTA: Book Service</span></div>
+      <div class="phone">
+        <div class="status dark"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="scroll">
+          <div class="img-hero" style="padding-top:44px;">
+            <div class="lab">IMAGE PLACEHOLDER</div>
+            <div class="sub">Fayadhowr photography — Home Cleaning</div>
+            <div class="fav">♡</div>
+          </div>
+          <div class="pad">
+            <div class="meta">
+              <span class="tag">Fixed price</span>
+              <span class="rating"><span class="s">★</span> 4.9 <span class="c">(128)</span></span>
+            </div>
+            <h2 class="title">Home Cleaning</h2>
+            <div class="price-line">Starting from 149.00</div>
+            <div class="cap">Prices always shown before booking</div>
+            <div class="duration">⏱ Est. 2–3 hours</div>
+            <p class="body-text">Professional residential cleaning for apartments and villas. Ideal for weekly or bi-weekly upkeep with consistent quality standards.</p>
+            <div class="section-h">Included</div>
+            <ul class="incl">
+              <li><span class="check">✓</span> Dusting, vacuuming, and mopping</li>
+              <li><span class="check">✓</span> Kitchen surfaces &amp; appliances exterior</li>
+              <li><span class="check">✓</span> Bathroom sanitizing</li>
+              <li><span class="check">✓</span> Beds made (if requested)</li>
+            </ul>
+          </div>
+        </div>
+        <div class="sticky-cta">
+          <div class="btn btn-primary">Book Service</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone-caption">1B · Quotation Required<span>Primary CTA: Request Quotation</span></div>
+      <div class="phone">
+        <div class="status dark"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="scroll">
+          <div class="img-hero" style="padding-top:44px;">
+            <div class="lab">IMAGE PLACEHOLDER</div>
+            <div class="sub">Fayadhowr photography — Office Cleaning</div>
+            <div class="fav">♡</div>
+          </div>
+          <div class="pad">
+            <div class="meta">
+              <span class="tag quote">Quotation required</span>
+              <span class="rating"><span class="s">★</span> 4.7 <span class="c">(54)</span></span>
+            </div>
+            <h2 class="title">Office Cleaning</h2>
+            <div class="price-line muted">Quotation required</div>
+            <div class="cap">Custom pricing based on site assessment</div>
+            <div class="duration">⏱ Est. based on site</div>
+            <p class="body-text">Commercial cleaning tailored to floor size, staff schedule, and facility requirements. Submit details and media for an accurate quote.</p>
+            <div class="section-h">Included</div>
+            <ul class="incl">
+              <li><span class="check">✓</span> Workstations &amp; common areas</li>
+              <li><span class="check">✓</span> Restrooms &amp; pantry</li>
+              <li><span class="check">✓</span> Trash removal</li>
+              <li><span class="check">✓</span> Flexible scheduling options</li>
+            </ul>
+          </div>
+        </div>
+        <div class="sticky-cta">
+          <div class="btn btn-primary">Request Quotation</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 2. SELECT ADDRESS ========== -->
+  <div class="flow-label">2 · Select Address — reuse saved addresses (asked once)</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Select Address<span>Shared step for booking &amp; quotation</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Select Address</h1>
+        </div>
+        <div class="stepper">
+          <div class="step-dot on"></div>
+          <div class="step-dot"></div>
+          <div class="step-dot"></div>
+          <div class="step-dot"></div>
+        </div>
+        <div class="step-meta">Step 1 of 4 · Service location</div>
+        <div class="scroll pad">
+          <div class="svc-chip">
+            <div class="thumb">IMAGE</div>
+            <div>
+              <h3>Home Cleaning</h3>
+              <p>Fixed price · Starting from 149.00</p>
+            </div>
+          </div>
+          <div class="section-h">Saved addresses</div>
+          <div class="addr selected">
+            <div class="radio"></div>
+            <div>
+              <h3>Home <span class="badge-sm">Default</span></h3>
+              <p>Villa 12, Al Reef Villas<br>Abu Dhabi</p>
+            </div>
+          </div>
+          <div class="addr">
+            <div class="radio"></div>
+            <div>
+              <h3>Apartment</h3>
+              <p>Apt 804, Marina Gate 2<br>Dubai Marina, Dubai</p>
+            </div>
+          </div>
+          <div class="add-new">＋ Add New Address</div>
+        </div>
+        <div class="sticky-cta">
+          <div class="btn btn-primary">Continue</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 3. DATE & TIME ========== -->
+  <div class="flow-label">3 · Date &amp; Time</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Date &amp; Time<span>Available slots only</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Date &amp; Time</h1>
+        </div>
+        <div class="stepper">
+          <div class="step-dot done"></div>
+          <div class="step-dot on"></div>
+          <div class="step-dot"></div>
+          <div class="step-dot"></div>
+        </div>
+        <div class="step-meta">Step 2 of 4 · Preferred schedule</div>
+        <div class="scroll pad">
+          <div class="cal">
+            <div class="cal-head">
+              <div class="nav-mini">‹</div>
+              <h3>July 2026</h3>
+              <div class="nav-mini">›</div>
+            </div>
+            <div class="dow">
+              <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+            </div>
+            <div class="days">
+              <div class="day mute">28</div><div class="day mute">29</div><div class="day mute">30</div>
+              <div class="day">1</div><div class="day">2</div><div class="day">3</div><div class="day">4</div>
+              <div class="day">5</div><div class="day">6</div><div class="day">7</div><div class="day">8</div>
+              <div class="day">9</div><div class="day">10</div><div class="day">11</div>
+              <div class="day avail">12</div><div class="day avail">13</div><div class="day sel">14</div>
+              <div class="day avail">15</div><div class="day avail">16</div><div class="day">17</div>
+              <div class="day avail">18</div><div class="day">19</div><div class="day">20</div>
+              <div class="day avail">21</div><div class="day avail">22</div><div class="day">23</div>
+              <div class="day">24</div><div class="day avail">25</div><div class="day">26</div>
+              <div class="day">27</div><div class="day">28</div><div class="day">29</div>
+              <div class="day">30</div><div class="day">31</div>
+            </div>
+          </div>
+          <div class="section-h">Available time slots</div>
+          <div class="slots">
+            <div class="slot">09:00</div>
+            <div class="slot sel">11:00</div>
+            <div class="slot">13:00</div>
+            <div class="slot">15:00</div>
+            <div class="slot dis">17:00</div>
+            <div class="slot">18:30</div>
+          </div>
+        </div>
+        <div class="sticky-cta">
+          <div class="btn btn-primary">Continue</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 4. BOOKING DETAILS ========== -->
+  <div class="flow-label">4 · Booking Details — optional description &amp; media (once)</div>
+  <div class="row">
+    <div class="phone-wrap">
+      <div class="phone-caption">Booking Details<span>Description optional · Images &amp; video upload</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Booking Details</h1>
+        </div>
+        <div class="stepper">
+          <div class="step-dot done"></div>
+          <div class="step-dot done"></div>
+          <div class="step-dot on"></div>
+          <div class="step-dot"></div>
+        </div>
+        <div class="step-meta">Step 3 of 4 · Extra details</div>
+        <div class="scroll pad">
+          <div class="field">
+            <label class="label">Description <span class="opt">(Optional)</span></label>
+            <div class="textarea">Describe any special instructions, areas of focus, or explain your uploaded files…</div>
+          </div>
+
+          <div class="field">
+            <label class="label">Upload Images</label>
+            <div class="upload">
+              <div style="font-size:22px;color:var(--primary);">🖼</div>
+              <strong>Add images</strong>
+              <p>JPG, JPEG, PNG, WebP · Helps us prepare accurately</p>
+              <div class="chips-files">
+                <div class="file-chip">kitchen.jpg ×</div>
+                <div class="file-chip">bath.png ×</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="label">Upload Video</label>
+            <div class="upload">
+              <div style="font-size:22px;color:var(--secondary);"> ▶ </div>
+              <strong>Add video</strong>
+              <p>MP4, MOV, WebM · Optional walkthrough of the space</p>
+              <div class="chips-files">
+                <div class="file-chip">walkthrough.mp4 ×</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="sticky-cta">
+          <div class="btn btn-primary">Continue</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 5. REVIEW ========== -->
+  <div class="flow-label">5 · Review / Summary — fixed booking vs quotation request</div>
+  <div class="row">
+
+    <div class="phone-wrap">
+      <div class="phone-caption">5A · Booking Summary<span>Fixed-price path · Review before submit</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Review Booking</h1>
+        </div>
+        <div class="stepper">
+          <div class="step-dot done"></div>
+          <div class="step-dot done"></div>
+          <div class="step-dot done"></div>
+          <div class="step-dot on"></div>
+        </div>
+        <div class="step-meta">Step 4 of 4 · Confirm &amp; submit</div>
+        <div class="scroll pad">
+          <div class="summary">
+            <div class="sum-row">
+              <div><div class="k">Service</div><div class="v">Home Cleaning</div></div>
+              <div class="v right tag" style="align-self:center;">Fixed price</div>
+            </div>
+            <div class="sum-row">
+              <div>
+                <div class="k">Address</div>
+                <div class="v">Villa 12, Al Reef Villas, Abu Dhabi</div>
+              </div>
+            </div>
+            <div class="sum-row">
+              <div><div class="k">Date</div><div class="v">Tue, 14 Jul 2026</div></div>
+              <div><div class="k">Time</div><div class="v right">11:00</div></div>
+            </div>
+            <div class="sum-row">
+              <div style="width:100%;">
+                <div class="k">Uploaded files</div>
+                <div class="files-list">
+                  <div class="v">kitchen.jpg · bath.png · walkthrough.mp4</div>
+                </div>
+              </div>
+            </div>
+            <div class="sum-row">
+              <div>
+                <div class="k">Description</div>
+                <div class="v" style="font-weight:500;color:var(--muted);">Please focus on the kitchen and guest bathroom.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="sticky-cta">
+          <div class="btn btn-primary">Submit Booking</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone-caption">5B · Quotation Request Summary<span>Quotation path · Same collected data, no re-entry</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="app-bar">
+          <div class="back">←</div>
+          <h1>Review Request</h1>
+        </div>
+        <div class="stepper">
+          <div class="step-dot done"></div>
+          <div class="step-dot done"></div>
+          <div class="step-dot done"></div>
+          <div class="step-dot on"></div>
+        </div>
+        <div class="step-meta">Step 4 of 4 · Confirm &amp; submit</div>
+        <div class="scroll pad">
+          <div class="summary">
+            <div class="sum-row">
+              <div><div class="k">Service</div><div class="v">Office Cleaning</div></div>
+              <div class="v right tag quote" style="align-self:center;">Quotation</div>
+            </div>
+            <div class="sum-row">
+              <div>
+                <div class="k">Address</div>
+                <div class="v">Apt 804, Marina Gate 2, Dubai Marina</div>
+              </div>
+            </div>
+            <div class="sum-row">
+              <div><div class="k">Preferred date</div><div class="v">Tue, 14 Jul 2026</div></div>
+              <div><div class="k">Time</div><div class="v right">11:00</div></div>
+            </div>
+            <div class="sum-row">
+              <div style="width:100%;">
+                <div class="k">Uploaded files</div>
+                <div class="v">floorplan.jpg · lobby.mp4</div>
+              </div>
+            </div>
+            <div class="sum-row">
+              <div>
+                <div class="k">Description</div>
+                <div class="v" style="font-weight:500;color:var(--muted);">The video shows the full office floor we need cleaned weekly.</div>
+              </div>
+            </div>
+          </div>
+          <div class="total-bar">
+            <div class="k">Pricing</div>
+            <div class="v" style="font-size:15px;">Quotation Required</div>
+          </div>
+          <div class="note">Our team will review your request and respond with a quotation. You will not need to re-enter address or schedule.</div>
+        </div>
+        <div class="sticky-cta">
+          <div class="btn btn-primary">Submit Quotation Request</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 6. CONFIRMATION ========== -->
+  <div class="flow-label">6 · Confirmation</div>
+  <div class="row">
+
+    <div class="phone-wrap">
+      <div class="phone-caption">6A · Booking Confirmation<span>Fixed price success</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="scroll pb72">
+          <div class="confirm">
+            <div class="success-ring"><div class="inner">✓</div></div>
+            <h2>Booking Submitted Successfully.</h2>
+            <p>Thank you. We’ve received your booking and will keep you updated.</p>
+            <div class="ref-card">
+              <div class="k">Booking reference</div>
+              <div class="v">#BK-1042</div>
+              <div class="line">
+                Home Cleaning · Tue, 14 Jul 2026 at 11:00<br>
+                Status: Submitted
+              </div>
+            </div>
+            <div class="note" style="text-align:left;width:100%;background:linear-gradient(135deg, rgba(14,51,157,0.06), rgba(6,148,172,0.08));border-color:rgba(14,51,157,0.14);">
+              <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:8px;">What happens next</div>
+              <div style="font-size:13px;font-weight:500;color:var(--text);line-height:1.55;">
+                Your booking has been submitted successfully.<br><br>
+                Our operations team will review your request and send confirmation and pricing through the application.<br><br>
+                You will receive a notification when your booking has been processed.
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="sticky-cta btn-pair">
+          <div class="btn btn-primary">View Booking</div>
+          <div class="btn btn-secondary">Download Receipt (PDF)</div>
+          <div class="btn btn-secondary">Back to Home</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone-caption">6B · Quotation Confirmation<span>Quotation success</span></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="r">LTE 100%</span></div>
+        <div class="scroll pb72">
+          <div class="confirm">
+            <div class="success-ring"><div class="inner">✓</div></div>
+            <h2>Quotation Request Submitted Successfully.</h2>
+            <p>We’ve received your request. Our team will respond with a quotation.</p>
+            <div class="ref-card">
+              <div class="k">Request reference</div>
+              <div class="v">#QT-2088</div>
+              <div class="line">
+                Office Cleaning · Preferred Tue, 14 Jul 2026 at 11:00<br>
+                Files uploaded: 2 · Status: Pending review
+              </div>
+            </div>
+            <div class="note" style="text-align:left;width:100%;">
+              Next: watch for a notification when your quotation is ready to review and accept.
+            </div>
+          </div>
+        </div>
+        <div class="sticky-cta btn-pair">
+          <div class="btn btn-primary">View Request</div>
+          <div class="btn btn-secondary">Back to Home</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
