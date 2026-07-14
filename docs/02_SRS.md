@@ -160,7 +160,11 @@ Exact numeric targets shall be defined by product leadership after baseline anal
 
 ### 4.2 Authentication & Authorization Principles
 
-- Customers authenticate via secure credentials (e.g., phone/email + password or OTP — exact method to be confirmed in auth design).
+- Login method priority: **(1) Phone Number (default)** → **(2) Google Sign-In** → **(3) Email**.
+- Phone remains the primary authentication method for Somalia; default country is **Somalia (+252)**.
+- Phone login verifies via **OTP**.
+- Google Sign-In uses native Android/iOS account pickers with accounts already on the device (future implementation — customer does not type a Gmail address).
+- Email login remains fully supported (email + password, Show/Hide, Forgot Password, Remember Me).
 - Sessions/tokens must expire and be refreshable according to security policy.
 - Role-based access control (RBAC) applies to the admin panel.
 - Customers may only access their own data (bookings, quotes, orders, payments, profile).
@@ -182,10 +186,10 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-001 | The system shall allow a customer to register an account with required identity fields. | Must |
-| FR-002 | The system shall authenticate customers and maintain a secure session. | Must |
-| FR-003 | The system shall allow customers to reset or recover credentials securely. | Must |
-| FR-004 | The system shall allow customers to log out from the mobile app. | Must |
+| FR-001 | The system shall allow a customer to register with **Phone Number (primary)** and optional Email, plus Password and **Confirm Password** (must match). Google users may complete registration automatically after Google Sign-In when required. | Must |
+| FR-002 | The system shall authenticate customers in this priority: (1) Continue with Phone + OTP (default country Somalia +252), (2) Continue with Google (native device accounts), (3) Continue with Email + password; and maintain a secure session. | Must |
+| FR-003 | The system shall allow customers to reset or recover credentials securely (email/password path includes Forgot Password). | Must |
+| FR-004 | The system shall allow customers to log out from the mobile app (with confirmation). | Must |
 | FR-005 | The system shall restrict transactional features to authenticated customers. | Must |
 
 ### 5.2 Discovery & Catalog

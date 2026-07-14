@@ -215,8 +215,9 @@ Complete customer-facing screen list for Version 1.
 
 | Screen ID | Screen Name | Auth |
 | --- | --- | --- |
-| S-090 | Login | Soft gate |
-| S-091 | Register | Soft gate |
+| S-090 | Login (Phone default · Google · Email) | Soft gate |
+| S-090A | OTP Verification (Phone) | Soft gate |
+| S-091 | Create Account / Register | Soft gate |
 | S-092 | Forgot Password | Soft gate |
 | S-093 | Reset Password | Soft gate |
 | S-094 | Logout Confirmation | Yes |
@@ -620,14 +621,19 @@ Triggered from My Account → Log out. Title: **Log Out**. Message: **Are you su
 | Field | Specification |
 | --- | --- |
 | **Purpose** | Soft gate; resume original intent after success |
-| **Components** | Brand mark; login/register forms; recovery link; intent message (“Sign in to book this service”) |
-| **Buttons** | Login; Register; Forgot password; Continue as guest browse (dismiss) |
-| **Inputs** | Phone/email; password; recovery fields |
+| **Login actions** | **Continue with Phone** (default) · **Continue with Google** · **Continue with Email** — method order is a business rule, not UI tabs |
+| **Phone login** | Default country 🇸🇴 Somalia (+252); Phone Number field; primary **Continue with Phone** → OTP verification |
+| **Google login** | Secondary **Continue with Google**; native device Google accounts / account picker (documented implementation detail only — not shown in customer UI) |
+| **Email login** | Email Address, Password, Show/Hide Password, Remember Me, Forgot Password; primary **Continue with Email** |
+| **Create Account** | Phone Number (primary), Email (optional), Password, **Confirm Password** (Show/Hide; must match before submit); Google button available |
+| **Components** | Brand mark; method action stack; general message (**Welcome to Fayadhowr** / **Sign in to your account or continue with your preferred method.**) — reusable for first-time and returning customers |
+| **Buttons** | Continue with Phone; Continue with Google; Continue with Email; Create Account; Forgot password; dismiss / back to browse |
 | **Navigation** | Return-to-intent on success; dismiss returns to prior browse |
-| **Empty** | N/A |
 | **Loading** | Button loading; disable double submit |
-| **Error** | Invalid credentials; field validation; network retry |
-| **Success** | Resume Book / Quote / Checkout / Account |
+| **Error** | Invalid credentials / OTP; password mismatch on register; field validation; network retry |
+| **Success** | Resume Book / Quote / Checkout / Account / Favorites / other protected intent |
+
+Forgot Password, Reset Password, and Logout Confirmation screens remain as previously approved — not redesigned by this refinement.
 
 ---
 

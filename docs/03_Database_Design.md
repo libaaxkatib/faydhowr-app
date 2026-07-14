@@ -187,6 +187,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | `password_hash` | VARCHAR(255) | R | One-way hash only |
 | `avatar_url` | VARCHAR(500) | O | Profile photo |
 | `preferred_language` | VARCHAR(10) | R | `so` · `en` · `ar` (app-wide UI language) |
+| `google_subject` | VARCHAR(191) | O | Unique Google account subject when linked via Google Sign-In |
 | `email_verified_at` | TIMESTAMP | O | Verification marker |
 | `phone_verified_at` | TIMESTAMP | O | Verification marker |
 | `status` | VARCHAR(30) | R | `pending_verification`, `active`, `suspended`, `deactivated` |
@@ -200,6 +201,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 - Unique: `customer_number`, `phone`
 - Unique: `email` (nullable unique)
+- Unique: `google_subject` (nullable unique)
 - Check/enum: `status` in defined set; `preferred_language` in `so|en|ar`
 
 #### Validation Rules

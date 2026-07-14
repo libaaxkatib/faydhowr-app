@@ -157,10 +157,24 @@ Related transactional follow-ons (Accept Quotation / Discuss Quotation, pay a pa
 
 | Sub-flow | Customer outcome |
 | --- | --- |
-| Register | Create customer account → optional verification per policy → continue intent |
-| Login | Authenticate → continue intent |
-| Credential recovery | Reset path → return to login |
-| Logout | End session → browsing remains available; protected areas lock again |
+| **Continue with Phone** (default) | Enter phone (default 🇸🇴 +252) → **Continue** → OTP verify → session → continue intent |
+| **Continue with Google** | Native Android/iOS Google Sign-In using device accounts (account picker if multiple; quick sign-in if one). Customer does **not** type Gmail. Future implementation. |
+| **Continue with Email** | Email + Password (Show/Hide) → optional Remember Me → Continue; Forgot Password available |
+| Register / Create Account | Phone Number (**primary**) + Email (**optional**) + Password + **Confirm Password** (must match); Google may auto-complete registration after successful Google Sign-In |
+| Credential recovery | Forgot / Reset password path → return to login (email path) |
+| Logout | Confirmation → End session → browsing remains available; protected areas lock again |
+
+### Login method priority
+
+Business rule (not shown as tabs in the UI):
+
+1. Phone Number (primary for Somalia)  
+2. Google Sign-In  
+3. Email  
+
+Customer UI shows action buttons only: **Continue with Phone**, **Continue with Google**, **Continue with Email**.
+
+Auth copy is **general** and reusable (**Welcome to Fayadhowr** / **Sign in to your account or continue with your preferred method.**) — works for first-time and returning customers; not booking-specific. Soft gate still returns to the interrupted intent after success. 
 
 ## 3.5 Explicit Non-Requirements
 

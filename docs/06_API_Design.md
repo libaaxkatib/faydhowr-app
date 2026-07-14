@@ -103,6 +103,8 @@ The API is **stateless**: each protected request carries an access token. Sessio
 
 # 2. Authentication
 
+Login method priority for the customer app: **Phone (default)** → **Google** → **Email**.
+
 ## 2.1 Register
 
 | Item | Spec |
@@ -110,17 +112,38 @@ The API is **stateless**: each protected request carries an access token. Sessio
 | **Method / Path** | `POST /api/v1/auth/register` |
 | **Auth** | Guest |
 | **Purpose** | Create a customer account |
-| **Body (logical)** | `full_name`, `phone`, `email` (optional), `password`, `password_confirmation` |
-| **Result** | Customer profile + access token (or require verification step per policy) |
+| **Body (logical)** | `full_name`, `phone` (**required**), `email` (**optional**), `password`, `password_confirmation` (must match `password`) |
+| **Result** | Customer profile + access token (or require phone OTP verification per policy) |
+| **Google** | After successful Google Sign-In, if no customer exists, server may auto-provision / complete registration |
 
-## 2.2 Login
+## 2.2 Login — Phone (OTP)
+
+| Item | Spec |
+| --- | --- |
+| **Start** | `POST /api/v1/auth/phone/start` — body: `phone` (E.164; UI default country Somalia `+252`) |
+| **Verify** | `POST /api/v1/auth/phone/verify` — body: `phone`, `otp` |
+| **Auth** | Guest |
+| **Result** | Access token (+ refresh if used) + customer summary |
+| **Notes** | Primary login method for Somalia |
+
+## 2.2B Login — Google (Future Implementation)
+
+| Item | Spec |
+| --- | --- |
+| **Method / Path** | `POST /api/v1/auth/google` |
+| **Auth** | Guest |
+| **Body** | Provider ID token from **native** Google Sign-In (Android/iOS); account picker when multiple device accounts |
+| **Result** | Access token + customer summary; may auto-register if new |
+| **Client rule** | Do not collect Gmail password or require typing email — use device Google accounts only |
+
+## 2.2C Login — Email
 
 | Item | Spec |
 | --- | --- |
 | **Method / Path** | `POST /api/v1/auth/login` |
 | **Auth** | Guest |
-| **Purpose** | Authenticate customer |
-| **Body** | `phone` or `email` + `password` |
+| **Purpose** | Authenticate with email + password |
+| **Body** | `email`, `password`, optional `remember_me` |
 | **Result** | Access token (+ refresh token if used) + customer summary |
 | **Errors** | Invalid credentials → `401`; suspended → `403` |
 
@@ -138,8 +161,8 @@ The API is **stateless**: each protected request carries an access token. Sessio
 | --- | --- |
 | **Method / Path** | `POST /api/v1/auth/forgot-password` |
 | **Auth** | Guest |
-| **Purpose** | Start credential recovery |
-| **Body** | `phone` or `email` |
+| **Purpose** | Start credential recovery (email/password path) |
+| **Body** | `email` (or `phone` where recovery policy allows) |
 | **Result** | Generic success message (do not leak account existence excessively) |
 
 ## 2.5 Reset Password
@@ -181,7 +204,7 @@ Accessible **without** authentication:
 - Product list, categories, details, search (prices included)
 - Gallery, reviews, FAQ, contact, about, legal content
 - Cart read/update for guest session carts (if guest carts enabled); **checkout remains protected**
-- Auth register/login/forgot/reset
+- Auth register / phone OTP / Google / email login / forgot / reset
 
 ## 2.9 Soft Authentication Concept
 
