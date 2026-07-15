@@ -1939,6 +1939,335 @@ Admin users can pin favourite reports to the top of the Reports Dashboard.
 
 ---
 
+## 24. Settings Module (Admin)
+
+### 24.1 Overview
+
+The Settings Module provides system configuration management for Admin users only. Sales and Accountant roles have no access. Settings change system configuration only and never modify historical business records. All settings changes are logged with the actor, date, and time.
+
+### 24.2 Access Control
+
+| Role | Access |
+| --- | --- |
+| **Admin** | Full access to all settings |
+| **Sales** | No access (hidden from sidebar or 403 if direct URL) |
+| **Accountant** | No access (hidden from sidebar or 403 if direct URL) |
+
+### 24.3 Screen 1 — Settings Dashboard
+
+**Route:** `/admin/settings`
+
+Displays 10 premium settings category cards in a 3-column grid. Each card shows:
+| Element | Description |
+| --- | --- |
+| Icon | Category-specific gradient icon |
+| Title | Category name |
+| Description | Brief description of what the category configures |
+| Last Updated | Date and time of last change |
+| Open button | "Open →" link to the detail screen |
+
+#### Settings Categories
+
+| # | Category | Icon | Description |
+| --- | --- | --- | --- |
+| 1 | Company Settings | 🏢 | Company name, logo, contact, address, business hours, social media |
+| 2 | Service Settings | 🛠 | Booking hours, working days, holidays, availability, lead time |
+| 3 | Store Settings | 🛒 | Product categories, delivery fee, tax, inventory warning |
+| 4 | Payment Settings | 💳 | Payment methods enable/disable, currency, instructions |
+| 5 | Notification Settings | 🔔 | Push/email/SMS toggles, editable templates |
+| 6 | Security Settings | 🔒 | Password policy, session timeout, login audit, 2FA (future) |
+| 7 | Numbering Settings | # | Editable prefixes, next-number preview |
+| 8 | Language & Localization | 🌐 | Default language, currency, time zone, date format |
+| 9 | Roles & Permissions | 👥 | Read-only role matrix |
+| 10 | System Information | ℹ | App version, database, backup, privacy, terms, status |
+
+### 24.4 Company Settings
+
+**Route:** `/admin/settings/company`
+
+#### Editable Fields
+| Field | Type | Example Value |
+| --- | --- | --- |
+| Company Name | Text input | Fayadhowr Cleaning Services |
+| Logo | File upload (PNG/SVG, max 2 MB, 512×512 px recommended) | FD logo |
+| Email | Email input | info@fayadhowr.com |
+| Phone | Text input | +252 61 234 5678 |
+| Address | Textarea | Mogadishu, Somalia — Hodan District, KM-4 |
+| Business Hours (Opening) | Time input | 08:00 AM |
+| Business Hours (Closing) | Time input | 06:00 PM |
+| Website | URL input | https://fayadhowr.com |
+| Facebook | URL input | https://facebook.com/fayadhowr |
+| Instagram | URL input | https://instagram.com/fayadhowr |
+| WhatsApp | Text input | +252 61 234 5678 |
+
+### 24.5 Service Settings
+
+**Route:** `/admin/settings/services`
+
+| Section | Fields |
+| --- | --- |
+| Booking Working Hours | Start Time, End Time |
+| Working Days | Day toggles (Sat–Thu active, Friday off by default) |
+| Holidays | Table: Holiday name, Date, Status (Active) |
+| Booking Availability | Dropdown: Open / Closed |
+| Default Booking Lead Time | Dropdown: 12h / 24h / 48h / 72h |
+
+### 24.6 Store Settings
+
+**Route:** `/admin/settings/store`
+
+| Field | Type | Example |
+| --- | --- | --- |
+| Product Categories | Tag chips with "+ Add Category" | Cleaning Supplies, Equipment, Detergents, Floor Care, Sanitizers |
+| Default Delivery Fee | Currency input | $5.00 |
+| Tax Percentage | Percentage input | 5% |
+| Inventory Warning Level | Number input | 10 units |
+
+### 24.7 Payment Settings
+
+**Route:** `/admin/settings/payments`
+
+#### Payment Methods (Enable / Disable toggles)
+| Method | Default State | Brand Colour |
+| --- | --- | --- |
+| EVC Plus | Enabled | #E8401A |
+| eDahab | Enabled | #00A651 |
+| Jeeb | Enabled | #1E3A5F |
+| Salaam Somali Bank | Disabled | #004B87 |
+| Bank Transfer | Enabled | #475569 |
+| Debit / Credit Card | Disabled | #1D4ED8 |
+
+#### Additional Fields
+| Field | Type |
+| --- | --- |
+| Currency | Dropdown (USD / SOS) |
+| Payment Instructions | Textarea |
+
+Note: No payment gateway integration yet. Payment methods are listed for customer reference only.
+
+### 24.8 Notification Settings
+
+**Route:** `/admin/settings/notifications`
+
+#### Notification Channels (Enable / Disable toggles)
+| Channel | Default |
+| --- | --- |
+| Push Notifications | Enabled |
+| Email Notifications | Enabled |
+| SMS Notifications | Disabled |
+
+#### Editable Templates
+| Template | Placeholders |
+| --- | --- |
+| Booking Confirmation | {customer_name}, {booking_id}, {date}, {time} |
+| Quotation Ready | {customer_name}, {quotation_id} |
+| Payment Received | {customer_name}, {amount}, {order_id} |
+| Order Completed | {customer_name}, {order_id} |
+
+Each template card shows the current message body and an "Edit Template" action.
+
+### 24.9 Security Settings
+
+**Route:** `/admin/settings/security`
+
+#### Password Policy
+| Setting | Options |
+| --- | --- |
+| Minimum Length | 6 / 8 / 10 / 12 characters |
+| Complexity | Letters only / Letters+Numbers / Letters+Numbers+Symbols |
+| Password Expiry | Never / 30 days / 90 days / 180 days |
+
+#### Session & Access
+| Setting | Options |
+| --- | --- |
+| Session Timeout | 15 min / 30 min / 1 hour / 4 hours |
+| Login Audit Logging | Toggle (enabled by default) |
+
+#### Two-Factor Authentication
+- Clearly marked with a **Future** badge (purple).
+- Enable 2FA for Admin Accounts — disabled, greyed out.
+- Enforce 2FA for All Staff — disabled, greyed out.
+- Description: "Coming in a future release."
+
+### 24.10 Numbering Settings
+
+**Route:** `/admin/settings/numbering`
+
+| Entity | Prefix | Next Number Preview |
+| --- | --- | --- |
+| Customers | CUS- | CUS-2026-001843 |
+| Bookings | BK- | BK-2026-00348 |
+| Quotations | QT- | QT-2026-00257 |
+| Orders | ORD- | ORD-2026-001352 |
+| Payments | PAY- | PAY-2026-002181 |
+
+- Prefix is editable via text input.
+- Next number preview updates in real-time.
+- Info banner: "Changing a prefix only affects future records. Existing records retain their original numbers."
+
+### 24.11 Language & Localization
+
+**Route:** `/admin/settings/localization`
+
+| Setting | Options |
+| --- | --- |
+| Default Language | English / Somali (Af Soomaali) / Arabic (العربية) |
+| Currency | USD ($) / SOS (Sh) |
+| Time Zone | East Africa Time (UTC+3) / GMT (UTC+0) |
+| Date Format | DD MMM YYYY / MM/DD/YYYY / YYYY-MM-DD |
+
+### 24.12 Roles & Permissions
+
+**Route:** `/admin/settings/roles`
+
+Read-only role matrix showing module access for Admin, Sales, and Accountant roles.
+
+| Module | Admin | Sales | Accountant |
+| --- | --- | --- | --- |
+| Dashboard | ✓ | ✓ | ✓ |
+| Customers | ✓ | ✓ | ✕ |
+| Bookings | ✓ | ✓ | ✕ |
+| Quotations | ✓ | ✓ | ✕ |
+| Orders | ✓ | ✓ | ✕ |
+| Payments | ✓ | ✕ | ✓ |
+| Reports (Customer/Booking/Quotation/Order) | ✓ | ✓ | ✕ |
+| Reports (Payment/Revenue) | ✓ | ✕ | ✓ |
+| Services | ✓ | ✓ | ✕ |
+| Store | ✓ | ✓ | ✕ |
+| Settings | ✓ | ✕ | ✕ |
+| Notifications | ✓ | ✓ | ✓ |
+| Audit / Logs | ✓ | ✕ | ✕ |
+
+Info banner: "This matrix is read-only. Role definitions are managed at the system level."
+
+### 24.13 System Information
+
+**Route:** `/admin/settings/system`
+
+Read-only display.
+
+| Field | Example Value |
+| --- | --- |
+| App Version | v1.0.0 |
+| Database Version | PostgreSQL 16.2 |
+| Last Backup | 15 Jul 2026 · 02:00 AM |
+| System Status | ● Operational (green) |
+| Privacy Policy | View link |
+| Terms & Conditions | View link |
+
+### 24.14 Global Settings UX
+
+Every settings detail page includes:
+| Element | Description |
+| --- | --- |
+| Save Changes | Primary button — saves all modified fields |
+| Discard Changes | Danger/ghost button — reverts to last saved state |
+| Last Updated By | Shows: staff name (role) + date + time |
+
+### 24.15 Business Rules
+
+| # | Rule |
+| --- | --- |
+| BR-S01 | Settings are available to Admin role only. Sales and Accountant must not have access. |
+| BR-S02 | Settings change system configuration only. Settings never modify historical business records. |
+| BR-S03 | All settings changes are logged (who, what, when). |
+| BR-S04 | Future features (e.g., 2FA) are clearly labelled and non-interactive. |
+| BR-S05 | Read-only sections (Roles & Permissions, System Info) do not have Save/Discard buttons. |
+| BR-S06 | Numbering prefix changes only affect future records. |
+| BR-S07 | No new business features are introduced by this module. |
+
+### 24.16 Global Settings Search
+
+A search bar is placed at the top of the Settings Dashboard allowing Admin to search across all settings.
+
+**Searchable dimensions:** Company, Booking, Payment, Currency, Language, Notification, Security, Prefix, Roles, Backup.
+
+**Behaviour:**
+- As the user types, a dropdown shows matching suggestions with a category badge.
+- Selecting a result navigates to the corresponding settings page.
+- Search is read-only.
+
+### 24.17 Unsaved Changes Protection
+
+If the user attempts to leave a settings page with unsaved modifications, a confirmation dialog is displayed.
+
+**Dialog contents:**
+| Element | Description |
+| --- | --- |
+| Icon | Warning icon (amber) |
+| Heading | "You have unsaved changes" |
+| Description | "You've made changes to [Category] Settings that haven't been saved. What would you like to do?" |
+| Action 1 | **Save Changes** — primary button, saves and navigates away |
+| Action 2 | **Discard Changes** — danger button, discards and navigates away |
+| Action 3 | **Continue Editing** — ghost button, closes the dialog and returns to editing |
+
+### 24.18 Restore Defaults
+
+Every editable settings category includes a "Restore Defaults" button in the footer bar.
+
+**Behaviour:**
+- Clicking "↩ Restore Defaults" shows an inline confirmation banner.
+- The banner displays: warning icon, description ("This will reset all [Category] Settings to their factory defaults"), "Confirm Restore" and "Cancel" buttons.
+- Confirmation is required before applying default values.
+- Restore only affects the current category and does not modify historical records.
+
+### 24.19 Settings History
+
+Every editable settings page includes a "View Change History" section displaying the audit log for that category.
+
+**Display per entry:**
+| Field | Description |
+| --- | --- |
+| Changed By | Staff name and role |
+| Setting Key | Which setting was changed |
+| Old Value | Previous value (struck through, red) |
+| New Value | New value (green) |
+| Date | Change date |
+| Time | Change time |
+
+- A "View Full History →" button opens the complete change log.
+- The full history view shows all changes for the category in chronological order.
+- Read-only — no user interaction can modify the audit log.
+- This is a UI for the existing `settings_audit_log` table.
+
+### 24.20 Maintenance Mode
+
+Under System Information, a Maintenance Mode section is displayed.
+
+**Display:**
+- Section title: "Maintenance Mode" with a **Future** badge (purple).
+- Toggle: "Enable Maintenance Mode" — disabled, greyed out, non-interactive.
+- Description: "Coming in a future release."
+- Info banner describing future capabilities: schedule downtime windows, display custom maintenance messages, automatic service restoration.
+
+### 24.21 Responsive Behaviour
+
+| Breakpoint | Layout Changes |
+| --- | --- |
+| > 1200 px | 3-column settings grid, 2-column form grids |
+| 768–1200 px | 2-column settings grid, 2-column form grids |
+| < 768 px | Single-column settings grid, single-column form grids |
+
+### 24.22 Design Preview Reference
+
+`design-previews/admin-settings-v1.html` — contains 13 visual flows:
+1. Settings Dashboard (10 category cards + Global Search)
+2. Company Settings (forms + Change History + Restore Defaults confirmation)
+3. Service Settings (hours, days, holidays, availability, lead time + Restore Defaults)
+4. Store Settings (categories, delivery fee, tax, inventory warning + Restore Defaults)
+5. Payment Settings (6 methods with toggles, currency, instructions + Restore Defaults)
+6. Notification Settings (channel toggles, 4 editable templates + Restore Defaults)
+7. Security Settings (password policy, session, audit, 2FA future + Restore Defaults)
+8. Numbering Settings (5 entity prefixes with next-number preview + Restore Defaults)
+9. Language & Localization (language, currency, timezone, date format + Restore Defaults)
+10. Roles & Permissions (read-only role matrix)
+11. System Information (version, database, backup, status, legal + Maintenance Mode future)
+12. Unsaved Changes Protection (confirmation dialog)
+13. Settings Change History (full audit log view)
+11. System Information (version, database, backup, status, legal)
+
+---
+
 ## Document Control
 
 | Item | Value |

@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fayadhowr — Admin Settings Module V1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary:#0E339D;--teal:#0694AC;--bg:#F4F7FB;--surface:#FFF;
+      --text:#1F2937;--muted:#6B7280;--border:#E5E7EB;
+      --shadow:0 8px 24px rgba(15,23,42,.06);--radius:16px;
+      --sidebar-w:248px;--ok:#059669;--warn:#D97706;--danger:#DC2626;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:"Plus Jakarta Sans",system-ui,sans-serif;color:var(--text);
+      background:linear-gradient(165deg,#DCE6F8 0%,#E8F4F7 45%,#EEF2F7 100%);padding:32px 24px 72px}
+    .board-title{max-width:1480px;margin:0 auto 24px}
+    .board-title h1{font-size:28px;font-weight:700;letter-spacing:-.03em;color:var(--primary)}
+    .board-title p{margin-top:8px;font-size:14px;color:var(--muted);max-width:1020px;line-height:1.5}
+    .flow-label{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+      color:var(--primary);margin:40px auto 14px;max-width:1480px}
+
+    .shell{max-width:1480px;margin:0 auto;min-height:920px;
+      display:grid;grid-template-columns:var(--sidebar-w) 1fr;
+      background:var(--bg);border-radius:24px;overflow:hidden;
+      box-shadow:0 32px 64px rgba(14,51,157,.12);border:1px solid rgba(14,51,157,.08)}
+    .sidebar{background:linear-gradient(180deg,#0A2778 0%,#0E339D 55%,#0C4A6E 140%);
+      color:#fff;padding:24px 14px;display:flex;flex-direction:column;gap:2px}
+    .brand{display:flex;align-items:center;gap:12px;padding:4px 10px 20px}
+    .brand-mark{width:40px;height:40px;border-radius:12px;
+      background:linear-gradient(135deg,#0694AC,#38BDF8);display:grid;place-items:center;font-weight:800;font-size:14px}
+    .brand-text .bname{font-size:15px;font-weight:700}
+    .brand-text .bsub{font-size:11px;opacity:.7;margin-top:2px}
+    .nav-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.5;padding:14px 12px 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;
+      font-size:13px;font-weight:600;color:rgba(255,255,255,.8)}
+    .nav-item .ico{width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.1);
+      display:grid;place-items:center;font-size:11px;flex-shrink:0}
+    .nav-item.active{background:rgba(255,255,255,.14);color:#fff}
+    .nav-item.active .ico{background:var(--teal)}
+    .sidebar-foot{margin-top:auto;padding:14px 8px 4px;border-top:1px solid rgba(255,255,255,.12)}
+    .admin-chip{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:rgba(255,255,255,.08)}
+    .admin-av{width:36px;height:36px;border-radius:10px;background:var(--teal);
+      display:grid;place-items:center;font-size:12px;font-weight:800}
+    .admin-chip .n{font-size:13px;font-weight:700}
+    .admin-chip .r{font-size:11px;opacity:.7;margin-top:2px}
+
+    .main{display:flex;flex-direction:column;min-width:0}
+    .topbar{min-height:72px;background:var(--surface);border-bottom:1px solid var(--border);
+      padding:12px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .topbar h2{font-size:18px;font-weight:700;letter-spacing:-.02em}
+    .crumb{font-size:12px;color:var(--muted);font-weight:500;margin-top:2px}
+    .top-actions{display:flex;align-items:center;gap:10px}
+    .content{padding:20px 24px 28px;display:flex;flex-direction:column;gap:16px}
+
+    .role-badge{height:30px;padding:0 12px;border-radius:10px;font-size:11px;font-weight:700;
+      display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--primary);
+      background:rgba(14,51,157,.06);color:var(--primary)}
+    .role-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+
+    .btn{height:44px;padding:0 18px;border-radius:12px;font-size:13px;font-weight:700;
+      display:inline-flex;align-items:center;gap:8px;border:none;cursor:pointer}
+    .btn-primary{background:linear-gradient(135deg,#0E339D,#1246C4);color:#fff;
+      box-shadow:0 8px 18px rgba(14,51,157,.28)}
+    .btn-ghost{background:rgba(14,51,157,.06);color:var(--primary)}
+    .btn-danger{background:rgba(220,38,38,.08);color:var(--danger)}
+    .btn-sm{height:34px;padding:0 12px;font-size:12px;border-radius:10px}
+
+    .back-btn{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;
+      color:var(--primary);padding:4px 12px;border-radius:8px;border:1px solid var(--border);
+      background:#fff;cursor:pointer}
+
+    /* Settings category cards */
+    .set-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    .set-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+      box-shadow:var(--shadow);padding:20px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+    .set-card:hover{border-color:rgba(14,51,157,.35);box-shadow:0 12px 32px rgba(14,51,157,.12)}
+    .set-card::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;
+      background:linear-gradient(90deg,var(--primary),var(--teal))}
+    .set-ico{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;
+      font-size:20px;color:#fff;margin-bottom:14px}
+    .set-ico.c1{background:linear-gradient(135deg,#0E339D,#1246C4)}
+    .set-ico.c2{background:linear-gradient(135deg,#0694AC,#38BDF8)}
+    .set-ico.c3{background:linear-gradient(135deg,#7C3AED,#A78BFA)}
+    .set-ico.c4{background:linear-gradient(135deg,#059669,#34D399)}
+    .set-ico.c5{background:linear-gradient(135deg,#D97706,#FBBF24)}
+    .set-ico.c6{background:linear-gradient(135deg,#DC2626,#F87171)}
+    .set-ico.c7{background:linear-gradient(135deg,#0E7490,#06B6D4)}
+    .set-ico.c8{background:linear-gradient(135deg,#4338CA,#818CF8)}
+    .set-ico.c9{background:linear-gradient(135deg,#1D4ED8,#60A5FA)}
+    .set-ico.c10{background:linear-gradient(135deg,#475569,#94A3B8)}
+    .set-card h4{font-size:15px;font-weight:800;letter-spacing:-.02em}
+    .set-card p{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.45}
+    .set-card .set-updated{font-size:10px;font-weight:600;color:var(--muted);margin-top:12px}
+    .set-card .chev{position:absolute;top:20px;right:18px;color:var(--muted);font-weight:700;font-size:16px}
+    .set-card .set-open{display:inline-flex;align-items:center;gap:6px;margin-top:12px;
+      font-size:11px;font-weight:700;color:var(--primary)}
+
+    /* Form elements */
+    .form-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+      box-shadow:var(--shadow);padding:24px}
+    .form-panel h3{font-size:15px;font-weight:800;letter-spacing:-.02em;margin-bottom:18px;
+      display:flex;align-items:center;gap:10px}
+    .form-panel h3 .sec-ico{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;
+      font-size:14px;color:#fff}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .form-group{display:flex;flex-direction:column;gap:4px}
+    .form-group.full{grid-column:1/-1}
+    .form-group label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+    .form-group input,.form-group select,.form-group textarea{
+      height:44px;padding:0 14px;border-radius:12px;border:1.5px solid var(--border);
+      font-family:inherit;font-size:13px;font-weight:500;color:var(--text);background:var(--bg);
+      transition:border-color .15s;outline:none}
+    .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--primary)}
+    .form-group textarea{height:80px;padding:12px 14px;resize:vertical}
+    .form-group .hint{font-size:10px;color:var(--muted);font-weight:500;margin-top:2px}
+
+    .logo-upload{display:flex;align-items:center;gap:16px}
+    .logo-preview{width:72px;height:72px;border-radius:16px;background:linear-gradient(135deg,#0694AC,#38BDF8);
+      display:grid;place-items:center;font-size:24px;font-weight:800;color:#fff}
+    .logo-actions{display:flex;flex-direction:column;gap:6px}
+    .logo-actions .btn{height:32px;font-size:11px;padding:0 14px}
+
+    /* Toggle */
+    .toggle-row{display:flex;align-items:center;justify-content:space-between;
+      padding:14px 0;border-bottom:1px solid var(--border)}
+    .toggle-row:last-child{border-bottom:none}
+    .toggle-info{display:flex;flex-direction:column;gap:2px}
+    .toggle-info .tl{font-size:13px;font-weight:700}
+    .toggle-info .td{font-size:11px;color:var(--muted);font-weight:500}
+    .toggle{width:44px;height:26px;border-radius:13px;background:var(--border);position:relative;
+      cursor:pointer;transition:background .2s;flex-shrink:0}
+    .toggle.on{background:var(--ok)}
+    .toggle::after{content:"";position:absolute;width:20px;height:20px;border-radius:50%;
+      background:#fff;top:3px;left:3px;transition:transform .2s;box-shadow:0 2px 4px rgba(0,0,0,.12)}
+    .toggle.on::after{transform:translateX(18px)}
+
+    /* Table */
+    .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+      box-shadow:var(--shadow);overflow:hidden}
+    .table-wrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;min-width:680px}
+    th{text-align:left;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+      letter-spacing:.04em;padding:14px 16px;background:#F8FAFC;border-bottom:1px solid var(--border)}
+    td{padding:14px 16px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:rgba(14,51,157,.03)}
+
+    .pill{display:inline-flex;align-items:center;height:24px;padding:0 10px;
+      border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+    .p-ok{background:rgba(5,150,105,.12);color:var(--ok)}
+    .p-warn{background:rgba(245,158,11,.14);color:#B45309}
+    .p-muted{background:rgba(107,114,128,.1);color:var(--muted)}
+
+    /* Payment method card */
+    .pm-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .pm-card{display:flex;align-items:center;justify-content:space-between;
+      padding:14px 16px;border-radius:14px;background:var(--bg);border:1.5px solid var(--border);
+      transition:border-color .15s}
+    .pm-card.enabled{border-color:rgba(5,150,105,.3)}
+    .pm-left{display:flex;align-items:center;gap:12px}
+    .pm-ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;
+      font-size:14px;font-weight:800;color:#fff}
+    .pm-ico.evc{background:#E8401A} .pm-ico.edahab{background:#00A651}
+    .pm-ico.jeeb{background:#1E3A5F} .pm-ico.salaam{background:#004B87}
+    .pm-ico.bank{background:#475569} .pm-ico.card{background:#1D4ED8}
+    .pm-name{font-size:13px;font-weight:700}
+    .pm-status{font-size:10px;font-weight:600;color:var(--muted)}
+
+    /* Numbering preview */
+    .num-row{display:flex;align-items:center;gap:12px;padding:14px 0;
+      border-bottom:1px solid var(--border)}
+    .num-row:last-child{border-bottom:none}
+    .num-prefix{width:100px}
+    .num-prefix input{width:100%;height:40px;padding:0 12px;border-radius:10px;
+      border:1.5px solid var(--border);font-family:inherit;font-size:13px;font-weight:700;
+      color:var(--primary);background:var(--bg);text-align:center;outline:none}
+    .num-prefix input:focus{border-color:var(--primary)}
+    .num-preview{font-size:14px;font-weight:800;color:var(--primary);
+      padding:8px 16px;border-radius:10px;background:rgba(14,51,157,.06);letter-spacing:.02em}
+    .num-label{font-size:12px;font-weight:600;color:var(--text);min-width:120px}
+    .num-next{font-size:10px;font-weight:600;color:var(--muted)}
+
+    /* Role matrix */
+    .matrix td{text-align:center;font-size:13px}
+    .matrix th:not(:first-child){text-align:center}
+    .check{color:var(--ok);font-weight:800;font-size:16px}
+    .cross{color:var(--danger);font-size:14px}
+
+    /* Footer bar */
+    .footer-bar{display:flex;align-items:center;justify-content:space-between;
+      padding:16px 24px;background:var(--surface);border-top:1px solid var(--border)}
+    .footer-bar .updated{font-size:11px;color:var(--muted);font-weight:600;display:flex;flex-direction:column;gap:2px}
+    .footer-bar .updated .ub{font-weight:700;color:var(--text)}
+    .footer-actions{display:flex;gap:8px}
+
+    /* Future badge */
+    .future{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;
+      padding:2px 8px;border-radius:6px;background:rgba(124,58,237,.1);color:#7C3AED;
+      text-transform:uppercase;letter-spacing:.04em}
+
+    /* System info */
+    .sys-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .sys-item{padding:16px;border-radius:14px;background:var(--bg);border:1px solid var(--border)}
+    .sys-item .sl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+    .sys-item .sv{font-size:15px;font-weight:800;margin-top:6px;color:var(--primary)}
+    .sys-item .sv.ok{color:var(--ok)}
+
+    /* Template card */
+    .tpl-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .tpl-card{padding:14px 16px;border-radius:14px;background:var(--bg);border:1.5px solid var(--border);
+      cursor:pointer;transition:border-color .15s}
+    .tpl-card:hover{border-color:var(--primary)}
+    .tpl-card h5{font-size:13px;font-weight:700}
+    .tpl-card p{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4}
+    .tpl-card .tpl-edit{font-size:11px;font-weight:700;color:var(--primary);margin-top:8px}
+
+    /* Global Settings Search */
+    .ss-bar{display:flex;align-items:center;gap:10px;background:var(--surface);
+      border:1.5px solid var(--border);border-radius:14px;padding:0 16px;height:48px;
+      box-shadow:0 4px 12px rgba(15,23,42,.04);transition:border-color .15s;flex:1;max-width:560px}
+    .ss-bar:focus-within{border-color:var(--primary)}
+    .ss-bar .s-ico{font-size:16px;color:var(--muted);flex-shrink:0}
+    .ss-bar input{border:none;outline:none;font-family:inherit;font-size:13px;font-weight:500;
+      background:transparent;color:var(--text);width:100%}
+    .ss-bar input::placeholder{color:var(--muted);font-weight:500}
+    .ss-wrap{position:relative;flex:1;max-width:560px}
+    .ss-wrap.show .ss-drop{display:block}
+    .ss-drop{position:absolute;top:calc(100% + 6px);left:0;right:0;
+      background:var(--surface);border:1px solid var(--border);border-radius:14px;
+      box-shadow:0 16px 40px rgba(15,23,42,.12);padding:8px;z-index:10;display:none}
+    .ss-result{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
+      font-size:13px;font-weight:600;cursor:pointer}
+    .ss-result:hover{background:rgba(14,51,157,.05)}
+    .ss-result .ss-cat{font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;
+      background:rgba(14,51,157,.08);color:var(--primary);text-transform:uppercase;white-space:nowrap}
+
+    /* Unsaved Changes Dialog */
+    .dialog-overlay{position:relative;width:100%;display:flex;align-items:center;justify-content:center;
+      padding:40px 20px}
+    .dialog-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.35);border-radius:inherit}
+    .dialog-box{position:relative;z-index:2;background:var(--surface);border-radius:20px;
+      box-shadow:0 24px 64px rgba(14,51,157,.18);padding:32px;max-width:420px;width:100%;text-align:center}
+    .dialog-box .d-ico{width:56px;height:56px;border-radius:16px;margin:0 auto 16px;
+      background:linear-gradient(135deg,rgba(217,119,6,.12),rgba(217,119,6,.06));
+      display:grid;place-items:center;font-size:24px}
+    .dialog-box h4{font-size:17px;font-weight:800;letter-spacing:-.02em}
+    .dialog-box p{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.5}
+    .dialog-actions{display:flex;flex-direction:column;gap:8px;margin-top:20px}
+    .dialog-actions .btn{width:100%;justify-content:center}
+
+    /* Restore Defaults */
+    .restore-btn{height:34px;padding:0 14px;border-radius:10px;font-size:12px;font-weight:700;
+      display:inline-flex;align-items:center;gap:6px;border:1.5px dashed var(--warn);
+      background:rgba(217,119,6,.06);color:var(--warn);cursor:pointer;transition:all .15s}
+    .restore-btn:hover{background:rgba(217,119,6,.12);border-style:solid}
+
+    /* Restore Confirmation */
+    .restore-confirm{display:flex;align-items:center;gap:12px;padding:14px 18px;border-radius:12px;
+      background:rgba(217,119,6,.06);border:1.5px solid rgba(217,119,6,.2)}
+    .restore-confirm .rc-text{font-size:12px;font-weight:600;color:var(--warn);flex:1}
+    .restore-confirm .rc-text strong{color:var(--text)}
+    .restore-confirm .btn{height:30px;font-size:11px;padding:0 12px}
+
+    /* Settings History */
+    .history-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+      box-shadow:var(--shadow);overflow:hidden}
+    .history-header{display:flex;align-items:center;justify-content:space-between;
+      padding:16px 20px;border-bottom:1px solid var(--border)}
+    .history-header h3{font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px}
+    .history-header h3 .h-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;
+      background:rgba(14,51,157,.08);color:var(--primary)}
+    .h-entry{display:flex;align-items:flex-start;gap:12px;padding:14px 20px;
+      border-bottom:1px solid var(--border)}
+    .h-entry:last-child{border-bottom:none}
+    .h-dot{width:10px;height:10px;border-radius:50%;background:var(--primary);margin-top:4px;flex-shrink:0}
+    .h-body{flex:1}
+    .h-meta{font-size:11px;font-weight:700;color:var(--text)}
+    .h-time{font-size:10px;font-weight:500;color:var(--muted);margin-top:2px}
+    .h-change{display:flex;gap:8px;margin-top:6px;font-size:12px}
+    .h-old{padding:4px 10px;border-radius:8px;background:rgba(220,38,38,.08);color:var(--danger);
+      font-weight:600;text-decoration:line-through}
+    .h-new{padding:4px 10px;border-radius:8px;background:rgba(5,150,105,.08);color:var(--ok);font-weight:600}
+
+    @media(max-width:1200px){.set-grid,.form-grid,.pm-grid,.sys-grid,.tpl-grid{grid-template-columns:1fr 1fr};.ss-wrap{max-width:100%}}
+    @media(max-width:768px){.set-grid,.form-grid,.pm-grid,.sys-grid,.tpl-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="board-title">
+    <h1>Settings Module — V1</h1>
+    <p>
+      Settings Dashboard · Company · Service · Store · Payment · Notification · Security · Numbering · Language · Roles · System Info.
+      <strong>Admin only</strong> — Sales and Accountant have no access. Settings change system configuration only and never modify historical records.
+      All changes are logged. <strong>Refinements:</strong> Global Search · Unsaved Changes Protection · Restore Defaults · Settings History · Maintenance Mode.
+      Auth, Customer App, Dashboard, Customers, Bookings, Quotations, Orders, Payments, and Reports unchanged.
+    </p>
+  </div>
+
+  <!-- ==================== 1. SETTINGS DASHBOARD ==================== -->
+  <div class="flow-label">1 · Settings Dashboard</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="bname">Fayadhowr</div><div class="bsub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div>
+      <div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div>
+      <div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div>
+      <div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div>
+      <div class="nav-item"><div class="ico">▤</div> Reports</div>
+      <div class="nav-label">Catalog</div>
+      <div class="nav-item"><div class="ico">✦</div> Services</div>
+      <div class="nav-item"><div class="ico">▦</div> Store</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item"><div class="ico">🔔</div> Notifications</div>
+      <div class="nav-item active"><div class="ico">⚙</div> Settings</div>
+      <div class="nav-item"><div class="ico">⌘</div> Audit / Logs</div>
+      <div class="sidebar-foot">
+        <div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div>
+      </div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <h2>Settings</h2>
+          <div class="crumb">System configuration · Admin only · All changes logged</div>
+        </div>
+        <div class="top-actions">
+          <div class="role-badge"><div class="dot"></div> Admin Only</div>
+        </div>
+      </header>
+      <div class="content">
+        <!-- Global Settings Search -->
+        <div class="ss-wrap show">
+          <div class="ss-bar">
+            <div class="s-ico">🔍</div>
+            <input type="text" placeholder="Search settings... Company, Payment, Currency, Language, Security, Prefix, Roles..." value="Payment" />
+          </div>
+          <div class="ss-drop">
+            <div class="ss-result"><div class="ss-cat">Payment</div> Payment Settings — Methods, Currency, Instructions</div>
+            <div class="ss-result"><div class="ss-cat">Currency</div> Language &amp; Localization — Currency (USD / SOS)</div>
+            <div class="ss-result"><div class="ss-cat">Payment</div> Numbering Settings — PAY- prefix</div>
+          </div>
+        </div>
+
+        <div class="set-grid">
+          <div class="set-card">
+            <div class="set-ico c1">🏢</div>
+            <h4>Company Settings</h4>
+            <p>Company name, logo, contact, address, business hours, social media.</p>
+            <div class="set-updated">Last updated: 14 Jul 2026 · 09:15 AM</div>
+            <div class="set-open">Open →</div>
+            <div class="chev">›</div>
+          </div>
+          <div class="set-card">
+            <div class="set-ico c2">🛠</div>
+            <h4>Service Settings</h4>
+            <p>Booking hours, working days, holidays, availability, lead time.</p>
+            <div class="set-updated">Last updated: 12 Jul 2026 · 02:30 PM</div>
+            <div class="set-open">Open →</div>
+            <div class="chev">›</div>
+          </div>
+          <div class="set-card">
+            <div class="set-ico c3">🛒</div>
+            <h4>Store Settings</h4>
+            <p>Product categories, delivery fee, tax percentage, inventory warning.</p>
+            <div class="set-updated">Last updated: 10 Jul 2026 · 11:00 AM</div>
+            <div class="set-open">Open →</div>
+            <div class="chev">›</div>
+          </div>
+          <div class="set-card">
+            <div class="set-ico c4">💳</div>
+            <h4>Payment Settings</h4>
+            <p>Payment methods, enable/disable gateways, currency, instructions.</p>
+            <div class="set-updated">Last updated: 08 Jul 2026 · 04:10 PM</div>
+            <div class="set-open">Open →</div>
+            <div class="chev">›</div>
+          </div>
+          <div class="set-card">
+            <div class="set-ico c5">🔔</div>
+            <h4>Notification Settings</h4>
+            <p>Push, email, SMS toggles. Editable notification templates.</p>
+            <div class="set-updated">Last updated: 06 Jul 2026 · 10:45 AM</div>
+            <div class="set-open">Open →</div>
+            <div class="chev">›</div>
+          </div>
+          <div class="set-card">
+            <div class="set-ico c6">🔒</div>
+            <h4>Security Settings</h4>
+            <p>Password policy, session timeout, login audit, 2FA (future).</p>
+            <div class="set-updated">Last updated: 05 Jul 2026 · 03:20 PM</div>
+            <div class="set-open">Open →</div>
+            <div class="chev">›</div>
+          </div>
+          <div class="set-card">
+            <div class="set-ico c7">#</div>
+            <h4>Numbering Settings</h4>
+            <p>Editable prefixes and next-number preview for all entities.</p>
+            <div class="set-updated">Last updated: 01 Jul 2026 · 09:00 AM</div>
+            <div class="set-open">Open →</div>
+            <div class="chev">›</div>
+          </div>
+          <div class="set-card">
+            <div class="set-ico c8">🌐</div>
+            <h4>Language &amp; Localization</h4>
+            <p>Default language, currency, time zone, date format.</p>
+            <div class="set-updated">Last updated: 28 Jun 2026 · 01:30 PM</div>
+            <div class="set-open">Open →</div>
+            <div class="chev">›</div>
+          </div>
+          <div class="set-card">
+            <div class="set-ico c9">👥</div>
+            <h4>Roles &amp; Permissions</h4>
+            <p>Read-only role matrix. Admin, Sales, Accountant access overview.</p>
+            <div class="set-updated">Last updated: 25 Jun 2026 · 10:00 AM</div>
+            <div class="set-open">Open →</div>
+            <div class="chev">›</div>
+          </div>
+          <div class="set-card">
+            <div class="set-ico c10">ℹ</div>
+            <h4>System Information</h4>
+            <p>App version, database, backup, privacy, terms, system status.</p>
+            <div class="set-updated">Last updated: 15 Jul 2026 · Auto</div>
+            <div class="set-open">Open →</div>
+            <div class="chev">›</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 2. COMPANY SETTINGS ==================== -->
+  <div class="flow-label">2 · Company Settings</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="bname">Fayadhowr</div><div class="bsub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div><div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div><div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div><div class="nav-item"><div class="ico">▤</div> Reports</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item active"><div class="ico">⚙</div> Settings</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <div class="back-btn">← Settings</div>
+          <h2 style="margin-top:8px">Company Settings</h2>
+          <div class="crumb">Company name · Logo · Contact · Address · Business hours · Social media</div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="form-panel">
+          <h3><div class="sec-ico c1">🏢</div> Company Information</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Company Name</label>
+              <input type="text" value="Fayadhowr Cleaning Services" />
+            </div>
+            <div class="form-group">
+              <label>Email</label>
+              <input type="email" value="info@fayadhowr.com" />
+            </div>
+            <div class="form-group">
+              <label>Phone</label>
+              <input type="text" value="+252 61 234 5678" />
+            </div>
+            <div class="form-group">
+              <label>Website</label>
+              <input type="text" value="https://fayadhowr.com" />
+            </div>
+            <div class="form-group full">
+              <label>Address</label>
+              <textarea>Mogadishu, Somalia — Hodan District, KM-4</textarea>
+            </div>
+            <div class="form-group full">
+              <label>Company Logo</label>
+              <div class="logo-upload">
+                <div class="logo-preview">FD</div>
+                <div class="logo-actions">
+                  <div class="btn btn-ghost" style="height:32px;font-size:11px;padding:0 14px">📁 Upload New Logo</div>
+                  <div class="hint">PNG or SVG · Max 2 MB · Recommended 512×512 px</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-panel">
+          <h3><div class="sec-ico c2">🕐</div> Business Hours</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Opening Time</label>
+              <input type="text" value="08:00 AM" />
+            </div>
+            <div class="form-group">
+              <label>Closing Time</label>
+              <input type="text" value="06:00 PM" />
+            </div>
+          </div>
+        </div>
+
+        <div class="form-panel">
+          <h3><div class="sec-ico c8">🌐</div> Social Media</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Facebook</label>
+              <input type="text" value="https://facebook.com/fayadhowr" />
+            </div>
+            <div class="form-group">
+              <label>Instagram</label>
+              <input type="text" value="https://instagram.com/fayadhowr" />
+            </div>
+            <div class="form-group">
+              <label>WhatsApp</label>
+              <input type="text" value="+252 61 234 5678" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Settings History -->
+        <div class="history-panel">
+          <div class="history-header">
+            <h3>📋 Change History <div class="h-badge">Read-only · Audit Log</div></h3>
+            <div class="btn btn-ghost btn-sm">View Full History →</div>
+          </div>
+          <div class="h-entry">
+            <div class="h-dot"></div>
+            <div class="h-body">
+              <div class="h-meta">Asad (Admin) — Company Name</div>
+              <div class="h-time">14 Jul 2026 · 09:15 AM</div>
+              <div class="h-change">
+                <div class="h-old">Fayadhowr Services</div>
+                <div class="h-new">Fayadhowr Cleaning Services</div>
+              </div>
+            </div>
+          </div>
+          <div class="h-entry">
+            <div class="h-dot" style="background:var(--teal)"></div>
+            <div class="h-body">
+              <div class="h-meta">Asad (Admin) — Business Hours (Opening)</div>
+              <div class="h-time">12 Jul 2026 · 03:40 PM</div>
+              <div class="h-change">
+                <div class="h-old">09:00 AM</div>
+                <div class="h-new">08:00 AM</div>
+              </div>
+            </div>
+          </div>
+          <div class="h-entry">
+            <div class="h-dot" style="background:var(--warn)"></div>
+            <div class="h-body">
+              <div class="h-meta">Asad (Admin) — WhatsApp</div>
+              <div class="h-time">10 Jul 2026 · 11:20 AM</div>
+              <div class="h-change">
+                <div class="h-old">+252 61 000 0000</div>
+                <div class="h-new">+252 61 234 5678</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Restore Defaults Confirmation -->
+        <div class="restore-confirm">
+          <div class="rc-text">⚠ <strong>Restore Default Settings?</strong> This will reset all Company Settings to their factory defaults. This action requires confirmation.</div>
+          <div class="btn btn-danger btn-sm">Confirm Restore</div>
+          <div class="btn btn-ghost btn-sm">Cancel</div>
+        </div>
+      </div>
+      <div class="footer-bar">
+        <div class="updated"><div class="ub">Last Updated By: Asad (Admin)</div> 14 Jul 2026 · 09:15 AM</div>
+        <div class="footer-actions">
+          <div class="restore-btn">↩ Restore Defaults</div>
+          <div class="btn btn-danger btn-sm">Discard Changes</div>
+          <div class="btn btn-primary btn-sm">Save Changes</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 3. SERVICE SETTINGS ==================== -->
+  <div class="flow-label">3 · Service Settings</div>
+  <div class="shell" style="min-height:680px">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="bname">Fayadhowr</div><div class="bsub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item active"><div class="ico">⚙</div> Settings</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div><div class="back-btn">← Settings</div><h2 style="margin-top:8px">Service Settings</h2>
+        <div class="crumb">Booking hours · Working days · Holidays · Availability · Lead time</div></div>
+      </header>
+      <div class="content">
+        <div class="form-panel">
+          <h3><div class="sec-ico c2">🕐</div> Booking Working Hours</h3>
+          <div class="form-grid">
+            <div class="form-group"><label>Start Time</label><input type="text" value="08:00 AM" /></div>
+            <div class="form-group"><label>End Time</label><input type="text" value="06:00 PM" /></div>
+          </div>
+        </div>
+        <div class="form-panel">
+          <h3><div class="sec-ico c2">📅</div> Working Days</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div class="pill p-ok">Saturday</div>
+            <div class="pill p-ok">Sunday</div>
+            <div class="pill p-ok">Monday</div>
+            <div class="pill p-ok">Tuesday</div>
+            <div class="pill p-ok">Wednesday</div>
+            <div class="pill p-ok">Thursday</div>
+            <div class="pill p-muted" style="text-decoration:line-through">Friday</div>
+          </div>
+        </div>
+        <div class="form-panel">
+          <h3><div class="sec-ico c6">🎉</div> Holidays</h3>
+          <div class="table-wrap">
+            <table style="min-width:auto">
+              <thead><tr><th>Holiday</th><th>Date</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td style="font-weight:700">Eid Al-Fitr</td><td>30 Mar 2026</td><td><div class="pill p-ok">Active</div></td></tr>
+                <tr><td style="font-weight:700">Eid Al-Adha</td><td>06 Jun 2026</td><td><div class="pill p-ok">Active</div></td></tr>
+                <tr><td style="font-weight:700">Independence Day</td><td>01 Jul 2026</td><td><div class="pill p-ok">Active</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="form-panel">
+          <h3><div class="sec-ico c7">⏱</div> Booking Configuration</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Booking Availability</label>
+              <select><option selected>Open — Accepting Bookings</option><option>Closed — Not Accepting</option></select>
+            </div>
+            <div class="form-group">
+              <label>Default Booking Lead Time</label>
+              <select><option>12 hours</option><option selected>24 hours</option><option>48 hours</option><option>72 hours</option></select>
+              <div class="hint">Minimum advance time required for new bookings</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bar">
+        <div class="updated"><div class="ub">Last Updated By: Asad (Admin)</div> 12 Jul 2026 · 02:30 PM</div>
+        <div class="footer-actions">
+          <div class="restore-btn">↩ Restore Defaults</div>
+          <div class="btn btn-danger btn-sm">Discard Changes</div>
+          <div class="btn btn-primary btn-sm">Save Changes</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 4. STORE SETTINGS ==================== -->
+  <div class="flow-label">4 · Store Settings</div>
+  <div class="shell" style="min-height:580px">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="bname">Fayadhowr</div><div class="bsub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item active"><div class="ico">⚙</div> Settings</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div><div class="back-btn">← Settings</div><h2 style="margin-top:8px">Store Settings</h2>
+        <div class="crumb">Product categories · Delivery fee · Tax · Inventory warning</div></div>
+      </header>
+      <div class="content">
+        <div class="form-panel">
+          <h3><div class="sec-ico c3">🛒</div> Store Configuration</h3>
+          <div class="form-grid">
+            <div class="form-group full">
+              <label>Product Categories</label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+                <div class="pill p-ok">Cleaning Supplies</div>
+                <div class="pill p-ok">Equipment</div>
+                <div class="pill p-ok">Detergents</div>
+                <div class="pill p-ok">Floor Care</div>
+                <div class="pill p-ok">Sanitizers</div>
+                <div class="btn btn-ghost" style="height:24px;padding:0 10px;font-size:10px;border-radius:999px">+ Add Category</div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Default Delivery Fee</label>
+              <input type="text" value="$5.00" />
+            </div>
+            <div class="form-group">
+              <label>Tax Percentage</label>
+              <input type="text" value="5%" />
+              <div class="hint">Applied to all product orders</div>
+            </div>
+            <div class="form-group">
+              <label>Inventory Warning Level</label>
+              <input type="text" value="10 units" />
+              <div class="hint">Alert when stock falls below this threshold</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bar">
+        <div class="updated"><div class="ub">Last Updated By: Asad (Admin)</div> 10 Jul 2026 · 11:00 AM</div>
+        <div class="footer-actions">
+          <div class="restore-btn">↩ Restore Defaults</div>
+          <div class="btn btn-danger btn-sm">Discard Changes</div>
+          <div class="btn btn-primary btn-sm">Save Changes</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 5. PAYMENT SETTINGS ==================== -->
+  <div class="flow-label">5 · Payment Settings</div>
+  <div class="shell" style="min-height:720px">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="bname">Fayadhowr</div><div class="bsub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item active"><div class="ico">⚙</div> Settings</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div><div class="back-btn">← Settings</div><h2 style="margin-top:8px">Payment Settings</h2>
+        <div class="crumb">Payment methods · Enable/Disable · Currency · Instructions</div></div>
+      </header>
+      <div class="content">
+        <div class="form-panel">
+          <h3><div class="sec-ico c4">💳</div> Payment Methods</h3>
+          <div class="pm-grid">
+            <div class="pm-card enabled">
+              <div class="pm-left"><div class="pm-ico evc">EVC</div><div><div class="pm-name">EVC Plus</div><div class="pm-status" style="color:var(--ok)">Enabled</div></div></div>
+              <div class="toggle on"></div>
+            </div>
+            <div class="pm-card enabled">
+              <div class="pm-left"><div class="pm-ico edahab">eD</div><div><div class="pm-name">eDahab</div><div class="pm-status" style="color:var(--ok)">Enabled</div></div></div>
+              <div class="toggle on"></div>
+            </div>
+            <div class="pm-card enabled">
+              <div class="pm-left"><div class="pm-ico jeeb">JB</div><div><div class="pm-name">Jeeb</div><div class="pm-status" style="color:var(--ok)">Enabled</div></div></div>
+              <div class="toggle on"></div>
+            </div>
+            <div class="pm-card">
+              <div class="pm-left"><div class="pm-ico salaam">SB</div><div><div class="pm-name">Salaam Somali Bank</div><div class="pm-status">Disabled</div></div></div>
+              <div class="toggle"></div>
+            </div>
+            <div class="pm-card enabled">
+              <div class="pm-left"><div class="pm-ico bank">BT</div><div><div class="pm-name">Bank Transfer</div><div class="pm-status" style="color:var(--ok)">Enabled</div></div></div>
+              <div class="toggle on"></div>
+            </div>
+            <div class="pm-card">
+              <div class="pm-left"><div class="pm-ico card">DC</div><div><div class="pm-name">Debit / Credit Card</div><div class="pm-status">Disabled</div></div></div>
+              <div class="toggle"></div>
+            </div>
+          </div>
+        </div>
+        <div class="form-panel">
+          <h3><div class="sec-ico c4">💵</div> Currency &amp; Instructions</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Currency</label>
+              <select><option selected>USD ($)</option><option>SOS (Sh)</option></select>
+            </div>
+            <div class="form-group full">
+              <label>Payment Instructions</label>
+              <textarea>Please send payment via the selected method. Include your Order ID as the reference. Contact support if you need assistance.</textarea>
+            </div>
+          </div>
+          <div style="margin-top:12px;padding:12px 16px;border-radius:12px;background:rgba(14,51,157,.04);border:1px solid rgba(14,51,157,.1);font-size:11px;font-weight:600;color:var(--muted)">
+            ℹ No payment gateway integration yet. Payment methods are listed for customer reference only.
+          </div>
+        </div>
+      </div>
+      <div class="footer-bar">
+        <div class="updated"><div class="ub">Last Updated By: Asad (Admin)</div> 08 Jul 2026 · 04:10 PM</div>
+        <div class="footer-actions">
+          <div class="restore-btn">↩ Restore Defaults</div>
+          <div class="btn btn-danger btn-sm">Discard Changes</div>
+          <div class="btn btn-primary btn-sm">Save Changes</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 6. NOTIFICATION SETTINGS ==================== -->
+  <div class="flow-label">6 · Notification Settings</div>
+  <div class="shell" style="min-height:700px">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="bname">Fayadhowr</div><div class="bsub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item active"><div class="ico">⚙</div> Settings</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div><div class="back-btn">← Settings</div><h2 style="margin-top:8px">Notification Settings</h2>
+        <div class="crumb">Push · Email · SMS toggles · Editable templates</div></div>
+      </header>
+      <div class="content">
+        <div class="form-panel">
+          <h3><div class="sec-ico c5">🔔</div> Notification Channels</h3>
+          <div class="toggle-row">
+            <div class="toggle-info"><div class="tl">Push Notifications</div><div class="td">Send push notifications to customer mobile app</div></div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info"><div class="tl">Email Notifications</div><div class="td">Send email notifications for bookings, orders, and payments</div></div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info"><div class="tl">SMS Notifications</div><div class="td">Send SMS alerts for critical updates</div></div>
+            <div class="toggle"></div>
+          </div>
+        </div>
+        <div class="form-panel">
+          <h3><div class="sec-ico c5">📝</div> Notification Templates</h3>
+          <div class="tpl-grid">
+            <div class="tpl-card">
+              <h5>Booking Confirmation</h5>
+              <p>Hi {customer_name}, your booking {booking_id} has been confirmed for {date} at {time}. Thank you for choosing Fayadhowr!</p>
+              <div class="tpl-edit">✏ Edit Template</div>
+            </div>
+            <div class="tpl-card">
+              <h5>Quotation Ready</h5>
+              <p>Hi {customer_name}, your quotation {quotation_id} is ready for review. Please check your app for details.</p>
+              <div class="tpl-edit">✏ Edit Template</div>
+            </div>
+            <div class="tpl-card">
+              <h5>Payment Received</h5>
+              <p>Hi {customer_name}, we have received your payment of {amount} for order {order_id}. Thank you!</p>
+              <div class="tpl-edit">✏ Edit Template</div>
+            </div>
+            <div class="tpl-card">
+              <h5>Order Completed</h5>
+              <p>Hi {customer_name}, your order {order_id} has been completed. We hope you are satisfied with our service!</p>
+              <div class="tpl-edit">✏ Edit Template</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bar">
+        <div class="updated"><div class="ub">Last Updated By: Asad (Admin)</div> 06 Jul 2026 · 10:45 AM</div>
+        <div class="footer-actions">
+          <div class="restore-btn">↩ Restore Defaults</div>
+          <div class="btn btn-danger btn-sm">Discard Changes</div>
+          <div class="btn btn-primary btn-sm">Save Changes</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 7. SECURITY SETTINGS ==================== -->
+  <div class="flow-label">7 · Security Settings</div>
+  <div class="shell" style="min-height:640px">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="bname">Fayadhowr</div><div class="bsub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item active"><div class="ico">⚙</div> Settings</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div><div class="back-btn">← Settings</div><h2 style="margin-top:8px">Security Settings</h2>
+        <div class="crumb">Password policy · Session timeout · Login audit · 2FA (future)</div></div>
+      </header>
+      <div class="content">
+        <div class="form-panel">
+          <h3><div class="sec-ico c6">🔒</div> Password Policy</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Minimum Password Length</label>
+              <select><option>6 characters</option><option selected>8 characters</option><option>10 characters</option><option>12 characters</option></select>
+            </div>
+            <div class="form-group">
+              <label>Password Complexity</label>
+              <select><option>Letters only</option><option selected>Letters + Numbers</option><option>Letters + Numbers + Symbols</option></select>
+            </div>
+            <div class="form-group">
+              <label>Password Expiry</label>
+              <select><option>Never</option><option>30 days</option><option selected>90 days</option><option>180 days</option></select>
+            </div>
+          </div>
+        </div>
+        <div class="form-panel">
+          <h3><div class="sec-ico c6">⏱</div> Session &amp; Access</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Session Timeout</label>
+              <select><option>15 minutes</option><option selected>30 minutes</option><option>1 hour</option><option>4 hours</option></select>
+              <div class="hint">Auto-logout after inactivity</div>
+            </div>
+          </div>
+          <div class="toggle-row" style="margin-top:14px">
+            <div class="toggle-info"><div class="tl">Login Audit Logging</div><div class="td">Record all login attempts (success and failure) with IP, device, and timestamp</div></div>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+        <div class="form-panel">
+          <h3><div class="sec-ico c3">🛡</div> Two-Factor Authentication <div class="future">Future</div></h3>
+          <div class="toggle-row">
+            <div class="toggle-info"><div class="tl">Enable 2FA for Admin Accounts</div><div class="td">Require a second verification step when logging in. <span style="color:#7C3AED;font-weight:700">Coming in a future release.</span></div></div>
+            <div class="toggle" style="opacity:.5;pointer-events:none"></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info"><div class="tl">Enforce 2FA for All Staff</div><div class="td">Require 2FA for all staff roles. <span style="color:#7C3AED;font-weight:700">Coming in a future release.</span></div></div>
+            <div class="toggle" style="opacity:.5;pointer-events:none"></div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bar">
+        <div class="updated"><div class="ub">Last Updated By: Asad (Admin)</div> 05 Jul 2026 · 03:20 PM</div>
+        <div class="footer-actions">
+          <div class="restore-btn">↩ Restore Defaults</div>
+          <div class="btn btn-danger btn-sm">Discard Changes</div>
+          <div class="btn btn-primary btn-sm">Save Changes</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 8. NUMBERING SETTINGS ==================== -->
+  <div class="flow-label">8 · Numbering Settings</div>
+  <div class="shell" style="min-height:580px">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="bname">Fayadhowr</div><div class="bsub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item active"><div class="ico">⚙</div> Settings</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div><div class="back-btn">← Settings</div><h2 style="margin-top:8px">Numbering Settings</h2>
+        <div class="crumb">Editable prefixes · Next number preview · All entities</div></div>
+      </header>
+      <div class="content">
+        <div class="form-panel">
+          <h3><div class="sec-ico c7">#</div> Entity Number Prefixes</h3>
+          <div style="padding:12px 16px;border-radius:12px;background:rgba(14,51,157,.04);border:1px solid rgba(14,51,157,.1);font-size:11px;font-weight:600;color:var(--muted);margin-bottom:16px">
+            ℹ Changing a prefix only affects <strong>future</strong> records. Existing records retain their original numbers.
+          </div>
+          <div class="num-row">
+            <div class="num-label">Customers</div>
+            <div class="num-prefix"><input type="text" value="CUS-" /></div>
+            <div class="num-preview">CUS-2026-001843</div>
+            <div class="num-next">Next number</div>
+          </div>
+          <div class="num-row">
+            <div class="num-label">Bookings</div>
+            <div class="num-prefix"><input type="text" value="BK-" /></div>
+            <div class="num-preview">BK-2026-00348</div>
+            <div class="num-next">Next number</div>
+          </div>
+          <div class="num-row">
+            <div class="num-label">Quotations</div>
+            <div class="num-prefix"><input type="text" value="QT-" /></div>
+            <div class="num-preview">QT-2026-00257</div>
+            <div class="num-next">Next number</div>
+          </div>
+          <div class="num-row">
+            <div class="num-label">Orders</div>
+            <div class="num-prefix"><input type="text" value="ORD-" /></div>
+            <div class="num-preview">ORD-2026-001352</div>
+            <div class="num-next">Next number</div>
+          </div>
+          <div class="num-row">
+            <div class="num-label">Payments</div>
+            <div class="num-prefix"><input type="text" value="PAY-" /></div>
+            <div class="num-preview">PAY-2026-002181</div>
+            <div class="num-next">Next number</div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bar">
+        <div class="updated"><div class="ub">Last Updated By: Asad (Admin)</div> 01 Jul 2026 · 09:00 AM</div>
+        <div class="footer-actions">
+          <div class="restore-btn">↩ Restore Defaults</div>
+          <div class="btn btn-danger btn-sm">Discard Changes</div>
+          <div class="btn btn-primary btn-sm">Save Changes</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 9. LANGUAGE & LOCALIZATION ==================== -->
+  <div class="flow-label">9 · Language &amp; Localization</div>
+  <div class="shell" style="min-height:480px">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="bname">Fayadhowr</div><div class="bsub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item active"><div class="ico">⚙</div> Settings</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div><div class="back-btn">← Settings</div><h2 style="margin-top:8px">Language &amp; Localization</h2>
+        <div class="crumb">Default language · Currency · Time zone · Date format</div></div>
+      </header>
+      <div class="content">
+        <div class="form-panel">
+          <h3><div class="sec-ico c8">🌐</div> Localization</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Default Language</label>
+              <select><option selected>English</option><option>Somali (Af Soomaali)</option><option>Arabic (العربية)</option></select>
+            </div>
+            <div class="form-group">
+              <label>Currency</label>
+              <select><option selected>USD ($)</option><option>SOS (Sh)</option></select>
+            </div>
+            <div class="form-group">
+              <label>Time Zone</label>
+              <select><option selected>East Africa Time (UTC+3)</option><option>GMT (UTC+0)</option></select>
+            </div>
+            <div class="form-group">
+              <label>Date Format</label>
+              <select><option selected>DD MMM YYYY (15 Jul 2026)</option><option>MM/DD/YYYY (07/15/2026)</option><option>YYYY-MM-DD (2026-07-15)</option></select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bar">
+        <div class="updated"><div class="ub">Last Updated By: Asad (Admin)</div> 28 Jun 2026 · 01:30 PM</div>
+        <div class="footer-actions">
+          <div class="restore-btn">↩ Restore Defaults</div>
+          <div class="btn btn-danger btn-sm">Discard Changes</div>
+          <div class="btn btn-primary btn-sm">Save Changes</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 10. ROLES & PERMISSIONS ==================== -->
+  <div class="flow-label">10 · Roles &amp; Permissions</div>
+  <div class="shell" style="min-height:600px">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="bname">Fayadhowr</div><div class="bsub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item active"><div class="ico">⚙</div> Settings</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div><div class="back-btn">← Settings</div><h2 style="margin-top:8px">Roles &amp; Permissions</h2>
+        <div class="crumb">Read-only role matrix · Admin · Sales · Accountant</div></div>
+        <div class="top-actions">
+          <div class="pill p-warn">Read-Only</div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="panel">
+          <div class="table-wrap">
+            <table class="matrix">
+              <thead>
+                <tr><th>Module</th><th>Admin</th><th>Sales</th><th>Accountant</th></tr>
+              </thead>
+              <tbody>
+                <tr><td style="font-weight:700">Dashboard</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+                <tr><td style="font-weight:700">Customers</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">✕</span></td></tr>
+                <tr><td style="font-weight:700">Bookings</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">✕</span></td></tr>
+                <tr><td style="font-weight:700">Quotations</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">✕</span></td></tr>
+                <tr><td style="font-weight:700">Orders</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">✕</span></td></tr>
+                <tr><td style="font-weight:700">Payments</td><td><span class="check">✓</span></td><td><span class="cross">✕</span></td><td><span class="check">✓</span></td></tr>
+                <tr><td style="font-weight:700">Reports — Customer/Booking/Quotation/Order</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">✕</span></td></tr>
+                <tr><td style="font-weight:700">Reports — Payment/Revenue</td><td><span class="check">✓</span></td><td><span class="cross">✕</span></td><td><span class="check">✓</span></td></tr>
+                <tr><td style="font-weight:700">Services</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">✕</span></td></tr>
+                <tr><td style="font-weight:700">Store</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">✕</span></td></tr>
+                <tr><td style="font-weight:700">Settings</td><td><span class="check">✓</span></td><td><span class="cross">✕</span></td><td><span class="cross">✕</span></td></tr>
+                <tr><td style="font-weight:700">Notifications</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+                <tr><td style="font-weight:700">Audit / Logs</td><td><span class="check">✓</span></td><td><span class="cross">✕</span></td><td><span class="cross">✕</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-radius:12px;
+          background:rgba(14,51,157,.04);border:1px solid rgba(14,51,157,.1);font-size:12px;font-weight:600;color:var(--muted)">
+          ℹ This matrix is read-only. Role definitions are managed at the system level. Contact the development team for role changes.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 11. SYSTEM INFORMATION ==================== -->
+  <div class="flow-label">11 · System Information</div>
+  <div class="shell" style="min-height:580px">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="bname">Fayadhowr</div><div class="bsub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item active"><div class="ico">⚙</div> Settings</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div><div class="back-btn">← Settings</div><h2 style="margin-top:8px">System Information</h2>
+        <div class="crumb">App version · Database · Backup · Privacy · Terms · Status</div></div>
+        <div class="top-actions">
+          <div class="pill p-warn">Read-Only</div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="form-panel">
+          <h3><div class="sec-ico c10">ℹ</div> System Details</h3>
+          <div class="sys-grid">
+            <div class="sys-item"><div class="sl">App Version</div><div class="sv">v1.0.0</div></div>
+            <div class="sys-item"><div class="sl">Database Version</div><div class="sv">PostgreSQL 16.2</div></div>
+            <div class="sys-item"><div class="sl">Last Backup</div><div class="sv">15 Jul 2026 · 02:00 AM</div></div>
+            <div class="sys-item"><div class="sl">System Status</div><div class="sv ok">● Operational</div></div>
+          </div>
+        </div>
+        <div class="form-panel">
+          <h3><div class="sec-ico c9">📜</div> Legal &amp; Compliance</h3>
+          <div class="sys-grid">
+            <div class="sys-item" style="cursor:pointer">
+              <div class="sl">Privacy Policy</div>
+              <div class="sv" style="font-size:13px">View Privacy Policy →</div>
+            </div>
+            <div class="sys-item" style="cursor:pointer">
+              <div class="sl">Terms &amp; Conditions</div>
+              <div class="sv" style="font-size:13px">View Terms &amp; Conditions →</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Maintenance Mode -->
+        <div class="form-panel">
+          <h3><div class="sec-ico c6">🔧</div> Maintenance Mode <div class="future">Future</div></h3>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="tl">Enable Maintenance Mode</div>
+              <div class="td">Put the system into maintenance mode. All customer-facing features will be temporarily unavailable.
+                <span style="color:#7C3AED;font-weight:700">Coming in a future release.</span></div>
+            </div>
+            <div class="toggle" style="opacity:.5;pointer-events:none"></div>
+          </div>
+          <div style="margin-top:12px;padding:12px 16px;border-radius:12px;background:rgba(124,58,237,.04);border:1px solid rgba(124,58,237,.12);font-size:11px;font-weight:600;color:#7C3AED">
+            🔮 Maintenance Mode will allow Admin to schedule downtime windows, display a custom maintenance message to customers, and automatically restore service after the scheduled period.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 12. UNSAVED CHANGES DIALOG ==================== -->
+  <div class="flow-label">12 · Unsaved Changes Protection — Confirmation Dialog</div>
+  <div class="shell" style="min-height:560px">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="bname">Fayadhowr</div><div class="bsub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item active"><div class="ico">⚙</div> Settings</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div><div class="back-btn">← Settings</div><h2 style="margin-top:8px">Company Settings</h2>
+        <div class="crumb">Attempting to leave with unsaved changes…</div></div>
+      </header>
+      <div class="dialog-overlay" style="min-height:420px">
+        <div class="dialog-backdrop"></div>
+        <div class="dialog-box">
+          <div class="d-ico">⚠</div>
+          <h4>You have unsaved changes</h4>
+          <p>You've made changes to Company Settings that haven't been saved. What would you like to do?</p>
+          <div class="dialog-actions">
+            <div class="btn btn-primary btn-sm" style="width:100%;justify-content:center">Save Changes</div>
+            <div class="btn btn-danger btn-sm" style="width:100%;justify-content:center">Discard Changes</div>
+            <div class="btn btn-ghost btn-sm" style="width:100%;justify-content:center">Continue Editing</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 13. SETTINGS HISTORY ==================== -->
+  <div class="flow-label">13 · Settings History — Full Change Log (Example)</div>
+  <div class="shell" style="min-height:620px">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="bname">Fayadhowr</div><div class="bsub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item active"><div class="ico">⚙</div> Settings</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div><div class="back-btn">← Company Settings</div><h2 style="margin-top:8px">Settings Change History</h2>
+        <div class="crumb">Read-only audit log · All changes tracked</div></div>
+        <div class="top-actions">
+          <div class="pill p-warn">Read-Only</div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="history-panel">
+          <div class="history-header">
+            <h3>📋 Company Settings — Change History <div class="h-badge">5 changes</div></h3>
+          </div>
+          <div class="h-entry">
+            <div class="h-dot"></div>
+            <div class="h-body">
+              <div class="h-meta">Asad (Admin) — Company Name</div>
+              <div class="h-time">14 Jul 2026 · 09:15 AM</div>
+              <div class="h-change">
+                <div class="h-old">Fayadhowr Services</div>
+                <div class="h-new">Fayadhowr Cleaning Services</div>
+              </div>
+            </div>
+          </div>
+          <div class="h-entry">
+            <div class="h-dot" style="background:var(--teal)"></div>
+            <div class="h-body">
+              <div class="h-meta">Asad (Admin) — Business Hours (Opening)</div>
+              <div class="h-time">12 Jul 2026 · 03:40 PM</div>
+              <div class="h-change">
+                <div class="h-old">09:00 AM</div>
+                <div class="h-new">08:00 AM</div>
+              </div>
+            </div>
+          </div>
+          <div class="h-entry">
+            <div class="h-dot" style="background:var(--warn)"></div>
+            <div class="h-body">
+              <div class="h-meta">Asad (Admin) — WhatsApp</div>
+              <div class="h-time">10 Jul 2026 · 11:20 AM</div>
+              <div class="h-change">
+                <div class="h-old">+252 61 000 0000</div>
+                <div class="h-new">+252 61 234 5678</div>
+              </div>
+            </div>
+          </div>
+          <div class="h-entry">
+            <div class="h-dot" style="background:var(--ok)"></div>
+            <div class="h-body">
+              <div class="h-meta">Asad (Admin) — Email</div>
+              <div class="h-time">08 Jul 2026 · 09:00 AM</div>
+              <div class="h-change">
+                <div class="h-old">contact@fayadhowr.com</div>
+                <div class="h-new">info@fayadhowr.com</div>
+              </div>
+            </div>
+          </div>
+          <div class="h-entry">
+            <div class="h-dot" style="background:var(--primary)"></div>
+            <div class="h-body">
+              <div class="h-meta">Asad (Admin) — Logo Updated</div>
+              <div class="h-time">05 Jul 2026 · 02:15 PM</div>
+              <div class="h-change">
+                <div class="h-old">logo-v1.png</div>
+                <div class="h-new">logo-v2.png</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1207,6 +1207,227 @@ Admin opens Reports Dashboard
 
 ---
 
+## 19. Settings — Admin UX Flow
+
+### 19.1 Entry Point
+
+**Sidebar → Settings** (active state, visible only to Admin role)
+
+### 19.2 Settings Dashboard Flow
+
+```
+Admin clicks "Settings" in sidebar
+  → Load Settings Dashboard
+  → Display 10 setting category cards (3-column grid)
+  → Each card shows: icon, title, description, last updated, "Open →"
+  → Admin clicks a category card
+      → Navigate to the corresponding settings detail page
+```
+
+### 19.3 Settings Edit Flow (General Pattern)
+
+```
+Admin opens a settings detail page
+  → "← Settings" back button available
+  → Form fields pre-populated with current values
+  → Admin modifies one or more fields
+  → Admin clicks "Save Changes"
+      → Validate all fields
+      → IF valid → Persist changes, update "Last Updated By", log to audit trail
+      → IF invalid → Show field-level validation errors, do not save
+  → Admin clicks "Discard Changes"
+      → Revert all fields to their last saved values
+      → No changes persisted
+```
+
+### 19.4 Company Settings Flow
+
+```
+Settings Dashboard → Company Settings
+  → Company Information form (name, email, phone, website, address)
+  → Logo upload section (preview + upload button)
+  → Business Hours form (opening/closing time)
+  → Social Media form (Facebook, Instagram, WhatsApp)
+  → Save / Discard footer
+```
+
+### 19.5 Service Settings Flow
+
+```
+Settings Dashboard → Service Settings
+  → Booking Working Hours (start/end)
+  → Working Days (day pills: Sat–Thu active, Fri off)
+  → Holidays table (add/view holidays)
+  → Booking Configuration (availability dropdown, lead time dropdown)
+  → Save / Discard footer
+```
+
+### 19.6 Store Settings Flow
+
+```
+Settings Dashboard → Store Settings
+  → Product Categories (tag chips + "Add Category")
+  → Default Delivery Fee, Tax %, Inventory Warning Level
+  → Save / Discard footer
+```
+
+### 19.7 Payment Settings Flow
+
+```
+Settings Dashboard → Payment Settings
+  → 6 payment method cards with enable/disable toggles
+  → Currency dropdown + Payment Instructions textarea
+  → Info: "No gateway integration yet"
+  → Save / Discard footer
+```
+
+### 19.8 Notification Settings Flow
+
+```
+Settings Dashboard → Notification Settings
+  → 3 notification channel toggles (Push, Email, SMS)
+  → 4 notification template cards with "Edit Template" action
+  → Admin clicks "Edit Template"
+      → Template textarea becomes editable
+      → Admin modifies template text (preserving placeholders)
+      → Save / Discard applies to all changes
+```
+
+### 19.9 Security Settings Flow
+
+```
+Settings Dashboard → Security Settings
+  → Password Policy dropdowns (length, complexity, expiry)
+  → Session Timeout dropdown + Login Audit toggle
+  → Two-Factor Authentication section
+      → Marked with "Future" badge
+      → Toggles are greyed out and non-interactive
+      → Description: "Coming in a future release"
+  → Save / Discard footer (applies to non-future settings only)
+```
+
+### 19.10 Numbering Settings Flow
+
+```
+Settings Dashboard → Numbering Settings
+  → Info banner: "Changing a prefix only affects future records"
+  → 5 entity rows: label, editable prefix input, next number preview
+  → Admin modifies a prefix (e.g., "ORD-" → "ORDER-")
+      → Preview updates in real-time: ORDER-2026-001352
+  → Save / Discard footer
+```
+
+### 19.11 Language & Localization Flow
+
+```
+Settings Dashboard → Language & Localization
+  → 4 dropdown fields: Language, Currency, Time Zone, Date Format
+  → Save / Discard footer
+```
+
+### 19.12 Roles & Permissions Flow
+
+```
+Settings Dashboard → Roles & Permissions
+  → "Read-Only" badge displayed in top bar
+  → Role matrix table: modules × roles (✓/✕)
+  → Info banner: "Read-only. Contact development team for changes."
+  → No Save / Discard buttons
+```
+
+### 19.13 System Information Flow
+
+```
+Settings Dashboard → System Information
+  → "Read-Only" badge displayed in top bar
+  → System details: App Version, DB Version, Last Backup, Status
+  → Legal section: Privacy Policy link, Terms & Conditions link
+  → No Save / Discard buttons
+```
+
+### 19.14 Non-Admin Access Flow
+
+```
+Sales or Accountant user attempts to access /admin/settings
+  → Settings menu item is hidden from sidebar
+  → IF direct URL access → 403 Forbidden page
+  → User cannot view or modify any settings
+```
+
+### 19.15 Global Settings Search Flow
+
+```
+Admin types in the search bar on Settings Dashboard
+  → Dropdown shows matching suggestions with category badges
+      (e.g., "Payment" → Payment Settings, Numbering PAY- prefix)
+  → Admin selects a result
+      → Navigate to the corresponding settings page
+  → IF no matches → "No results found"
+```
+
+### 19.16 Unsaved Changes Protection Flow
+
+```
+Admin modifies a field on any settings page
+  → System tracks "dirty" state (unsaved changes exist)
+  → Admin attempts to navigate away (← Settings, sidebar click, browser back)
+      → Confirmation dialog appears:
+          "You have unsaved changes"
+          [Save Changes] → Persist, then navigate
+          [Discard Changes] → Revert, then navigate
+          [Continue Editing] → Close dialog, stay on page
+  → IF no unsaved changes → Navigate immediately (no dialog)
+```
+
+### 19.17 Restore Defaults Flow
+
+```
+Admin clicks "↩ Restore Defaults" in footer bar
+  → Inline confirmation banner appears above footer:
+      "Restore Default Settings? This will reset all [Category] Settings
+       to their factory defaults. This action requires confirmation."
+      [Confirm Restore] → Reset all fields to factory defaults, mark as dirty
+      [Cancel] → Dismiss banner, no changes
+  → Admin must still click "Save Changes" to persist the restored defaults
+```
+
+### 19.18 Settings History Flow
+
+```
+Admin views a settings detail page
+  → "Change History" panel shown below form sections
+  → Displays recent changes: who, what, old→new, when
+  → Admin clicks "View Full History →"
+      → Full change log page opens (read-only)
+      → All changes for the category listed chronologically
+      → Back button returns to settings detail page
+```
+
+### 19.19 Maintenance Mode Flow
+
+```
+Admin opens System Information
+  → Maintenance Mode section displayed
+  → Toggle is greyed out with "Future" badge
+  → Description: "Coming in a future release"
+  → No interaction possible
+```
+
+### 19.20 Business Rules
+
+| # | Rule |
+| --- | --- |
+| BR-S01 | Settings are available to Admin role only. |
+| BR-S02 | Settings change system configuration only; never modify historical records. |
+| BR-S03 | All settings changes are logged (who, what, when). |
+| BR-S04 | Future features (2FA, Maintenance Mode) are clearly labelled and non-interactive. |
+| BR-S05 | Read-only sections have no Save/Discard buttons. |
+| BR-S06 | Numbering prefix changes only affect future records. |
+| BR-S07 | No new business features are introduced. |
+| BR-S08 | Restore Defaults requires confirmation and does not affect historical records. |
+
+---
+
 ## Document Control
 
 | Item | Value |

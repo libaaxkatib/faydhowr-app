@@ -2098,6 +2098,91 @@ Two lightweight tables are introduced for user-specific report preferences. Thes
 
 ---
 
+## Settings Module — Database Design
+
+### `system_settings` Table
+
+A key-value store for all system configuration settings.
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| `id` | BIGINT | PK, auto-increment | Unique setting ID |
+| `category` | VARCHAR(50) | NOT NULL, indexed | Setting category (company, service, store, payment, notification, security, numbering, localization) |
+| `key` | VARCHAR(100) | NOT NULL, UNIQUE with category | Setting key (e.g., "company_name", "booking_start_time") |
+| `value` | TEXT | NULLABLE | Setting value (serialised as string; JSON for complex values) |
+| `default_value` | TEXT | NULLABLE | Factory default value for Restore Defaults feature |
+| `updated_by` | BIGINT | FK → `users.id`, NULLABLE | Last user who modified this setting |
+| `updated_at` | TIMESTAMP | NOT NULL | Last modification timestamp |
+| `created_at` | TIMESTAMP | NOT NULL | Initial creation timestamp |
+
+**Compound unique:** (`category`, `key`)
+
+### `settings_audit_log` Table
+
+Tracks every settings change for compliance and traceability.
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| `id` | BIGINT | PK, auto-increment | Log entry ID |
+| `category` | VARCHAR(50) | NOT NULL | Setting category |
+| `key` | VARCHAR(100) | NOT NULL | Setting key |
+| `old_value` | TEXT | NULLABLE | Previous value |
+| `new_value` | TEXT | NULLABLE | New value |
+| `changed_by` | BIGINT | FK → `users.id`, NOT NULL | Admin who made the change |
+| `changed_at` | TIMESTAMP | NOT NULL | When the change occurred |
+| `ip_address` | VARCHAR(45) | NULLABLE | IP address of the change request |
+
+### `holidays` Table
+
+Stores company holidays for Service Settings.
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| `id` | BIGINT | PK, auto-increment | Holiday ID |
+| `name` | VARCHAR(100) | NOT NULL | Holiday name (e.g., "Eid Al-Fitr") |
+| `date` | DATE | NOT NULL | Holiday date |
+| `is_active` | BOOLEAN | NOT NULL, default TRUE | Whether the holiday is currently active |
+| `created_at` | TIMESTAMP | NOT NULL | Creation timestamp |
+| `updated_at` | TIMESTAMP | NOT NULL | Last update timestamp |
+
+### `notification_templates` Table
+
+Stores editable notification message templates.
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| `id` | BIGINT | PK, auto-increment | Template ID |
+| `template_key` | VARCHAR(50) | NOT NULL, UNIQUE | Template identifier (e.g., "booking_confirmation") |
+| `title` | VARCHAR(100) | NOT NULL | Display name |
+| `body` | TEXT | NOT NULL | Template body with placeholders ({customer_name}, {booking_id}, etc.) |
+| `updated_by` | BIGINT | FK → `users.id`, NULLABLE | Last editor |
+| `updated_at` | TIMESTAMP | NOT NULL | Last modification timestamp |
+
+### Settings Category → Key Mapping
+
+| Category | Sample Keys |
+| --- | --- |
+| company | company_name, email, phone, address, website, logo_url, business_hours_open, business_hours_close, facebook, instagram, whatsapp |
+| service | booking_start_time, booking_end_time, working_days (JSON array), booking_availability, default_lead_time |
+| store | default_delivery_fee, tax_percentage, inventory_warning_level |
+| payment | enabled_methods (JSON array), currency, payment_instructions |
+| notification | push_enabled, email_enabled, sms_enabled |
+| security | min_password_length, password_complexity, password_expiry, session_timeout, login_audit_enabled |
+| numbering | prefix_customer, prefix_booking, prefix_quotation, prefix_order, prefix_payment |
+| localization | default_language, currency, timezone, date_format |
+
+### Design Notes
+
+- **No historical impact:** Changing a setting value (e.g., tax percentage) does NOT retroactively modify existing orders or payments. Historical records retain their original values.
+- **Numbering:** Changing a prefix only affects the next generated number. The `next_number` counter is maintained in `system_settings` (e.g., key `next_customer_number`, value `1843`).
+- **Roles & Permissions and System Information** are not stored in `system_settings` — they are derived from application code (roles) and runtime environment (system info).
+- **Product categories** for Store Settings are stored in the existing `product_categories` table (if present) or as a JSON array in `system_settings`.
+- **Restore Defaults** uses the `default_value` column in `system_settings`. When Admin confirms a restore, the `value` column is set to `default_value` for all keys in the selected category, and each change is logged in `settings_audit_log`.
+- **Unsaved Changes Protection** is a UI-only feature (dirty state tracking in the browser). No database changes needed.
+- **Maintenance Mode** is a future feature with no database impact at this stage. When implemented, it may use a `maintenance_mode` key in `system_settings`.
+
+---
+
 ## Document Control
 
 | Item | Value |

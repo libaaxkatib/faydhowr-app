@@ -1012,6 +1012,77 @@ Admin users shall be able to pin favourite reports to the top of the Reports Das
 
 ---
 
+## 19. Settings Module (Admin)
+
+### FR-091 Settings Module
+
+#### FR-091.1 Settings Dashboard
+The system shall provide a Settings Dashboard at `/admin/settings` accessible only to Admin role users. The dashboard shall display 10 setting categories as premium cards: Company Settings, Service Settings, Store Settings, Payment Settings, Notification Settings, Security Settings, Numbering Settings, Language & Localization, Roles & Permissions, System Information. Each card shows an icon, title, description, last updated timestamp, and an "Open" action.
+
+#### FR-091.2 Access Control
+- Only Admin role users shall have access to Settings.
+- Sales and Accountant roles shall not see the Settings menu item and shall receive 403 Forbidden if accessing settings URLs directly.
+
+#### FR-091.3 Company Settings
+The system shall allow Admin to edit: Company Name, Logo (upload PNG/SVG, max 2 MB), Email, Phone, Address, Business Hours (opening/closing), Website, Facebook, Instagram, WhatsApp.
+
+#### FR-091.4 Service Settings
+The system shall allow Admin to configure: Booking Working Hours (start/end), Working Days (day toggles), Holidays (table of holiday name, date, status), Booking Availability (open/closed), Default Booking Lead Time (12h/24h/48h/72h).
+
+#### FR-091.5 Store Settings
+The system shall allow Admin to manage: Product Categories (tag chips with add/remove), Default Delivery Fee (currency input), Tax Percentage, Inventory Warning Level (unit threshold).
+
+#### FR-091.6 Payment Settings
+The system shall allow Admin to enable/disable the following payment methods via toggles: EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card. Additionally: Currency selector (USD/SOS), Payment Instructions (textarea). No payment gateway integration is included in this release.
+
+#### FR-091.7 Notification Settings
+The system shall allow Admin to enable/disable notification channels: Push Notifications, Email Notifications, SMS Notifications. The system shall provide editable templates for: Booking Confirmation, Quotation Ready, Payment Received, Order Completed. Templates support placeholders ({customer_name}, {booking_id}, {amount}, etc.).
+
+#### FR-091.8 Security Settings
+The system shall allow Admin to configure: Minimum Password Length (6/8/10/12), Password Complexity (letters/letters+numbers/letters+numbers+symbols), Password Expiry (never/30/90/180 days), Session Timeout (15min/30min/1hr/4hr), Login Audit Logging (toggle). Two-Factor Authentication shall be displayed as a future feature, clearly labelled, with disabled/greyed-out toggles.
+
+#### FR-091.9 Numbering Settings
+The system shall allow Admin to edit entity number prefixes for: Customers (CUS-), Bookings (BK-), Quotations (QT-), Orders (ORD-), Payments (PAY-). A real-time next-number preview shall be displayed. Changing a prefix only affects future records; existing records retain their original numbers.
+
+#### FR-091.10 Language & Localization
+The system shall allow Admin to set: Default Language (English/Somali/Arabic), Currency (USD/SOS), Time Zone (East Africa Time UTC+3 / GMT UTC+0), Date Format (DD MMM YYYY / MM/DD/YYYY / YYYY-MM-DD).
+
+#### FR-091.11 Roles & Permissions
+The system shall display a read-only role matrix showing which modules each role (Admin, Sales, Accountant) can access. This matrix is not editable through the UI.
+
+#### FR-091.12 System Information
+The system shall display read-only system information: App Version, Database Version, Last Backup (date/time), System Status (operational indicator), Privacy Policy (view link), Terms & Conditions (view link).
+
+#### FR-091.13 Save / Discard
+Every editable settings page shall provide: a "Save Changes" button (persists modifications), a "Discard Changes" button (reverts to last saved state), and a "Last Updated By" indicator showing staff name, role, date, and time.
+
+#### FR-091.14 Global Settings Search
+The system shall provide a global search bar on the Settings Dashboard. Searchable dimensions: Company, Booking, Payment, Currency, Language, Notification, Security, Prefix, Roles, Backup. Selecting a result navigates to the corresponding settings page. Search is read-only.
+
+#### FR-091.15 Unsaved Changes Protection
+If the user attempts to leave a settings page with unsaved modifications, the system shall display a confirmation dialog with three options: "Save Changes" (persist and navigate), "Discard Changes" (revert and navigate), "Continue Editing" (close dialog, remain on page).
+
+#### FR-091.16 Restore Defaults
+Every editable settings category shall include a "Restore Defaults" action. Clicking it shows an inline confirmation banner requiring explicit confirmation before applying factory default values. Restore only affects the current category and does not modify historical records.
+
+#### FR-091.17 Settings History
+Every editable settings page shall include a "View Change History" section displaying the audit log for that category. Each entry shows: Changed By (staff name/role), setting key, old value, new value, date, time. A "View Full History" action opens the complete change log. This view is read-only.
+
+#### FR-091.18 Maintenance Mode
+Under System Information, the system shall display a Maintenance Mode section marked as a future feature. The toggle shall be disabled and non-interactive with a clear "Future" badge and "Coming in a future release" description.
+
+#### FR-091.19 Business Rules
+- BR-S01: Settings are available to Admin role only.
+- BR-S02: Settings change system configuration only. Settings never modify historical business records.
+- BR-S03: All settings changes are logged (who, what, when) in the audit trail.
+- BR-S04: Future features (2FA, Maintenance Mode) are clearly labelled and non-interactive.
+- BR-S05: Read-only sections (Roles & Permissions, System Info) do not show Save/Discard.
+- BR-S06: Numbering prefix changes only affect future records.
+- BR-S07: No new business features are introduced.
+- BR-S08: Restore Defaults requires confirmation and does not affect historical records.
+
+---
+
 ### 17.1 Out of Scope for This Document
 
 - UI/UX wireframes or visual design
