@@ -73,6 +73,56 @@ class RegisterCustomerTest extends TestCase
         $this->assertDatabaseCount('users', 1);
     }
 
+    public function test_registration_normalizes_email_before_persistence(): void
+    {
+        $response = $this->postJson('/api/v1/auth/register', [
+            'name' => 'Fayadhowr Customer',
+            'email' => 'Customer@Example.COM',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.user.email', 'customer@example.com');
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'customer@example.com',
+        ]);
+    }
+
+    public function test_customer_cannot_register_with_a_differently_cased_duplicate_email(): void
+    {
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'First Customer',
+            'email' => 'Customer@Example.COM',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Duplicate Customer',
+            'email' => 'customer@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+
+        $this->assertDatabaseCount('users', 1);
+    }
+
+    public function test_registration_is_throttled_after_five_attempts(): void
+    {
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            $this->postJson('/api/v1/auth/register', [])
+                ->assertUnprocessable();
+        }
+
+        $this->postJson('/api/v1/auth/register', [])
+            ->assertTooManyRequests();
+    }
+
     public function test_customer_receives_a_safe_error_response_when_registration_fails(): void
     {
         $this->mock(RegisterCustomerAction::class, function (MockInterface $mock): void {

@@ -5,6 +5,7 @@ namespace App\Actions\Auth;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class RegisterCustomerAction
 {
@@ -17,7 +18,7 @@ class RegisterCustomerAction
         return DB::transaction(function () use ($attributes): array {
             $user = User::query()->create([
                 'name' => $attributes['name'],
-                'email' => $attributes['email'],
+                'email' => Str::lower($attributes['email']),
                 'password' => Hash::make($attributes['password']),
             ]);
 
