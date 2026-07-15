@@ -999,6 +999,214 @@ Every payment must originate from an existing Order via: Booking / Product Reque
 
 ---
 
+## 18. Reports & Analytics — Admin UX Flow
+
+### 18.1 Entry Point
+
+**Sidebar → Reports** (active state)
+
+The Reports & Analytics module is accessible from the main admin sidebar. The sidebar item shows an active state when the user is on any reports page.
+
+### 18.2 Reports Dashboard Flow
+
+```
+Sidebar click "Reports"
+  → Load Reports Dashboard
+    → Display role badge (Admin / Sales / Accountant)
+    → Display date range chips (default: Last 7 Days)
+    → Render KPI cards (filtered by role)
+    → Render interactive charts
+    → Render report category cards (filtered by role)
+    → Display export buttons (PDF, Excel, Print)
+```
+
+### 18.3 Date Range Selection Flow
+
+```
+User clicks a date range chip
+  → IF preset (Today, Yesterday, Last 7 Days, etc.)
+      → Chip becomes active (highlighted)
+      → All KPI cards re-calculate for the new period
+      → All charts re-render with new data
+      → Trend indicators update (compare new period to the prior period)
+  → IF "Custom"
+      → Open date picker (start date, end date)
+      → User selects range → Confirm
+      → Same re-calculation flow as presets
+```
+
+### 18.4 KPI Card Drill-down Flow
+
+```
+User clicks a KPI card (e.g., "Active Bookings")
+  → Navigate to the corresponding detail report
+  → Report opens pre-filtered by the KPI metric
+    (e.g., Bookings Report filtered to Active/In-Progress status)
+  → Back button ("← Reports") returns to the dashboard
+```
+
+### 18.5 Report Category Navigation Flow
+
+```
+User clicks a report category card (e.g., "Revenue Reports")
+  → Navigate to the detail report view
+  → Display category-specific KPI cards
+  → Display category-specific charts with time toggle
+  → Display category-specific tables or breakdowns
+  → Back button ("← Reports") returns to the dashboard
+```
+
+### 18.6 Chart Interaction Flow
+
+```
+User clicks a chart time toggle (Daily / Weekly / Monthly / Yearly)
+  → Chart re-renders for the selected granularity
+  → Date range still applies as the outer boundary
+
+User clicks a chart segment (pie slice, bar section)
+  → Drill-down to filtered detail table
+  → E.g., Pie "Pending" → table filtered to Pending status
+```
+
+### 18.7 Export Flow
+
+```
+User clicks "Export PDF"
+  → System generates PDF of the current view (current date range, filters)
+  → Browser downloads the PDF file
+
+User clicks "Export Excel"
+  → System generates XLSX of the current view
+  → Browser downloads the Excel file
+
+User clicks "Print"
+  → Browser print dialog opens
+  → User confirms → page prints
+```
+
+### 18.8 Role-Based Access Flow
+
+```
+User logs in → Role determined from session
+
+IF Admin:
+  → All 6 KPI cards visible
+  → All 6 category cards visible
+  → All detail reports accessible
+
+IF Sales:
+  → 4 KPI cards visible (Customers, Bookings, Quotations, Orders)
+  → 4 category cards visible (Customer, Booking, Quotation, Order)
+  → Payment & Revenue categories hidden
+  → Warning banner: "Payment Reports and Revenue Reports are restricted"
+
+IF Accountant:
+  → 3 KPI cards visible (Payments, Revenue, Pending Verifications)
+  → 2 category cards visible (Payment, Revenue)
+  → Customer, Booking, Quotation, Order categories hidden
+  → Warning banner: "Customer, Booking, Quotation, and Order Reports are restricted"
+```
+
+### 18.9 Revenue Reports Detail Flow
+
+```
+Revenue Reports opened
+  → 4 KPI cards: Revenue Today, Weekly, Monthly, Yearly
+  → Monthly Revenue Trend chart (bar, 12-month)
+  → Time toggle: Daily / Weekly / Monthly / Yearly
+  → Revenue Breakdown section:
+      → Revenue by Services (horizontal bar + amount, top 5)
+      → Revenue by Products (horizontal bar + amount, top 5)
+  → Back button → Reports Dashboard
+```
+
+### 18.10 Global Report Search Flow
+
+```
+User clicks the search bar on Reports Dashboard
+  → User begins typing (e.g., "Revenue")
+  → Dropdown shows matching suggestions with type badges
+      (Report: Revenue Reports, Revenue: Revenue by Services, etc.)
+  → User selects a suggestion
+  → Navigate directly to the matching report detail view
+  → IF no matches: dropdown shows "No results found"
+```
+
+### 18.11 Saved Filters Flow
+
+```
+User clicks "+ Save Current Filter"
+  → Modal/inline form: enter filter name
+  → User types: e.g., "Manager Monthly Review"
+  → Confirm → Filter saved as a chip on the dashboard
+
+User clicks a saved filter chip (e.g., "⭐ Finance Weekly Report")
+  → Date range and report selection are applied immediately
+  → Dashboard refreshes with the saved filter's settings
+```
+
+### 18.12 Empty State Flow
+
+```
+User selects a date range with no matching data
+  → KPI cards display "0" or "—" in muted colour
+  → Chart area replaced with empty state:
+      Icon + "No data available"
+      + "Try another date range or adjust your filters."
+      + "← Change Date Range" button
+  → Table area replaced with empty state
+  → User clicks "← Change Date Range"
+      → Focus returns to date range selector
+```
+
+### 18.13 Last Generated Display
+
+```
+Report detail page loads
+  → "Last Generated" chip appears at top of content
+  → Shows: Date (e.g., 15 Jul 2026) + Time (e.g., 10:42 AM)
+  → Read-only — no interaction
+```
+
+### 18.14 Report Summary Flow
+
+```
+Report detail page loads (with data available)
+  → At the bottom of the content, a summary card appears
+  → Shows 4 computed metrics in a grid
+  → Badge: "Auto-generated"
+  → Values are calculated from the report's current data
+  → Read-only — no interaction
+```
+
+### 18.15 Dashboard Favorites Flow
+
+```
+Admin opens Reports Dashboard
+  → Pinned Reports section appears above KPI cards
+  → Shows pinned report cards with star icon + name + subtitle
+  → Admin clicks a pinned card
+      → Navigate to the corresponding report detail
+  → Admin hovers a pinned card → "✕ Unpin" appears
+      → Click Unpin → Report removed from pinned section
+  → Admin can pin new reports from report detail views
+```
+
+### 18.16 Business Rules
+
+| # | Rule |
+| --- | --- |
+| BR-R01 | Reports are read-only. No UI action may modify business data. |
+| BR-R02 | All values are calculated from source tables at query time. |
+| BR-R03 | Role-based access controls which reports are visible and accessible. |
+| BR-R04 | Date range applies globally to all data on the current view. |
+| BR-R05 | Export captures only the currently filtered/displayed snapshot. |
+| BR-R06 | No new business entities or workflows are introduced. |
+| BR-R07 | Saved filters and dashboard favorites are user-specific preferences. |
+| BR-R08 | Report summaries are computed from report data only. No AI. |
+
+---
+
 ## Document Control
 
 | Item | Value |

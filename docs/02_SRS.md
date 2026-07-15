@@ -906,6 +906,112 @@ The system should support growth in customers, catalog size, and transaction vol
 
 ## 17. Document Control
 
+---
+
+## 18. Reports & Analytics Module (Admin)
+
+### FR-090 Reports & Analytics
+
+#### FR-090.1 Reports Dashboard
+The system shall provide a Reports Dashboard at `/admin/reports` that displays:
+- Six premium KPI cards: Total Customers, Active Bookings, Pending Quotations, Orders, Payments, Revenue.
+- Each KPI card shall show a trend indicator comparing the current period to the previous period.
+- Interactive charts: a Revenue & Orders Trend chart (line/area/bar) and a Booking Status Distribution chart (pie).
+- A report categories section with six navigable cards: Customer, Booking, Quotation, Order, Payment, Revenue Reports.
+- All dashboard data shall respond to the selected date range.
+
+#### FR-090.2 Date Range Filtering
+The system shall support the following date range presets:
+- Today, Yesterday, Last 7 Days, Last 30 Days, This Month, Last Month.
+- Custom Date Range with a manual start/end date picker.
+- Selecting a date range shall re-calculate all KPI values and chart data on the current view.
+
+#### FR-090.3 Role-Based Access
+- **Admin** role: full access to all report categories.
+- **Sales** role: access to Customer, Booking, Quotation, Order reports only. Payment and Revenue reports are hidden.
+- **Accountant** role: access to Payment and Revenue/Financial reports only. Customer, Booking, Quotation, and Order reports are hidden.
+- Restricted categories shall not be rendered; a warning banner shall inform the user of the restriction.
+
+#### FR-090.4 Customer Reports
+The system shall provide a Customer Reports detail view showing:
+- KPI cards: New Customers, Active Customers, Leads, Customer Growth %, Total Customers.
+- Charts: Customer Growth Trend (area), Customer Segments (pie).
+- A "Top Customers by Total Spent" table with columns: Rank, Customer, Phone, Total Orders, Total Spent, Status, Last Activity.
+- Accessible by Admin and Sales roles.
+
+#### FR-090.5 Booking Reports
+The system shall provide a Booking Reports detail view showing:
+- KPI cards: Total Bookings, Completed, Cancelled, Pending, Average Completion Time.
+- Charts: Booking Trends (bar), Booking Status (pie).
+- Drill-down table filtered by the clicked KPI card (e.g., Completed bookings).
+- Accessible by Admin and Sales roles.
+
+#### FR-090.6 Quotation Reports
+The system shall provide a Quotation Reports detail view showing:
+- KPI cards: Total Quotations, Accepted, Under Discussion, Expired, Conversion Rate.
+- Charts: Quotation Funnel (bar), Conversion Rate Trend (bar/line).
+- Accessible by Admin and Sales roles.
+
+#### FR-090.7 Order Reports
+The system shall provide an Order Reports detail view showing:
+- KPI cards: Total Orders, Completed Orders, Cancelled Orders, Average Order Value.
+- Charts: Order Volume & Value (line/bar), Order Status (pie).
+- Drill-down table: Order ID, Customer, Items, Total, Status, Date.
+- Accessible by Admin and Sales roles.
+
+#### FR-090.8 Payment Reports
+The system shall provide a Payment Reports detail view showing:
+- KPI cards: Total Payments, Confirmed, Pending, Failed, Refunded.
+- Charts: Payment Trends (area), Payment Distribution (pie).
+- Accessible by Admin and Accountant roles.
+
+#### FR-090.9 Revenue Reports
+The system shall provide a Revenue Reports detail view showing:
+- KPI cards: Revenue Today, Weekly Revenue, Monthly Revenue, Yearly Revenue.
+- Chart: Monthly Revenue Trend (bar, 12-month view).
+- Revenue Breakdown: Revenue by Services (top services with bar indicators), Revenue by Products (top products with bar indicators).
+- Accessible by Admin and Accountant roles.
+
+#### FR-090.10 Interactive Drill-down
+- Every KPI card shall be clickable; clicking shall navigate to the corresponding detail report filtered by the card's metric.
+- Chart segments (pie slices, bar sections) shall support drill-down to filtered views.
+
+#### FR-090.11 Export
+The system shall support the following export actions from any report view:
+- Export PDF: generates a downloadable PDF snapshot.
+- Export Excel: generates a downloadable XLSX file.
+- Print Report: opens the browser print dialog.
+Export shall produce a snapshot of the currently filtered/displayed data only.
+
+#### FR-090.12 Global Report Search
+The system shall provide a global search bar on the Reports Dashboard that allows searching by: report name, customer name, booking reference, order reference, payment reference, revenue category, and date. Search results shall appear as suggestions in a dropdown. Selecting a result navigates directly to the matching report. Search is read-only.
+
+#### FR-090.13 Saved Filters
+The system shall allow users to save frequently used report filter combinations (date range + report selection) as named saved filters. Saved filters are user-specific and stored per user account. Clicking a saved filter chip applies its settings immediately. Examples: "Manager Monthly Review", "Finance Weekly Report", "Revenue This Month".
+
+#### FR-090.14 Empty State
+Whenever a report query returns no matching data, the system shall display a professional empty state with: an illustrative icon, heading ("No data available"), a descriptive message suggesting an alternative date range, and a "Change Date Range" action. KPI cards shall show "0" or "—" with muted styling.
+
+#### FR-090.15 Last Generated
+Every report detail page shall display a read-only "Last Generated" indicator showing the date and time the report data was last computed. This is informational only and not user-editable.
+
+#### FR-090.16 Report Summary
+At the bottom of every report detail view, the system shall display a computed summary section with 4 key metrics derived from the report data. Each metric shows a label, value (colour-coded for trend direction), and contextual detail. The summary is auto-generated from existing report data only — no AI or external data sources. A badge labelled "Auto-generated" is displayed.
+
+#### FR-090.17 Dashboard Favorites
+Admin users shall be able to pin favourite reports to the top of the Reports Dashboard. Pinned reports appear first as cards with star icon, report name, and subtitle. Users can unpin reports on hover. Pinning is user-specific. This is a convenience feature and does not modify business data.
+
+#### FR-090.18 Business Rules
+- BR-R01: Reports are read-only. No report endpoint or UI action may create, update, or delete business data.
+- BR-R02: All report values must be calculated from existing system records at query time. No separate reporting tables are required (aggregation queries on source tables).
+- BR-R03: Reports must adapt based on the logged-in user's role.
+- BR-R04: Date range selection applies globally to all KPI cards and charts.
+- BR-R05: No new business features are introduced by this module.
+- BR-R06: Saved filters and dashboard favorites are user-specific preferences.
+- BR-R07: Report summaries are computed from existing report data only. No AI.
+
+---
+
 ### 17.1 Out of Scope for This Document
 
 - UI/UX wireframes or visual design

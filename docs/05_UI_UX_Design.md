@@ -1559,6 +1559,386 @@ Icons displayed consistently in both list and details.
 
 ---
 
+## 23. Reports & Analytics Module (Admin)
+
+### 23.1 Overview
+
+The Reports & Analytics Module is a **read-only** reporting layer that aggregates and visualises data from Customers, Bookings, Quotations, Orders, and Payments. No report may create, update, or delete business data. All values are calculated from existing system records at query time.
+
+### 23.2 Role-Based Access
+
+| Role | Visible Reports |
+| --- | --- |
+| **Admin** | All reports (Customer, Booking, Quotation, Order, Payment, Revenue) |
+| **Sales** | Customer, Booking, Quotation, Order reports only |
+| **Accountant** | Payment, Revenue / Financial reports only |
+
+- A role badge is displayed in the top bar showing the current role and access level.
+- Report categories the user cannot access are hidden; a subtle warning bar explains the restriction.
+
+### 23.3 Screen 1 — Reports Dashboard
+
+**Route:** `/admin/reports`
+
+#### Top Bar
+- Page title: "Reports & Analytics"
+- Role badge (Admin · Full Access / Sales · Limited Access / Accountant · Financial Access)
+- Date range selector
+- Export buttons (PDF, Excel, Print)
+
+#### Date Range Selector
+Chip-style filter bar supporting:
+| Preset | Description |
+| --- | --- |
+| Today | Current calendar day |
+| Yesterday | Previous calendar day |
+| Last 7 Days | Rolling 7-day window |
+| Last 30 Days | Rolling 30-day window |
+| This Month | Current calendar month |
+| Last Month | Previous calendar month |
+| Custom Date Range | Manual start/end date picker |
+
+The selected date range applies to all KPI cards and charts on the dashboard.
+
+#### KPI Cards (6 cards, single row)
+| # | Card | Sample Value | Colour | Trend |
+| --- | --- | --- | --- | --- |
+| 1 | Total Customers | 1,842 | Primary | ↑ 12% vs last period |
+| 2 | Active Bookings | 347 | Teal | ↑ 8% |
+| 3 | Pending Quotations | 89 | Warn/Amber | ↓ 3% |
+| 4 | Orders | 1,340 | Primary | ↑ 15% |
+| 5 | Payments | 2,180 | Green | ↑ 18% |
+| 6 | Revenue | $124,650 | Green | ↑ 22% |
+
+- Each card shows a trend indicator (up/down + percentage vs. previous period).
+- Each card supports **drill-down**: clicking opens the corresponding detail report.
+
+#### Interactive Charts (2-column layout)
+**Left — Revenue & Orders Trend (Line / Area / Bar)**
+- Time toggle: Daily · Weekly · Monthly · Yearly
+- Legend: Revenue, Orders, Payments
+- Responds to the selected date range
+
+**Right — Booking Status Distribution (Pie Chart)**
+- Segments: Completed, In Progress, Scheduled, Pending, Other
+- Centre label shows total count
+
+#### Report Categories (3-column grid, 6 cards)
+Each card displays:
+- Category icon with gradient background
+- Category title and description
+- Metric chips (quick summary of available sub-reports)
+- Role indicators showing which roles can access
+- Chevron for navigation to the detail report
+
+| # | Category | Icon | Accessible By |
+| --- | --- | --- | --- |
+| 1 | Customer Reports | ☺ | Admin, Sales |
+| 2 | Booking Reports | BK | Admin, Sales |
+| 3 | Quotation Reports | QT | Admin, Sales |
+| 4 | Order Reports | ORD | Admin, Sales |
+| 5 | Payment Reports | $ | Admin, Accountant |
+| 6 | Revenue Reports | $ | Admin, Accountant |
+
+#### Export Bar
+| Action | Icon | Format |
+| --- | --- | --- |
+| Export PDF | 📄 | Generates a downloadable PDF of the current view |
+| Export Excel | 📊 | Generates a downloadable XLSX file |
+| Print Report | 🖨️ | Opens browser print dialog |
+
+### 23.4 Customer Reports Detail
+
+**Route:** `/admin/reports/customers`
+
+#### KPI Cards (5 cards)
+| Card | Description |
+| --- | --- |
+| New Customers | Count of newly registered customers in the selected period |
+| Active Customers | Customers with at least one order/booking in the period |
+| Leads | Customers registered but with no completed order yet |
+| Customer Growth | Percentage growth vs. previous period |
+| Total Customers | Overall customer count |
+
+#### Charts
+- **Customer Growth Trend** — Area chart with Daily/Weekly/Monthly/Yearly toggle
+- **Customer Segments** — Pie chart (Active, Leads, New, Inactive)
+
+#### Top Customers by Total Spent (table)
+| Column | Description |
+| --- | --- |
+| # | Rank |
+| Customer | Full name |
+| Phone | Contact number |
+| Total Orders | Lifetime order count |
+| Total Spent | Lifetime spend (currency) |
+| Status | Active / Lead pill |
+| Last Activity | Most recent activity date |
+
+Pagination: standard table footer with page controls.
+
+### 23.5 Booking Reports Detail
+
+**Route:** `/admin/reports/bookings`
+
+#### KPI Cards (5 cards)
+| Card | Description |
+| --- | --- |
+| Total Bookings | All bookings in the selected period |
+| Completed | Bookings with status Completed |
+| Cancelled | Bookings with status Cancelled |
+| Pending | Bookings with status Pending |
+| Avg Completion Time | Mean days from creation to completion |
+
+#### Charts
+- **Booking Trends** — Bar chart with Daily/Weekly/Monthly/Yearly toggle
+- **Booking Status** — Pie chart (Completed, Pending, Cancelled)
+
+#### Drill-down Table
+Clicking a KPI card (e.g., Completed) opens a filtered table showing the matching bookings with columns: Booking ID, Customer, Service, Date, Status, Completion Time.
+
+### 23.6 Quotation Reports Detail
+
+**Route:** `/admin/reports/quotations`
+
+#### KPI Cards (5 cards)
+| Card | Description |
+| --- | --- |
+| Total Quotations | All quotations in the selected period |
+| Accepted | Quotations accepted by customer |
+| Under Discussion | Quotations currently in discussion |
+| Expired | Quotations past validity without acceptance |
+| Conversion Rate | Accepted / Total × 100 (percentage) |
+
+#### Charts
+- **Quotation Funnel** — Bar chart showing Total → Accepted → Under Discussion → Expired → Rejected
+- **Conversion Rate Trend** — Bar/line chart showing monthly conversion percentage
+
+### 23.7 Order Reports Detail
+
+**Route:** `/admin/reports/orders`
+
+#### KPI Cards (4 cards)
+| Card | Description |
+| --- | --- |
+| Total Orders | All orders in the selected period |
+| Completed Orders | Orders with status Completed |
+| Cancelled Orders | Orders with status Cancelled |
+| Avg Order Value | Mean order total in the period |
+
+#### Charts
+- **Order Volume & Value** — Line/bar chart with time toggle
+- **Order Status** — Pie chart (Completed, Processing, Cancelled)
+
+#### Drill-down Table
+Filtered table: Order ID, Customer, Items, Total, Status, Date. Pagination.
+
+### 23.8 Payment Reports Detail
+
+**Route:** `/admin/reports/payments`
+
+#### KPI Cards (5 cards)
+| Card | Description |
+| --- | --- |
+| Total Payments | All payments in the selected period |
+| Confirmed | Payments with status Confirmed |
+| Pending | Payments awaiting verification |
+| Failed | Payments that failed processing |
+| Refunded | Payments that were refunded |
+
+#### Charts
+- **Payment Trends** — Area chart with time toggle
+- **Payment Distribution** — Pie chart (Confirmed, Pending, Failed, Refunded)
+
+### 23.9 Revenue Reports Detail
+
+**Route:** `/admin/reports/revenue`
+
+#### KPI Cards (4 cards)
+| Card | Description |
+| --- | --- |
+| Revenue Today | Sum of confirmed payments today |
+| Weekly Revenue | Sum of confirmed payments in the current week |
+| Monthly Revenue | Sum of confirmed payments in the current month |
+| Yearly Revenue | Sum of confirmed payments in the current year |
+
+#### Charts
+- **Monthly Revenue Trend** — Bar chart, 12-month view with time toggle
+- **Legend:** Services Revenue, Products Revenue
+
+#### Revenue Breakdown (2-column grid)
+| Section | Content |
+| --- | --- |
+| Revenue by Services | Top services ranked by revenue with horizontal progress bars and amounts |
+| Revenue by Products | Top products ranked by revenue with horizontal progress bars and amounts |
+
+### 23.10 Interactive Drill-down Rules
+
+- Every KPI card is clickable; clicking opens the corresponding detail report filtered by the card's metric.
+- Chart segments (pie slices, bar sections) support drill-down to filtered views.
+- Drill-down examples:
+  - "Completed Orders" KPI → Orders Report filtered to Completed status
+  - "Revenue" KPI → Revenue Reports Detail
+  - Pie chart "Pending" segment → Booking list filtered to Pending status
+
+### 23.11 Business Rules
+
+| # | Rule |
+| --- | --- |
+| BR-R01 | Reports are **read-only**. No report may create, update, or delete business data. |
+| BR-R02 | All report values must be **calculated from existing system records** at query time. |
+| BR-R03 | Reports must adapt based on the logged-in user's role (see §23.2). |
+| BR-R04 | Date range selection applies globally to all KPI cards and charts on the current view. |
+| BR-R05 | Export generates a snapshot of the current filtered view only. |
+| BR-R06 | No new business features are introduced by this module. |
+
+### 23.12 Global Report Search
+
+A search bar is placed at the top of the Reports Dashboard allowing users to search across all reports.
+
+**Searchable dimensions:**
+- Report name (e.g., "Revenue Reports", "Booking Reports")
+- Customer name
+- Booking ID / reference
+- Order ID / reference
+- Payment ID / reference
+- Revenue category
+- Date
+
+**Behaviour:**
+- As the user types, a dropdown shows matching suggestions with a type badge (Report, Revenue, Payment, etc.).
+- Selecting a suggestion navigates directly to the matching report detail view.
+- Search is read-only and does not modify any data.
+
+### 23.13 Saved Filters
+
+Users can save frequently used report filter combinations for quick access.
+
+**Display:**
+- A row of saved filter chips appears below the search bar on the dashboard.
+- Each chip shows a star icon and the filter name.
+- A "+ Save Current Filter" button allows saving the current date range + report selection.
+
+**Examples:**
+| Filter Name | Description |
+| --- | --- |
+| Manager Monthly Review | This Month, all report categories |
+| Finance Weekly Report | Last 7 Days, Payment + Revenue reports |
+| Revenue This Month | This Month, Revenue Reports only |
+
+**Rules:**
+- Saved filters are **user-specific** (stored per user account).
+- Clicking a saved filter chip applies its settings immediately.
+- Filters are read-only shortcuts; they do not modify business data.
+
+### 23.14 Empty State
+
+Whenever a report has no matching data for the selected date range or filters, a professional empty state is displayed.
+
+**Components:**
+| Element | Description |
+| --- | --- |
+| Icon | A chart/graph icon in a rounded container with subtle gradient background |
+| Heading | "No data available" |
+| Description | "There are no [entity] records matching the selected date range. Try another date range or adjust your filters." |
+| Action | "← Change Date Range" button |
+
+**Rules:**
+- KPI cards show "0" or "—" values with muted colour.
+- Charts show the empty state in place of the visualisation.
+- Tables show the empty state in place of rows.
+- The empty state never suggests the system is broken — it conveys that the filter simply returned no results.
+
+### 23.15 Last Generated
+
+Every report detail page displays a read-only "Last Generated" indicator.
+
+**Display:** A subtle chip showing:
+- Label: "Last Generated"
+- Date: e.g., "15 Jul 2026"
+- Time: e.g., "10:42 AM"
+
+**Rules:**
+- Positioned at the top of the content area, above KPI cards.
+- Read-only — no user interaction.
+- Timestamp reflects when the report data was last computed/refreshed.
+
+### 23.16 Report Summary
+
+At the bottom of every report detail view, a computed summary section is displayed.
+
+**Layout:** A card with a 4-column grid of summary items.
+
+**Each item contains:**
+| Element | Description |
+| --- | --- |
+| Metric label | e.g., "Revenue Trend", "Top Service", "Completion Rate" |
+| Value | The computed result, colour-coded (green for positive, red for negative) |
+| Detail | Additional context (e.g., "vs last month", "$28,400 revenue") |
+
+**Badge:** "Auto-generated" — indicates the summary is computed from report data, not AI-generated.
+
+**Example summaries per report:**
+| Report | Summary Items |
+| --- | --- |
+| Revenue | Revenue Trend, Top Service, Top Product, Growth Rate |
+| Customer | Customer Growth, New Registrations, Top Customer, Active Rate |
+| Booking | Bookings Trend, Completion Rate, Cancellation Rate, Avg Completion |
+| Quotation | Quotations Trend, Conversion Rate, Expired Rate, Active Discussions |
+| Order | Orders Trend, Completion Rate, Avg Order Value, Cancellations |
+| Payment | Payments Trend, Confirmation Rate, Failed Rate, Refund Rate |
+
+**Rules:**
+- All values are calculated from existing report data only. No AI or external data.
+- Read-only — no user interaction.
+
+### 23.17 Dashboard Favorites
+
+Admin users can pin favourite reports to the top of the Reports Dashboard.
+
+**Display:**
+- A "Pinned Reports" section appears above the KPI cards.
+- Shows a label with pin icon and a count badge (e.g., "3 pinned").
+- Each pinned report is displayed as a card with: star icon, report name, subtitle (sub-metrics).
+- An "Unpin" action appears on hover.
+
+**Examples:**
+| Pinned Report | Subtitle |
+| --- | --- |
+| Revenue Reports | Revenue Today · Weekly · Monthly · Yearly |
+| Payment Reports | Total · Confirmed · Pending · Failed |
+| Booking Reports | Total · Completed · Cancelled · Pending |
+
+**Rules:**
+- Pinned reports appear first on the dashboard for quick access.
+- Clicking a pinned card navigates to the corresponding report detail.
+- Pinning is user-specific (Admin only).
+- This is a convenience feature — no business data is modified.
+
+### 23.18 Responsive Behaviour
+
+| Breakpoint | Layout Changes |
+| --- | --- |
+| > 1200 px | 6-column KPI row, 3-column category grid, 2-column chart row, 4-column summary |
+| 768–1200 px | 3-column KPI row, 2-column category grid, single-column charts, 2-column summary |
+| < 768 px | Single-column KPI, single-column categories, stacked charts, single-column summary |
+
+### 23.19 Design Preview Reference
+
+`design-previews/admin-reports-analytics-v1.html` — contains 10 visual flows:
+1. Reports Dashboard (Admin full access + Search + Saved Filters + Favorites)
+2. Revenue Reports Detail (drill-down + Last Generated + Report Summary)
+3. Customer Reports Detail (drill-down + Last Generated + Report Summary)
+4. Booking Reports Detail (drill-down + Last Generated + Report Summary)
+5. Quotation Reports Detail (drill-down + Last Generated + Report Summary)
+6. Order Reports Detail (drill-down + Last Generated + Report Summary)
+7. Payment Reports Detail (drill-down + Last Generated + Report Summary)
+8. Sales Role view (limited access)
+9. Accountant Role view (financial access)
+10. Empty State (no data available)
+
+---
+
 ## Document Control
 
 | Item | Value |

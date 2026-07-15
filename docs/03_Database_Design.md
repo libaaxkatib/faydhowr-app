@@ -2021,6 +2021,83 @@ without redesigning the core entity relationships defined in this document.
 
 ---
 
+## Reports & Analytics — Database Design Notes
+
+### No New Tables Required
+
+The Reports & Analytics Module is a **read-only aggregation layer**. All report values are calculated at query time from existing system tables. No new database tables, columns, or relationships are introduced by this module.
+
+### Source Tables for Each Report Category
+
+| Report Category | Primary Source Table(s) | Key Columns / Aggregations |
+| --- | --- | --- |
+| Customer Reports | `customers` | `COUNT(*)`, `created_at` for growth, `SUM(total_spent)` for top customers |
+| Booking Reports | `bookings` | `COUNT(*)` by status, `AVG(completed_at - created_at)` for avg completion time |
+| Quotation Reports | `quotation_requests` | `COUNT(*)` by status, `COUNT(accepted) / COUNT(total)` for conversion rate |
+| Order Reports | `orders` | `COUNT(*)` by status, `AVG(total_amount)` for avg order value |
+| Payment Reports | `payments` | `COUNT(*)` by status |
+| Revenue Reports | `payments` (status = 'Confirmed') | `SUM(amount)` grouped by time period; `JOIN` with `order_items` and `services`/`products` for revenue by category |
+
+### Date Range Filtering
+
+All queries apply a `WHERE created_at BETWEEN :start_date AND :end_date` filter based on the user's selected date range. Trend comparisons use the same-length prior period (e.g., if "Last 7 Days" is selected, the trend compares to the 7 days before that).
+
+### Role-Based Query Scoping
+
+No database-level row filtering is needed for role-based access. The API layer determines which report endpoints a role can call:
+- **Admin**: all endpoints
+- **Sales**: `/reports/customers`, `/reports/bookings`, `/reports/quotations`, `/reports/orders`
+- **Accountant**: `/reports/payments`, `/reports/revenue`
+
+Unauthorized requests return `403 Forbidden` at the API level.
+
+### User Preference Tables (Refinements)
+
+Two lightweight tables are introduced for user-specific report preferences. These do **not** store business data — only UI convenience settings.
+
+#### `saved_report_filters`
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| `id` | BIGINT | PK, auto-increment | Unique filter ID |
+| `user_id` | BIGINT | FK → `users.id`, NOT NULL | Owner of the saved filter |
+| `name` | VARCHAR(100) | NOT NULL | Display name (e.g., "Manager Monthly Review") |
+| `filter_config` | JSON | NOT NULL | Serialised filter settings (date range, report category, etc.) |
+| `created_at` | TIMESTAMP | NOT NULL | When the filter was saved |
+| `updated_at` | TIMESTAMP | NOT NULL | Last modified |
+
+#### `pinned_reports`
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| `id` | BIGINT | PK, auto-increment | Unique pin ID |
+| `user_id` | BIGINT | FK → `users.id`, NOT NULL | Owner of the pin (Admin only) |
+| `report_category` | VARCHAR(50) | NOT NULL | e.g., "revenue", "payment", "booking" |
+| `pinned_at` | TIMESTAMP | NOT NULL | When the report was pinned |
+
+**Notes:**
+- Both tables are user-specific. A user can only see and manage their own records.
+- `saved_report_filters` stores the filter as a JSON object for flexibility (date range type, custom dates, selected category).
+- `pinned_reports` uses a simple category identifier — no complex relationships.
+- These tables contain no business data and do not affect any existing entity tables.
+
+### UI-Only / Derived Elements (No Database Impact)
+
+| Element | Source |
+| --- | --- |
+| Global Report Search | Queries existing tables based on search terms; no new table needed |
+| Empty State | UI-only rendering when query returns zero rows |
+| Last Generated | Timestamp of the API response; can be derived from query execution time or a simple cache timestamp |
+| Report Summary | Computed at query time from the same aggregation queries that power KPI cards |
+
+### Performance Considerations
+
+- Reports on large datasets should use indexed columns (`created_at`, `status`, `customer_id`).
+- Materialised views or caching may be added in future optimisation phases but are **not required** at this stage.
+- No reporting-specific denormalised tables are introduced (except the two user-preference tables above).
+
+---
+
 ## Document Control
 
 | Item | Value |

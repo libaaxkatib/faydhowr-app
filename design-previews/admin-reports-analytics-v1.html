@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fayadhowr — Admin Reports &amp; Analytics V1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #0E339D; --teal: #0694AC; --bg: #F4F7FB; --surface: #FFF;
+      --text: #1F2937; --muted: #6B7280; --border: #E5E7EB;
+      --shadow: 0 8px 24px rgba(15,23,42,.06); --radius: 16px;
+      --sidebar-w: 248px; --ok: #059669; --warn: #D97706; --danger: #DC2626;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:"Plus Jakarta Sans",system-ui,sans-serif;color:var(--text);
+      background:linear-gradient(165deg,#DCE6F8 0%,#E8F4F7 45%,#EEF2F7 100%);padding:32px 24px 72px}
+    .board-title{max-width:1480px;margin:0 auto 24px}
+    .board-title h1{font-size:28px;font-weight:700;letter-spacing:-.03em;color:var(--primary)}
+    .board-title p{margin-top:8px;font-size:14px;color:var(--muted);max-width:1020px;line-height:1.5}
+    .flow-label{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+      color:var(--primary);margin:40px auto 14px;max-width:1480px}
+
+    /* Shell */
+    .shell{max-width:1480px;margin:0 auto;min-height:920px;
+      display:grid;grid-template-columns:var(--sidebar-w) 1fr;
+      background:var(--bg);border-radius:24px;overflow:hidden;
+      box-shadow:0 32px 64px rgba(14,51,157,.12);border:1px solid rgba(14,51,157,.08)}
+    .sidebar{background:linear-gradient(180deg,#0A2778 0%,#0E339D 55%,#0C4A6E 140%);
+      color:#fff;padding:24px 14px;display:flex;flex-direction:column;gap:2px}
+    .brand{display:flex;align-items:center;gap:12px;padding:4px 10px 20px}
+    .brand-mark{width:40px;height:40px;border-radius:12px;
+      background:linear-gradient(135deg,#0694AC,#38BDF8);display:grid;place-items:center;font-weight:800;font-size:14px}
+    .brand-text .name{font-size:15px;font-weight:700}
+    .brand-text .sub{font-size:11px;opacity:.7;margin-top:2px}
+    .nav-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.5;padding:14px 12px 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;
+      font-size:13px;font-weight:600;color:rgba(255,255,255,.8)}
+    .nav-item .ico{width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.1);
+      display:grid;place-items:center;font-size:11px;flex-shrink:0}
+    .nav-item.active{background:rgba(255,255,255,.14);color:#fff}
+    .nav-item.active .ico{background:var(--teal)}
+    .sidebar-foot{margin-top:auto;padding:14px 8px 4px;border-top:1px solid rgba(255,255,255,.12)}
+    .admin-chip{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:rgba(255,255,255,.08)}
+    .admin-av{width:36px;height:36px;border-radius:10px;background:var(--teal);
+      display:grid;place-items:center;font-size:12px;font-weight:800}
+    .admin-chip .n{font-size:13px;font-weight:700}
+    .admin-chip .r{font-size:11px;opacity:.7;margin-top:2px}
+
+    /* Main */
+    .main{display:flex;flex-direction:column;min-width:0}
+    .topbar{min-height:72px;background:var(--surface);border-bottom:1px solid var(--border);
+      padding:12px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .topbar h2{font-size:18px;font-weight:700;letter-spacing:-.02em}
+    .crumb{font-size:12px;color:var(--muted);font-weight:500;margin-top:2px}
+    .top-actions{display:flex;align-items:center;gap:10px}
+    .icon-btn{width:42px;height:42px;border-radius:12px;background:var(--bg);
+      border:1px solid var(--border);display:grid;place-items:center;color:var(--primary);font-weight:700}
+    .content{padding:20px 24px 28px;display:flex;flex-direction:column;gap:16px}
+
+    /* Role badge */
+    .role-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .role-badge{height:30px;padding:0 12px;border-radius:10px;font-size:11px;font-weight:700;
+      display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--primary);
+      background:rgba(14,51,157,.06);color:var(--primary)}
+    .role-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+
+    /* Date range */
+    .dr-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+    .dr-chip{height:32px;padding:0 12px;border-radius:10px;border:1px solid var(--border);
+      background:#fff;font-size:11px;font-weight:700;color:var(--text);
+      display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+    .dr-chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+    .dr-chip:hover{border-color:rgba(14,51,157,.35)}
+
+    /* Export bar */
+    .export-bar{display:flex;gap:8px;margin-left:auto}
+    .btn{height:44px;padding:0 16px;border-radius:12px;font-size:13px;font-weight:700;
+      display:inline-flex;align-items:center;gap:8px;border:none;cursor:pointer}
+    .btn-primary{background:linear-gradient(135deg,#0E339D,#1246C4);color:#fff;
+      box-shadow:0 8px 18px rgba(14,51,157,.28)}
+    .btn-ghost{background:rgba(14,51,157,.06);color:var(--primary)}
+    .btn-sm{height:34px;padding:0 12px;font-size:12px;border-radius:10px}
+
+    /* KPI row */
+    .kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+    .kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+      box-shadow:var(--shadow);padding:16px 18px;cursor:pointer;transition:border-color .15s}
+    .kpi:hover{border-color:rgba(14,51,157,.35)}
+    .kpi .label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+    .kpi .val{font-size:24px;font-weight:800;color:var(--primary);margin-top:6px}
+    .kpi .val.ok{color:var(--ok)} .kpi .val.warn{color:var(--warn)} .kpi .val.teal{color:var(--teal)}
+    .kpi .trend{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;margin-top:6px;
+      padding:2px 8px;border-radius:6px}
+    .trend.up{background:rgba(5,150,105,.1);color:var(--ok)}
+    .trend.down{background:rgba(220,38,38,.1);color:var(--danger)}
+    .kpi .drill{font-size:10px;font-weight:600;color:var(--primary);margin-top:8px;opacity:.7}
+
+    /* Chart cards */
+    .chart-row{display:grid;grid-template-columns:1.6fr 1fr;gap:16px}
+    .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+      box-shadow:var(--shadow);padding:18px 20px}
+    .chart-card h3{font-size:13px;font-weight:700;margin-bottom:14px;
+      display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .chart-card h3 span{font-size:11px;font-weight:500;color:var(--muted)}
+    .chart-tabs{display:flex;gap:4px;margin-bottom:14px}
+    .ct{height:28px;padding:0 10px;border-radius:8px;font-size:10px;font-weight:700;
+      border:1px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;
+      display:inline-flex;align-items:center}
+    .ct.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+    /* Placeholder chart area */
+    .chart-area{width:100%;border-radius:12px;overflow:hidden;position:relative}
+    .chart-area canvas{display:block;width:100%!important;height:auto!important}
+    .chart-placeholder{width:100%;height:220px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(14,51,157,.03),rgba(6,148,172,.05));
+      display:flex;align-items:flex-end;padding:16px 12px 12px;gap:6px}
+    .bar{flex:1;border-radius:6px 6px 0 0;background:linear-gradient(180deg,var(--primary),rgba(14,51,157,.6));
+      transition:height .3s}
+    .pie-placeholder{width:100%;height:220px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(14,51,157,.03),rgba(6,148,172,.05));
+      display:flex;align-items:center;justify-content:center}
+    .pie-ring{width:160px;height:160px;border-radius:50%;
+      background:conic-gradient(var(--primary) 0% 38%,var(--teal) 38% 62%,var(--ok) 62% 78%,var(--warn) 78% 90%,var(--border) 90% 100%);
+      display:grid;place-items:center}
+    .pie-center{width:90px;height:90px;border-radius:50%;background:var(--surface);
+      display:grid;place-items:center;font-size:18px;font-weight:800;color:var(--primary)}
+    .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+    .legend-item{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--muted)}
+    .legend-dot{width:10px;height:10px;border-radius:3px}
+
+    /* Report category cards */
+    .cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    .cat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+      box-shadow:var(--shadow);padding:20px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+    .cat-card:hover{border-color:rgba(14,51,157,.35);box-shadow:0 12px 32px rgba(14,51,157,.12)}
+    .cat-card::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;
+      background:linear-gradient(90deg,var(--primary),var(--teal))}
+    .cat-ico{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;
+      font-size:18px;font-weight:800;color:#fff;margin-bottom:14px}
+    .cat-ico.cus{background:linear-gradient(135deg,#0E339D,#1246C4)}
+    .cat-ico.bk{background:linear-gradient(135deg,#0694AC,#38BDF8)}
+    .cat-ico.qt{background:linear-gradient(135deg,#7C3AED,#A78BFA)}
+    .cat-ico.ord{background:linear-gradient(135deg,#0E7490,#06B6D4)}
+    .cat-ico.pay{background:linear-gradient(135deg,#059669,#34D399)}
+    .cat-ico.rev{background:linear-gradient(135deg,#D97706,#FBBF24)}
+    .cat-card h4{font-size:15px;font-weight:800;letter-spacing:-.02em}
+    .cat-card p{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.45}
+    .cat-metrics{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+    .cat-met{height:24px;padding:0 10px;border-radius:8px;font-size:10px;font-weight:700;
+      background:rgba(14,51,157,.06);color:var(--primary);display:inline-flex;align-items:center}
+    .cat-card .chev{position:absolute;top:20px;right:18px;color:var(--muted);font-weight:700;font-size:16px}
+    .cat-role{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;
+      color:var(--muted);margin-top:10px}
+    .cat-role .r-dot{width:6px;height:6px;border-radius:50%}
+    .r-admin{background:var(--primary)} .r-sales{background:var(--teal)} .r-acct{background:var(--ok)}
+
+    /* Detail report table */
+    .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+      box-shadow:var(--shadow);overflow:hidden}
+    .table-wrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;min-width:900px}
+    th{text-align:left;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+      letter-spacing:.04em;padding:14px 16px;background:#F8FAFC;border-bottom:1px solid var(--border)}
+    td{padding:14px 16px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:rgba(14,51,157,.03)}
+    .name{font-weight:700}
+    .muted{color:var(--muted)}
+    .amt{font-weight:700;white-space:nowrap}
+    .pill{display:inline-flex;align-items:center;height:24px;padding:0 10px;
+      border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+    .p-ok{background:rgba(5,150,105,.12);color:var(--ok)}
+    .p-warn{background:rgba(245,158,11,.14);color:#B45309}
+    .p-blue{background:rgba(14,51,157,.1);color:var(--primary)}
+    .table-foot{display:flex;align-items:center;justify-content:space-between;
+      padding:12px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+
+    /* Revenue breakdown */
+    .rev-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .rev-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+      box-shadow:var(--shadow);padding:16px 18px}
+    .rev-card h3{font-size:13px;font-weight:700;margin-bottom:12px}
+    .rev-row{display:flex;align-items:center;justify-content:space-between;
+      padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+    .rev-row:last-child{border-bottom:none}
+    .rev-row .rn{font-weight:600} .rev-row .rv{font-weight:800;color:var(--primary)}
+    .rev-bar-bg{flex:1;max-width:120px;height:8px;border-radius:4px;background:var(--border);margin:0 12px}
+    .rev-bar-fg{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--primary),var(--teal))}
+
+    /* Global Report Search */
+    .search-bar{display:flex;align-items:center;gap:10px;background:var(--surface);
+      border:1.5px solid var(--border);border-radius:14px;padding:0 16px;height:48px;
+      box-shadow:0 4px 12px rgba(15,23,42,.04);transition:border-color .15s;flex:1;max-width:520px}
+    .search-bar:focus-within{border-color:var(--primary)}
+    .search-bar .s-ico{font-size:16px;color:var(--muted);flex-shrink:0}
+    .search-bar input{border:none;outline:none;font-family:inherit;font-size:13px;font-weight:500;
+      background:transparent;color:var(--text);width:100%}
+    .search-bar input::placeholder{color:var(--muted);font-weight:500}
+    .search-suggest{position:absolute;top:calc(100% + 6px);left:0;right:0;
+      background:var(--surface);border:1px solid var(--border);border-radius:14px;
+      box-shadow:0 16px 40px rgba(15,23,42,.12);padding:8px;z-index:10;display:none}
+    .search-bar-wrap{position:relative;flex:1;max-width:520px}
+    .search-bar-wrap.show .search-suggest{display:block}
+    .ss-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
+      font-size:13px;font-weight:600;cursor:pointer}
+    .ss-item:hover{background:rgba(14,51,157,.05)}
+    .ss-item .ss-type{font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;
+      background:rgba(14,51,157,.08);color:var(--primary);text-transform:uppercase;white-space:nowrap}
+
+    /* Saved Filters */
+    .saved-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .sf-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+    .sf-chip{height:30px;padding:0 12px;border-radius:10px;font-size:11px;font-weight:700;
+      background:rgba(14,51,157,.06);color:var(--primary);display:inline-flex;align-items:center;gap:6px;
+      border:1px solid rgba(14,51,157,.12);cursor:pointer;transition:all .15s}
+    .sf-chip:hover{border-color:var(--primary);background:rgba(14,51,157,.1)}
+    .sf-chip .sf-star{color:var(--warn)}
+    .sf-add{height:30px;padding:0 10px;border-radius:10px;font-size:11px;font-weight:700;
+      background:transparent;color:var(--muted);display:inline-flex;align-items:center;gap:4px;
+      border:1px dashed var(--border);cursor:pointer}
+    .sf-add:hover{border-color:var(--primary);color:var(--primary)}
+
+    /* Empty State */
+    .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:60px 24px;text-align:center}
+    .empty-ico{width:80px;height:80px;border-radius:20px;
+      background:linear-gradient(135deg,rgba(14,51,157,.06),rgba(6,148,172,.08));
+      display:grid;place-items:center;font-size:32px;margin-bottom:20px}
+    .empty-state h4{font-size:16px;font-weight:800;letter-spacing:-.02em;color:var(--text)}
+    .empty-state p{font-size:13px;color:var(--muted);margin-top:6px;max-width:280px;line-height:1.5}
+    .empty-state .btn{margin-top:16px}
+
+    /* Last Generated */
+    .last-gen{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:600;
+      color:var(--muted);padding:6px 12px;border-radius:10px;background:rgba(14,51,157,.04);
+      border:1px solid rgba(14,51,157,.08)}
+    .last-gen .lg-label{font-weight:700;color:var(--text)}
+
+    /* Report Summary */
+    .report-summary{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+      box-shadow:var(--shadow);padding:20px 24px}
+    .report-summary h4{font-size:13px;font-weight:800;letter-spacing:-.01em;margin-bottom:14px;
+      display:flex;align-items:center;gap:8px}
+    .report-summary h4 .rs-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;
+      background:rgba(14,51,157,.08);color:var(--primary)}
+    .rs-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .rs-item{padding:14px;border-radius:12px;background:var(--bg);border:1px solid var(--border)}
+    .rs-item .rs-metric{font-size:11px;font-weight:600;color:var(--muted)}
+    .rs-item .rs-val{font-size:15px;font-weight:800;margin-top:4px}
+    .rs-item .rs-val.rs-up{color:var(--ok)} .rs-item .rs-val.rs-down{color:var(--danger)}
+    .rs-item .rs-detail{font-size:10px;font-weight:600;color:var(--muted);margin-top:4px}
+
+    /* Dashboard Favorites */
+    .fav-section{display:flex;flex-direction:column;gap:10px}
+    .fav-label{font-size:12px;font-weight:800;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+    .fav-label .fav-count{font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;
+      background:rgba(217,119,6,.12);color:var(--warn)}
+    .fav-row{display:flex;gap:12px;flex-wrap:wrap}
+    .fav-card{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:14px;
+      background:var(--surface);border:1.5px solid rgba(217,119,6,.25);
+      box-shadow:0 4px 12px rgba(217,119,6,.06);cursor:pointer;transition:all .15s;position:relative}
+    .fav-card:hover{border-color:var(--warn);box-shadow:0 8px 20px rgba(217,119,6,.12)}
+    .fav-card .fav-star{font-size:14px;color:var(--warn)}
+    .fav-card .fav-name{font-size:13px;font-weight:700}
+    .fav-card .fav-sub{font-size:11px;color:var(--muted);font-weight:500}
+    .fav-card .fav-unpin{position:absolute;top:8px;right:10px;font-size:10px;font-weight:700;
+      color:var(--muted);cursor:pointer;opacity:0;transition:opacity .15s}
+    .fav-card:hover .fav-unpin{opacity:1}
+
+    @media(max-width:1200px){
+      .kpi-row{grid-template-columns:repeat(3,1fr)}
+      .chart-row,.rev-grid{grid-template-columns:1fr}
+      .cat-grid{grid-template-columns:1fr 1fr}
+      .rs-grid{grid-template-columns:repeat(2,1fr)}
+      .search-bar-wrap{max-width:100%}
+    }
+    @media(max-width:768px){
+      .kpi-row,.cat-grid,.rs-grid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="board-title">
+    <h1>Reports &amp; Analytics Module — V1</h1>
+    <p>
+      Reports Dashboard · KPI Cards · Interactive Charts · Report Categories · Drill-down · Export.
+      Role-based access: <strong>Admin</strong> (full), <strong>Sales</strong> (Customer/Booking/Quotation/Order/Sales),
+      <strong>Accountant</strong> (Payment/Revenue/Financial). All reports are <strong>read-only</strong> — no report may modify business data.
+      <strong>Refinements:</strong> Global Report Search · Saved Filters · Empty State · Last Generated · Report Summary · Dashboard Favorites.
+      Auth, Customer App, Dashboard, Customers, Bookings, Quotations, Orders, and Payments unchanged.
+    </p>
+  </div>
+
+  <!-- ==================== REPORTS DASHBOARD ==================== -->
+  <div class="flow-label">1 · Reports Dashboard</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">FD</div>
+        <div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div>
+      </div>
+      <div class="nav-label">Overview</div>
+      <div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div>
+      <div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div>
+      <div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div>
+      <div class="nav-item"><div class="ico">INV</div> Invoices</div>
+      <div class="nav-item"><div class="ico">RCP</div> Receipts</div>
+      <div class="nav-item active"><div class="ico">▤</div> Reports</div>
+      <div class="nav-label">Catalog</div>
+      <div class="nav-item"><div class="ico">✦</div> Services</div>
+      <div class="nav-item"><div class="ico">▦</div> Store</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item"><div class="ico">bell</div> Notifications</div>
+      <div class="nav-item"><div class="ico">⚙</div> Settings</div>
+      <div class="nav-item"><div class="ico">⌘</div> Audit / Logs</div>
+      <div class="sidebar-foot">
+        <div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <h2>Reports &amp; Analytics</h2>
+          <div class="crumb">KPI overview · Charts · Report categories · Drill-down · Export</div>
+        </div>
+        <div class="top-actions">
+          <div class="role-bar">
+            <div class="role-badge"><div class="dot"></div> Admin · Full Access</div>
+          </div>
+          <div class="icon-btn">🔔</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <!-- Global Report Search + Saved Filters -->
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div class="search-bar-wrap show">
+            <div class="search-bar">
+              <div class="s-ico">🔍</div>
+              <input type="text" placeholder="Search reports by name, customer, booking, order, payment, revenue, date..." value="Revenue" />
+            </div>
+            <div class="search-suggest">
+              <div class="ss-item"><div class="ss-type">Report</div> Revenue Reports</div>
+              <div class="ss-item"><div class="ss-type">Revenue</div> Revenue by Services</div>
+              <div class="ss-item"><div class="ss-type">Revenue</div> Revenue by Products</div>
+              <div class="ss-item"><div class="ss-type">Payment</div> Payment Reports — Revenue related</div>
+            </div>
+          </div>
+          <div class="saved-filters">
+            <div class="sf-label">Saved</div>
+            <div class="sf-chip"><span class="sf-star">⭐</span> Manager Monthly Review</div>
+            <div class="sf-chip"><span class="sf-star">⭐</span> Finance Weekly Report</div>
+            <div class="sf-chip"><span class="sf-star">⭐</span> Revenue This Month</div>
+            <div class="sf-add">+ Save Current Filter</div>
+          </div>
+        </div>
+
+        <!-- Date Range + Export -->
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div class="dr-bar">
+            <div class="dr-chip">Today</div>
+            <div class="dr-chip">Yesterday</div>
+            <div class="dr-chip on">Last 7 Days</div>
+            <div class="dr-chip">Last 30 Days</div>
+            <div class="dr-chip">This Month</div>
+            <div class="dr-chip">Last Month</div>
+            <div class="dr-chip">Custom ▾</div>
+          </div>
+          <div class="export-bar">
+            <div class="btn btn-ghost btn-sm">📄 Export PDF</div>
+            <div class="btn btn-ghost btn-sm">📊 Export Excel</div>
+            <div class="btn btn-ghost btn-sm">🖨️ Print</div>
+          </div>
+        </div>
+
+        <!-- Dashboard Favorites (Admin only) -->
+        <div class="fav-section">
+          <div class="fav-label">📌 Pinned Reports <div class="fav-count">3 pinned</div></div>
+          <div class="fav-row">
+            <div class="fav-card">
+              <div class="fav-star">⭐</div>
+              <div><div class="fav-name">Revenue Reports</div><div class="fav-sub">Revenue Today · Weekly · Monthly · Yearly</div></div>
+              <div class="fav-unpin">✕ Unpin</div>
+            </div>
+            <div class="fav-card">
+              <div class="fav-star">⭐</div>
+              <div><div class="fav-name">Payment Reports</div><div class="fav-sub">Total · Confirmed · Pending · Failed</div></div>
+              <div class="fav-unpin">✕ Unpin</div>
+            </div>
+            <div class="fav-card">
+              <div class="fav-star">⭐</div>
+              <div><div class="fav-name">Booking Reports</div><div class="fav-sub">Total · Completed · Cancelled · Pending</div></div>
+              <div class="fav-unpin">✕ Unpin</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="kpi-row">
+          <div class="kpi">
+            <div class="label">Total Customers</div>
+            <div class="val">1,842</div>
+            <div class="trend up">↑ 12% vs last period</div>
+            <div class="drill">Click to drill down →</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Active Bookings</div>
+            <div class="val teal">347</div>
+            <div class="trend up">↑ 8% vs last period</div>
+            <div class="drill">Click to drill down →</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Pending Quotations</div>
+            <div class="val warn">89</div>
+            <div class="trend down">↓ 3% vs last period</div>
+            <div class="drill">Click to drill down →</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Orders</div>
+            <div class="val">1,340</div>
+            <div class="trend up">↑ 15% vs last period</div>
+            <div class="drill">Click to drill down →</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Payments</div>
+            <div class="val ok">2,180</div>
+            <div class="trend up">↑ 18% vs last period</div>
+            <div class="drill">Click to drill down →</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Revenue</div>
+            <div class="val ok">$124,650</div>
+            <div class="trend up">↑ 22% vs last period</div>
+            <div class="drill">Click to drill down →</div>
+          </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="chart-row">
+          <div class="chart-card">
+            <h3>Revenue &amp; Orders Trend <span>Last 7 Days · Line / Area</span></h3>
+            <div class="chart-tabs">
+              <div class="ct on">Daily</div>
+              <div class="ct">Weekly</div>
+              <div class="ct">Monthly</div>
+              <div class="ct">Yearly</div>
+            </div>
+            <div class="chart-placeholder">
+              <div class="bar" style="height:45%"></div>
+              <div class="bar" style="height:62%"></div>
+              <div class="bar" style="height:55%"></div>
+              <div class="bar" style="height:78%"></div>
+              <div class="bar" style="height:85%"></div>
+              <div class="bar" style="height:72%"></div>
+              <div class="bar" style="height:92%"></div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--primary)"></div> Revenue</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> Orders</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--ok)"></div> Payments</div>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3>Booking Status <span>Distribution</span></h3>
+            <div class="pie-placeholder">
+              <div class="pie-ring">
+                <div class="pie-center">347</div>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--primary)"></div> Completed 38%</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> In Progress 24%</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--ok)"></div> Scheduled 16%</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--warn)"></div> Pending 12%</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--border)"></div> Other 10%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Report Categories -->
+        <h3 style="font-size:16px;font-weight:800;letter-spacing:-.02em;margin-top:4px;">Report Categories</h3>
+        <div class="cat-grid">
+          <div class="cat-card">
+            <div class="cat-ico cus">☺</div>
+            <h4>Customer Reports</h4>
+            <p>New customers, active customers, leads, customer growth, top customers by total spent.</p>
+            <div class="cat-metrics">
+              <div class="cat-met">New Customers</div>
+              <div class="cat-met">Active</div>
+              <div class="cat-met">Leads</div>
+              <div class="cat-met">Growth</div>
+              <div class="cat-met">Top Customers</div>
+            </div>
+            <div class="cat-role"><div class="r-dot r-admin"></div> Admin <div class="r-dot r-sales" style="margin-left:6px"></div> Sales</div>
+            <div class="chev">›</div>
+          </div>
+
+          <div class="cat-card">
+            <div class="cat-ico bk">BK</div>
+            <h4>Booking Reports</h4>
+            <p>Total bookings, completed, cancelled, pending, average completion time.</p>
+            <div class="cat-metrics">
+              <div class="cat-met">Total</div>
+              <div class="cat-met">Completed</div>
+              <div class="cat-met">Cancelled</div>
+              <div class="cat-met">Pending</div>
+              <div class="cat-met">Avg Time</div>
+            </div>
+            <div class="cat-role"><div class="r-dot r-admin"></div> Admin <div class="r-dot r-sales" style="margin-left:6px"></div> Sales</div>
+            <div class="chev">›</div>
+          </div>
+
+          <div class="cat-card">
+            <div class="cat-ico qt">QT</div>
+            <h4>Quotation Reports</h4>
+            <p>Total quotations, accepted, under discussion, expired, conversion rate.</p>
+            <div class="cat-metrics">
+              <div class="cat-met">Total</div>
+              <div class="cat-met">Accepted</div>
+              <div class="cat-met">Discussion</div>
+              <div class="cat-met">Expired</div>
+              <div class="cat-met">Conversion</div>
+            </div>
+            <div class="cat-role"><div class="r-dot r-admin"></div> Admin <div class="r-dot r-sales" style="margin-left:6px"></div> Sales</div>
+            <div class="chev">›</div>
+          </div>
+
+          <div class="cat-card">
+            <div class="cat-ico ord">ORD</div>
+            <h4>Order Reports</h4>
+            <p>Total orders, completed, cancelled, average order value.</p>
+            <div class="cat-metrics">
+              <div class="cat-met">Total Orders</div>
+              <div class="cat-met">Completed</div>
+              <div class="cat-met">Cancelled</div>
+              <div class="cat-met">Avg Value</div>
+            </div>
+            <div class="cat-role"><div class="r-dot r-admin"></div> Admin <div class="r-dot r-sales" style="margin-left:6px"></div> Sales</div>
+            <div class="chev">›</div>
+          </div>
+
+          <div class="cat-card">
+            <div class="cat-ico pay">$</div>
+            <h4>Payment Reports</h4>
+            <p>Total payments, confirmed, pending, failed, refunded.</p>
+            <div class="cat-metrics">
+              <div class="cat-met">Total</div>
+              <div class="cat-met">Confirmed</div>
+              <div class="cat-met">Pending</div>
+              <div class="cat-met">Failed</div>
+              <div class="cat-met">Refunded</div>
+            </div>
+            <div class="cat-role"><div class="r-dot r-admin"></div> Admin <div class="r-dot r-acct" style="margin-left:6px"></div> Accountant</div>
+            <div class="chev">›</div>
+          </div>
+
+          <div class="cat-card">
+            <div class="cat-ico rev">$</div>
+            <h4>Revenue Reports</h4>
+            <p>Revenue today, weekly, monthly, yearly. Revenue by services and products.</p>
+            <div class="cat-metrics">
+              <div class="cat-met">Today</div>
+              <div class="cat-met">Weekly</div>
+              <div class="cat-met">Monthly</div>
+              <div class="cat-met">Yearly</div>
+              <div class="cat-met">By Service</div>
+              <div class="cat-met">By Product</div>
+            </div>
+            <div class="cat-role"><div class="r-dot r-admin"></div> Admin <div class="r-dot r-acct" style="margin-left:6px"></div> Accountant</div>
+            <div class="chev">›</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== REPORT DETAIL (Revenue) ==================== -->
+  <div class="flow-label">2 · Report Detail — Revenue Reports (Example Drill-down)</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">FD</div>
+        <div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div>
+      </div>
+      <div class="nav-label">Overview</div>
+      <div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div>
+      <div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div>
+      <div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div>
+      <div class="nav-item active"><div class="ico">▤</div> Reports</div>
+      <div class="sidebar-foot">
+        <div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <div style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--primary);
+            padding:4px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer">← Reports</div>
+          <h2 style="margin-top:8px;">Revenue Reports</h2>
+          <div class="crumb">Revenue Today · Weekly · Monthly · Yearly · By Service · By Product</div>
+        </div>
+        <div class="top-actions">
+          <div class="dr-bar">
+            <div class="dr-chip on">This Month</div>
+            <div class="dr-chip">Last Month</div>
+            <div class="dr-chip">Custom ▾</div>
+          </div>
+          <div class="export-bar">
+            <div class="btn btn-ghost btn-sm">📄 PDF</div>
+            <div class="btn btn-ghost btn-sm">📊 Excel</div>
+          </div>
+        </div>
+      </header>
+
+      <div class="content">
+        <!-- Last Generated -->
+        <div class="last-gen"><span class="lg-label">Last Generated</span> 15 Jul 2026 · 10:42 AM</div>
+
+        <!-- Revenue KPIs -->
+        <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+          <div class="kpi">
+            <div class="label">Revenue Today</div>
+            <div class="val ok">$3,240</div>
+            <div class="trend up">↑ 18% vs yesterday</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Weekly Revenue</div>
+            <div class="val ok">$18,920</div>
+            <div class="trend up">↑ 12% vs last week</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Monthly Revenue</div>
+            <div class="val">$68,450</div>
+            <div class="trend up">↑ 22% vs last month</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Yearly Revenue</div>
+            <div class="val">$124,650</div>
+            <div class="trend up">↑ 35% YoY</div>
+          </div>
+        </div>
+
+        <!-- Revenue chart -->
+        <div class="chart-card">
+          <h3>Monthly Revenue Trend <span>Jul 2025 – Jul 2026</span></h3>
+          <div class="chart-tabs">
+            <div class="ct">Daily</div>
+            <div class="ct">Weekly</div>
+            <div class="ct on">Monthly</div>
+            <div class="ct">Yearly</div>
+          </div>
+          <div class="chart-placeholder" style="height:200px">
+            <div class="bar" style="height:30%"></div>
+            <div class="bar" style="height:35%"></div>
+            <div class="bar" style="height:42%"></div>
+            <div class="bar" style="height:38%"></div>
+            <div class="bar" style="height:50%"></div>
+            <div class="bar" style="height:55%"></div>
+            <div class="bar" style="height:48%"></div>
+            <div class="bar" style="height:62%"></div>
+            <div class="bar" style="height:70%"></div>
+            <div class="bar" style="height:75%"></div>
+            <div class="bar" style="height:82%"></div>
+            <div class="bar" style="height:92%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.6))"></div>
+          </div>
+          <div class="legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--primary)"></div> Services Revenue</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--ok)"></div> Products Revenue (current)</div>
+          </div>
+        </div>
+
+        <!-- Revenue by Service + Product -->
+        <div class="rev-grid">
+          <div class="rev-card">
+            <h3>Revenue by Services</h3>
+            <div class="rev-row">
+              <div class="rn">Deep Home Cleaning</div>
+              <div class="rev-bar-bg"><div class="rev-bar-fg" style="width:92%"></div></div>
+              <div class="rv">$28,400</div>
+            </div>
+            <div class="rev-row">
+              <div class="rn">Carpet Cleaning</div>
+              <div class="rev-bar-bg"><div class="rev-bar-fg" style="width:68%"></div></div>
+              <div class="rv">$18,200</div>
+            </div>
+            <div class="rev-row">
+              <div class="rn">Sofa Cleaning</div>
+              <div class="rev-bar-bg"><div class="rev-bar-fg" style="width:52%"></div></div>
+              <div class="rv">$12,800</div>
+            </div>
+            <div class="rev-row">
+              <div class="rn">Window Cleaning</div>
+              <div class="rev-bar-bg"><div class="rev-bar-fg" style="width:35%"></div></div>
+              <div class="rv">$6,450</div>
+            </div>
+            <div class="rev-row">
+              <div class="rn">Move-out Cleaning</div>
+              <div class="rev-bar-bg"><div class="rev-bar-fg" style="width:28%"></div></div>
+              <div class="rv">$4,200</div>
+            </div>
+          </div>
+
+          <div class="rev-card">
+            <h3>Revenue by Products</h3>
+            <div class="rev-row">
+              <div class="rn">Bulk Cleaning Kit</div>
+              <div class="rev-bar-bg"><div class="rev-bar-fg" style="width:85%;background:linear-gradient(90deg,var(--ok),var(--teal))"></div></div>
+              <div class="rv">$22,600</div>
+            </div>
+            <div class="rev-row">
+              <div class="rn">Commercial Detergent</div>
+              <div class="rev-bar-bg"><div class="rev-bar-fg" style="width:60%;background:linear-gradient(90deg,var(--ok),var(--teal))"></div></div>
+              <div class="rv">$14,300</div>
+            </div>
+            <div class="rev-row">
+              <div class="rn">Floor Polish Set</div>
+              <div class="rev-bar-bg"><div class="rev-bar-fg" style="width:42%;background:linear-gradient(90deg,var(--ok),var(--teal))"></div></div>
+              <div class="rv">$8,900</div>
+            </div>
+            <div class="rev-row">
+              <div class="rn">Glass Cleaner Pro</div>
+              <div class="rev-bar-bg"><div class="rev-bar-fg" style="width:25%;background:linear-gradient(90deg,var(--ok),var(--teal))"></div></div>
+              <div class="rv">$4,200</div>
+            </div>
+            <div class="rev-row">
+              <div class="rn">Sanitizer Pack</div>
+              <div class="rev-bar-bg"><div class="rev-bar-fg" style="width:18%;background:linear-gradient(90deg,var(--ok),var(--teal))"></div></div>
+              <div class="rv">$2,600</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Report Summary -->
+        <div class="report-summary">
+          <h4>Report Summary <div class="rs-badge">Auto-generated</div></h4>
+          <div class="rs-grid">
+            <div class="rs-item"><div class="rs-metric">Revenue Trend</div><div class="rs-val rs-up">↑ 22% increase</div><div class="rs-detail">vs last month</div></div>
+            <div class="rs-item"><div class="rs-metric">Top Service</div><div class="rs-val" style="color:var(--primary)">Deep Home Cleaning</div><div class="rs-detail">$28,400 revenue</div></div>
+            <div class="rs-item"><div class="rs-metric">Top Product</div><div class="rs-val" style="color:var(--teal)">Bulk Cleaning Kit</div><div class="rs-detail">$22,600 revenue</div></div>
+            <div class="rs-item"><div class="rs-metric">Growth Rate</div><div class="rs-val rs-up">+35% YoY</div><div class="rs-detail">Year-over-year growth</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CUSTOMER REPORTS ==================== -->
+  <div class="flow-label">3 · Report Detail — Customer Reports (Drill-down)</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div><div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div><div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div><div class="nav-item active"><div class="ico">▤</div> Reports</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <div style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--primary);padding:4px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer">← Reports</div>
+          <h2 style="margin-top:8px;">Customer Reports</h2>
+          <div class="crumb">New · Active · Leads · Growth · Top Customers</div>
+        </div>
+        <div class="top-actions">
+          <div class="dr-bar">
+            <div class="dr-chip on">Last 30 Days</div><div class="dr-chip">This Month</div><div class="dr-chip">Custom ▾</div>
+          </div>
+          <div class="export-bar">
+            <div class="btn btn-ghost btn-sm">📄 PDF</div><div class="btn btn-ghost btn-sm">📊 Excel</div>
+          </div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="last-gen"><span class="lg-label">Last Generated</span> 15 Jul 2026 · 10:38 AM</div>
+        <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
+          <div class="kpi"><div class="label">New Customers</div><div class="val">128</div><div class="trend up">↑ 15% vs last period</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Active Customers</div><div class="val ok">1,420</div><div class="trend up">↑ 6%</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Leads</div><div class="val teal">312</div><div class="trend up">↑ 9%</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Customer Growth</div><div class="val">+7.2%</div><div class="trend up">↑ vs last month</div></div>
+          <div class="kpi"><div class="label">Total Customers</div><div class="val">1,842</div><div class="trend up">↑ 12%</div></div>
+        </div>
+
+        <div class="chart-row">
+          <div class="chart-card">
+            <h3>Customer Growth Trend <span>Last 30 Days · Area Chart</span></h3>
+            <div class="chart-tabs"><div class="ct">Daily</div><div class="ct">Weekly</div><div class="ct on">Monthly</div><div class="ct">Yearly</div></div>
+            <div class="chart-placeholder" style="height:200px">
+              <div class="bar" style="height:20%;background:linear-gradient(180deg,var(--teal),rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:28%;background:linear-gradient(180deg,var(--teal),rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:35%;background:linear-gradient(180deg,var(--teal),rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:42%;background:linear-gradient(180deg,var(--teal),rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:55%;background:linear-gradient(180deg,var(--teal),rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:68%;background:linear-gradient(180deg,var(--teal),rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:72%;background:linear-gradient(180deg,var(--teal),rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:80%;background:linear-gradient(180deg,var(--teal),rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:88%;background:linear-gradient(180deg,var(--teal),rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:92%;background:linear-gradient(180deg,var(--teal),rgba(6,148,172,.4))"></div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> New Customers</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--primary)"></div> Active Customers</div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Customer Segments <span>Pie Chart</span></h3>
+            <div class="pie-placeholder">
+              <div class="pie-ring" style="background:conic-gradient(var(--primary) 0% 45%,var(--teal) 45% 72%,var(--warn) 72% 88%,var(--border) 88% 100%)">
+                <div class="pie-center">1,842</div>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--primary)"></div> Active 45%</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> Leads 27%</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--warn)"></div> New 16%</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--border)"></div> Inactive 12%</div>
+            </div>
+          </div>
+        </div>
+
+        <h3 style="font-size:14px;font-weight:800;margin-top:4px">Top Customers by Total Spent</h3>
+        <div class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Customer</th><th>Phone</th><th>Total Orders</th><th>Total Spent</th><th>Status</th><th>Last Activity</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td class="name">Ahmad Al-Rashid</td><td class="muted">+971 50 123 4567</td><td>34</td><td class="amt">$18,420</td><td><div class="pill p-ok">Active</div></td><td class="muted">15 Jul 2026</td></tr>
+                <tr><td>2</td><td class="name">Fatima Hassan</td><td class="muted">+971 55 987 6543</td><td>28</td><td class="amt">$14,800</td><td><div class="pill p-ok">Active</div></td><td class="muted">14 Jul 2026</td></tr>
+                <tr><td>3</td><td class="name">Khalid Ibrahim</td><td class="muted">+971 56 456 7890</td><td>25</td><td class="amt">$12,350</td><td><div class="pill p-ok">Active</div></td><td class="muted">13 Jul 2026</td></tr>
+                <tr><td>4</td><td class="name">Sara Mohammed</td><td class="muted">+971 50 321 0987</td><td>22</td><td class="amt">$10,900</td><td><div class="pill p-ok">Active</div></td><td class="muted">12 Jul 2026</td></tr>
+                <tr><td>5</td><td class="name">Omar Al-Falasi</td><td class="muted">+971 55 654 3210</td><td>19</td><td class="amt">$8,720</td><td><div class="pill p-blue">Lead</div></td><td class="muted">11 Jul 2026</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-foot"><span>Showing 1–5 of 1,842 customers</span><span>Page 1 of 369</span></div>
+        </div>
+
+        <!-- Report Summary -->
+        <div class="report-summary">
+          <h4>Report Summary <div class="rs-badge">Auto-generated</div></h4>
+          <div class="rs-grid">
+            <div class="rs-item"><div class="rs-metric">Customer Growth</div><div class="rs-val rs-up">↑ 7.2% increase</div><div class="rs-detail">vs last month</div></div>
+            <div class="rs-item"><div class="rs-metric">New Registrations</div><div class="rs-val rs-up">128 new customers</div><div class="rs-detail">↑ 15% vs last period</div></div>
+            <div class="rs-item"><div class="rs-metric">Top Customer</div><div class="rs-val" style="color:var(--primary)">Ahmad Al-Rashid</div><div class="rs-detail">$18,420 total spent</div></div>
+            <div class="rs-item"><div class="rs-metric">Active Rate</div><div class="rs-val rs-up">77.1%</div><div class="rs-detail">1,420 of 1,842 active</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== BOOKING REPORTS ==================== -->
+  <div class="flow-label">4 · Report Detail — Booking Reports (Drill-down)</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div><div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div><div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div><div class="nav-item active"><div class="ico">▤</div> Reports</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <div style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--primary);padding:4px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer">← Reports</div>
+          <h2 style="margin-top:8px;">Booking Reports</h2>
+          <div class="crumb">Total · Completed · Cancelled · Pending · Avg Completion Time</div>
+        </div>
+        <div class="top-actions">
+          <div class="dr-bar">
+            <div class="dr-chip on">Last 7 Days</div><div class="dr-chip">Last 30 Days</div><div class="dr-chip">Custom ▾</div>
+          </div>
+          <div class="export-bar">
+            <div class="btn btn-ghost btn-sm">📄 PDF</div><div class="btn btn-ghost btn-sm">📊 Excel</div>
+          </div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="last-gen"><span class="lg-label">Last Generated</span> 15 Jul 2026 · 10:35 AM</div>
+        <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
+          <div class="kpi"><div class="label">Total Bookings</div><div class="val">347</div><div class="trend up">↑ 8%</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Completed</div><div class="val ok">218</div><div class="trend up">↑ 12%</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Cancelled</div><div class="val" style="color:var(--danger)">24</div><div class="trend down">↓ 5% fewer</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Pending</div><div class="val warn">105</div><div class="trend down">↓ 3%</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Avg Completion Time</div><div class="val teal">3.2 days</div><div class="trend up">↑ 0.4d faster</div></div>
+        </div>
+
+        <div class="chart-row">
+          <div class="chart-card">
+            <h3>Booking Trends <span>Last 7 Days · Bar Chart</span></h3>
+            <div class="chart-tabs"><div class="ct on">Daily</div><div class="ct">Weekly</div><div class="ct">Monthly</div><div class="ct">Yearly</div></div>
+            <div class="chart-placeholder" style="height:200px">
+              <div class="bar" style="height:55%;background:linear-gradient(180deg,#0694AC,rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:68%;background:linear-gradient(180deg,#0694AC,rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:72%;background:linear-gradient(180deg,#0694AC,rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:60%;background:linear-gradient(180deg,#0694AC,rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:82%;background:linear-gradient(180deg,#0694AC,rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:45%;background:linear-gradient(180deg,#0694AC,rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:90%;background:linear-gradient(180deg,#0694AC,rgba(6,148,172,.4))"></div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> Total Bookings</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--ok)"></div> Completed</div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Booking Status <span>Pie Chart</span></h3>
+            <div class="pie-placeholder">
+              <div class="pie-ring" style="background:conic-gradient(var(--ok) 0% 63%,var(--warn) 63% 93%,var(--danger) 93% 100%)">
+                <div class="pie-center">347</div>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--ok)"></div> Completed 63%</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--warn)"></div> Pending 30%</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--danger)"></div> Cancelled 7%</div>
+            </div>
+          </div>
+        </div>
+
+        <h3 style="font-size:14px;font-weight:800;margin-top:4px">Booking Details — Completed (Drill-down)</h3>
+        <div class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Booking ID</th><th>Customer</th><th>Service</th><th>Date</th><th>Status</th><th>Completion Time</th></tr></thead>
+              <tbody>
+                <tr><td class="name">BK-2026-00347</td><td>Ahmad Al-Rashid</td><td>Deep Home Cleaning</td><td class="muted">14 Jul 2026</td><td><div class="pill p-ok">Completed</div></td><td class="muted">2.1 days</td></tr>
+                <tr><td class="name">BK-2026-00346</td><td>Fatima Hassan</td><td>Carpet Cleaning</td><td class="muted">13 Jul 2026</td><td><div class="pill p-ok">Completed</div></td><td class="muted">1.5 days</td></tr>
+                <tr><td class="name">BK-2026-00344</td><td>Sara Mohammed</td><td>Sofa Cleaning</td><td class="muted">12 Jul 2026</td><td><div class="pill p-ok">Completed</div></td><td class="muted">3.0 days</td></tr>
+                <tr><td class="name">BK-2026-00340</td><td>Khalid Ibrahim</td><td>Window Cleaning</td><td class="muted">11 Jul 2026</td><td><div class="pill p-ok">Completed</div></td><td class="muted">4.2 days</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-foot"><span>Showing 1–4 of 218 completed bookings</span><span>Page 1 of 55</span></div>
+        </div>
+
+        <!-- Report Summary -->
+        <div class="report-summary">
+          <h4>Report Summary <div class="rs-badge">Auto-generated</div></h4>
+          <div class="rs-grid">
+            <div class="rs-item"><div class="rs-metric">Bookings Trend</div><div class="rs-val rs-up">↑ 8% increase</div><div class="rs-detail">vs last period</div></div>
+            <div class="rs-item"><div class="rs-metric">Completion Rate</div><div class="rs-val rs-up">63%</div><div class="rs-detail">218 of 347 completed</div></div>
+            <div class="rs-item"><div class="rs-metric">Cancellation Rate</div><div class="rs-val rs-down">↓ 7%</div><div class="rs-detail">24 cancelled (improving)</div></div>
+            <div class="rs-item"><div class="rs-metric">Avg Completion</div><div class="rs-val" style="color:var(--teal)">3.2 days</div><div class="rs-detail">↑ 0.4d faster than prior</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== QUOTATION REPORTS ==================== -->
+  <div class="flow-label">5 · Report Detail — Quotation Reports (Drill-down)</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div><div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div><div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div><div class="nav-item active"><div class="ico">▤</div> Reports</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <div style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--primary);padding:4px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer">← Reports</div>
+          <h2 style="margin-top:8px;">Quotation Reports</h2>
+          <div class="crumb">Total · Accepted · Under Discussion · Expired · Conversion Rate</div>
+        </div>
+        <div class="top-actions">
+          <div class="dr-bar">
+            <div class="dr-chip on">This Month</div><div class="dr-chip">Last Month</div><div class="dr-chip">Custom ▾</div>
+          </div>
+          <div class="export-bar">
+            <div class="btn btn-ghost btn-sm">📄 PDF</div><div class="btn btn-ghost btn-sm">📊 Excel</div>
+          </div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="last-gen"><span class="lg-label">Last Generated</span> 15 Jul 2026 · 10:30 AM</div>
+        <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
+          <div class="kpi"><div class="label">Total Quotations</div><div class="val">256</div><div class="trend up">↑ 11%</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Accepted</div><div class="val ok">142</div><div class="trend up">↑ 18%</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Under Discussion</div><div class="val teal">68</div><div class="trend up">↑ 5%</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Expired</div><div class="val" style="color:var(--danger)">31</div><div class="trend down">↓ 8%</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Conversion Rate</div><div class="val ok">55.5%</div><div class="trend up">↑ 4.2% vs last month</div></div>
+        </div>
+
+        <div class="chart-row">
+          <div class="chart-card">
+            <h3>Quotation Funnel <span>This Month · Bar Chart</span></h3>
+            <div class="chart-tabs"><div class="ct on">Daily</div><div class="ct">Weekly</div><div class="ct">Monthly</div><div class="ct">Yearly</div></div>
+            <div class="chart-placeholder" style="height:200px">
+              <div class="bar" style="height:100%;background:linear-gradient(180deg,#7C3AED,rgba(124,58,237,.4))"></div>
+              <div class="bar" style="height:72%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.4))"></div>
+              <div class="bar" style="height:35%;background:linear-gradient(180deg,var(--teal),rgba(6,148,172,.4))"></div>
+              <div class="bar" style="height:16%;background:linear-gradient(180deg,var(--danger),rgba(220,38,38,.4))"></div>
+              <div class="bar" style="height:8%;background:linear-gradient(180deg,var(--warn),rgba(217,119,6,.4))"></div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:#7C3AED"></div> Total</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--ok)"></div> Accepted</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> Under Discussion</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--danger)"></div> Expired</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--warn)"></div> Rejected</div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Conversion Rate <span>Trend</span></h3>
+            <div class="chart-placeholder" style="height:200px">
+              <div class="bar" style="height:42%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.3))"></div>
+              <div class="bar" style="height:48%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.3))"></div>
+              <div class="bar" style="height:46%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.3))"></div>
+              <div class="bar" style="height:52%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.3))"></div>
+              <div class="bar" style="height:50%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.3))"></div>
+              <div class="bar" style="height:55%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.4))"></div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--ok)"></div> Conversion % (monthly)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Report Summary -->
+        <div class="report-summary">
+          <h4>Report Summary <div class="rs-badge">Auto-generated</div></h4>
+          <div class="rs-grid">
+            <div class="rs-item"><div class="rs-metric">Quotations Trend</div><div class="rs-val rs-up">↑ 11% increase</div><div class="rs-detail">vs last period</div></div>
+            <div class="rs-item"><div class="rs-metric">Conversion Rate</div><div class="rs-val rs-up">55.5%</div><div class="rs-detail">↑ 4.2% vs last month</div></div>
+            <div class="rs-item"><div class="rs-metric">Expired Rate</div><div class="rs-val rs-down">↓ 12.1%</div><div class="rs-detail">31 expired (decreasing)</div></div>
+            <div class="rs-item"><div class="rs-metric">Active Discussions</div><div class="rs-val" style="color:var(--teal)">68 quotations</div><div class="rs-detail">Under active discussion</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ORDER REPORTS ==================== -->
+  <div class="flow-label">6 · Report Detail — Order Reports (Drill-down)</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div><div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div><div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div><div class="nav-item active"><div class="ico">▤</div> Reports</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <div style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--primary);padding:4px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer">← Reports</div>
+          <h2 style="margin-top:8px;">Order Reports</h2>
+          <div class="crumb">Total Orders · Completed · Cancelled · Average Order Value</div>
+        </div>
+        <div class="top-actions">
+          <div class="dr-bar">
+            <div class="dr-chip">Last 7 Days</div><div class="dr-chip on">Last 30 Days</div><div class="dr-chip">Custom ▾</div>
+          </div>
+          <div class="export-bar">
+            <div class="btn btn-ghost btn-sm">📄 PDF</div><div class="btn btn-ghost btn-sm">📊 Excel</div>
+          </div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="last-gen"><span class="lg-label">Last Generated</span> 15 Jul 2026 · 10:25 AM</div>
+        <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+          <div class="kpi"><div class="label">Total Orders</div><div class="val">1,340</div><div class="trend up">↑ 15%</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Completed Orders</div><div class="val ok">1,082</div><div class="trend up">↑ 19%</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Cancelled Orders</div><div class="val" style="color:var(--danger)">68</div><div class="trend down">↓ 12% fewer</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Avg Order Value</div><div class="val teal">$93.02</div><div class="trend up">↑ $8.50 vs prior</div></div>
+        </div>
+
+        <div class="chart-row">
+          <div class="chart-card">
+            <h3>Order Volume &amp; Value <span>Last 30 Days · Line Chart</span></h3>
+            <div class="chart-tabs"><div class="ct">Daily</div><div class="ct">Weekly</div><div class="ct on">Monthly</div><div class="ct">Yearly</div></div>
+            <div class="chart-placeholder" style="height:200px">
+              <div class="bar" style="height:40%"></div><div class="bar" style="height:48%"></div>
+              <div class="bar" style="height:55%"></div><div class="bar" style="height:52%"></div>
+              <div class="bar" style="height:65%"></div><div class="bar" style="height:72%"></div>
+              <div class="bar" style="height:68%"></div><div class="bar" style="height:80%"></div>
+              <div class="bar" style="height:85%"></div><div class="bar" style="height:78%"></div>
+              <div class="bar" style="height:88%"></div><div class="bar" style="height:95%"></div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--primary)"></div> Order Count</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> Avg Order Value</div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Order Status <span>Pie Chart</span></h3>
+            <div class="pie-placeholder">
+              <div class="pie-ring" style="background:conic-gradient(var(--ok) 0% 81%,var(--warn) 81% 95%,var(--danger) 95% 100%)">
+                <div class="pie-center">1,340</div>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--ok)"></div> Completed 81%</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--warn)"></div> Processing 14%</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--danger)"></div> Cancelled 5%</div>
+            </div>
+          </div>
+        </div>
+
+        <h3 style="font-size:14px;font-weight:800;margin-top:4px">Completed Orders — Drill-down</h3>
+        <div class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Order ID</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Date</th></tr></thead>
+              <tbody>
+                <tr><td class="name">ORD-2026-01340</td><td>Ahmad Al-Rashid</td><td class="muted">3 items</td><td class="amt">$142.50</td><td><div class="pill p-ok">Completed</div></td><td class="muted">15 Jul 2026</td></tr>
+                <tr><td class="name">ORD-2026-01338</td><td>Fatima Hassan</td><td class="muted">2 items</td><td class="amt">$98.00</td><td><div class="pill p-ok">Completed</div></td><td class="muted">14 Jul 2026</td></tr>
+                <tr><td class="name">ORD-2026-01335</td><td>Khalid Ibrahim</td><td class="muted">5 items</td><td class="amt">$210.00</td><td><div class="pill p-ok">Completed</div></td><td class="muted">13 Jul 2026</td></tr>
+                <tr><td class="name">ORD-2026-01330</td><td>Sara Mohammed</td><td class="muted">1 item</td><td class="amt">$65.00</td><td><div class="pill p-ok">Completed</div></td><td class="muted">12 Jul 2026</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-foot"><span>Showing 1–4 of 1,082 completed orders</span><span>Page 1 of 271</span></div>
+        </div>
+
+        <!-- Report Summary -->
+        <div class="report-summary">
+          <h4>Report Summary <div class="rs-badge">Auto-generated</div></h4>
+          <div class="rs-grid">
+            <div class="rs-item"><div class="rs-metric">Orders Trend</div><div class="rs-val rs-up">↑ 15% increase</div><div class="rs-detail">vs last period</div></div>
+            <div class="rs-item"><div class="rs-metric">Completion Rate</div><div class="rs-val rs-up">80.7%</div><div class="rs-detail">1,082 of 1,340 completed</div></div>
+            <div class="rs-item"><div class="rs-metric">Avg Order Value</div><div class="rs-val" style="color:var(--teal)">$93.02</div><div class="rs-detail">↑ $8.50 vs prior period</div></div>
+            <div class="rs-item"><div class="rs-metric">Cancellations</div><div class="rs-val rs-down">↓ 5.1%</div><div class="rs-detail">68 cancelled (decreasing)</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PAYMENT REPORTS ==================== -->
+  <div class="flow-label">7 · Report Detail — Payment Reports (Drill-down)</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div><div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div><div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div><div class="nav-item active"><div class="ico">▤</div> Reports</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <div style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--primary);padding:4px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer">← Reports</div>
+          <h2 style="margin-top:8px;">Payment Reports</h2>
+          <div class="crumb">Total · Confirmed · Pending · Failed · Refunded</div>
+        </div>
+        <div class="top-actions">
+          <div class="dr-bar">
+            <div class="dr-chip on">Last 30 Days</div><div class="dr-chip">This Month</div><div class="dr-chip">Custom ▾</div>
+          </div>
+          <div class="export-bar">
+            <div class="btn btn-ghost btn-sm">📄 PDF</div><div class="btn btn-ghost btn-sm">📊 Excel</div>
+          </div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="last-gen"><span class="lg-label">Last Generated</span> 15 Jul 2026 · 10:20 AM</div>
+        <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
+          <div class="kpi"><div class="label">Total Payments</div><div class="val">2,180</div><div class="trend up">↑ 18%</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Confirmed</div><div class="val ok">1,920</div><div class="trend up">↑ 20%</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Pending</div><div class="val warn">148</div><div class="trend down">↓ 6%</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Failed</div><div class="val" style="color:var(--danger)">42</div><div class="trend down">↓ 15% fewer</div><div class="drill">Click to drill down →</div></div>
+          <div class="kpi"><div class="label">Refunded</div><div class="val" style="color:#2563EB">70</div><div class="trend down">↓ 2%</div><div class="drill">Click to drill down →</div></div>
+        </div>
+
+        <div class="chart-row">
+          <div class="chart-card">
+            <h3>Payment Trends <span>Last 30 Days · Area Chart</span></h3>
+            <div class="chart-tabs"><div class="ct">Daily</div><div class="ct">Weekly</div><div class="ct on">Monthly</div><div class="ct">Yearly</div></div>
+            <div class="chart-placeholder" style="height:200px">
+              <div class="bar" style="height:50%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.3))"></div>
+              <div class="bar" style="height:58%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.3))"></div>
+              <div class="bar" style="height:55%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.3))"></div>
+              <div class="bar" style="height:68%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.3))"></div>
+              <div class="bar" style="height:72%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.3))"></div>
+              <div class="bar" style="height:65%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.3))"></div>
+              <div class="bar" style="height:78%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.3))"></div>
+              <div class="bar" style="height:82%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.3))"></div>
+              <div class="bar" style="height:88%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.3))"></div>
+              <div class="bar" style="height:92%;background:linear-gradient(180deg,var(--ok),rgba(5,150,105,.4))"></div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--ok)"></div> Confirmed</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--warn)"></div> Pending</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--danger)"></div> Failed</div>
+              <div class="legend-item"><div class="legend-dot" style="background:#2563EB"></div> Refunded</div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Payment Distribution <span>Pie Chart</span></h3>
+            <div class="pie-placeholder">
+              <div class="pie-ring" style="background:conic-gradient(var(--ok) 0% 88%,var(--warn) 88% 95%,var(--danger) 95% 97%,#2563EB 97% 100%)">
+                <div class="pie-center">2,180</div>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--ok)"></div> Confirmed 88%</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--warn)"></div> Pending 7%</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--danger)"></div> Failed 2%</div>
+              <div class="legend-item"><div class="legend-dot" style="background:#2563EB"></div> Refunded 3%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Report Summary -->
+        <div class="report-summary">
+          <h4>Report Summary <div class="rs-badge">Auto-generated</div></h4>
+          <div class="rs-grid">
+            <div class="rs-item"><div class="rs-metric">Payments Trend</div><div class="rs-val rs-up">↑ 18% increase</div><div class="rs-detail">vs last period</div></div>
+            <div class="rs-item"><div class="rs-metric">Confirmation Rate</div><div class="rs-val rs-up">88.1%</div><div class="rs-detail">1,920 of 2,180 confirmed</div></div>
+            <div class="rs-item"><div class="rs-metric">Failed Rate</div><div class="rs-val rs-down">↓ 1.9%</div><div class="rs-detail">42 failed (decreasing)</div></div>
+            <div class="rs-item"><div class="rs-metric">Refund Rate</div><div class="rs-val" style="color:#2563EB">3.2%</div><div class="rs-detail">70 refunded transactions</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ROLE-BASED VIEW — SALES ==================== -->
+  <div class="flow-label">8 · Role-Based View — Sales Role (Limited Access)</div>
+  <div class="shell" style="min-height:420px">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div><div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div><div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item active"><div class="ico">▤</div> Reports</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">MK</div><div><div class="n">Mariam</div><div class="r">Sales</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <h2>Reports &amp; Analytics</h2>
+          <div class="crumb">Sales role — Customer, Booking, Quotation, Order, Sales reports</div>
+        </div>
+        <div class="top-actions">
+          <div class="role-bar">
+            <div class="role-badge" style="border-color:var(--teal);background:rgba(6,148,172,.08);color:var(--teal)"><div class="dot" style="background:var(--teal)"></div> Sales · Limited Access</div>
+          </div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+          <div class="kpi"><div class="label">Total Customers</div><div class="val">1,842</div><div class="trend up">↑ 12%</div></div>
+          <div class="kpi"><div class="label">Active Bookings</div><div class="val teal">347</div><div class="trend up">↑ 8%</div></div>
+          <div class="kpi"><div class="label">Pending Quotations</div><div class="val warn">89</div><div class="trend down">↓ 3%</div></div>
+          <div class="kpi"><div class="label">Orders</div><div class="val">1,340</div><div class="trend up">↑ 15%</div></div>
+        </div>
+        <h3 style="font-size:14px;font-weight:800;margin-top:4px">Available Report Categories</h3>
+        <div class="cat-grid" style="grid-template-columns:repeat(4,1fr)">
+          <div class="cat-card"><div class="cat-ico cus">☺</div><h4>Customer Reports</h4><p>New, active, leads, growth, top customers.</p><div class="chev">›</div></div>
+          <div class="cat-card"><div class="cat-ico bk">BK</div><h4>Booking Reports</h4><p>Total, completed, cancelled, pending, avg time.</p><div class="chev">›</div></div>
+          <div class="cat-card"><div class="cat-ico qt">QT</div><h4>Quotation Reports</h4><p>Total, accepted, discussion, expired, conversion.</p><div class="chev">›</div></div>
+          <div class="cat-card"><div class="cat-ico ord">ORD</div><h4>Order Reports</h4><p>Total, completed, cancelled, avg order value.</p><div class="chev">›</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-radius:12px;
+          background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.2);font-size:12px;font-weight:600;color:var(--warn);margin-top:4px">
+          ⚠ Payment Reports and Revenue Reports are restricted. Contact Admin for access.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ROLE-BASED VIEW — ACCOUNTANT ==================== -->
+  <div class="flow-label">9 · Role-Based View — Accountant Role (Financial Access)</div>
+  <div class="shell" style="min-height:420px">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Financial</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div><div class="nav-item active"><div class="ico">▤</div> Reports</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">NK</div><div><div class="n">Noor</div><div class="r">Accountant</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <h2>Reports &amp; Analytics</h2>
+          <div class="crumb">Accountant role — Payment, Revenue, Financial reports</div>
+        </div>
+        <div class="top-actions">
+          <div class="role-bar">
+            <div class="role-badge" style="border-color:var(--ok);background:rgba(5,150,105,.08);color:var(--ok)"><div class="dot" style="background:var(--ok)"></div> Accountant · Financial Access</div>
+          </div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="kpi-row" style="grid-template-columns:repeat(3,1fr)">
+          <div class="kpi"><div class="label">Total Payments</div><div class="val ok">2,180</div><div class="trend up">↑ 18%</div></div>
+          <div class="kpi"><div class="label">Revenue</div><div class="val ok">$124,650</div><div class="trend up">↑ 22%</div></div>
+          <div class="kpi"><div class="label">Pending Verifications</div><div class="val warn">48</div><div class="trend down">↓ 10%</div></div>
+        </div>
+        <h3 style="font-size:14px;font-weight:800;margin-top:4px">Available Report Categories</h3>
+        <div class="cat-grid" style="grid-template-columns:repeat(2,1fr)">
+          <div class="cat-card"><div class="cat-ico pay">$</div><h4>Payment Reports</h4><p>Total, confirmed, pending, failed, refunded.</p><div class="chev">›</div></div>
+          <div class="cat-card"><div class="cat-ico rev">$</div><h4>Revenue Reports</h4><p>Today, weekly, monthly, yearly, by service, by product.</p><div class="chev">›</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-radius:12px;
+          background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.2);font-size:12px;font-weight:600;color:var(--warn);margin-top:4px">
+          ⚠ Customer, Booking, Quotation, and Order Reports are restricted. Contact Admin for access.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== EMPTY STATE ==================== -->
+  <div class="flow-label">10 · Empty State — No Data Available</div>
+  <div class="shell" style="min-height:560px">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">FD</div><div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div></div>
+      <div class="nav-label">Overview</div><div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div><div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div><div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div><div class="nav-item active"><div class="ico">▤</div> Reports</div>
+      <div class="sidebar-foot"><div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <div style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--primary);padding:4px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer">← Reports</div>
+          <h2 style="margin-top:8px;">Order Reports</h2>
+          <div class="crumb">Total Orders · Completed · Cancelled · Average Order Value</div>
+        </div>
+        <div class="top-actions">
+          <div class="dr-bar">
+            <div class="dr-chip on">Yesterday</div><div class="dr-chip">Custom ▾</div>
+          </div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="last-gen"><span class="lg-label">Last Generated</span> 15 Jul 2026 · 10:45 AM</div>
+        <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+          <div class="kpi"><div class="label">Total Orders</div><div class="val" style="color:var(--muted)">0</div></div>
+          <div class="kpi"><div class="label">Completed Orders</div><div class="val" style="color:var(--muted)">0</div></div>
+          <div class="kpi"><div class="label">Cancelled Orders</div><div class="val" style="color:var(--muted)">0</div></div>
+          <div class="kpi"><div class="label">Avg Order Value</div><div class="val" style="color:var(--muted)">—</div></div>
+        </div>
+
+        <div class="panel">
+          <div class="empty-state">
+            <div class="empty-ico">📊</div>
+            <h4>No data available</h4>
+            <p>There are no order records matching the selected date range. Try another date range or adjust your filters.</p>
+            <div class="btn btn-ghost btn-sm" style="margin-top:16px">← Change Date Range</div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Order Volume &amp; Value <span>No data</span></h3>
+          <div class="empty-state" style="padding:40px 24px">
+            <div class="empty-ico" style="width:60px;height:60px;border-radius:16px;font-size:24px">📈</div>
+            <h4>No chart data</h4>
+            <p>Select a different date range to view order trends.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
