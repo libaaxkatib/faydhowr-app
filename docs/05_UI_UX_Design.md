@@ -1251,7 +1251,7 @@ Do **not** show Staff Performance, Staff on Duty, Jobs Assigned, or Team Workloa
 
 ## 17.8 Out of Scope for This Foundation
 
-Detailed management UIs for Orders, Payments, Invoices, Receipts, Catalog, Settings — designed separately.
+Detailed management UIs for Payments, Invoices, Receipts, Catalog, Settings — designed separately.
 
 ---
 
@@ -1406,6 +1406,75 @@ Pending Review · Under Discussion · Quotation Ready · Accepted · Expired · 
 - Timeline is read-only audit history.
 - Discussion history cannot be deleted.
 - Only the latest revision can be accepted.
+
+---
+
+# 21. Admin Orders Management Module
+
+Desktop-first. Access: **Admin**, **Sales**, **Accountant** (as permitted). No manual order creation.
+
+## 21.1 Origin Rule (mandatory)
+
+Every order is created **automatically** after a quotation is accepted. There is no Create Order action.
+
+| Source chain | Flow |
+| --- | --- |
+| **Booking** | Booking → Quotation → Accepted → Order (Automatic) |
+| **Product Request** | Product Request → Quotation → Accepted → Order (Automatic) |
+
+The source link is permanent and always traceable.
+
+## 21.2 Orders List
+
+| Element | Specification |
+| --- | --- |
+| **Search** | ORD number, customer, service or product |
+| **Advanced filters** | Order status, payment status, source, order date, etc. |
+| **Columns** | Order Number (`ORD-…`), Source (Booking / Product), Customer, Service or Product, Order Date + **Order Age**, Total Amount, Payment Status, Order Status, Last Updated |
+| **Order Age** | Display order age beneath the date (e.g., "Created Today", "Created 2 days ago", "Waiting 5 days"). "Waiting" style uses warning colour for orders in Awaiting Payment status |
+| **Row action** | **View Order** only |
+| **Forbidden** | Permanent delete; Create Order (manual) |
+
+### Approved order statuses (only — controlled dropdown)
+
+Awaiting Payment · Paid · Processing · Ready · Out for Delivery · Completed · Cancelled
+
+### Payment statuses (only) — standardized color system
+
+| Status | Color |
+| --- | --- |
+| Paid | Green (`--ok`) |
+| Partially Paid | Orange (`--warn`) |
+| Unpaid | Red (`--danger`) |
+| Refunded | Blue (`#1D4ED8`) |
+
+These colors must remain consistent everywhere Payment Status appears across the Admin Panel.
+
+## 21.3 Order Details
+
+| Block | Content |
+| --- | --- |
+| **Header** | ORD Number (read-only), Source, Order Status, Payment Status, linked Booking or Product Request, linked Quotation (version + Accepted), Customer/CUS, dates, **Order Age** (e.g., "Created 1 day ago") |
+| **Current Stage Indicator** | Compact read-only summary above the progress tracker: label "Current Stage" + current stage name (e.g., "Processing") with a primary-coloured dot. Allows immediate stage recognition |
+| **Order Progress Tracker** | Visual horizontal stepper: Awaiting Payment → Paid → Processing → Ready → Out for Delivery → Completed. Completed steps show ✓ with green; current step highlighted in primary; future steps muted. Visual indicator only (read-only) |
+| **Business Summary** | Summary cards: Total Amount, Amount Paid, Remaining Balance, Payment Status |
+| **Financial Summary** | Compact read-only breakdown below Business Summary: Subtotal, Discount, Delivery Fee, Tax, Grand Total, Amount Paid, Remaining Balance |
+| **Customer Information** | Name, phone, email, CUS |
+| **Source Chain & Linkage** | Source (Booking / Product), linked Booking, linked Quotation (revision + accepted), permanent origin |
+| **Ordered Items & Price Breakdown** | Line items, qty, unit price, line total; Subtotal, Discount, Delivery Fee, Tax, Grand Total |
+| **Order Documents** | Order PDF, Invoice PDF, Receipt PDF — each with availability indicator: ✅ Available (clickable) or ⏳ Not Available Yet (disabled/dashed) |
+| **Timeline (incl. Payment Timeline)** | Read-only audit with Performed By, Staff Role (or Customer/System), Date, Time. Payment events expanded: Payment Requested, Payment Received, Payment Confirmed, Refund Processed — each with Performed By, Role, Date, Time |
+| **Linked Records** | Customer Profile, Booking, Quotation (with Discussion access), Payments, **Order Documents** (Order PDF · Invoice PDF · Receipt PDF — navigates to documents section), Notifications |
+| **Internal Notes** | Staff notes with Name, Role, Date, Time — Admin / Sales / Accountant; never customer-visible. **Latest Note indicator** displayed above notes: "Latest Note · 15 Jul 2026 · 09:20" (read-only) |
+
+## 21.4 Business Rules
+
+- Order Number is read-only and auto-generated.
+- Orders are never permanently deleted.
+- Orders can never exist without an accepted quotation (no manual create).
+- Every order remains permanently linked to its originating Booking or Product Request and its accepted Quotation.
+- Timeline is read-only audit history.
+- Discussion history remains accessible through the linked quotation.
 
 ---
 

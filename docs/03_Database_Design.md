@@ -1341,30 +1341,33 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `orders` |
-| **Purpose** | Store purchase transactions. |
+| **Purpose** | Commercial transactions auto-created from accepted quotations. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `customer_id` → `customers.id`, optional `cart_id`, optional `quotation_id` |
-| **Relationships** | 1:N `order_items`, status histories; payments via payable link |
+| **Foreign Keys** | `customer_id` → `customers.id`, `quotation_id` → `quotations.id` (required — order always traces to an accepted quotation), optional `booking_id` → `bookings.id`, optional `cart_id` |
+| **Relationships** | 1:N `order_items`, `order_status_histories`, `order_notes`; payments via payable link |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `order_number` | VARCHAR(40) | R | Unique |
-| `customer_id` | BIGINT UNSIGNED | R | FK — **login required to place order** |
-| `cart_id` | BIGINT UNSIGNED | O | Source cart |
-| `quotation_id` | BIGINT UNSIGNED | O | If order fulfills accepted product quote |
-| `status` | VARCHAR(30) | R | `pending_payment`, `paid`, `processing`, `shipped_or_ready`, `completed`, `cancelled` |
+| `order_number` | VARCHAR(40) | R | Unique `ORD-YYYY-######` |
+| `customer_id` | BIGINT UNSIGNED | R | FK — **login required** |
+| `quotation_id` | BIGINT UNSIGNED | R | FK — accepted quotation that triggered order creation |
+| `booking_id` | BIGINT UNSIGNED | O | FK — populated when source chain passes through a booking |
+| `source_type` | VARCHAR(20) | R | `booking` or `product` (Admin display: Booking / Product) |
+| `cart_id` | BIGINT UNSIGNED | O | Source cart (when applicable) |
+| `status` | VARCHAR(30) | R | Order status: `awaiting_payment`, `paid`, `processing`, `ready`, `out_for_delivery`, `completed`, `cancelled` |
+| `payment_status` | VARCHAR(20) | R | `unpaid`, `partially_paid`, `paid`, `refunded` |
 | `currency` | CHAR(3) | R | |
 | `subtotal_amount` | DECIMAL(12,2) | R | |
+| `discount_amount` | DECIMAL(12,2) | R | Default 0 |
+| `delivery_fee` | DECIMAL(12,2) | R | Default 0 |
 | `tax_amount` | DECIMAL(12,2) | R | Default 0 |
-| `shipping_amount` | DECIMAL(12,2) | R | Default 0 |
-| `total_amount` | DECIMAL(12,2) | R | |
+| `total_amount` | DECIMAL(12,2) | R | Grand total |
 | `fulfillment_type` | VARCHAR(30) | O | `delivery`, `pickup` |
 | `shipping_address_snapshot` | JSON/TEXT | O | Immutable |
 | `customer_notes` | TEXT | O | |
-| `admin_notes` | TEXT | O | |
 | `placed_at` | TIMESTAMP | R | |
 | `cancelled_at` | TIMESTAMP | O | |
 | `created_at` | TIMESTAMP | R | |
@@ -1374,17 +1377,34 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 - Unique `order_number`
 - `customer_id` required
-- Totals must equal sum of item snapshots + tax + shipping (policy)
+- `quotation_id` required (never NULL — order cannot exist without an accepted quotation)
+- `source_type` must be `booking` or `product`; when `booking`, `booking_id` must be populated
+- Totals must equal sum of item snapshots + discount + delivery + tax (policy)
+- Order status in: `awaiting_payment`, `paid`, `processing`, `ready`, `out_for_delivery`, `completed`, `cancelled`
+- Payment status in: `unpaid`, `partially_paid`, `paid`, `refunded`
 
 #### Validation Rules
 
+- Orders are created automatically by the system when a quotation is accepted — never manually by Admin/Sales/Accountant.
 - Stock and price re-validated at placement.
 - Suspended customers cannot place orders.
-- Store orders remain commercially separate from service bookings unless future bundle offering is approved.
+- Order records are never permanently deleted.
+- Source link (quotation + booking/product) is permanent.
 
 #### Notes
 
-- Normal fixed-price path does not require `quotation_id`.
+- Admin timeline events must record actor (admin name + role, customer, or System).
+- Internal staff notes use `order_notes` (not a single `admin_notes` blob) for audit (name/role/date/time).
+- Discussion history is accessed via the linked quotation, not duplicated on the order.
+- **Order Progress Tracker** is a UI-only visual indicator computed from the current `status`; no additional database field required.
+- **Order Age** is computed at query time from `placed_at` / `created_at`; no stored column.
+- **Payment Timeline** events (Payment Requested, Payment Received, Payment Confirmed, Refund Processed) are stored in `order_status_histories` (or linked payment audit tables) with `performed_by`, `performed_by_role`, date, and time.
+- **Documents Status** (Available / Not Available Yet) is determined at runtime from document generation records; no additional column on `orders`.
+- **Financial Summary** values (Subtotal, Discount, Delivery Fee, Tax, Grand Total, Amount Paid, Remaining Balance) are derived from existing `orders` columns and linked `payments`; all read-only presentation.
+- **Payment Status Color System** is UI-only (Paid=green, Partially Paid=orange, Unpaid=red, Refunded=blue); no database change — colors are mapped from the existing `payment_status` enum.
+- **Current Stage Indicator** is UI-only; derived from the existing `status` column at query time.
+- **Linked Records — Order Documents** shortcut navigates to the documents section; no new database relationship required.
+- **Latest Note indicator** is derived at query time from the most recent `order_notes.created_at`; no additional stored column.
 
 ---
 
@@ -1418,6 +1438,28 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 ---
 
+### 3.7.2B `order_notes` (Admin internal)
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `order_notes` |
+| **Purpose** | Internal staff notes on an order. Never visible to customers. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `order_id` → `orders.id`, `admin_id` → `admins.id` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `order_id` | BIGINT UNSIGNED | R | FK |
+| `admin_id` | BIGINT UNSIGNED | R | Author |
+| `body` | TEXT | R | |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
+
+---
+
 ### 3.7.3 `order_status_histories`
 
 | Attribute | Detail |
@@ -1439,6 +1481,12 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | `changed_by_id` | BIGINT UNSIGNED | O | |
 | `note` | VARCHAR(255) | O | |
 | `created_at` | TIMESTAMP | R | |
+
+#### Notes
+
+- Admin Order Timeline is read-only and must show **who** performed each event (resolved actor name + role for admins, customer name, or **System**).
+- Order statuses: Awaiting Payment · Paid · Processing · Ready · Out for Delivery · Completed · Cancelled.
+- Payment statuses: Unpaid · Partially Paid · Paid · Refunded.
 
 ---
 

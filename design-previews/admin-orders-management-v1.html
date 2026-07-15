@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fayadhowr — Admin Orders Management V1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #0E339D; --teal: #0694AC; --bg: #F4F7FB; --surface: #FFF;
+      --text: #1F2937; --muted: #6B7280; --border: #E5E7EB;
+      --shadow: 0 8px 24px rgba(15,23,42,.06); --radius: 16px;
+      --sidebar-w: 248px; --ok: #059669; --warn: #D97706; --danger: #DC2626;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif; color: var(--text);
+      background: linear-gradient(165deg, #DCE6F8 0%, #E8F4F7 45%, #EEF2F7 100%);
+      padding: 32px 24px 72px;
+    }
+    .board-title { max-width: 1480px; margin: 0 auto 24px; }
+    .board-title h1 { font-size: 28px; font-weight: 700; letter-spacing: -.03em; color: var(--primary); }
+    .board-title p { margin-top: 8px; font-size: 14px; color: var(--muted); max-width: 1020px; line-height: 1.5; }
+    .flow-label {
+      font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--primary); margin: 40px auto 14px; max-width: 1480px;
+    }
+
+    /* Shell */
+    .shell {
+      max-width: 1480px; margin: 0 auto; min-height: 920px;
+      display: grid; grid-template-columns: var(--sidebar-w) 1fr;
+      background: var(--bg); border-radius: 24px; overflow: hidden;
+      box-shadow: 0 32px 64px rgba(14,51,157,.12); border: 1px solid rgba(14,51,157,.08);
+    }
+    .sidebar {
+      background: linear-gradient(180deg, #0A2778 0%, #0E339D 55%, #0C4A6E 140%);
+      color: #fff; padding: 24px 14px; display: flex; flex-direction: column; gap: 2px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; padding: 4px 10px 20px; }
+    .brand-mark {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: linear-gradient(135deg, #0694AC, #38BDF8);
+      display: grid; place-items: center; font-weight: 800; font-size: 14px;
+    }
+    .brand-text .name { font-size: 15px; font-weight: 700; }
+    .brand-text .sub { font-size: 11px; opacity: .7; margin-top: 2px; }
+    .nav-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+      opacity: .5; padding: 14px 12px 6px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
+      font-size: 13px; font-weight: 600; color: rgba(255,255,255,.8);
+    }
+    .nav-item .ico {
+      width: 30px; height: 30px; border-radius: 9px; background: rgba(255,255,255,.1);
+      display: grid; place-items: center; font-size: 11px; flex-shrink: 0;
+    }
+    .nav-item.active { background: rgba(255,255,255,.14); color: #fff; }
+    .nav-item.active .ico { background: var(--teal); }
+    .sidebar-foot { margin-top: auto; padding: 14px 8px 4px; border-top: 1px solid rgba(255,255,255,.12); }
+    .admin-chip {
+      display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px;
+      background: rgba(255,255,255,.08);
+    }
+    .admin-av {
+      width: 36px; height: 36px; border-radius: 10px; background: var(--teal);
+      display: grid; place-items: center; font-size: 12px; font-weight: 800;
+    }
+    .admin-chip .n { font-size: 13px; font-weight: 700; }
+    .admin-chip .r { font-size: 11px; opacity: .7; margin-top: 2px; }
+
+    /* Main */
+    .main { display: flex; flex-direction: column; min-width: 0; }
+    .topbar {
+      min-height: 72px; background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .topbar h2 { font-size: 18px; font-weight: 700; letter-spacing: -.02em; }
+    .crumb { font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .icon-btn {
+      width: 42px; height: 42px; border-radius: 12px; background: var(--bg);
+      border: 1px solid var(--border); display: grid; place-items: center; color: var(--primary); font-weight: 700;
+    }
+    .content { padding: 20px 24px 28px; display: flex; flex-direction: column; gap: 16px; }
+    .note-bar {
+      font-size: 12px; color: var(--muted); line-height: 1.45;
+      background: rgba(6,148,172,.06); border: 1px solid rgba(6,148,172,.18);
+      border-radius: 12px; padding: 12px 14px;
+    }
+
+    /* Toolbar */
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px 16px; box-shadow: var(--shadow);
+    }
+    .search {
+      flex: 1; min-width: 240px; height: 44px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 12px; display: flex; align-items: center; gap: 8px; padding: 0 14px;
+      font-size: 13px; color: var(--muted);
+    }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: #fff; font-size: 12px; font-weight: 600; color: var(--text);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .chip.on { background: rgba(14,51,157,.08); border-color: rgba(14,51,157,.3); color: var(--primary); }
+
+    /* Buttons */
+    .btn {
+      height: 44px; padding: 0 16px; border-radius: 12px; font-size: 13px; font-weight: 700;
+      display: inline-flex; align-items: center; gap: 8px; border: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0E339D, #1246C4); color: #fff;
+      box-shadow: 0 8px 18px rgba(14,51,157,.28);
+    }
+    .btn-secondary { background: #fff; color: var(--primary); border: 1.5px solid var(--primary); }
+    .btn-ghost { background: rgba(14,51,157,.06); color: var(--primary); }
+    .btn-sm { height: 34px; padding: 0 12px; font-size: 12px; border-radius: 10px; }
+
+    /* Table */
+    .panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden;
+    }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 1300px; }
+    th {
+      text-align: left; font-size: 11px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .04em;
+      padding: 14px 16px; background: #F8FAFC; border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 14px 16px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(14,51,157,.03); }
+    .ref {
+      font-size: 12px; font-weight: 700; color: var(--primary);
+      background: rgba(14,51,157,.08); padding: 3px 8px; border-radius: 6px;
+    }
+    .name { font-weight: 700; }
+    .muted { color: var(--muted); }
+    .amt { font-weight: 700; color: var(--text); white-space: nowrap; }
+    .pill {
+      display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
+      border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+    .src-bk { background: rgba(14,51,157,.1); color: var(--primary); }
+    .src-pr { background: rgba(6,148,172,.14); color: #0E7490; }
+    .os-await { background: rgba(245,158,11,.14); color: #B45309; }
+    .os-paid { background: rgba(5,150,105,.12); color: var(--ok); }
+    .os-proc { background: rgba(14,51,157,.1); color: var(--primary); }
+    .os-ready { background: rgba(6,148,172,.14); color: #0E7490; }
+    .os-ofd { background: rgba(29,78,216,.12); color: #1D4ED8; }
+    .os-done { background: rgba(5,150,105,.16); color: #047857; }
+    .os-cancel { background: #F3F4F6; color: var(--muted); }
+    .ps-unpaid { background: rgba(220,38,38,.1); color: var(--danger); }
+    .ps-partial { background: rgba(245,158,11,.14); color: #B45309; }
+    .ps-paid { background: rgba(5,150,105,.12); color: var(--ok); }
+    .ps-refund { background: rgba(29,78,216,.12); color: #1D4ED8; }
+    .age { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 4px; }
+    .age.wait { color: #B45309; }
+    .table-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted);
+    }
+    .pager { display: flex; gap: 6px; }
+    .page {
+      width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+      display: grid; place-items: center; font-weight: 700; font-size: 12px; background: #fff;
+    }
+    .page.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    /* Details */
+    .back {
+      height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: #fff; font-size: 12px; font-weight: 700; color: var(--primary);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .detail-head {
+      display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px; box-shadow: var(--shadow);
+    }
+    .dh-title { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+    .dh-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+    .dh-meta strong { color: var(--text); font-weight: 600; }
+
+    /* Summary cards */
+    .summary-row {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+    }
+    .sum-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px 18px; text-align: center;
+    }
+    .sum-card .l { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .sum-card .v { font-size: 22px; font-weight: 800; color: var(--primary); margin-top: 6px; }
+    .sum-card .v.ok { color: var(--ok); }
+    .sum-card .v.warn { color: var(--warn); }
+    .sum-card .v.danger { color: var(--danger); }
+    .sum-card .h { font-size: 11px; color: var(--muted); margin-top: 4px; font-weight: 500; }
+    .sum-card .status-pill {
+      display: inline-flex; height: 22px; padding: 0 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; margin-top: 6px;
+    }
+
+    /* Grids */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1.1fr 1fr .95fr; gap: 16px; align-items: start; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px 18px;
+    }
+    .card h3 {
+      font-size: 13px; font-weight: 700; margin-bottom: 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .card h3 span { font-size: 11px; font-weight: 500; color: var(--muted); }
+    .kv { display: grid; grid-template-columns: 130px 1fr; gap: 8px 12px; font-size: 13px; }
+    .kv .k { color: var(--muted); font-weight: 600; }
+    .kv .v { font-weight: 600; }
+
+    /* Price table */
+    .price-table { width: 100%; border-collapse: collapse; min-width: 0; }
+    .price-table th, .price-table td {
+      padding: 10px 8px; font-size: 13px; border-bottom: 1px solid var(--border); text-align: left;
+    }
+    .price-table th {
+      font-size: 11px; text-transform: uppercase; letter-spacing: .04em; background: transparent; padding-top: 0;
+    }
+    .price-table td.num, .price-table th.num { text-align: right; }
+    .price-table tfoot td { border-bottom: none; font-weight: 800; color: var(--primary); padding-top: 12px; }
+    .price-table tfoot .sub { color: var(--muted); font-weight: 600; }
+
+    /* Status dropdown */
+    .status-dd {
+      display: flex; flex-direction: column; gap: 4px; min-width: 200px;
+    }
+    .status-dd label {
+      font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+    }
+    .status-dd select {
+      height: 42px; padding: 0 12px; border-radius: 12px; border: 1.5px solid rgba(14,51,157,.35);
+      background: #fff; color: var(--primary); font: inherit; font-size: 13px; font-weight: 700;
+      appearance: auto; cursor: pointer;
+    }
+
+    /* Documents */
+    .doc-row {
+      display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+      border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px;
+      background: linear-gradient(135deg, rgba(14,51,157,.03), #fff 60%);
+      cursor: pointer;
+    }
+    .doc-row:hover { border-color: rgba(14,51,157,.35); }
+    .doc-ico {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: linear-gradient(135deg, #0E339D, #0694AC);
+      display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 800;
+    }
+    .doc-row .tt { font-size: 13px; font-weight: 700; }
+    .doc-row .ss { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .doc-row .chev { margin-left: auto; color: var(--muted); font-weight: 700; }
+
+    /* Timeline */
+    .timeline { padding-top: 4px; }
+    .tl {
+      display: grid; grid-template-columns: 16px 1fr; gap: 12px;
+      padding: 12px 0; position: relative;
+    }
+    .tl::before {
+      content: ""; position: absolute; left: 7px; top: 28px; bottom: -4px;
+      width: 2px; background: var(--border);
+    }
+    .tl:last-child::before { display: none; }
+    .dot {
+      width: 16px; height: 16px; border-radius: 50%; margin-top: 2px;
+      background: var(--primary); box-shadow: 0 0 0 4px rgba(14,51,157,.12);
+    }
+    .dot.teal { background: var(--teal); box-shadow: 0 0 0 4px rgba(6,148,172,.15); }
+    .dot.ok { background: var(--ok); box-shadow: 0 0 0 4px rgba(5,150,105,.15); }
+    .tl .t { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .tl .ico-ev {
+      width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
+      font-size: 13px; background: rgba(14,51,157,.08);
+    }
+    .tl .d { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+    .tl .by { font-size: 12px; font-weight: 600; color: var(--primary); margin-top: 4px; }
+    .tl .by.sys { color: var(--muted); }
+    .tl .when { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+
+    /* Linked records */
+    .links { display: flex; flex-direction: column; gap: 8px; }
+    .link-row {
+      display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+      border: 1px solid var(--border); border-radius: 12px;
+      background: linear-gradient(135deg, rgba(14,51,157,.03), #fff 60%);
+      cursor: pointer;
+    }
+    .link-row:hover { border-color: rgba(14,51,157,.35); }
+    .link-row .ico {
+      width: 40px; height: 40px; border-radius: 12px; color: #fff; font-size: 11px; font-weight: 800;
+      display: grid; place-items: center; background: linear-gradient(135deg, #0E339D, #0694AC);
+    }
+    .link-row .tt { font-size: 14px; font-weight: 700; }
+    .link-row .ss { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .link-row .chev { margin-left: auto; color: var(--muted); font-weight: 700; }
+
+    /* Notes */
+    .note-item {
+      border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px;
+      background: #FFFBEF;
+    }
+    .note-audit { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+    .note-av {
+      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+      background: linear-gradient(135deg, #0E339D, #0694AC);
+      color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center;
+    }
+    .note-who .name { font-size: 13px; font-weight: 700; }
+    .note-who .role { font-size: 11px; font-weight: 600; color: var(--primary); margin-top: 1px; }
+    .note-who .when { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+    .note-item .body { font-size: 13px; line-height: 1.45; }
+    .staff-only {
+      display: inline-flex; font-size: 10px; font-weight: 700; color: var(--warn);
+      background: rgba(217,119,6,.12); padding: 2px 8px; border-radius: 6px;
+    }
+    .compose {
+      border: 1px dashed rgba(14,51,157,.3); border-radius: 12px; padding: 12px;
+      background: rgba(14,51,157,.02);
+    }
+    .compose textarea {
+      width: 100%; min-height: 72px; border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 12px; font: inherit; font-size: 13px; color: var(--muted); resize: none; background: #fff;
+    }
+    .compose .row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 10px; }
+
+    /* Current stage indicator */
+    .stage-indicator {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 12px 20px;
+    }
+    .stage-indicator .si-label {
+      font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .stage-indicator .si-value {
+      font-size: 15px; font-weight: 800; color: var(--primary);
+    }
+    .stage-indicator .si-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--primary); box-shadow: 0 0 0 3px rgba(14,51,157,.15);
+      flex-shrink: 0;
+    }
+
+    /* Latest note indicator */
+    .note-latest-indicator {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; margin-bottom: 12px;
+      background: rgba(6,148,172,.06); border: 1px solid rgba(6,148,172,.18);
+      border-radius: 10px; font-size: 11px;
+    }
+    .note-latest-indicator .nli-label {
+      font-weight: 700; color: var(--teal); text-transform: uppercase; letter-spacing: .03em;
+    }
+    .note-latest-indicator .nli-value {
+      font-weight: 600; color: var(--muted);
+    }
+
+    /* Progress tracker */
+    .progress-track {
+      display: flex; align-items: center; gap: 0;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px 20px; overflow-x: auto;
+    }
+    .pt-step {
+      display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 100px;
+      flex: 1; position: relative;
+    }
+    .pt-dot {
+      width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border);
+      background: #fff; display: grid; place-items: center;
+      font-size: 11px; font-weight: 800; color: var(--muted);
+    }
+    .pt-step.done .pt-dot {
+      background: var(--ok); border-color: var(--ok); color: #fff;
+    }
+    .pt-step.active .pt-dot {
+      background: linear-gradient(135deg, #0E339D, #1246C4); border-color: var(--primary); color: #fff;
+      box-shadow: 0 0 0 4px rgba(14,51,157,.18);
+    }
+    .pt-step.cancel .pt-dot {
+      background: var(--muted); border-color: var(--muted); color: #fff;
+    }
+    .pt-label {
+      font-size: 10px; font-weight: 700; color: var(--muted); text-align: center;
+      text-transform: uppercase; letter-spacing: .03em; line-height: 1.3;
+    }
+    .pt-step.done .pt-label { color: var(--ok); }
+    .pt-step.active .pt-label { color: var(--primary); font-weight: 800; }
+    .pt-line {
+      flex: 0 0 auto; width: 32px; height: 2px; background: var(--border); margin-top: -18px;
+    }
+    .pt-line.done { background: var(--ok); }
+
+    /* Financial summary */
+    .fin-summary {
+      display: grid; grid-template-columns: 1fr auto; gap: 6px 24px; font-size: 13px;
+      padding: 16px 18px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+    }
+    .fin-summary .fl { color: var(--muted); font-weight: 600; }
+    .fin-summary .fv { text-align: right; font-weight: 700; }
+    .fin-summary .fv.primary { color: var(--primary); font-weight: 800; }
+    .fin-summary .fv.ok { color: var(--ok); }
+    .fin-summary .fv.warn { color: var(--warn); }
+    .fin-summary .fin-sep {
+      grid-column: 1/-1; height: 1px; background: var(--border); margin: 4px 0;
+    }
+
+    /* Document status */
+    .doc-row.unavail {
+      opacity: .6; cursor: default; border-style: dashed;
+    }
+    .doc-row.unavail:hover { border-color: var(--border); }
+    .doc-status {
+      font-size: 11px; font-weight: 700; margin-left: auto; white-space: nowrap;
+    }
+    .doc-status.ok { color: var(--ok); }
+    .doc-status.pending { color: var(--warn); }
+
+    @media (max-width: 1200px) {
+      .grid-3, .grid-2, .summary-row { grid-template-columns: 1fr; }
+      .detail-head { grid-template-columns: 1fr; }
+      .progress-track { gap: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="board-title">
+    <h1>Orders Management Module — V1</h1>
+    <p>
+      Orders List · Order Details · Business Summary · Timeline · Documents · Linked records · Internal notes.
+      Every order is created <strong>automatically</strong> after a quotation is accepted — no manual create.
+      Source chain: <strong>Booking → Quotation → Accepted → Order</strong> or <strong>Product Request → Quotation → Accepted → Order</strong>.
+      ORD number read-only · never permanently deleted. Auth, Customer App, Dashboard, Customers, Bookings, and Quotations unchanged.
+    </p>
+  </div>
+
+  <!-- ==================== LIST ==================== -->
+  <div class="flow-label">1 · Orders List</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">FD</div>
+        <div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div>
+      </div>
+      <div class="nav-label">Overview</div>
+      <div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div>
+      <div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div>
+      <div class="nav-item active"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div>
+      <div class="nav-item"><div class="ico">INV</div> Invoices</div>
+      <div class="nav-item"><div class="ico">RCP</div> Receipts</div>
+      <div class="nav-item"><div class="ico">▤</div> Reports</div>
+      <div class="nav-label">Catalog</div>
+      <div class="nav-item"><div class="ico">✦</div> Services</div>
+      <div class="nav-item"><div class="ico">▦</div> Store</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item"><div class="ico">bell</div> Notifications</div>
+      <div class="nav-item"><div class="ico">⚙</div> Settings</div>
+      <div class="nav-item"><div class="ico">⌘</div> Audit / Logs</div>
+      <div class="sidebar-foot">
+        <div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <h2>Orders</h2>
+          <div class="crumb">All orders · Auto-created from accepted quotations · Never permanently deleted · No manual create</div>
+        </div>
+        <div class="top-actions">
+          <div class="icon-btn">🔔</div>
+          <div class="icon-btn">⎋</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="note-bar">
+          Orders are created <strong>automatically</strong> when a quotation is accepted (Booking → QT → Accepted → Order, or Product Request → QT → Accepted → Order).
+          There is no <strong>Create Order</strong> button. No delete. Open <strong>View Order</strong> for details, timeline, documents, and staff notes.
+        </div>
+
+        <div class="toolbar">
+          <div class="search"><span>⌕</span> Search ORD number, customer, service or product…</div>
+          <div class="filters">
+            <div class="chip on">Order Status: All ▾</div>
+            <div class="chip">Payment Status ▾</div>
+            <div class="chip">Source ▾</div>
+            <div class="chip">Order Date ▾</div>
+            <div class="chip">Advanced Filters</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order Number</th>
+                  <th>Source</th>
+                  <th>Customer</th>
+                  <th>Service or Product</th>
+                  <th>Order Date</th>
+                  <th>Total Amount</th>
+                  <th>Payment Status</th>
+                  <th>Order Status</th>
+                  <th>Last Updated</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="ref">ORD-2026-000312</span></td>
+                  <td><span class="pill src-bk">Booking</span></td>
+                  <td class="name">Amina Hassan</td>
+                  <td>Deep Home Cleaning</td>
+                  <td>14 Jul 2026<span class="age">Created 1 day ago</span></td>
+                  <td class="amt">$185.00</td>
+                  <td><span class="pill ps-paid">Paid</span></td>
+                  <td><span class="pill os-proc">Processing</span></td>
+                  <td class="muted">15 Jul · 09:15</td>
+                  <td><div class="btn btn-ghost btn-sm">View Order</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">ORD-2026-000305</span></td>
+                  <td><span class="pill src-pr">Product</span></td>
+                  <td class="name">Omar Ali</td>
+                  <td>Bulk Cleaning Kit</td>
+                  <td>12 Jul 2026<span class="age wait">Waiting 3 days</span></td>
+                  <td class="amt">$640.00</td>
+                  <td><span class="pill ps-partial">Partially Paid</span></td>
+                  <td><span class="pill os-await">Awaiting Payment</span></td>
+                  <td class="muted">14 Jul · 16:30</td>
+                  <td><div class="btn btn-ghost btn-sm">View Order</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">ORD-2026-000298</span></td>
+                  <td><span class="pill src-bk">Booking</span></td>
+                  <td class="name">Leyla Abdi</td>
+                  <td>Sofa Cleaning</td>
+                  <td>11 Jul 2026<span class="age">Created 4 days ago</span></td>
+                  <td class="amt">$95.00</td>
+                  <td><span class="pill ps-paid">Paid</span></td>
+                  <td><span class="pill os-ready">Ready</span></td>
+                  <td class="muted">14 Jul · 11:05</td>
+                  <td><div class="btn btn-ghost btn-sm">View Order</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">ORD-2026-000280</span></td>
+                  <td><span class="pill src-bk">Booking</span></td>
+                  <td class="name">Fartun Mohamed</td>
+                  <td>Carpet Cleaning</td>
+                  <td>05 Jul 2026<span class="age">Created 10 days ago</span></td>
+                  <td class="amt">$120.00</td>
+                  <td><span class="pill ps-paid">Paid</span></td>
+                  <td><span class="pill os-done">Completed</span></td>
+                  <td class="muted">10 Jul · 17:40</td>
+                  <td><div class="btn btn-ghost btn-sm">View Order</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">ORD-2026-000265</span></td>
+                  <td><span class="pill src-pr">Product</span></td>
+                  <td class="name">Hodan Yusuf</td>
+                  <td>Commercial Detergent · 20 units</td>
+                  <td>28 Jun 2026<span class="age">Created 17 days ago</span></td>
+                  <td class="amt">$320.00</td>
+                  <td><span class="pill ps-paid">Paid</span></td>
+                  <td><span class="pill os-ofd">Out for Delivery</span></td>
+                  <td class="muted">09 Jul · 08:20</td>
+                  <td><div class="btn btn-ghost btn-sm">View Order</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">ORD-2026-000250</span></td>
+                  <td><span class="pill src-bk">Booking</span></td>
+                  <td class="name">Suleiman Warsame</td>
+                  <td>Move-out Cleaning</td>
+                  <td>20 Jun 2026<span class="age">Created 25 days ago</span></td>
+                  <td class="amt">$210.00</td>
+                  <td><span class="pill ps-refund">Refunded</span></td>
+                  <td><span class="pill os-cancel">Cancelled</span></td>
+                  <td class="muted">25 Jun · 10:00</td>
+                  <td><div class="btn btn-ghost btn-sm">View Order</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">ORD-2026-000238</span></td>
+                  <td><span class="pill src-bk">Booking</span></td>
+                  <td class="name">Abdi Nur</td>
+                  <td>Window Cleaning</td>
+                  <td>15 Jun 2026<span class="age wait">Waiting 30 days</span></td>
+                  <td class="amt">$75.00</td>
+                  <td><span class="pill ps-unpaid">Unpaid</span></td>
+                  <td><span class="pill os-await">Awaiting Payment</span></td>
+                  <td class="muted">15 Jun · 14:10</td>
+                  <td><div class="btn btn-ghost btn-sm">View Order</div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-foot">
+            <span>Showing 1–7 of 52 active queue · 1,340 total orders</span>
+            <div class="pager">
+              <div class="page on">1</div>
+              <div class="page">2</div>
+              <div class="page">3</div>
+              <div class="page">›</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== DETAILS ==================== -->
+  <div class="flow-label">2 · Order Details</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">FD</div>
+        <div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div>
+      </div>
+      <div class="nav-label">Overview</div>
+      <div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div>
+      <div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div>
+      <div class="nav-item active"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item"><div class="ico">$</div> Payments</div>
+      <div class="sidebar-foot">
+        <div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <div class="back">← Orders</div>
+          <h2 style="margin-top:8px;">Order Details</h2>
+          <div class="crumb">Source chain · Items · Summary · Timeline · Documents · Staff notes</div>
+        </div>
+        <div class="top-actions">
+          <div class="status-dd">
+            <label for="ord-status">Update Order Status</label>
+            <select id="ord-status" aria-label="Order status">
+              <option>Awaiting Payment</option>
+              <option>Paid</option>
+              <option selected>Processing</option>
+              <option>Ready</option>
+              <option>Out for Delivery</option>
+              <option>Completed</option>
+              <option>Cancelled</option>
+            </select>
+          </div>
+          <div class="icon-btn">🔔</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <!-- Header -->
+        <div class="detail-head">
+          <div>
+            <div class="dh-title">Deep Home Cleaning</div>
+            <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+              <span class="ref">ORD-2026-000312 🔒</span>
+              <span class="pill src-bk">Booking</span>
+              <span class="pill os-proc">Processing</span>
+              <span class="pill ps-paid">Paid</span>
+            </div>
+            <div class="dh-meta">
+              <span>Customer <strong>Amina Hassan</strong></span>
+              <span>CUS <strong>CUS-2026-000001</strong></span>
+              <span>Linked Booking <strong>BK-2026-000418</strong></span>
+              <span>Linked Quotation <strong>QT-2026-000221 (v3)</strong></span>
+              <span>Ordered <strong>14 Jul 2026</strong></span>
+              <span>Updated <strong>15 Jul 2026 · 09:15</strong></span>
+            </div>
+            <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+              <span class="age">Created 1 day ago</span>
+              <span style="font-size:12px;color:var(--muted);font-weight:600;">· Auto-created from accepted quotation · source permanently linked</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Current Stage Indicator -->
+        <div class="stage-indicator">
+          <div class="si-dot"></div>
+          <div>
+            <div class="si-label">Current Stage</div>
+            <div class="si-value">Processing</div>
+          </div>
+        </div>
+
+        <!-- Progress Tracker -->
+        <div class="progress-track">
+          <div class="pt-step done">
+            <div class="pt-dot">✓</div>
+            <div class="pt-label">Awaiting<br>Payment</div>
+          </div>
+          <div class="pt-line done"></div>
+          <div class="pt-step done">
+            <div class="pt-dot">✓</div>
+            <div class="pt-label">Paid</div>
+          </div>
+          <div class="pt-line done"></div>
+          <div class="pt-step active">
+            <div class="pt-dot">3</div>
+            <div class="pt-label">Processing</div>
+          </div>
+          <div class="pt-line"></div>
+          <div class="pt-step">
+            <div class="pt-dot">4</div>
+            <div class="pt-label">Ready</div>
+          </div>
+          <div class="pt-line"></div>
+          <div class="pt-step">
+            <div class="pt-dot">5</div>
+            <div class="pt-label">Out for<br>Delivery</div>
+          </div>
+          <div class="pt-line"></div>
+          <div class="pt-step">
+            <div class="pt-dot">6</div>
+            <div class="pt-label">Completed</div>
+          </div>
+        </div>
+
+        <!-- Business Summary -->
+        <div class="summary-row">
+          <div class="sum-card">
+            <div class="l">Total Amount</div>
+            <div class="v">$185.00</div>
+          </div>
+          <div class="sum-card">
+            <div class="l">Amount Paid</div>
+            <div class="v ok">$185.00</div>
+          </div>
+          <div class="sum-card">
+            <div class="l">Remaining Balance</div>
+            <div class="v">$0.00</div>
+          </div>
+          <div class="sum-card">
+            <div class="l">Payment Status</div>
+            <div class="status-pill ps-paid" style="margin-top:8px;">Paid</div>
+          </div>
+        </div>
+
+        <!-- Financial Summary -->
+        <div class="fin-summary">
+          <div class="fl">Subtotal</div><div class="fv">$185.00</div>
+          <div class="fl">Discount</div><div class="fv">$0.00</div>
+          <div class="fl">Delivery Fee</div><div class="fv">$0.00</div>
+          <div class="fl">Tax</div><div class="fv">$0.00</div>
+          <div class="fin-sep"></div>
+          <div class="fl">Grand Total</div><div class="fv primary">$185.00</div>
+          <div class="fin-sep"></div>
+          <div class="fl">Amount Paid</div><div class="fv ok">$185.00</div>
+          <div class="fl">Remaining Balance</div><div class="fv">$0.00</div>
+        </div>
+
+        <!-- Customer + Source -->
+        <div class="grid-2">
+          <div class="card">
+            <h3>Customer Information</h3>
+            <div class="kv">
+              <div class="k">Name</div><div class="v">Amina Hassan</div>
+              <div class="k">Phone</div><div class="v">+252 61 234 5678</div>
+              <div class="k">Email</div><div class="v">amina@email.com</div>
+              <div class="k">CUS</div><div class="v">CUS-2026-000001</div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Source Chain &amp; Linkage</h3>
+            <div class="kv">
+              <div class="k">Source</div><div class="v"><span class="pill src-bk">Booking</span></div>
+              <div class="k">Linked Booking</div><div class="v">BK-2026-000418</div>
+              <div class="k">Linked Quotation</div><div class="v">QT-2026-000221 (v3 · Accepted)</div>
+              <div class="k">Service</div><div class="v">Deep Home Cleaning</div>
+              <div class="k">Origin rule</div><div class="v">Permanent · auto-created</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ordered Items + Price Breakdown -->
+        <div class="card">
+          <h3>Ordered Items &amp; Price Breakdown <span>From accepted QT-2026-000221 v3</span></h3>
+          <table class="price-table">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th class="num">Qty</th>
+                <th class="num">Unit Price</th>
+                <th class="num">Line Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Deep clean · living + kitchen</td>
+                <td class="num">1</td>
+                <td class="num">$110.00</td>
+                <td class="num">$110.00</td>
+              </tr>
+              <tr>
+                <td>Bathrooms (×2)</td>
+                <td class="num">2</td>
+                <td class="num">$30.00</td>
+                <td class="num">$60.00</td>
+              </tr>
+              <tr>
+                <td>Kitchen grease treatment</td>
+                <td class="num">1</td>
+                <td class="num">$15.00</td>
+                <td class="num">$15.00</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr class="sub"><td colspan="3">Subtotal</td><td class="num">$185.00</td></tr>
+              <tr class="sub"><td colspan="3">Discount</td><td class="num">$0.00</td></tr>
+              <tr class="sub"><td colspan="3">Delivery Fee</td><td class="num">$0.00</td></tr>
+              <tr class="sub"><td colspan="3">Tax</td><td class="num">$0.00</td></tr>
+              <tr><td colspan="3">Grand Total</td><td class="num">$185.00</td></tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- Documents -->
+        <div class="card">
+          <h3>Order Documents</h3>
+          <div class="doc-row">
+            <div class="doc-ico">PDF</div>
+            <div><div class="tt">Order PDF</div><div class="ss">ORD-2026-000312 · Generated 14 Jul 2026</div></div>
+            <div class="doc-status ok">✅ Available</div>
+            <div class="chev">↓</div>
+          </div>
+          <div class="doc-row">
+            <div class="doc-ico">INV</div>
+            <div><div class="tt">Invoice PDF</div><div class="ss">INV-2026-000312 · Generated 14 Jul 2026</div></div>
+            <div class="doc-status ok">✅ Available</div>
+            <div class="chev">↓</div>
+          </div>
+          <div class="doc-row unavail">
+            <div class="doc-ico">RCP</div>
+            <div><div class="tt">Receipt PDF</div><div class="ss">Not Available Yet</div></div>
+            <div class="doc-status pending">⏳ Pending</div>
+          </div>
+        </div>
+
+        <!-- Timeline + Links + Notes -->
+        <div class="grid-3">
+          <div class="card">
+            <h3>Order Timeline <span>Read-only audit</span></h3>
+            <div class="timeline">
+              <div class="tl">
+                <div class="dot"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">⚙</span> Order Processing</div>
+                  <div class="d">Fulfillment preparation started</div>
+                  <div class="by">By Asad (Admin)</div>
+                  <div class="when">15 Jul 2026 · 09:15</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot ok"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">✅</span> Payment Confirmed</div>
+                  <div class="d">Full payment confirmed · $185.00</div>
+                  <div class="by">By Mohamed (Accountant)</div>
+                  <div class="when">14 Jul 2026 · 11:10</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot ok"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">💳</span> Payment Received</div>
+                  <div class="d">EVC Plus · $185.00</div>
+                  <div class="by sys">System</div>
+                  <div class="when">14 Jul 2026 · 11:05</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot teal"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">📨</span> Payment Requested</div>
+                  <div class="d">Invoice sent to customer · $185.00</div>
+                  <div class="by sys">System</div>
+                  <div class="when">14 Jul 2026 · 10:35</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">📌</span> Order Created Automatically</div>
+                  <div class="d">From accepted QT-2026-000221 (v3) → BK-2026-000418</div>
+                  <div class="by sys">System</div>
+                  <div class="when">14 Jul 2026 · 10:30</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Linked Records</h3>
+            <div class="links">
+              <div class="link-row">
+                <div class="ico">CUS</div>
+                <div><div class="tt">Customer Profile</div><div class="ss">Amina Hassan · CUS-2026-000001</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">BK</div>
+                <div><div class="tt">Booking</div><div class="ss">BK-2026-000418 · Deep Home Cleaning</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">QT</div>
+                <div><div class="tt">Quotation</div><div class="ss">QT-2026-000221 · v3 Accepted · Discussion ›</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">PAY</div>
+                <div><div class="tt">Payments</div><div class="ss">PAY-2026-000912 · $185.00 · Paid</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">DOC</div>
+                <div><div class="tt">Order Documents</div><div class="ss">Order PDF · Invoice PDF · Receipt PDF</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">NTF</div>
+                <div><div class="tt">Notifications</div><div class="ss">Order notifications</div></div>
+                <div class="chev">›</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Internal Notes <span class="staff-only">Staff only</span></h3>
+            <div class="note-latest-indicator">
+              <span class="nli-label">Latest Note</span>
+              <span class="nli-value">15 Jul 2026 · 09:20</span>
+            </div>
+            <div class="note-item">
+              <div class="note-audit">
+                <div class="note-av">AS</div>
+                <div class="note-who">
+                  <div class="name">Asad</div>
+                  <div class="role">Admin</div>
+                  <div class="when">15 Jul 2026 · 09:20</div>
+                </div>
+              </div>
+              <div class="body">Order processing started. Ahmed Ali confirmed for the 16 Jul morning slot.</div>
+            </div>
+            <div class="note-item">
+              <div class="note-audit">
+                <div class="note-av">MA</div>
+                <div class="note-who">
+                  <div class="name">Mohamed</div>
+                  <div class="role">Accountant</div>
+                  <div class="when">14 Jul 2026 · 11:15</div>
+                </div>
+              </div>
+              <div class="body">Payment received and confirmed via EVC Plus. Invoice and receipt generated.</div>
+            </div>
+            <div class="compose">
+              <textarea placeholder="Add an internal note (Admin, Sales, Accountant)…"></textarea>
+              <div class="row">
+                <span class="muted" style="font-size:11px;font-weight:600;">Customers never see these notes</span>
+                <div class="btn btn-primary btn-sm">Save Note</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

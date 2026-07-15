@@ -882,6 +882,55 @@ Operations staff manage all quotations that originate from a Booking or Product 
 
 ---
 
+# 16. Admin Orders Management (Panel)
+
+## 16.1 Objective
+
+Operations staff manage all orders that are automatically created from accepted quotations — never manually created.
+
+## 16.2 Origin Rule
+
+Every order is created automatically via: Booking → Quotation → Accepted → Order, or Product Request → Quotation → Accepted → Order. No Create Order button.
+
+## 16.3 Primary Path
+
+1. Admin / Sales / Accountant opens **Orders** from the sidebar.
+2. Scans list — each row shows **Order Age** beneath the date (e.g., "Created 1 day ago", "Waiting 3 days" for Awaiting Payment).
+3. Searches / applies advanced filters (order status, payment status, source, order date).
+4. Opens **View Order** on a row.
+5. Sees the **Current Stage Indicator** — compact read-only label showing "Current Stage: Processing" (or current stage name) above the progress tracker.
+6. Sees the **Order Progress Tracker** (visual stepper: Awaiting Payment → Paid → Processing → Ready → Out for Delivery → Completed) with the current step highlighted — visual indicator only.
+7. Reviews **Order Age** in the header area (e.g., "Created 1 day ago").
+7. Reviews **Business Summary** cards (Total Amount, Amount Paid, Remaining Balance, Payment Status).
+8. Reviews **Financial Summary** (compact read-only: Subtotal, Discount, Delivery Fee, Tax, Grand Total, Amount Paid, Remaining Balance).
+9. Confirms **Source Chain** (Booking or Product → Quotation → Accepted → Order) and permanent linked records.
+10. Reviews customer, ordered items, price breakdown (subtotal, discount, delivery, tax, grand total).
+11. Updates order status only via the **controlled status dropdown** (approved statuses only).
+12. Checks **Order Documents** — each shows availability: ✅ Available (clickable) or ⏳ Not Available Yet (disabled). Cannot open documents that have not been generated.
+13. Reads **Order Timeline** including expanded **Payment Timeline** events (Payment Requested, Payment Received, Payment Confirmed, Refund Processed) — each event shows Performed By, Staff Role (or Customer/System), Date, Time (audit only).
+14. Uses **Linked Records** for Customer Profile, Booking, Quotation (with Discussion access), Payments, **Order Documents** (quick access to Order PDF / Invoice PDF / Receipt PDF), Notifications.
+15. Sees **Latest Note** indicator above Internal Notes showing the date/time of the most recent note (read-only).
+16. Optionally adds an **Internal Note** (Admin / Sales / Accountant) — never customer-visible.
+
+## 16.4 Rules
+
+- Order Number (`ORD-…`) is read-only.
+- No manual order creation; every order must originate from an accepted quotation.
+- Order statuses: Awaiting Payment · Paid · Processing · Ready · Out for Delivery · Completed · Cancelled (no custom values).
+- Payment statuses: Unpaid (red) · Partially Paid (orange) · Paid (green) · Refunded (blue) — standardized colors across Admin Panel.
+- No permanent delete; order always remains linked to its originating Booking or Product Request and its accepted Quotation.
+- Discussion history remains accessible through the linked quotation.
+- Order Progress Tracker is visual indicator only — no actions or logic attached.
+- Order Age is calculated from order creation date.
+- Payment Timeline events include all payment-related events with complete actor audit.
+- Documents display availability status — unavailable documents cannot be opened.
+- Financial Summary is read-only.
+- Current Stage Indicator is read-only — derived from order status.
+- Linked Records include Order Documents shortcut for quick access.
+- Latest Note indicator is read-only — shows timestamp of the most recent internal note.
+
+---
+
 ## Traceability Summary
 
 | UX area | SRS / Design alignment |
