@@ -1299,6 +1299,21 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 - No PAN/CVV/full card data stored.
 - Abandoned pending payments expire per policy.
+- **Admin Payments Management Module** notes:
+  - Every payment must originate from an existing Order — no manual creation by Admin/Sales/Accountant.
+  - Approved admin-facing payment statuses: Pending, Received, Confirmed, Failed, Refunded. These map from internal `status` column values at the application layer.
+  - Supported payment methods: EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card — stored in `provider` column.
+  - **Payment Progress Tracker** is UI-only; computed from the current `status` — no additional database field.
+  - **Current Stage Indicator** is UI-only; derived from `status` at query time.
+  - **Payment Documents** availability is determined at runtime from document generation records; no additional column on `payments`.
+  - **Latest Note indicator** is derived from the most recent `payment_notes.created_at` at query time (requires `payment_notes` table — see below).
+  - Admin timeline events must record actor (admin name + role, customer, or System).
+  - Internal staff notes use a `payment_notes` table for audit (name/role/date/time), following the same pattern as `order_notes`, `quotation_notes`, and `booking_notes`.
+  - **Payment Verification Badge** (Verified / Pending Verification) requires a `verification_status` column on the `payments` table (e.g., `verification_status` VARCHAR(30) DEFAULT 'pending_verification'). This is independent from the `status` column.
+  - **Payment Age** is computed at query time from `paid_at` / `created_at`; no stored column.
+  - **Transaction Reference Copy** is UI-only; no database change.
+  - **Payment Method Icon** is UI-only; derived from the existing `provider` column.
+  - **Financial Audit Summary** (Payment Requested By, Payment Confirmed By, Confirmation Date, Last Updated) is derived at query time from timeline/status-history records and `updated_at`; no additional stored columns.
 
 ---
 
@@ -1331,6 +1346,28 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 - Refund total cannot exceed original successful payment amount.
 - Parent payment status updated to `refunded` or `partially_refunded`.
+
+---
+
+### 3.6.3 `payment_notes` (Admin internal)
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `payment_notes` |
+| **Purpose** | Internal staff notes on a payment. Never visible to customers. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `payment_id` → `payments.id`, `admin_id` → `admins.id` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `payment_id` | BIGINT UNSIGNED | R | FK |
+| `admin_id` | BIGINT UNSIGNED | R | FK — who wrote the note |
+| `body` | TEXT | R | Note content |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
 
 ---
 

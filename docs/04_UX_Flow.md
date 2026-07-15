@@ -931,6 +931,59 @@ Every order is created automatically via: Booking → Quotation → Accepted →
 
 ---
 
+# 17. Admin Payments Management (Panel)
+
+## 17.1 Objective
+
+Operations staff manage all payments that originate from existing Orders — never manually created.
+
+## 17.2 Origin Rule
+
+Every payment must originate from an existing Order via: Booking / Product Request → Quotation → Accepted → Order → Payment. No Create Payment button.
+
+## 17.3 Primary Path
+
+1. Admin / Sales / Accountant opens **Payments** from the sidebar.
+2. Scans list — each row shows **Payment Age** (e.g., "Received 1 day ago", "Waiting Verification 3 days"), **Verification Badge** (Verified / Pending Verification), and **Payment Method icon**.
+3. Notes the Order Number (clickable link to originating order) on each row.
+4. Searches / applies advanced filters (payment status, payment method, payment date).
+5. Opens **View Payment** on a row.
+6. Sees the **Verification Badge** in the header (independent from Payment Status).
+7. Sees the **Current Stage Indicator** — compact read-only label showing "Current Stage: Confirmed" (or current stage).
+8. Sees the **Payment Progress Tracker** (visual stepper: Pending → Received → Confirmed, or Pending → Failed, or Confirmed → Refunded) with the current step highlighted — visual indicator only.
+9. Reviews **Business Summary** cards (Amount Due, Amount Paid, Remaining Balance, Payment Status).
+10. Reviews **Financial Audit Summary** (read-only: Payment Requested By, Payment Confirmed By, Confirmation Date, Last Updated).
+11. Reviews **Payment Information** (Payment Number, Method with icon, Transaction Reference with **Copy** button, Amount, Currency, Date, Status, Verification Badge).
+12. Uses the **Copy** button next to Transaction Reference — sees "Copied" confirmation.
+13. Reviews **Customer Information** (Name, Phone, Email, CUS).
+14. Confirms **Source Chain** (Order → Quotation → Booking or Product Request) — permanent and always traceable.
+15. Updates payment status only via the **controlled status dropdown** (approved statuses only).
+16. Checks **Payment Documents** — each shows availability: ✅ Available (clickable) or ⏳ Pending (disabled). Cannot open documents not yet generated.
+17. Reads **Payment Timeline** (audit only — each event shows Performed By, Staff Role or Customer/System, Date, Time): Payment Requested, Payment Received, Payment Confirmed, Refund Initiated, Refund Completed.
+18. Uses **Linked Records** for Customer Profile, Booking, Quotation, Order, Notifications.
+19. Sees **Latest Note** indicator above Internal Notes showing the date/time of the most recent note (read-only).
+20. Optionally adds an **Internal Note** (Admin / Sales / Accountant) — never customer-visible.
+
+## 17.4 Rules
+
+- Payment Number (`PAY-…`) is read-only.
+- No manual payment creation; every payment must originate from an existing Order.
+- Payment statuses: Pending · Received · Confirmed · Failed · Refunded (no custom values).
+- Supported methods: EVC Plus · eDahab · Jeeb · Salaam Somali Bank · Bank Transfer · Debit / Credit Card.
+- No permanent delete; payment always remains linked to its originating Order.
+- Receipt history is permanent.
+- Payment Progress Tracker is visual indicator only — no actions or logic attached.
+- Current Stage Indicator is read-only — derived from payment status.
+- Payment Documents display availability status — unavailable documents cannot be opened.
+- Latest Note indicator is read-only — shows timestamp of the most recent internal note.
+- Verification Badge is independent from Payment Status — a payment can be Confirmed but still Pending Verification, or Received and already Verified.
+- Payment Age uses contextual wording: "Received X days ago" for confirmed/received payments, "Waiting Verification X days" for unverified.
+- Transaction Reference Copy button shows "Copied" confirmation — UI-only interaction.
+- Payment Method icons are displayed consistently across list and details.
+- Financial Audit Summary is read-only — derived from timeline events.
+
+---
+
 ## Traceability Summary
 
 | UX area | SRS / Design alignment |

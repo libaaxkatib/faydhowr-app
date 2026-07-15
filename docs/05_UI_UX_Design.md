@@ -1251,7 +1251,7 @@ Do **not** show Staff Performance, Staff on Duty, Jobs Assigned, or Team Workloa
 
 ## 17.8 Out of Scope for This Foundation
 
-Detailed management UIs for Payments, Invoices, Receipts, Catalog, Settings — designed separately.
+Detailed management UIs for Invoices, Receipts, Catalog, Settings — designed separately.
 
 ---
 
@@ -1475,6 +1475,76 @@ These colors must remain consistent everywhere Payment Status appears across the
 - Every order remains permanently linked to its originating Booking or Product Request and its accepted Quotation.
 - Timeline is read-only audit history.
 - Discussion history remains accessible through the linked quotation.
+
+---
+
+# 22. Admin Payments Management Module
+
+Desktop-first. Access: **Admin**, **Sales**, **Accountant** (as permitted). No manual payment creation.
+
+## 22.1 Origin Rule (mandatory)
+
+Every payment must originate from an existing **Order**. Payments can never be created manually.
+
+| Source chain | Flow |
+| --- | --- |
+| **Full chain** | Booking / Product Request → Quotation → Accepted → Order → Payment (Automatic) |
+
+The payment link to its originating Order is permanent and always traceable.
+
+## 22.2 Payments List
+
+| Element | Specification |
+| --- | --- |
+| **Search** | PAY number, order number, customer, payment method |
+| **Advanced filters** | Payment status, payment method, payment date, etc. |
+| **Columns** | Payment Number (`PAY-…`), Order Number (clickable link), Customer, Payment Method (with icon), Amount, Payment Status, **Verification** (Verified / Pending Verification badge), Payment Date + **Payment Age** (e.g., "Received 1 day ago", "Waiting Verification 3 days"), Last Updated |
+| **Row action** | **View Payment** only |
+| **Forbidden** | Permanent delete; Create Payment (manual) |
+
+### Approved payment statuses (only — controlled dropdown)
+
+Pending · Received · Confirmed · Failed · Refunded
+
+### Supported payment methods (with icons)
+
+| Method | Icon Label | Color |
+| --- | --- | --- |
+| EVC Plus | E | Green |
+| eDahab | eD | Orange |
+| Jeeb | J | Primary Blue |
+| Salaam Somali Bank | SB | Teal |
+| Bank Transfer | BT | Grey |
+| Debit / Credit Card | DC | Blue |
+
+Icons displayed consistently in both list and details.
+
+## 22.3 Payment Details
+
+| Block | Content |
+| --- | --- |
+| **Header** | PAY Number (read-only), Payment Status, Payment Method (with icon), **Verification Badge** (Verified / Pending Verification — independent from Payment Status), linked Order, linked Quotation, linked Booking or Product Request, Customer/CUS, dates, **Payment Age** (e.g., "Received 1 day ago") |
+| **Current Stage Indicator** | Compact read-only label: "Current Stage" + current stage name (e.g., "Confirmed") |
+| **Payment Progress Tracker** | Visual stepper showing payment flow: Pending → Received → Confirmed (normal), Pending → Failed (failure), or Confirmed → Refunded (refund). Current step highlighted |
+| **Business Summary** | Summary cards: Amount Due, Amount Paid, Remaining Balance, Payment Status |
+| **Financial Audit Summary** | Compact read-only section below Business Summary: Payment Requested By, Payment Confirmed By, Confirmation Date, Last Updated |
+| **Payment Information** | Payment Number, Payment Method (with icon), Transaction Reference (with **Copy** button — shows "Copied" confirmation), Amount Paid, Currency, Payment Date, Payment Status, Verification Badge |
+| **Customer Information** | Name, phone, email, CUS |
+| **Source Chain & Linkage** | Linked Order, Linked Quotation, Linked Booking, Source, Origin Rule — permanent |
+| **Payment Documents** | Payment Receipt, Invoice, Order PDF — each with availability indicator: ✅ Available (clickable) or ⏳ Pending (disabled/dashed) |
+| **Payment Timeline** | Read-only audit: Payment Requested, Payment Received, Payment Confirmed, Refund Initiated, Refund Completed — each with Performed By, Staff Role (or Customer/System), Date, Time |
+| **Linked Records** | Customer Profile, Booking, Quotation, Order, Notifications |
+| **Internal Notes** | Staff notes with Name, Role, Date, Time — Admin / Sales / Accountant; never customer-visible. Latest Note indicator displayed above notes (read-only) |
+
+## 22.4 Business Rules
+
+- Payment Number (`PAY-…`) is read-only and auto-generated.
+- Payments are never permanently deleted.
+- Payments can never exist without an Order (no manual create).
+- Every payment remains permanently linked to its originating Order.
+- Timeline is read-only audit history.
+- Receipt history is permanent.
+- Payment status colors standardized: Confirmed (green), Received (teal), Pending (orange), Failed (red), Refunded (blue).
 
 ---
 

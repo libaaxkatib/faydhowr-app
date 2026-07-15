@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fayadhowr — Admin Payments Management V1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #0E339D; --teal: #0694AC; --bg: #F4F7FB; --surface: #FFF;
+      --text: #1F2937; --muted: #6B7280; --border: #E5E7EB;
+      --shadow: 0 8px 24px rgba(15,23,42,.06); --radius: 16px;
+      --sidebar-w: 248px; --ok: #059669; --warn: #D97706; --danger: #DC2626;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif; color: var(--text);
+      background: linear-gradient(165deg, #DCE6F8 0%, #E8F4F7 45%, #EEF2F7 100%);
+      padding: 32px 24px 72px;
+    }
+    .board-title { max-width: 1480px; margin: 0 auto 24px; }
+    .board-title h1 { font-size: 28px; font-weight: 700; letter-spacing: -.03em; color: var(--primary); }
+    .board-title p { margin-top: 8px; font-size: 14px; color: var(--muted); max-width: 1020px; line-height: 1.5; }
+    .flow-label {
+      font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--primary); margin: 40px auto 14px; max-width: 1480px;
+    }
+
+    /* Shell */
+    .shell {
+      max-width: 1480px; margin: 0 auto; min-height: 920px;
+      display: grid; grid-template-columns: var(--sidebar-w) 1fr;
+      background: var(--bg); border-radius: 24px; overflow: hidden;
+      box-shadow: 0 32px 64px rgba(14,51,157,.12); border: 1px solid rgba(14,51,157,.08);
+    }
+    .sidebar {
+      background: linear-gradient(180deg, #0A2778 0%, #0E339D 55%, #0C4A6E 140%);
+      color: #fff; padding: 24px 14px; display: flex; flex-direction: column; gap: 2px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; padding: 4px 10px 20px; }
+    .brand-mark {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: linear-gradient(135deg, #0694AC, #38BDF8);
+      display: grid; place-items: center; font-weight: 800; font-size: 14px;
+    }
+    .brand-text .name { font-size: 15px; font-weight: 700; }
+    .brand-text .sub { font-size: 11px; opacity: .7; margin-top: 2px; }
+    .nav-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+      opacity: .5; padding: 14px 12px 6px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
+      font-size: 13px; font-weight: 600; color: rgba(255,255,255,.8);
+    }
+    .nav-item .ico {
+      width: 30px; height: 30px; border-radius: 9px; background: rgba(255,255,255,.1);
+      display: grid; place-items: center; font-size: 11px; flex-shrink: 0;
+    }
+    .nav-item.active { background: rgba(255,255,255,.14); color: #fff; }
+    .nav-item.active .ico { background: var(--teal); }
+    .sidebar-foot { margin-top: auto; padding: 14px 8px 4px; border-top: 1px solid rgba(255,255,255,.12); }
+    .admin-chip {
+      display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px;
+      background: rgba(255,255,255,.08);
+    }
+    .admin-av {
+      width: 36px; height: 36px; border-radius: 10px; background: var(--teal);
+      display: grid; place-items: center; font-size: 12px; font-weight: 800;
+    }
+    .admin-chip .n { font-size: 13px; font-weight: 700; }
+    .admin-chip .r { font-size: 11px; opacity: .7; margin-top: 2px; }
+
+    /* Main */
+    .main { display: flex; flex-direction: column; min-width: 0; }
+    .topbar {
+      min-height: 72px; background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .topbar h2 { font-size: 18px; font-weight: 700; letter-spacing: -.02em; }
+    .crumb { font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .icon-btn {
+      width: 42px; height: 42px; border-radius: 12px; background: var(--bg);
+      border: 1px solid var(--border); display: grid; place-items: center; color: var(--primary); font-weight: 700;
+    }
+    .content { padding: 20px 24px 28px; display: flex; flex-direction: column; gap: 16px; }
+    .note-bar {
+      font-size: 12px; color: var(--muted); line-height: 1.45;
+      background: rgba(6,148,172,.06); border: 1px solid rgba(6,148,172,.18);
+      border-radius: 12px; padding: 12px 14px;
+    }
+
+    /* Toolbar */
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px 16px; box-shadow: var(--shadow);
+    }
+    .search {
+      flex: 1; min-width: 240px; height: 44px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 12px; display: flex; align-items: center; gap: 8px; padding: 0 14px;
+      font-size: 13px; color: var(--muted);
+    }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: #fff; font-size: 12px; font-weight: 600; color: var(--text);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .chip.on { background: rgba(14,51,157,.08); border-color: rgba(14,51,157,.3); color: var(--primary); }
+
+    /* Buttons */
+    .btn {
+      height: 44px; padding: 0 16px; border-radius: 12px; font-size: 13px; font-weight: 700;
+      display: inline-flex; align-items: center; gap: 8px; border: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0E339D, #1246C4); color: #fff;
+      box-shadow: 0 8px 18px rgba(14,51,157,.28);
+    }
+    .btn-ghost { background: rgba(14,51,157,.06); color: var(--primary); }
+    .btn-sm { height: 34px; padding: 0 12px; font-size: 12px; border-radius: 10px; }
+
+    /* Table */
+    .panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden;
+    }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 1380px; }
+    th {
+      text-align: left; font-size: 11px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .04em;
+      padding: 14px 16px; background: #F8FAFC; border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 14px 16px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(14,51,157,.03); }
+    .ref {
+      font-size: 12px; font-weight: 700; color: var(--primary);
+      background: rgba(14,51,157,.08); padding: 3px 8px; border-radius: 6px;
+    }
+    .ref-link { font-size: 12px; font-weight: 700; color: var(--teal); cursor: pointer; }
+    .ref-link:hover { text-decoration: underline; }
+    .name { font-weight: 700; }
+    .muted { color: var(--muted); }
+    .amt { font-weight: 700; color: var(--text); white-space: nowrap; }
+    .pill {
+      display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
+      border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+    /* Payment statuses — standardized */
+    .ps-pending  { background: rgba(245,158,11,.14); color: #B45309; }
+    .ps-received { background: rgba(6,148,172,.14); color: #0E7490; }
+    .ps-confirmed { background: rgba(5,150,105,.12); color: var(--ok); }
+    .ps-failed   { background: rgba(220,38,38,.1); color: var(--danger); }
+    .ps-refunded { background: rgba(29,78,216,.12); color: #1D4ED8; }
+    /* Payment method pills */
+    .pm-evc   { background: rgba(5,150,105,.1); color: #047857; }
+    .pm-edahab { background: rgba(245,158,11,.12); color: #B45309; }
+    .pm-jeeb  { background: rgba(14,51,157,.1); color: var(--primary); }
+    .pm-salaam { background: rgba(6,148,172,.12); color: #0E7490; }
+    .pm-bank  { background: rgba(107,114,128,.1); color: #4B5563; }
+    .pm-card  { background: rgba(29,78,216,.1); color: #1D4ED8; }
+
+    .age { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 4px; }
+    .age.wait { color: #B45309; }
+
+    /* Verification badge */
+    .vb { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px;
+      border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+    .vb-ok { background: rgba(5,150,105,.12); color: var(--ok); }
+    .vb-pend { background: rgba(245,158,11,.12); color: #B45309; }
+
+    /* Payment method icon */
+    .pm-ico {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
+    }
+    .pm-ico .pm-symbol {
+      width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+      font-size: 10px; font-weight: 800; color: #fff; flex-shrink: 0;
+    }
+    .pm-ico.evc .pm-symbol   { background: #047857; }
+    .pm-ico.edahab .pm-symbol { background: #B45309; }
+    .pm-ico.jeeb .pm-symbol  { background: var(--primary); }
+    .pm-ico.salaam .pm-symbol { background: #0E7490; }
+    .pm-ico.bank .pm-symbol  { background: #4B5563; }
+    .pm-ico.card .pm-symbol  { background: #1D4ED8; }
+
+    /* Copy button */
+    .copy-btn {
+      display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px;
+      border-radius: 6px; border: 1px solid var(--border); background: var(--bg);
+      font-size: 10px; font-weight: 700; color: var(--primary); cursor: pointer;
+      transition: all .15s;
+    }
+    .copy-btn:hover { border-color: rgba(14,51,157,.35); background: rgba(14,51,157,.06); }
+    .copy-btn.copied { background: rgba(5,150,105,.1); border-color: rgba(5,150,105,.3); color: var(--ok); }
+
+    /* Financial audit summary */
+    .audit-summary {
+      display: grid; grid-template-columns: 1fr auto; gap: 6px 24px; font-size: 13px;
+      padding: 16px 18px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+    }
+    .audit-summary .al { color: var(--muted); font-weight: 600; }
+    .audit-summary .av { text-align: right; font-weight: 700; }
+    .audit-summary .av.primary { color: var(--primary); }
+
+    .table-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted);
+    }
+    .pager { display: flex; gap: 6px; }
+    .page {
+      width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+      display: grid; place-items: center; font-weight: 700; font-size: 12px; background: #fff;
+    }
+    .page.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    /* Details */
+    .back {
+      height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: #fff; font-size: 12px; font-weight: 700; color: var(--primary);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .detail-head {
+      display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px; box-shadow: var(--shadow);
+    }
+    .dh-title { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+    .dh-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+    .dh-meta strong { color: var(--text); font-weight: 600; }
+
+    /* Summary cards */
+    .summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .sum-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px 18px; text-align: center;
+    }
+    .sum-card .l { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .sum-card .v { font-size: 22px; font-weight: 800; color: var(--primary); margin-top: 6px; }
+    .sum-card .v.ok { color: var(--ok); }
+    .sum-card .v.warn { color: var(--warn); }
+    .sum-card .v.danger { color: var(--danger); }
+    .sum-card .status-pill {
+      display: inline-flex; height: 22px; padding: 0 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; margin-top: 6px;
+    }
+
+    /* Current stage indicator */
+    .stage-indicator {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 12px 20px;
+    }
+    .stage-indicator .si-label {
+      font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .stage-indicator .si-value { font-size: 15px; font-weight: 800; color: var(--primary); }
+    .stage-indicator .si-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--primary); box-shadow: 0 0 0 3px rgba(14,51,157,.15); flex-shrink: 0;
+    }
+
+    /* Progress tracker */
+    .progress-track {
+      display: flex; align-items: center; gap: 0;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px 20px; overflow-x: auto;
+    }
+    .pt-step {
+      display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 100px;
+      flex: 1; position: relative;
+    }
+    .pt-dot {
+      width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border);
+      background: #fff; display: grid; place-items: center;
+      font-size: 11px; font-weight: 800; color: var(--muted);
+    }
+    .pt-step.done .pt-dot { background: var(--ok); border-color: var(--ok); color: #fff; }
+    .pt-step.active .pt-dot {
+      background: linear-gradient(135deg, #0E339D, #1246C4); border-color: var(--primary); color: #fff;
+      box-shadow: 0 0 0 4px rgba(14,51,157,.18);
+    }
+    .pt-step.failed .pt-dot { background: var(--danger); border-color: var(--danger); color: #fff; }
+    .pt-label {
+      font-size: 10px; font-weight: 700; color: var(--muted); text-align: center;
+      text-transform: uppercase; letter-spacing: .03em; line-height: 1.3;
+    }
+    .pt-step.done .pt-label { color: var(--ok); }
+    .pt-step.active .pt-label { color: var(--primary); font-weight: 800; }
+    .pt-step.failed .pt-label { color: var(--danger); }
+    .pt-line {
+      flex: 0 0 auto; width: 32px; height: 2px; background: var(--border); margin-top: -18px;
+    }
+    .pt-line.done { background: var(--ok); }
+
+    /* Grids */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1.1fr 1fr .95fr; gap: 16px; align-items: start; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px 18px;
+    }
+    .card h3 {
+      font-size: 13px; font-weight: 700; margin-bottom: 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .card h3 span { font-size: 11px; font-weight: 500; color: var(--muted); }
+    .kv { display: grid; grid-template-columns: 140px 1fr; gap: 8px 12px; font-size: 13px; }
+    .kv .k { color: var(--muted); font-weight: 600; }
+    .kv .v { font-weight: 600; }
+
+    /* Status dropdown */
+    .status-dd { display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
+    .status-dd label {
+      font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+    }
+    .status-dd select {
+      height: 42px; padding: 0 12px; border-radius: 12px; border: 1.5px solid rgba(14,51,157,.35);
+      background: #fff; color: var(--primary); font: inherit; font-size: 13px; font-weight: 700;
+      appearance: auto; cursor: pointer;
+    }
+
+    /* Documents */
+    .doc-row {
+      display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+      border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px;
+      background: linear-gradient(135deg, rgba(14,51,157,.03), #fff 60%); cursor: pointer;
+    }
+    .doc-row:hover { border-color: rgba(14,51,157,.35); }
+    .doc-ico {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: linear-gradient(135deg, #0E339D, #0694AC);
+      display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 800;
+    }
+    .doc-row .tt { font-size: 13px; font-weight: 700; }
+    .doc-row .ss { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .doc-row .chev { margin-left: auto; color: var(--muted); font-weight: 700; }
+    .doc-row.unavail { opacity: .6; cursor: default; border-style: dashed; }
+    .doc-row.unavail:hover { border-color: var(--border); }
+    .doc-status { font-size: 11px; font-weight: 700; margin-left: auto; white-space: nowrap; }
+    .doc-status.ok { color: var(--ok); }
+    .doc-status.pending { color: var(--warn); }
+
+    /* Timeline */
+    .timeline { padding-top: 4px; }
+    .tl {
+      display: grid; grid-template-columns: 16px 1fr; gap: 12px;
+      padding: 12px 0; position: relative;
+    }
+    .tl::before {
+      content: ""; position: absolute; left: 7px; top: 28px; bottom: -4px;
+      width: 2px; background: var(--border);
+    }
+    .tl:last-child::before { display: none; }
+    .dot {
+      width: 16px; height: 16px; border-radius: 50%; margin-top: 2px;
+      background: var(--primary); box-shadow: 0 0 0 4px rgba(14,51,157,.12);
+    }
+    .dot.teal { background: var(--teal); box-shadow: 0 0 0 4px rgba(6,148,172,.15); }
+    .dot.ok { background: var(--ok); box-shadow: 0 0 0 4px rgba(5,150,105,.15); }
+    .dot.danger { background: var(--danger); box-shadow: 0 0 0 4px rgba(220,38,38,.12); }
+    .tl .t { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .tl .ico-ev {
+      width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
+      font-size: 13px; background: rgba(14,51,157,.08);
+    }
+    .tl .d { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+    .tl .by { font-size: 12px; font-weight: 600; color: var(--primary); margin-top: 4px; }
+    .tl .by.sys { color: var(--muted); }
+    .tl .when { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+
+    /* Linked records */
+    .links { display: flex; flex-direction: column; gap: 8px; }
+    .link-row {
+      display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+      border: 1px solid var(--border); border-radius: 12px;
+      background: linear-gradient(135deg, rgba(14,51,157,.03), #fff 60%); cursor: pointer;
+    }
+    .link-row:hover { border-color: rgba(14,51,157,.35); }
+    .link-row .ico {
+      width: 40px; height: 40px; border-radius: 12px; color: #fff; font-size: 11px; font-weight: 800;
+      display: grid; place-items: center; background: linear-gradient(135deg, #0E339D, #0694AC);
+    }
+    .link-row .tt { font-size: 14px; font-weight: 700; }
+    .link-row .ss { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .link-row .chev { margin-left: auto; color: var(--muted); font-weight: 700; }
+
+    /* Notes */
+    .note-item {
+      border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px;
+      background: #FFFBEF;
+    }
+    .note-audit { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+    .note-av {
+      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+      background: linear-gradient(135deg, #0E339D, #0694AC);
+      color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center;
+    }
+    .note-who .name { font-size: 13px; font-weight: 700; }
+    .note-who .role { font-size: 11px; font-weight: 600; color: var(--primary); margin-top: 1px; }
+    .note-who .when { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+    .note-item .body { font-size: 13px; line-height: 1.45; }
+    .staff-only {
+      display: inline-flex; font-size: 10px; font-weight: 700; color: var(--warn);
+      background: rgba(217,119,6,.12); padding: 2px 8px; border-radius: 6px;
+    }
+    .note-latest-indicator {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; margin-bottom: 12px;
+      background: rgba(6,148,172,.06); border: 1px solid rgba(6,148,172,.18);
+      border-radius: 10px; font-size: 11px;
+    }
+    .note-latest-indicator .nli-label {
+      font-weight: 700; color: var(--teal); text-transform: uppercase; letter-spacing: .03em;
+    }
+    .note-latest-indicator .nli-value { font-weight: 600; color: var(--muted); }
+    .compose {
+      border: 1px dashed rgba(14,51,157,.3); border-radius: 12px; padding: 12px;
+      background: rgba(14,51,157,.02);
+    }
+    .compose textarea {
+      width: 100%; min-height: 72px; border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 12px; font: inherit; font-size: 13px; color: var(--muted); resize: none; background: #fff;
+    }
+    .compose .row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 10px; }
+
+    @media (max-width: 1200px) {
+      .grid-3, .grid-2, .summary-row { grid-template-columns: 1fr; }
+      .detail-head { grid-template-columns: 1fr; }
+      .progress-track { gap: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="board-title">
+    <h1>Payments Management Module — V1</h1>
+    <p>
+      Payments List · Payment Details · Business Summary · Timeline · Documents · Linked records · Internal notes.
+      Every payment originates from an existing <strong>Order</strong> — no manual create.
+      Source chain: <strong>Booking / Product Request → Quotation → Accepted → Order → Payment</strong>.
+      PAY number read-only · never permanently deleted. Auth, Customer App, Dashboard, Customers, Bookings, Quotations, and Orders unchanged.
+    </p>
+  </div>
+
+  <!-- ==================== LIST ==================== -->
+  <div class="flow-label">1 · Payments List</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">FD</div>
+        <div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div>
+      </div>
+      <div class="nav-label">Overview</div>
+      <div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div>
+      <div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div>
+      <div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item active"><div class="ico">$</div> Payments</div>
+      <div class="nav-item"><div class="ico">INV</div> Invoices</div>
+      <div class="nav-item"><div class="ico">RCP</div> Receipts</div>
+      <div class="nav-item"><div class="ico">▤</div> Reports</div>
+      <div class="nav-label">Catalog</div>
+      <div class="nav-item"><div class="ico">✦</div> Services</div>
+      <div class="nav-item"><div class="ico">▦</div> Store</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item"><div class="ico">bell</div> Notifications</div>
+      <div class="nav-item"><div class="ico">⚙</div> Settings</div>
+      <div class="nav-item"><div class="ico">⌘</div> Audit / Logs</div>
+      <div class="sidebar-foot">
+        <div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <h2>Payments</h2>
+          <div class="crumb">All payments · Linked to orders · Never permanently deleted · No manual create</div>
+        </div>
+        <div class="top-actions">
+          <div class="icon-btn">🔔</div>
+          <div class="icon-btn">⎋</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="note-bar">
+          Payments are created <strong>automatically</strong> from Orders (Booking / Product Request → Quotation → Accepted → Order → Payment).
+          There is no <strong>Create Payment</strong> button. No delete. Open <strong>View Payment</strong> for details, timeline, documents, and staff notes.
+        </div>
+
+        <div class="toolbar">
+          <div class="search"><span>⌕</span> Search PAY number, order, customer, method…</div>
+          <div class="filters">
+            <div class="chip on">Payment Status: All ▾</div>
+            <div class="chip">Payment Method ▾</div>
+            <div class="chip">Payment Date ▾</div>
+            <div class="chip">Advanced Filters</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Payment Number</th>
+                  <th>Order Number</th>
+                  <th>Customer</th>
+                  <th>Payment Method</th>
+                  <th>Amount</th>
+                  <th>Payment Status</th>
+                  <th>Verification</th>
+                  <th>Payment Date</th>
+                  <th>Last Updated</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="ref">PAY-2026-000912</span></td>
+                  <td><span class="ref-link">ORD-2026-000312</span></td>
+                  <td class="name">Amina Hassan</td>
+                  <td><span class="pm-ico evc"><span class="pm-symbol">E</span> EVC Plus</span></td>
+                  <td class="amt">$185.00</td>
+                  <td><span class="pill ps-confirmed">Confirmed</span></td>
+                  <td><span class="vb vb-ok">✓ Verified</span></td>
+                  <td>14 Jul 2026<span class="age">Received 1 day ago</span></td>
+                  <td class="muted">15 Jul · 09:15</td>
+                  <td><div class="btn btn-ghost btn-sm">View Payment</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">PAY-2026-000905</span></td>
+                  <td><span class="ref-link">ORD-2026-000305</span></td>
+                  <td class="name">Omar Ali</td>
+                  <td><span class="pm-ico edahab"><span class="pm-symbol">eD</span> eDahab</span></td>
+                  <td class="amt">$320.00</td>
+                  <td><span class="pill ps-received">Received</span></td>
+                  <td><span class="vb vb-pend">⏳ Pending Verification</span></td>
+                  <td>13 Jul 2026<span class="age wait">Waiting Verification 2 days</span></td>
+                  <td class="muted">14 Jul · 16:30</td>
+                  <td><div class="btn btn-ghost btn-sm">View Payment</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">PAY-2026-000898</span></td>
+                  <td><span class="ref-link">ORD-2026-000298</span></td>
+                  <td class="name">Leyla Abdi</td>
+                  <td><span class="pm-ico jeeb"><span class="pm-symbol">J</span> Jeeb</span></td>
+                  <td class="amt">$95.00</td>
+                  <td><span class="pill ps-confirmed">Confirmed</span></td>
+                  <td><span class="vb vb-ok">✓ Verified</span></td>
+                  <td>11 Jul 2026<span class="age">Received 4 days ago</span></td>
+                  <td class="muted">14 Jul · 11:05</td>
+                  <td><div class="btn btn-ghost btn-sm">View Payment</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">PAY-2026-000880</span></td>
+                  <td><span class="ref-link">ORD-2026-000280</span></td>
+                  <td class="name">Fartun Mohamed</td>
+                  <td><span class="pm-ico salaam"><span class="pm-symbol">SB</span> Salaam Bank</span></td>
+                  <td class="amt">$120.00</td>
+                  <td><span class="pill ps-confirmed">Confirmed</span></td>
+                  <td><span class="vb vb-ok">✓ Verified</span></td>
+                  <td>05 Jul 2026<span class="age">Received 10 days ago</span></td>
+                  <td class="muted">10 Jul · 17:40</td>
+                  <td><div class="btn btn-ghost btn-sm">View Payment</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">PAY-2026-000865</span></td>
+                  <td><span class="ref-link">ORD-2026-000265</span></td>
+                  <td class="name">Hodan Yusuf</td>
+                  <td><span class="pm-ico bank"><span class="pm-symbol">BT</span> Bank Transfer</span></td>
+                  <td class="amt">$320.00</td>
+                  <td><span class="pill ps-confirmed">Confirmed</span></td>
+                  <td><span class="vb vb-ok">✓ Verified</span></td>
+                  <td>28 Jun 2026<span class="age">Received 17 days ago</span></td>
+                  <td class="muted">09 Jul · 08:20</td>
+                  <td><div class="btn btn-ghost btn-sm">View Payment</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">PAY-2026-000850</span></td>
+                  <td><span class="ref-link">ORD-2026-000250</span></td>
+                  <td class="name">Suleiman Warsame</td>
+                  <td><span class="pm-ico evc"><span class="pm-symbol">E</span> EVC Plus</span></td>
+                  <td class="amt">$210.00</td>
+                  <td><span class="pill ps-refunded">Refunded</span></td>
+                  <td><span class="vb vb-ok">✓ Verified</span></td>
+                  <td>20 Jun 2026<span class="age">Received 25 days ago</span></td>
+                  <td class="muted">25 Jun · 10:00</td>
+                  <td><div class="btn btn-ghost btn-sm">View Payment</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">PAY-2026-000842</span></td>
+                  <td><span class="ref-link">ORD-2026-000242</span></td>
+                  <td class="name">Nasteho Abdi</td>
+                  <td><span class="pm-ico card"><span class="pm-symbol">DC</span> Debit Card</span></td>
+                  <td class="amt">$450.00</td>
+                  <td><span class="pill ps-failed">Failed</span></td>
+                  <td><span class="vb vb-pend">⏳ Pending Verification</span></td>
+                  <td>18 Jun 2026<span class="age">Received 27 days ago</span></td>
+                  <td class="muted">18 Jun · 14:10</td>
+                  <td><div class="btn btn-ghost btn-sm">View Payment</div></td>
+                </tr>
+                <tr>
+                  <td><span class="ref">PAY-2026-000835</span></td>
+                  <td><span class="ref-link">ORD-2026-000235</span></td>
+                  <td class="name">Abdi Nur</td>
+                  <td><span class="pm-ico edahab"><span class="pm-symbol">eD</span> eDahab</span></td>
+                  <td class="amt">$75.00</td>
+                  <td><span class="pill ps-pending">Pending</span></td>
+                  <td><span class="vb vb-pend">⏳ Pending Verification</span></td>
+                  <td>15 Jun 2026<span class="age wait">Waiting Verification 30 days</span></td>
+                  <td class="muted">15 Jun · 14:10</td>
+                  <td><div class="btn btn-ghost btn-sm">View Payment</div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-foot">
+            <span>Showing 1–8 of 68 active queue · 2,180 total payments</span>
+            <div class="pager">
+              <div class="page on">1</div>
+              <div class="page">2</div>
+              <div class="page">3</div>
+              <div class="page">›</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== DETAILS ==================== -->
+  <div class="flow-label">2 · Payment Details</div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">FD</div>
+        <div class="brand-text"><div class="name">Fayadhowr</div><div class="sub">Admin Panel</div></div>
+      </div>
+      <div class="nav-label">Overview</div>
+      <div class="nav-item"><div class="ico">▦</div> Dashboard</div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item"><div class="ico">☺</div> Customers</div>
+      <div class="nav-item"><div class="ico">BK</div> Bookings</div>
+      <div class="nav-item"><div class="ico">QT</div> Quotations</div>
+      <div class="nav-item"><div class="ico">ORD</div> Orders</div>
+      <div class="nav-item active"><div class="ico">$</div> Payments</div>
+      <div class="sidebar-foot">
+        <div class="admin-chip"><div class="admin-av">AS</div><div><div class="n">Asad</div><div class="r">Admin</div></div></div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <div class="back">← Payments</div>
+          <h2 style="margin-top:8px;">Payment Details</h2>
+          <div class="crumb">Source chain · Amount · Method · Timeline · Documents · Staff notes</div>
+        </div>
+        <div class="top-actions">
+          <div class="status-dd">
+            <label for="pay-status">Update Payment Status</label>
+            <select id="pay-status" aria-label="Payment status">
+              <option>Pending</option>
+              <option>Received</option>
+              <option selected>Confirmed</option>
+              <option>Failed</option>
+              <option>Refunded</option>
+            </select>
+          </div>
+          <div class="icon-btn">🔔</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <!-- Header -->
+        <div class="detail-head">
+          <div>
+            <div class="dh-title">Payment — Deep Home Cleaning</div>
+            <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+              <span class="ref">PAY-2026-000912 🔒</span>
+              <span class="pill ps-confirmed">Confirmed</span>
+              <span class="pm-ico evc"><span class="pm-symbol">E</span> EVC Plus</span>
+              <span class="vb vb-ok">✓ Verified</span>
+            </div>
+            <div class="dh-meta">
+              <span>Customer <strong>Amina Hassan</strong></span>
+              <span>CUS <strong>CUS-2026-000001</strong></span>
+              <span>Linked Order <strong>ORD-2026-000312</strong></span>
+              <span>Linked Quotation <strong>QT-2026-000221 (v3)</strong></span>
+              <span>Linked Booking <strong>BK-2026-000418</strong></span>
+              <span>Paid <strong>14 Jul 2026</strong></span>
+              <span>Updated <strong>15 Jul 2026 · 09:15</strong></span>
+            </div>
+            <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+              <span class="age">Received 1 day ago</span>
+              <span style="font-size:12px;color:var(--muted);font-weight:600;">· Payment linked to Order · source permanently traceable</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Current Stage Indicator -->
+        <div class="stage-indicator">
+          <div class="si-dot"></div>
+          <div>
+            <div class="si-label">Current Stage</div>
+            <div class="si-value">Confirmed</div>
+          </div>
+        </div>
+
+        <!-- Payment Progress -->
+        <div class="progress-track">
+          <div class="pt-step done">
+            <div class="pt-dot">✓</div>
+            <div class="pt-label">Pending</div>
+          </div>
+          <div class="pt-line done"></div>
+          <div class="pt-step done">
+            <div class="pt-dot">✓</div>
+            <div class="pt-label">Received</div>
+          </div>
+          <div class="pt-line done"></div>
+          <div class="pt-step active">
+            <div class="pt-dot">✓</div>
+            <div class="pt-label">Confirmed</div>
+          </div>
+        </div>
+
+        <!-- Business Summary -->
+        <div class="summary-row">
+          <div class="sum-card">
+            <div class="l">Amount Due</div>
+            <div class="v">$185.00</div>
+          </div>
+          <div class="sum-card">
+            <div class="l">Amount Paid</div>
+            <div class="v ok">$185.00</div>
+          </div>
+          <div class="sum-card">
+            <div class="l">Remaining Balance</div>
+            <div class="v">$0.00</div>
+          </div>
+          <div class="sum-card">
+            <div class="l">Payment Status</div>
+            <div class="status-pill ps-confirmed" style="margin-top:8px;">Confirmed</div>
+          </div>
+        </div>
+
+        <!-- Financial Audit Summary -->
+        <div class="audit-summary">
+          <div class="al">Payment Requested By</div><div class="av">System</div>
+          <div class="al">Payment Confirmed By</div><div class="av primary">Mohamed (Accountant)</div>
+          <div class="al">Confirmation Date</div><div class="av">14 Jul 2026 · 11:10</div>
+          <div class="al">Last Updated</div><div class="av">15 Jul 2026 · 09:15</div>
+        </div>
+
+        <!-- Payment Info + Customer -->
+        <div class="grid-2">
+          <div class="card">
+            <h3>Payment Information</h3>
+            <div class="kv">
+              <div class="k">Payment Number</div><div class="v">PAY-2026-000912</div>
+              <div class="k">Payment Method</div><div class="v"><span class="pm-ico evc"><span class="pm-symbol">E</span> EVC Plus</span></div>
+              <div class="k">Transaction Ref</div><div class="v" style="display:flex;align-items:center;gap:8px;">EVC-TXN-20260714-8821 <span class="copy-btn" onclick="this.textContent='Copied';this.classList.add('copied');setTimeout(()=>{this.textContent='Copy';this.classList.remove('copied')},2000)">Copy</span></div>
+              <div class="k">Amount Paid</div><div class="v" style="color:var(--ok);">$185.00</div>
+              <div class="k">Currency</div><div class="v">USD</div>
+              <div class="k">Payment Date</div><div class="v">14 Jul 2026 · 11:05</div>
+              <div class="k">Payment Status</div><div class="v"><span class="pill ps-confirmed">Confirmed</span></div>
+              <div class="k">Verification</div><div class="v"><span class="vb vb-ok">✓ Verified</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Customer Information</h3>
+            <div class="kv">
+              <div class="k">Name</div><div class="v">Amina Hassan</div>
+              <div class="k">Phone</div><div class="v">+252 61 234 5678</div>
+              <div class="k">Email</div><div class="v">amina@email.com</div>
+              <div class="k">CUS</div><div class="v">CUS-2026-000001</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Source Chain -->
+        <div class="card">
+          <h3>Source Chain &amp; Linkage <span>Permanent · always traceable</span></h3>
+          <div class="kv">
+            <div class="k">Linked Order</div><div class="v">ORD-2026-000312 · Deep Home Cleaning</div>
+            <div class="k">Linked Quotation</div><div class="v">QT-2026-000221 (v3 · Accepted)</div>
+            <div class="k">Linked Booking</div><div class="v">BK-2026-000418 · Deep Home Cleaning</div>
+            <div class="k">Source</div><div class="v">Booking</div>
+            <div class="k">Origin Rule</div><div class="v">Permanent · auto-created from Order</div>
+          </div>
+        </div>
+
+        <!-- Documents -->
+        <div class="card">
+          <h3>Payment Documents</h3>
+          <div class="doc-row">
+            <div class="doc-ico">RCP</div>
+            <div><div class="tt">Payment Receipt</div><div class="ss">RCP-2026-000912 · Generated 14 Jul 2026</div></div>
+            <div class="doc-status ok">✅ Available</div>
+            <div class="chev">↓</div>
+          </div>
+          <div class="doc-row">
+            <div class="doc-ico">INV</div>
+            <div><div class="tt">Invoice</div><div class="ss">INV-2026-000312 · Generated 14 Jul 2026</div></div>
+            <div class="doc-status ok">✅ Available</div>
+            <div class="chev">↓</div>
+          </div>
+          <div class="doc-row unavail">
+            <div class="doc-ico">PDF</div>
+            <div><div class="tt">Order PDF</div><div class="ss">Not Available Yet</div></div>
+            <div class="doc-status pending">⏳ Pending</div>
+          </div>
+        </div>
+
+        <!-- Timeline + Links + Notes -->
+        <div class="grid-3">
+          <div class="card">
+            <h3>Payment Timeline <span>Read-only audit</span></h3>
+            <div class="timeline">
+              <div class="tl">
+                <div class="dot ok"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">✅</span> Payment Confirmed</div>
+                  <div class="d">Full payment confirmed · $185.00</div>
+                  <div class="by">By Mohamed (Accountant)</div>
+                  <div class="when">14 Jul 2026 · 11:10</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot teal"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">💳</span> Payment Received</div>
+                  <div class="d">EVC Plus · $185.00 · TXN: EVC-TXN-20260714-8821</div>
+                  <div class="by sys">System</div>
+                  <div class="when">14 Jul 2026 · 11:05</div>
+                </div>
+              </div>
+              <div class="tl">
+                <div class="dot"></div>
+                <div>
+                  <div class="t"><span class="ico-ev">📨</span> Payment Requested</div>
+                  <div class="d">Invoice sent to customer · $185.00</div>
+                  <div class="by sys">System</div>
+                  <div class="when">14 Jul 2026 · 10:35</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Linked Records</h3>
+            <div class="links">
+              <div class="link-row">
+                <div class="ico">CUS</div>
+                <div><div class="tt">Customer Profile</div><div class="ss">Amina Hassan · CUS-2026-000001</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">BK</div>
+                <div><div class="tt">Booking</div><div class="ss">BK-2026-000418 · Deep Home Cleaning</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">QT</div>
+                <div><div class="tt">Quotation</div><div class="ss">QT-2026-000221 · v3 Accepted</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">ORD</div>
+                <div><div class="tt">Order</div><div class="ss">ORD-2026-000312 · Processing · $185.00</div></div>
+                <div class="chev">›</div>
+              </div>
+              <div class="link-row">
+                <div class="ico">NTF</div>
+                <div><div class="tt">Notifications</div><div class="ss">Payment notifications</div></div>
+                <div class="chev">›</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Internal Notes <span class="staff-only">Staff only</span></h3>
+            <div class="note-latest-indicator">
+              <span class="nli-label">Latest Note</span>
+              <span class="nli-value">14 Jul 2026 · 11:15</span>
+            </div>
+            <div class="note-item">
+              <div class="note-audit">
+                <div class="note-av">MA</div>
+                <div class="note-who">
+                  <div class="name">Mohamed</div>
+                  <div class="role">Accountant</div>
+                  <div class="when">14 Jul 2026 · 11:15</div>
+                </div>
+              </div>
+              <div class="body">Payment confirmed via EVC Plus. Full amount received. Receipt generated and sent to customer.</div>
+            </div>
+            <div class="note-item">
+              <div class="note-audit">
+                <div class="note-av">AS</div>
+                <div class="note-who">
+                  <div class="name">Asad</div>
+                  <div class="role">Admin</div>
+                  <div class="when">14 Jul 2026 · 10:40</div>
+                </div>
+              </div>
+              <div class="body">Invoice sent to customer for ORD-2026-000312. Awaiting EVC Plus payment.</div>
+            </div>
+            <div class="compose">
+              <textarea placeholder="Add an internal note (Admin, Sales, Accountant)…"></textarea>
+              <div class="row">
+                <span class="muted" style="font-size:11px;font-weight:600;">Customers never see these notes</span>
+                <div class="btn btn-primary btn-sm">Save Note</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
