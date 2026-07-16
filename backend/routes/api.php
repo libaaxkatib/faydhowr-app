@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\Auth\AuthenticatedUserController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\RegistrationController;
+use App\Http\Controllers\Api\V1\Customer\CustomerAddressController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -33,6 +34,19 @@ Route::get('v1/customer/profile', [CustomerProfileController::class, 'show'])
 Route::patch('v1/customer/profile', [CustomerProfileController::class, 'update'])
     ->middleware('auth:sanctum')
     ->name('api.v1.customer.profile.update');
+
+Route::prefix('v1/customer/addresses')
+    ->middleware('auth:sanctum')
+    ->group(function (): void {
+        Route::get('/', [CustomerAddressController::class, 'index'])
+            ->name('api.v1.customer.addresses.index');
+        Route::post('/', [CustomerAddressController::class, 'store'])
+            ->name('api.v1.customer.addresses.store');
+        Route::get('{address}', [CustomerAddressController::class, 'show'])
+            ->name('api.v1.customer.addresses.show');
+        Route::patch('{address}', [CustomerAddressController::class, 'update'])
+            ->name('api.v1.customer.addresses.update');
+    });
 
 Route::get('/user', function (Request $request) {
     return $request->user();
