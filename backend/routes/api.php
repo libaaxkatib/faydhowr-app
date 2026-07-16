@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\V1\Auth\RegistrationController;
 use App\Http\Controllers\Api\V1\Booking\BookingController;
 use App\Http\Controllers\Api\V1\Customer\CustomerAddressController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
+use App\Http\Controllers\Api\V1\Order\OrderController;
+use App\Http\Controllers\Api\V1\Order\OrderLifecycleController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationAcceptanceController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationDiscussionController;
@@ -86,6 +88,19 @@ Route::prefix('v1/quotations')
             ->name('api.v1.quotations.accept');
         Route::get('{quotation}', [QuotationController::class, 'show'])
             ->name('api.v1.quotations.show');
+    });
+
+Route::prefix('v1/orders')
+    ->middleware('auth:sanctum')
+    ->group(function (): void {
+        Route::get('/', [OrderController::class, 'index'])
+            ->name('api.v1.orders.index');
+        Route::post('/', [OrderController::class, 'store'])
+            ->name('api.v1.orders.store');
+        Route::post('{order}/cancel', [OrderLifecycleController::class, 'cancel'])
+            ->name('api.v1.orders.cancel');
+        Route::get('{order}', [OrderController::class, 'show'])
+            ->name('api.v1.orders.show');
     });
 
 Route::get('/user', function (Request $request) {
