@@ -19,6 +19,7 @@ class OrderResource extends JsonResource
                 'status' => $this->quotation->status->value,
             ]),
             'status' => $this->status->value,
+            'currency' => $this->currency,
             'subtotal' => $this->subtotal,
             'discount_amount' => $this->discount_amount,
             'tax_amount' => $this->tax_amount,

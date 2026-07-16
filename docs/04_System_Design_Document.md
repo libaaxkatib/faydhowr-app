@@ -148,11 +148,13 @@ Flutter submits requests and renders API responses. The REST API routes requests
 
 ## 9. Payment Flow
 
-1. An authorized payment action references an eligible order, booking, or accepted quotation.
-2. Laravel validates the payment request, customer-profile ownership, amount, and payable state.
-3. Payment activity is recorded using the approved payment workflow.
-4. The related payable entity is updated only when the approved payment conditions are met.
-5. Authorized notifications and reports reflect the resulting payment state.
+1. An authorized customer-profile-owned payment references an originating payable record through `payable_type` and `payable_id` (Service Order in V1; Store Order in the future).
+2. Laravel validates customer-profile ownership, amount, and payable state through the originating domain.
+3. Laravel returns the existing active Payment when the payable has one in `pending`, `initialized`, or `processing`; it creates a new Payment only after the preceding Payment is `paid`, `failed`, or `cancelled`. This rule is enforced at the polymorphic Payment domain boundary, independent of gateway behavior.
+4. Payment records the lifecycle (Pending, Initialized, Processing, Paid, Failed, Cancelled) and one-or-more provider-neutral `payment_transactions`.
+5. Callback/webhook processing verifies gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment status, and duplicate-callback status before any state mutation. Payment update, transaction update, status history insert, and Order confirmation execute atomically in one database transaction.
+6. A successful callback changes Payment from `processing` to `paid` and then the originating Order from `pending_payment` to `confirmed`; Failed or Cancelled payments do not cancel Orders, and failed callbacks leave the Order unchanged.
+7. Every Paid payment creates one `RCPT-YYYY-######` receipt. Payment publishes `PaymentPaid`, `PaymentFailed`, or `PaymentCancelled` events for future notification consumption; it does not notify directly. Refunds and receipt PDF generation are outside V1.
 
 ## 10. Notification Flow
 
@@ -236,9 +238,9 @@ REST API → Flutter: Updated JSON response
 ```text
 Flutter → REST API: Submit payment action
 REST API → Laravel: Validate request and authorization
-Laravel → Database: Validate payable entity and record payment
-Laravel → Database: Update payable entity when approved conditions are met
-Laravel → Notifications: Dispatch approved payment event
+Laravel → Database: Record Payment and gateway transaction
+Laravel → Database: On Paid, confirm originating Order and create receipt
+Laravel → Domain Events: Publish payment lifecycle event
 Laravel → REST API: Return payment and order state
 REST API → Flutter: Updated JSON response
 ```

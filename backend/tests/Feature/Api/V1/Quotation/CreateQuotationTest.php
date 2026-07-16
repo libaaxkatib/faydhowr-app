@@ -35,6 +35,7 @@ class CreateQuotationTest extends TestCase
             ->assertJsonPath('meta', null)
             ->assertJsonPath('data.booking', null)
             ->assertJsonPath('data.status', 'draft')
+            ->assertJsonPath('data.currency', 'USD')
             ->assertJsonPath('data.total_amount', '95.00');
 
         self::assertMatchesRegularExpression(
@@ -46,6 +47,7 @@ class CreateQuotationTest extends TestCase
             'customer_profile_id' => $profile->id,
             'booking_id' => null,
             'status' => 'draft',
+            'currency' => 'USD',
             'subtotal' => 100,
             'discount_amount' => 10,
             'tax_amount' => 5,
@@ -190,6 +192,7 @@ class CreateQuotationTest extends TestCase
     private function payload(array $overrides = []): array
     {
         return [
+            'currency' => 'USD',
             'subtotal' => '100.00',
             'discount_amount' => '10.00',
             'tax_amount' => '5.00',

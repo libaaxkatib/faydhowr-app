@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Http\Requests\Api\V1\Quotation;
+namespace App\Http\Requests\Api\V1\Payment;
 
 use App\Support\ApiResponse;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
-class StoreQuotationRequest extends FormRequest
+class InitializePaymentRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -20,14 +20,9 @@ class StoreQuotationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'booking_id' => ['nullable', 'integer', 'exists:bookings,id'],
-            'currency' => ['required', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
-            'subtotal' => ['required', 'decimal:0,2', 'min:0'],
-            'discount_amount' => ['nullable', 'decimal:0,2', 'min:0'],
-            'tax_amount' => ['nullable', 'decimal:0,2', 'min:0'],
-            'total_amount' => ['required', 'decimal:0,2', 'min:0'],
-            'valid_until' => ['nullable', 'date'],
-            'notes' => ['nullable', 'string', 'max:5000'],
+            'order_id' => ['required', 'integer'],
+            'gateway' => ['required', 'string', 'max:50'],
+            'gateway_reference' => ['nullable', 'string', 'max:191'],
         ];
     }
 

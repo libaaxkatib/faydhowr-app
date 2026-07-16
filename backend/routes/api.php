@@ -9,8 +9,10 @@ use App\Http\Controllers\Api\V1\Customer\CustomerAddressController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
 use App\Http\Controllers\Api\V1\Order\OrderController;
 use App\Http\Controllers\Api\V1\Order\OrderLifecycleController;
-use App\Http\Controllers\Api\V1\Quotation\QuotationController;
+use App\Http\Controllers\Api\V1\Payment\PaymentController;
+use App\Http\Controllers\Api\V1\Payment\PaymentWebhookController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationAcceptanceController;
+use App\Http\Controllers\Api\V1\Quotation\QuotationController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationDiscussionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -102,6 +104,21 @@ Route::prefix('v1/orders')
         Route::get('{order}', [OrderController::class, 'show'])
             ->name('api.v1.orders.show');
     });
+
+Route::get('v1/payments', [PaymentController::class, 'index'])
+    ->middleware('auth:sanctum')
+    ->name('api.v1.payments.index');
+Route::get('v1/payments/{payment}', [PaymentController::class, 'show'])
+    ->middleware('auth:sanctum')
+    ->name('api.v1.payments.show');
+Route::post('v1/payments/initialize', [PaymentController::class, 'initialize'])
+    ->middleware('auth:sanctum')
+    ->name('api.v1.payments.initialize');
+Route::post('v1/payments/{payment}/process', [PaymentController::class, 'process'])
+    ->middleware('auth:sanctum')
+    ->name('api.v1.payments.process');
+Route::post('v1/payments/webhook', PaymentWebhookController::class)
+    ->name('api.v1.payments.webhook');
 
 Route::get('/user', function (Request $request) {
     return $request->user();

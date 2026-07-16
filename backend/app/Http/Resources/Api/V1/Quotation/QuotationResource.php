@@ -21,6 +21,7 @@ class QuotationResource extends JsonResource
                 'requested_time_window' => $this->booking->requested_time_window,
             ]),
             'status' => $this->status->value,
+            'currency' => $this->currency,
             'subtotal' => $this->subtotal,
             'discount_amount' => $this->discount_amount,
             'tax_amount' => $this->tax_amount,

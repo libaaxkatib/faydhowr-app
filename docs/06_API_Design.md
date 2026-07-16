@@ -739,7 +739,7 @@ Allowed only when business policy permits (e.g., before fulfillment / unpaid). O
 
 # 11. Payment APIs
 
-Payments attach to payable entities: `order`, `booking`, or `quotation` (accepted).
+Payment V1 is a unified, customer-profile-owned module for Service Orders and future Store Orders. Requests identify the originating payable record through `payable_type` and `payable_id`; Payment does not own originating-domain rules.
 
 ## 11.1 Payment Initialization
 
@@ -749,16 +749,16 @@ Payments attach to payable entities: `order`, `booking`, or `quotation` (accepte
 
 **Body:**
 
-- `payable_type`: `order` | `booking` | `quotation`
+- `payable_type`: Service Order in V1; future Store Order support uses the same polymorphic contract
 - `payable_id`
 - `payment_method`: preferred Somali-first enum — `evc_plus` (default) | `edahab` | `jeeb` | `salaam_somali_bank` | `bank_transfer` | `card` (optional) | `digital_wallet` (future placeholder)
 - `idempotency_key` (required)
 
-**Result:** Payment record `pending` + provider redirect/SDK payload (provider-specific fields under `data.provider`).
+**Result:** The existing active Payment (`pending`, `initialized`, or `processing`) for the payable is returned when one exists; otherwise, initialization creates and returns a Payment record `pending`/`initialized` plus a provider-neutral gateway handoff payload.
 
 **UI Order Summary fields:** `subtotal`, `delivery_fee`, `tax` (default `0.00`), `total`.
 
-**Rules:** Amount equals server-calculated payable total; quotation must be `accepted`; customer owns entity. Customer app lists payment methods in the order: EVC Plus (default), eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card (optional), Digital Wallet (future-ready).
+**Rules:** Amount equals the server-calculated payable total; the authenticated customer owns the payable entity. A payable has at most one active Payment (`pending`, `initialized`, or `processing`); a new Payment can be initialized only after the prior Payment is `paid`, `failed`, or `cancelled`. This domain rule applies to Service Orders in V1 and future Store Orders through the polymorphic payable reference. Gateway adapters remain provider-neutral for EVC Plus, Zaad, Sahal, Stripe, PayPal, and future providers.
 
 ## 11.2 Payment Callback
 
@@ -767,7 +767,7 @@ Payments attach to payable entities: `order`, `booking`, or `quotation` (accepte
 | `POST` | `/api/v1/payments/webhook` | Provider signature (not customer token) |
 | `GET`/`POST` | `/api/v1/payments/callback` | Provider return URL pattern |
 
-**Behavior:** Verify signature; idempotent status apply; update payable entity; enqueue customer notification. Clients never mark success unilaterally.
+**Behavior:** Before any business state changes, webhook/callback handling verifies in this order: gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment status, and duplicate-callback status. The resulting Payment update, `payment_transactions` update, `payment_status_histories` insert, and Order confirmation (only on success) execute in one database transaction. A successful callback changes Payment `processing -> paid` and then Order `pending_payment -> confirmed`; failed callbacks leave the Order unchanged. Repeated callbacks for the same successful transaction are idempotent and must not create duplicate state transitions. Payment publishes domain events (`PaymentPaid`, `PaymentFailed`, `PaymentCancelled`) rather than sending notifications directly.
 
 ## 11.3 Payment Success
 
@@ -775,7 +775,7 @@ Payments attach to payable entities: `order`, `booking`, or `quotation` (accepte
 | --- | --- | --- |
 | `GET` | `/api/v1/payments/{id}` | Required (owner) |
 
-When `status = successful`, client shows success UI. Optional convenience:
+When `status = paid`, the client shows success UI and the returned payment includes its receipt public number (`RCPT-YYYY-######`). Receipt PDF generation is outside V1. Optional convenience:
 
 | Method | Path |
 | --- | --- |
@@ -789,7 +789,7 @@ Failure is represented by payment `status = failed` on:
 
 `GET /api/v1/payments/{id}`
 
-Client offers retry via a new `initialize` (new idempotency key) while payable remains valid.
+Client offers retry via a new `initialize` (new idempotency key) while the payable entity remains valid.
 
 ## 11.5 Payment History
 

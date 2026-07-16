@@ -512,14 +512,14 @@ Store is a separate product-commerce module. Its Categories, Product List, Produ
 
 | Screen | Purpose | States |
 | --- | --- | --- |
-| Payment | Review amount and start provider flow | Loading provider; Error init |
+| Payment | Review amount and start provider-neutral gateway flow | Pending / Initialized / Processing; Error init |
 | Confirming | Ambiguous/pending capture | Indeterminate progress; no false success |
-| Success | Authoritative paid | Amount, payment ref, entity status, next steps |
+| Success | Authoritative Paid state | Amount, payment reference, receipt number (`RCPT-YYYY-######`), confirmed order status, next steps |
 | Failure | Failed capture | Message, Retry Payment, Contact |
 
 **Buttons:** Confirm Payment / Pay; Retry; View entity; Home  
 **Inputs:** Provider-managed; Fayadhowr shows amount summary only  
-**Navigation:** From order/booking/accepted quote  
+**Navigation:** From a Service Order in V1; future Store Orders use the same unified payment experience.  
 
 **Order Summary on Payment (required lines):** Subtotal · Delivery Fee · Tax (default `0.00`) · Total  
 
@@ -1023,16 +1023,16 @@ Service Details → Book Now / Request Quotation → Auth? → Select Mode → P
 
 ## 12.1 Payment Screen
 
-- Entity context (order / booking / accepted quotation)
+- Entity context uses the unified Payment contract (`payable_type`, `payable_id`) for Service Orders and future Store Orders.
 - Amount and currency (authoritative)
 - What is being paid (short summary)
-- Primary **Pay** launches provider flow
+- Primary **Pay** launches a provider-neutral gateway handoff
 - No card PAN fields stored in Fayadhowr UI beyond provider requirements
 
 ## 12.2 Payment Success
 
 - Success color accent restrained
-- Payment reference + updated entity status
+- Payment reference, receipt number (`RCPT-YYYY-######`), and updated Order status (`confirmed`)
 - Next fulfillment guidance
 - CTAs: View entity; Home
 
@@ -1043,6 +1043,8 @@ Service Details → Book Now / Request Quotation → Auth? → Select Mode → P
 - **Retry Payment** primary
 - Secondary: View details; Contact
 - Never leave status ambiguous—use Confirming state until resolved
+- Failed or Cancelled payments do not cancel the Order automatically.
+- Receipt PDF download is outside V1.
 
 ---
 

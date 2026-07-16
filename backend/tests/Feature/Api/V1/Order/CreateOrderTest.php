@@ -34,6 +34,7 @@ class CreateOrderTest extends TestCase
             ->assertJsonPath('meta', null)
             ->assertJsonPath('data.status', 'pending_payment')
             ->assertJsonPath('data.quotation.quotation_number', $quotation->quotation_number)
+            ->assertJsonPath('data.currency', 'USD')
             ->assertJsonPath('data.subtotal', '100.00')
             ->assertJsonPath('data.discount_amount', '10.00')
             ->assertJsonPath('data.tax_amount', '5.00')
@@ -49,6 +50,7 @@ class CreateOrderTest extends TestCase
             'customer_profile_id' => $profile->id,
             'quotation_id' => $quotation->id,
             'status' => 'pending_payment',
+            'currency' => 'USD',
             'subtotal' => 100,
             'discount_amount' => 10,
             'tax_amount' => 5,
@@ -171,6 +173,7 @@ class CreateOrderTest extends TestCase
             'quotation_number' => sprintf('QT-%s-%06d', now()->format('Y'), $this->quotationSequence++),
             'customer_profile_id' => $profile->id,
             'status' => $status,
+            'currency' => 'USD',
             'subtotal' => '100.00',
             'discount_amount' => '10.00',
             'tax_amount' => '5.00',

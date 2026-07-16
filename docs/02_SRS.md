@@ -269,11 +269,12 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-050 | The customer shall be able to initiate payment for payable bookings, accepted quotations, and store orders. | Must |
-| FR-051 | The system shall record payment status (pending, successful, failed, refunded) authoritatively. | Must |
-| FR-052 | The system shall confirm successful payment to the customer and update related entity status. | Must |
+| FR-050 | The unified Payment V1 module shall initiate customer-profile-owned payments for Service Orders and future Store Orders using `payable_type` and `payable_id`. | Must |
+| FR-051 | The system shall record the authoritative lifecycle: Pending, Initialized, Processing, Paid, Failed, or Cancelled. Refunds are outside V1. | Must |
+| FR-051A | A payable entity may have only one active Payment at a time. Active statuses are `pending`, `initialized`, and `processing`; initialization shall return that active Payment. A new Payment may be initialized only after the prior Payment is `paid`, `failed`, or `cancelled`. | Must |
+| FR-052 | When a payment becomes Paid, the originating Order shall become `confirmed`; Failed or Cancelled payments shall not automatically cancel Orders. | Must |
 | FR-053 | The system shall handle payment failures with clear retry guidance. | Must |
-| FR-054 | Admins shall be able to view payment records and process refunds per policy. | Must |
+| FR-054 | Every successful payment shall produce one receipt with public number `RCPT-YYYY-######`; receipt PDF generation is outside V1. | Must |
 
 ### 5.7 Notifications
 
@@ -729,55 +730,55 @@ Reference numbers must be unique within their type (and globally unique in recom
 
 ### 11.1 Purpose
 
-Collect funds for store orders, payable bookings, and accepted quotations through approved payment methods, with reliable status tracking and reconciliation.
+Provide one gateway-independent payment lifecycle for Service Orders and future Store Orders. Payment owns payment records, gateway transactions, receipts, and lifecycle state; originating domains retain their own commercial rules.
 
 ### 11.2 Payable Entities
 
-| Entity | When Payable |
+| Entity | Payment V1 treatment |
 | --- | --- |
-| Store Order | At checkout / after order creation per policy |
-| Booking | On creation, confirmation, or completion per service policy |
-| Accepted Quotation | Immediately after acceptance (full or deposit) |
+| Service Order | Payable through the unified Payment module |
+| Store Order | Future payable type supported without redesign |
 
 ### 11.3 Main Flow
 
 1. Customer opens a payable entity and chooses **Pay**.
-2. System creates a **Payment Attempt** with amount, currency, and reference to the entity.
+2. System creates a customer-profile-owned Payment with `payable_type` and `payable_id`.
 3. Customer completes payment via integrated provider/method.
 4. Provider returns success/failure (synchronous and/or webhook/callback).
-5. System verifies payment authenticity (server-side verification).
+5. System verifies payment authenticity and callback validity server-side in this order: gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment check, duplicate-callback check, then one atomic database transaction.
 6. On success:
-   - Mark payment `Successful`.
-   - Update related entity status.
-   - Notify customer and operations.
+   - Change Payment from `Processing` to `Paid`.
+   - Change the originating Order from `pending_payment` to `confirmed` in the same transaction.
+   - Publish `PaymentPaid` for future Notification consumption.
 7. On failure:
-   - Mark payment `Failed`.
-   - Keep entity payable if still valid.
-   - Notify customer with retry guidance.
+   - Mark payment `Failed` or `Cancelled`.
+   - Keep the Order unchanged and payable if still valid.
+   - Publish `PaymentFailed` or `PaymentCancelled` for future Notification consumption.
 
 ### 11.4 Payment Status Model (Logical)
 
 - `Pending`
-- `Successful`
+- `Initialized`
+- `Processing`
+- `Paid`
 - `Failed`
 - `Cancelled`
-- `Refunded` (full)
-- `Partially Refunded` (if supported)
 
 ### 11.5 Rules & Safeguards
 
 - Amount charged must equal backend-calculated payable amount at initiation time.
-- Payment references must be unique and reconcilable.
+- Payment records and one-or-more `payment_transactions` must be unique and reconcilable.
 - Webhook/callback handling must be idempotent.
+- Repeated callbacks for the same successful gateway transaction must never create duplicate payment, transaction, history, or order state transitions.
 - Customers must never mark a payment successful from the client alone.
-- Refunds are admin-initiated (or provider-driven) and must update both payment and related entity state.
-- Partial payments/deposits are supported only where explicitly configured on the service/quote terms.
+- Every successful payment produces one receipt with `RCPT-YYYY-######`; receipt PDF generation is outside V1.
+- Gateway adapters must remain provider-neutral for EVC Plus, Zaad, Sahal, Stripe, PayPal, and future providers.
 
 ### 11.6 Failure & Reconciliation
 
-- Abandoned checkouts leave payments in `Pending` until timeout/cancel policy applies.
+- Abandoned attempts remain Pending, Initialized, or Processing until approved failure/cancellation policy applies.
 - Admin finance views must allow matching provider transactions to internal payment records.
-- Disputes/chargebacks are handled operationally with status notes and audit entries.
+- Refunds, disputes, and chargebacks are outside V1.
 
 ---
 

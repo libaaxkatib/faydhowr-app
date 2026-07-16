@@ -33,6 +33,7 @@ class CreateQuotationAction
                 'customer_profile_id' => $profile->id,
                 'booking_id' => $booking?->id,
                 'status' => QuotationStatus::Draft,
+                'currency' => $attributes['currency'],
                 'subtotal' => $attributes['subtotal'],
                 'discount_amount' => $attributes['discount_amount'] ?? 0,
                 'tax_amount' => $attributes['tax_amount'] ?? 0,

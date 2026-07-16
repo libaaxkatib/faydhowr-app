@@ -27,7 +27,7 @@ class CreateOrderAction
                 ->first();
 
             if ($quotation === null) {
-                throw new ModelNotFoundException();
+                throw new ModelNotFoundException;
             }
 
             if ($quotation->status !== QuotationStatus::Accepted) {
@@ -39,6 +39,7 @@ class CreateOrderAction
                 'customer_profile_id' => $profile->id,
                 'quotation_id' => $quotation->id,
                 'status' => OrderStatus::PendingPayment,
+                'currency' => $quotation->currency,
                 'subtotal' => $quotation->subtotal,
                 'discount_amount' => $quotation->discount_amount,
                 'tax_amount' => $quotation->tax_amount,

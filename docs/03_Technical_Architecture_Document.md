@@ -84,7 +84,7 @@ Relationships shall be explicitly modeled with foreign keys and Laravel Eloquent
 - `users` is the sole authentication identity for mobile customers. It owns credentials, verification state, provider linkage, account eligibility, and Sanctum token ownership.
 - `customer_profiles` is a one-to-one business/profile extension of `users` (`customer_profiles.user_id` is unique). It owns the public Customer Reference (`CUS-YYYY-######`), display/profile fields, classification, and customer business context.
 - There is no standalone `customers` authentication identity table.
-- Customer transactional records use `user_id`; profile-scoped records use `customer_profile_id`.
+- Authentication-adjacent records use `user_id`; approved customer business records, including payments, use `customer_profile_id`.
 - `admins` and future staff identities are separate from `users`, with independent guards, authorization policies, and tokens.
 
 ### Migrations
@@ -125,7 +125,7 @@ Laravel Sanctum shall provide token-based authentication with separate customer 
 
 - Principal: `users`, linked one-to-one to `customer_profiles`.
 - Sanctum customer tokens are issued to `users` only.
-- Customer APIs are owner-scoped through `users.id`; profile data is resolved through the linked `customer_profiles` record.
+- Customer APIs authenticate through `users.id`; approved business records are owner-scoped through the linked `customer_profiles` record.
 
 ### 8.2 Admin and Staff Authentication
 
@@ -143,15 +143,54 @@ Laravel Sanctum shall provide token-based authentication with separate customer 
 
 Files shall be stored through Laravel's filesystem abstraction using an approved storage provider. Database records shall store file metadata and references rather than unmanaged file-system paths. Access to private files shall require authorization.
 
-## 10. Notification Architecture
+## 10. Payment Domain Architecture
+
+### 10.1 Module Boundary
+
+Payment V1 is one unified, gateway-independent module for Service Orders and future Store Orders. A payment uses a polymorphic payable reference (`payable_type`, `payable_id`) to identify the originating payable domain record. The originating domain retains its commercial and workflow rules; Payment owns only the payment lifecycle, payment records, gateway integration, transactions, and receipt records.
+
+Payments follow ADR-001 ownership:
+
+```text
+users
+  ↓
+customer_profiles
+  ↓
+payments
+```
+
+`users` remains the authentication principal. `payments.customer_profile_id` records the business owner; no payment authenticates through a customer profile.
+
+### 10.2 Payment Lifecycle and Order Integration
+
+The approved Payment V1 lifecycle is: Pending → Initialized → Processing → Paid, Failed, or Cancelled. Refunds are outside V1.
+
+Orders begin in `pending_payment`. When a payment becomes Paid, the originating Order becomes `confirmed`. Failed or Cancelled payments do not automatically cancel an Order. Payment status transitions must be transactional and leave the originating domain responsible for its own allowed transitions.
+
+### 10.3 Payment Persistence and Receipts
+
+- `payments` stores the customer-profile-owned payable record and current payment lifecycle state.
+- `payment_transactions` stores one or more gateway transaction attempts or updates for one Payment.
+- Every successful payment produces exactly one receipt with public number `RCPT-YYYY-######`.
+- Receipt PDF generation is explicitly outside the current scope.
+
+### 10.4 Gateway Abstraction
+
+The Payment domain shall define a provider-neutral gateway abstraction. Provider adapters may support EVC Plus, Zaad, Sahal, Stripe, PayPal, or future gateways without coupling Payment models or originating domains to a specific provider.
+
+### 10.5 Events and Notifications
+
+Payment does not send notifications directly. It publishes domain events such as `PaymentPaid`, `PaymentFailed`, and `PaymentCancelled`; the future Notification Module consumes those events according to approved notification rules.
+
+## 11. Notification Architecture
 
 Notifications shall use Laravel notification channels and queued delivery where applicable. Notification templates, preferences, delivery status, and failure handling shall be designed around approved business requirements.
 
-## 11. Logging & Error Handling
+## 12. Logging & Error Handling
 
 The backend shall use structured application logging with appropriate severity levels and correlation context where available. Exceptions shall be handled centrally, reported safely, and translated into consistent API errors. Sensitive data shall not be logged.
 
-## 12. Security Architecture
+## 13. Security Architecture
 
 - Enforce HTTPS in production.
 - Validate and authorize every protected request.
@@ -163,27 +202,27 @@ The backend shall use structured application logging with appropriate severity l
 - Apply rate limiting and security headers where appropriate.
 - Keep dependencies updated according to approved maintenance practices.
 
-## 13. Performance Strategy
+## 14. Performance Strategy
 
 Performance shall be supported by efficient database queries, appropriate indexes, pagination, eager loading where needed, caching of approved read-heavy data, background jobs for long-running work, and measured optimization based on observed bottlenecks.
 
-## 14. Scalability Strategy
+## 15. Scalability Strategy
 
 The application shall remain stateless at the API layer where practical, support horizontal scaling, move long-running work to queues, use managed storage for files, and isolate integrations behind services. Database growth and cache strategies shall be reviewed as usage grows.
 
-## 15. Backup & Recovery Strategy
+## 16. Backup & Recovery Strategy
 
 Production databases and critical files shall have scheduled backups, retention policies, access controls, and documented recovery procedures. Backup restoration shall be tested periodically in a safe environment.
 
-## 16. Development Environment
+## 17. Development Environment
 
 Development shall use version-controlled configuration templates, local environment variables, isolated databases, migrations, seed data only when approved, automated tests, code formatting, static analysis where adopted, and Git-based collaboration.
 
-## 17. Production Environment
+## 18. Production Environment
 
 Production shall use secure environment configuration, HTTPS, managed PostgreSQL backups, queue workers where required, centralized logging and monitoring, controlled deployments, rollback capability, and restricted operational access.
 
-## 18. Architecture Principles
+## 19. Architecture Principles
 
 - Follow the approved architecture.
 - Keep modules cohesive and loosely coupled.
@@ -192,6 +231,6 @@ Production shall use secure environment configuration, HTTPS, managed PostgreSQL
 - Protect data integrity, security, and backward compatibility.
 - Make changes traceable to approved documentation.
 
-## 19. Future Expansion Strategy
+## 20. Future Expansion Strategy
 
 Future features, integrations, roles, channels, and services shall be added through approved scope and architecture review. New capabilities shall preserve modular boundaries, API versioning commitments, data integrity, security controls, and documented traceability.

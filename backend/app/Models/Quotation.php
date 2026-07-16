@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'customer_profile_id',
     'booking_id',
     'status',
+    'currency',
     'subtotal',
     'discount_amount',
     'tax_amount',

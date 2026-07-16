@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Services\Payments\Gateways\ManualPaymentGateway;
+use App\Services\Payments\PaymentGatewayManager;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -15,7 +17,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(PaymentGatewayManager::class, function (): PaymentGatewayManager {
+            $manager = new PaymentGatewayManager;
+            $manager->register('manual', new ManualPaymentGateway);
+
+            return $manager;
+        });
     }
 
     /**

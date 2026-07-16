@@ -113,7 +113,7 @@ Most transactional tables include:
 | **Store Management** | Product categories, products, media, cart | `product_categories`, `products`, `product_media`, `carts`, `cart_items` |
 | **Booking Management** | Customer-profile-owned service bookings and status history | `bookings`, `booking_status_histories` |
 | **Quotation Management** | Quote requests, issued quote revisions, discussion messages, attachments, line items, timeline | `quotation_requests`, `quotation_request_attachments`, `quotations`, `quotation_items`, `quotation_messages`, `quotation_message_attachments`, `quotation_status_histories` |
-| **Payment Management** | Payment attempts, refunds | `payments`, `payment_refunds` |
+| **Payment Management** | Unified payment lifecycle, gateway transactions, and receipts | `payments`, `payment_transactions`, `receipts` |
 | **Order Management** | Store orders and line items | `orders`, `order_items`, `order_status_histories` |
 | **Notification Management** | Templates, in-app notifications | `notification_templates`, `notifications` |
 | **Review Management** | Customer reviews after eligible completed activity | `reviews` |
@@ -1293,6 +1293,7 @@ These files help administrators accurately assess the requested work and prepare
 #### Notes
 
 - Payment targets the accepted latest quotation revision.
+- `currency` is the quotation's commercial currency. It is set when the quotation is created and is immutable thereafter; quotation-derived orders copy this value.
 - Remove any `rejected_at` column / `rejected` status from V1 implementations.
 - Quotation records are never permanently deleted.
 - Admin timeline events must record actor (admin name + role, customer, or System).
@@ -1393,30 +1394,27 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `payments` |
-| **Purpose** | Authoritative payment attempts/results for payable entities. |
+| **Purpose** | Customer-profile-owned authoritative payment lifecycle for Service Orders and future Store Orders. |
 | **Primary Key** | `id` |
 | **Foreign Keys** | `customer_profile_id` → `customer_profiles.id`; polymorphic payable reference |
-| **Relationships** | N:1 customer profile; 1:N refunds |
+| **Relationships** | N:1 customer profile; 1:N gateway transactions; 1:1 receipt after successful payment |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `payment_number` | VARCHAR(40) | R | Unique internal/public reference |
+| `payment_number` | VARCHAR(40) | R | Unique public payment reference |
 | `customer_profile_id` | BIGINT UNSIGNED | R | FK |
-| `payable_type` | VARCHAR(30) | R | `order`, `booking`, `quotation` |
-| `payable_id` | BIGINT UNSIGNED | R | Target entity id |
+| `payable_type` | VARCHAR(30) | R | Polymorphic originating payable type; V1 Service Order, future Store Order |
+| `payable_id` | BIGINT UNSIGNED | R | Originating payable entity id |
 | `amount` | DECIMAL(12,2) | R | Charged amount |
 | `currency` | CHAR(3) | R | |
-| `status` | VARCHAR(30) | R | `pending`, `successful`, `failed`, `cancelled`, `refunded`, `partially_refunded` |
-| `provider` | VARCHAR(50) | O | Gateway name |
-| `provider_reference` | VARCHAR(191) | O | External id |
+| `status` | VARCHAR(30) | R | `pending`, `initialized`, `processing`, `paid`, `failed`, `cancelled` |
 | `idempotency_key` | VARCHAR(100) | R | Unique for safe retries |
 | `failure_code` | VARCHAR(50) | O | |
 | `failure_message` | VARCHAR(255) | O | Safe customer/ops message |
-| `paid_at` | TIMESTAMP | O | |
-| `raw_provider_payload` | JSON | O | Minimal, sanitized webhook snapshot |
+| `paid_at` | TIMESTAMP | O | Set when status becomes `paid` |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
 
@@ -1424,46 +1422,34 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 - Unique `payment_number`
 - Unique `idempotency_key`
-- Unique (`provider`, `provider_reference`) when provider reference present
 - `amount` > 0
+- Enforce at most one active Payment for each (`payable_type`, `payable_id`) using a PostgreSQL partial unique index scoped to statuses `pending`, `initialized`, and `processing`.
 
 #### Validation Rules
 
 - Amount must match backend-calculated payable amount at initiation.
-- Client cannot mark payment successful; only server verification/webhooks.
-- Webhook handling must be idempotent.
-- Quotation payments allowed only when quotation status is `accepted` (unless approved deposit exception — not default).
+- When an active Payment already exists for the payable entity, initialization returns it and does not create another Payment. A new Payment is permitted only after the previous Payment is `paid`, `failed`, or `cancelled`.
+- Client cannot mark payment Paid; only gateway verification may do so.
+- Callback/webhook verification order is mandatory before state change: gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment validation, duplicate-callback check, then one atomic database transaction.
+- When Payment becomes Paid, the originating Order transitions from `pending_payment` to `confirmed` in the same approved transaction; Failed or Cancelled payments do not cancel Orders.
+- Payment publishes `PaymentPaid`, `PaymentFailed`, or `PaymentCancelled`; it does not notify customers directly.
 
 #### Notes
 
 - No PAN/CVV/full card data stored.
-- Abandoned pending payments expire per policy.
-- **Admin Payments Management Module** notes:
-  - Every payment must originate from an existing payable entity (`order`, `booking`, or accepted `quotation`) — no manual creation by Admin/Sales/Accountant.
-  - Approved admin-facing payment statuses: Pending, Received, Confirmed, Failed, Refunded. These map from internal `status` column values at the application layer.
-  - Supported payment methods: EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card — stored in `provider` column.
-  - **Payment Progress Tracker** is UI-only; computed from the current `status` — no additional database field.
-  - **Current Stage Indicator** is UI-only; derived from `status` at query time.
-  - **Payment Documents** availability is determined at runtime from document generation records; no additional column on `payments`.
-  - **Latest Note indicator** is derived from the most recent `payment_notes.created_at` at query time (requires `payment_notes` table — see below).
-  - Admin timeline events must record actor (admin name + role, customer, or System).
-  - Internal staff notes use a `payment_notes` table for audit (name/role/date/time), following the same pattern as `order_notes`, `quotation_notes`, and `booking_notes`.
-  - **Payment Verification Badge** (Verified / Pending Verification) requires a `verification_status` column on the `payments` table (e.g., `verification_status` VARCHAR(30) DEFAULT 'pending_verification'). This is independent from the `status` column.
-  - **Payment Age** is computed at query time from `paid_at` / `created_at`; no stored column.
-  - **Transaction Reference Copy** is UI-only; no database change.
-  - **Payment Method Icon** is UI-only; derived from the existing `provider` column.
-  - **Financial Audit Summary** (Payment Requested By, Payment Confirmed By, Confirmation Date, Last Updated) is derived at query time from timeline/status-history records and `updated_at`; no additional stored columns.
+- Gateway implementation is provider-neutral; provider-specific metadata belongs to `payment_transactions`, not `payments`.
+- Refunds are outside V1.
 
 ---
 
-### 3.6.2 `payment_refunds`
+### 3.6.2 `payment_transactions`
 
 | Attribute | Detail |
 | --- | --- |
-| **Table Name** | `payment_refunds` |
-| **Purpose** | Refund records against successful payments. |
+| **Table Name** | `payment_transactions` |
+| **Purpose** | One or more provider gateway attempts, callbacks, or reconciliation records for one Payment. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `payment_id` → `payments.id`, `processed_by_admin_id` → `admins.id` |
+| **Foreign Keys** | `payment_id` → `payments.id` |
 
 #### Columns
 
@@ -1471,31 +1457,32 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
 | `payment_id` | BIGINT UNSIGNED | R | FK |
-| `amount` | DECIMAL(12,2) | R | |
-| `currency` | CHAR(3) | R | |
-| `status` | VARCHAR(30) | R | `pending`, `successful`, `failed` |
-| `reason` | VARCHAR(255) | O | |
-| `provider_reference` | VARCHAR(191) | O | |
-| `processed_by_admin_id` | BIGINT UNSIGNED | O | FK |
+| `gateway` | VARCHAR(50) | R | Provider-neutral adapter identifier |
+| `gateway_transaction_reference` | VARCHAR(191) | O | Provider transaction reference |
+| `status` | VARCHAR(30) | R | Gateway transaction lifecycle/result |
+| `amount` | DECIMAL(12,2) | R | Transaction amount |
+| `payload` | JSON | O | Minimal sanitized gateway payload |
 | `processed_at` | TIMESTAMP | O | |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
 
 #### Validation Rules
 
-- Refund total cannot exceed original successful payment amount.
-- Parent payment status updated to `refunded` or `partially_refunded`.
+- Provider references are unique per gateway when present.
+- One Payment may have multiple transactions; only verified transaction results may change the parent Payment status.
+- Gateway transaction references from callbacks must match the stored `payment_transactions` record before any state transition is applied.
+- Duplicate successful callbacks must be idempotent and must never create duplicate transaction updates, payment status histories, or order confirmations.
 
 ---
 
-### 3.6.3 `payment_notes` (Admin internal)
+### 3.6.3 `receipts`
 
 | Attribute | Detail |
 | --- | --- |
-| **Table Name** | `payment_notes` |
-| **Purpose** | Internal staff notes on a payment. Never visible to customers. |
+| **Table Name** | `receipts` |
+| **Purpose** | One receipt produced for every successful payment. Receipt PDF generation is outside V1. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `payment_id` → `payments.id`, `admin_id` → `admins.id` |
+| **Foreign Keys** | `payment_id` → `payments.id` (UNIQUE) |
 
 #### Columns
 
@@ -1503,10 +1490,9 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
 | `payment_id` | BIGINT UNSIGNED | R | FK |
-| `admin_id` | BIGINT UNSIGNED | R | FK — who wrote the note |
-| `body` | TEXT | R | Note content |
-| `created_at` | TIMESTAMP | R | |
-| `updated_at` | TIMESTAMP | R | |
+| `receipt_number` | VARCHAR(40) | R | Unique public reference `RCPT-YYYY-######` |
+| `issued_at` | TIMESTAMP | R | Receipt issuance timestamp |
+| `created_at`, `updated_at` | TIMESTAMP | R | |
 
 ---
 
@@ -1553,6 +1539,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 - Unique `order_number`
 - `customer_profile_id` required
+- `currency` is copied from the accepted quotation at order creation and is immutable thereafter; payments copy it from the order.
 - `quotation_id` is required only for `product_quotation` or quotation-derived `booking` orders.
 - `source_type` must be `store_cart`, `product_quotation`, or `booking`; `cart_id` is required for `store_cart`, and `booking_id` is required for `booking`.
 - Totals must equal sum of item snapshots + discount + delivery + tax (policy)
@@ -1867,7 +1854,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | `quotation_requests` | `quotation_request_attachments`, `quotations` | Request lifecycle |
 | `quotations` | `quotation_items` | Quote breakdown |
 | `orders` | `order_items`, `order_status_histories` | Order composition and audit |
-| `payments` | `payment_refunds` | Refund history |
+| `payments` | `payment_transactions`, `receipts` | Gateway transaction history and one successful-payment receipt |
 | `admins` | (via pivots) roles; also appear as actors on histories/refunds/audit | Admin operations |
 | `roles` | (via pivots) permissions | RBAC |
 
@@ -1882,7 +1869,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 | Source | Discriminator | Targets | Purpose |
 | --- | --- | --- | --- |
-| `payments` | `payable_type` + `payable_id` | `orders`, `bookings`, `quotations` | Single payment ledger |
+| `payments` | `payable_type` + `payable_id` | Service Orders and future Store Orders | Unified payment ledger |
 | `quotation_requests` | `request_target_type` | `bookings` or `products` | Booking-origin service and optional product quotes |
 | `notifications` | `reference_type` + `reference_id` | booking/order/quote/payment/etc. | Deep links |
 | `reviews` | `review_target_type` | product/service/order/booking | Feedback targets |
@@ -1899,7 +1886,7 @@ users ──┬── customer_profiles (1:1) ──┬── customer_addresses
         │                              ├── quotation_requests ──┬── quotation_request_attachments
         │                              │                        └── quotations ──── quotation_items
         │                              ├── orders ──── order_items
-        │                              ├── payments ──── payment_refunds
+        │                              ├── payments ──── payment_transactions / receipts
         │                              └── reviews
         ├── customer_devices
         ├── carts ──── cart_items ──── products
@@ -2046,10 +2033,11 @@ Indexes below are recommendations for common access paths. Exact index types dep
 
 ## 6.6 Payment Integrity
 
-1. Idempotent creation/webhook application via `idempotency_key` / provider reference uniqueness.
-2. Success only after server-side verification.
-3. Refunds cannot exceed captured amount.
-4. Payable entity status updates only after successful payment confirmation.
+1. Idempotent payment and gateway-transaction processing is required.
+2. Payment becomes Paid only after server-side gateway verification.
+3. A Paid payment changes its originating Order from `pending_payment` to `confirmed`; Failed and Cancelled payments leave the Order unchanged.
+4. Every successful payment creates exactly one receipt with public `RCPT-YYYY-######`.
+5. Refunds are outside V1.
 
 ## 6.7 Notification Integrity
 
