@@ -24,7 +24,19 @@ class UpdateCustomerProfileRequest extends FormRequest
             'full_name' => ['sometimes', 'string', 'max:150'],
             'avatar_url' => ['sometimes', 'nullable', 'url', 'max:500'],
             'preferred_language' => ['sometimes', 'string', Rule::in(['so', 'en', 'ar'])],
-            'notification_preferences' => ['sometimes', 'nullable', 'array'],
+            'notification_preferences' => [
+                'sometimes',
+                'nullable',
+                'array:push,email,booking,quotation,discussion,order,payment,marketing',
+            ],
+            'notification_preferences.push' => ['sometimes', 'boolean'],
+            'notification_preferences.email' => ['sometimes', 'boolean'],
+            'notification_preferences.booking' => ['sometimes', 'boolean'],
+            'notification_preferences.quotation' => ['sometimes', 'boolean'],
+            'notification_preferences.discussion' => ['sometimes', 'boolean'],
+            'notification_preferences.order' => ['sometimes', 'boolean'],
+            'notification_preferences.payment' => ['sometimes', 'boolean'],
+            'notification_preferences.marketing' => ['sometimes', 'boolean'],
         ];
     }
 

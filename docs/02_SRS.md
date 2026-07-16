@@ -69,8 +69,10 @@ Fayadhowr is a unified digital channel where customers can:
 
 | Term | Definition |
 | --- | --- |
-| **Customer** | An end user who registers and uses the Fayadhowr mobile app |
-| **Service** | A bookable offering delivered by Fayadhowr (fixed-price or quotation-based) |
+| **Customer** | An end user who registers and uses the Fayadhowr mobile app; authenticated through `users` with linked business/profile data in `customer_profiles` |
+| **User** | The sole customer authentication identity, stored in `users` |
+| **Customer Profile** | The one-to-one business/profile record linked to `users`; it owns customer business references and approved profile-scoped records |
+| **Service** | An offering delivered by Fayadhowr that supports both **Book Now** and **Request Quotation** |
 | **Store Product** | A sellable item in the e-commerce catalog |
 | **Booking** | A customer reservation for a service at a requested date/time or slot |
 | **Quotation (Quote)** | A priced proposal issued by the business in response to a customer request |
@@ -179,10 +181,15 @@ Admin users share **one Admin Login** and **one Admin Panel**. Role is detected 
 - Sessions/tokens must expire and be refreshable according to security policy.
 - Role-based access control (RBAC) applies to the admin panel.
 - Customers may only access their own data (bookings, quotes, orders, payments, profile).
-- Customer authentication operates on `users` only; one linked `customer_profiles` record stores customer business and profile data.
-- There is no standalone `customers` authentication identity table.
 - Admin-panel authentication operates on `admins` only; Admin, Sales, and Accountant roles do not exist on `users`.
 - Cross-realm privilege escalation must be impossible: `users` cannot obtain admin roles or tokens, and `admins` cannot authenticate as customers on mobile endpoints.
+
+### 4.2A Identity Architecture
+
+- `users` is the only customer authentication principal.
+- `customer_profiles` owns customer business and profile data.
+- Business modules reference `customer_profiles` where approved by their domain architecture; Booking uses `customer_profile_id`.
+- There is no standalone `customers` authentication identity table.
 
 ### 4.3 Account Lifecycle
 
@@ -211,7 +218,7 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-010 | The system shall present service categories and service listings with name, description, media, and pricing model (fixed or quote-based). | Must |
+| FR-010 | The system shall present service categories and service listings with name, description, media, optional Starting From price, and both **Book Now** and **Request Quotation** options. | Must |
 | FR-011 | The system shall present store categories and product listings with name, description, media, price, and availability. | Must |
 | FR-012 | The system shall support search and/or filter of services and products. | Should |
 | FR-013 | The system shall show product/service detail pages with complete customer-facing information. | Must |
@@ -235,8 +242,8 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-030 | The customer shall be able to create a booking for an eligible fixed-price or bookable service. | Must |
-| FR-031 | The system shall capture required booking details (service, schedule preference, location/notes as applicable). | Must |
+| FR-030 | The customer shall be able to choose **Book Now** for every active service. Every active service shall also provide a separate **Request Quotation** option. | Must |
+| FR-031 | The system shall capture required booking details: service, requested date, requested time window, location/notes as applicable, and the linked `customer_profile_id`. | Must |
 | FR-032 | The customer shall be able to view booking list and booking detail with current status. | Must |
 | FR-033 | The customer shall be able to cancel a booking when policy allows. | Must |
 | FR-034 | The system shall prevent double-booking beyond configured capacity rules. | Must |
@@ -383,30 +390,96 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 ### 7.1 Purpose
 
-Service modules represent Fayadhowr’s bookable and quotation-based offerings. They are distinct from store products: services are fulfilled through scheduling, assessment, and/or on-site/remote delivery rather than simple SKU shipment alone.
+Service modules represent Fayadhowr offerings that support both **Book Now** and **Request Quotation**. They are distinct from store products: services are fulfilled through scheduling, assessment, and/or on-site/remote delivery rather than simple SKU shipment alone.
 
-### 7.2 Service Types
+### 7.2 Official Services Catalog (V1)
 
-| Type | Description | Customer Path |
-| --- | --- | --- |
-| **Fixed-Price Bookable Service** | Published price; customer selects schedule/details and books | Booking Workflow → Payment (per policy) |
-| **Quotation-Based Service** | Price depends on scope/assessment | Quotation Workflow → Acceptance → Payment |
-| **Hybrid Service** | May require deposit on booking and final amount after assessment | Booking + Quotation rules as configured |
+#### Service Modes
 
-### 7.3 Service Module Capabilities
+| Service | Supported mode(s) |
+| --- | --- |
+| Deep Cleaning | One-Time · Monthly Contract |
+| Pest Control | One-Time · Monthly Contract |
+| Carpet Cleaning | One-Time |
+| Sofa & Chair Cleaning | One-Time |
+| Post Construction Cleaning | One-Time |
+| Window Cleaning | One-Time · Monthly Contract |
+| Fumigation Services | One-Time · Monthly Contract |
+| Housekeeper | Monthly Contract |
+| Monthly Cleaning Staff | Monthly Contract |
+
+#### Housekeeper Subtypes
+
+- Full-Time
+- Part-Time
+- Live-In
+- Live-Out
+
+#### Monthly Cleaning Staff Subtypes
+
+- Office
+- Hotel
+- Restaurant
+- School
+- Hospital / Clinic
+- Other Business
+
+### 7.3 Booking and Quotation Options
+
+Every service supports both customer options:
+
+- **Book Now**
+- **Request Quotation**
+
+Services must not be classified as booking-only or quotation-only. The customer chooses the appropriate path for the service need, and Fayadhowr determines the final commercial outcome through assessment/review where required.
+
+### 7.4 Service Module Capabilities
 
 - Category hierarchy for discovery.
-- Service detail: description, inclusions/exclusions, media, duration estimates, pricing model, prerequisites.
+- Service detail: description, inclusions/exclusions, media, duration estimates, pricing information, prerequisites, and related services.
 - Eligibility rules (e.g., service area, minimum lead time).
 - Capacity / scheduling rules (slots, blackout dates, max concurrent bookings).
 - Required customer inputs (address, notes, attachments, preferred time).
-- Linkage to booking records and/or quotation requests.
+- Linkage to booking records and quotation requests.
 - Admin-managed activation/deactivation without deleting historical records.
 
-### 7.4 Service Module Rules
+### 7.5 Service Detail Template
 
-- A service must declare its pricing model before it is customer-visible.
-- Inactive services must not accept new bookings or quote requests.
+Every service detail follows the same customer-facing structure:
+
+1. Hero Banner
+2. Service Overview
+3. What's Included
+4. What's Not Included
+5. Before & After Gallery
+6. How It Works
+7. Estimated Duration
+8. Pricing Information
+9. Things to Prepare Before We Arrive
+10. Service Coverage
+11. FAQs
+12. Customer Reviews
+13. Related Services
+14. Book Now
+15. Request Quotation
+
+### 7.6 Service Coverage
+
+V1 supported service cities are:
+
+- Mogadishu
+- Hargeisa
+
+### 7.7 Pricing Strategy
+
+- A **Starting From** price may be displayed when available.
+- The final price is determined after Fayadhowr assessment or review.
+- Customer-facing service content must not promise a fixed final price before the approved assessment/review outcome.
+
+### 7.8 Service Module Rules
+
+- Every active service must expose both **Book Now** and **Request Quotation** paths.
+- Inactive services must not accept new bookings or quotation requests.
 - Historical bookings/quotes remain visible to the customer even if a service is later deactivated.
 - Service content shown in the app is admin-authored and versioned operationally (content updates do not rewrite past commercial agreements).
 
@@ -416,7 +489,16 @@ Service modules represent Fayadhowr’s bookable and quotation-based offerings. 
 
 ### 8.1 Purpose
 
-The Store Module enables customers to browse and purchase physical or digital products offered by Fayadhowr.
+The Store Module is a separate physical-product commerce domain. It is not a service module and does not represent service fulfillment or scheduling.
+
+V1 Store catalog scope:
+
+- Cleaning Products
+- Cleaning Supplies
+- Cleaning Accessories
+- Consumables
+
+The store architecture must support future industrial cleaning machines and equipment without schema redesign.
 
 ### 8.2 Store Capabilities
 
@@ -465,7 +547,7 @@ The Store Module enables customers to browse and purchase physical or digital pr
 
 ### 9.1 Objective
 
-Allow a customer to reserve a bookable service, track its lifecycle, and proceed to payment according to policy.
+Allow a customer to use **Book Now** for any active service, track the resulting booking lifecycle, and proceed to payment according to policy. Every service also retains the separate **Request Quotation** option.
 
 ### 9.2 Actors
 
@@ -475,20 +557,27 @@ Allow a customer to reserve a bookable service, track its lifecycle, and proceed
 
 ### 9.3 Preconditions
 
-- Customer is authenticated.
-- Selected service is active and bookable.
-- Required scheduling capacity exists for the requested slot/window.
+- Customer is authenticated through `users` and has a linked `customer_profiles` record.
+- Selected service is active and available in the requested supported city.
+- Required scheduling capacity exists for the requested time window.
 - Required fields (location, notes, etc.) are provided.
+
+### 9.3A Schedule Model
+
+| Schedule type | Fields | Meaning |
+| --- | --- | --- |
+| **Requested Schedule** | `requested_date`, `requested_time_window` | Customer preference submitted with the booking request. |
+| **Confirmed Schedule** | `scheduled_start_at`, `scheduled_end_at` | Operationally confirmed service window. |
 
 ### 9.4 Main Flow
 
-1. Customer selects a bookable service.
-2. Customer reviews service details and pricing model.
-3. Customer chooses preferred date/time (or available slot) and enters required details.
+1. Customer selects an active service and chooses **Book Now**.
+2. Customer reviews the standard service details and pricing information.
+3. Customer provides a **Requested Schedule**: `requested_date` and `requested_time_window`, then enters required location and notes.
 4. System validates eligibility, lead time, and capacity.
-5. System creates a **Booking** in initial status **Pending Review** (see §9.6).
+5. System creates a **Booking** owned by `customer_profile_id`, assigns a unique `BK-YYYY-######` public booking number, snapshots the selected address/service context, and sets initial status **Pending Review** (see §9.6).
 6. System notifies customer and operations of the new booking.
-7. Operations reviews/assigns/fulfills as needed and updates status.
+7. Operations reviews/fulfills as needed, sets the **Confirmed Schedule** (`scheduled_start_at`, `scheduled_end_at`), and updates status.
 8. Customer pays when the booking becomes payable (immediately, on confirmation, or on completion — per service policy).
 9. System updates booking and payment statuses and notifies the customer.
 10. Booking reaches a terminal status (`Completed`, `Cancelled`, or equivalent).
@@ -497,7 +586,7 @@ Allow a customer to reserve a bookable service, track its lifecycle, and proceed
 
 | Scenario | Behavior |
 | --- | --- |
-| Slot unavailable | Reject creation; prompt customer to choose another time |
+| Requested time window unavailable | Reject creation; prompt customer to choose another requested time window |
 | Service deactivated mid-flow | Prevent submission; show unavailable message |
 | Customer cancelation allowed | Transition to cancelled; apply refund rules if paid |
 | Customer cancelation not allowed | Block cancel; show policy message |
@@ -522,10 +611,11 @@ Notes:
 - `Draft` remains client-side only and is not persisted as a server booking.
 - **`Rejected` is never used.**
 - Payment events appear on the booking timeline and in linked Payments/Orders; they are not separate booking status values.
+- Booking media in V1 supports **Images** and **Videos** only. Documents are not Booking Media V1.
 
 ### 9.7 Postconditions
 
-- Booking exists with immutable reference ID.
+- Booking exists with immutable public booking number (`BK-YYYY-######`), `customer_profile_id` ownership, requested schedule, and confirmed schedule fields.
 - Customer can view status history and key details.
 - Notifications have been emitted for state changes of customer relevance.
 - Payment records are linked when payment occurs.
@@ -536,7 +626,7 @@ Notes:
 
 ### 10.1 Objective
 
-Support variable-scope services by allowing customers to request a quote, receive a formal price proposal, **Accept** or **Discuss** it (never Reject), and proceed to payment only after acceptance.
+Support assessment/review pricing for every service by allowing customers to choose **Request Quotation**, receive a formal price proposal, **Accept** or **Discuss** it (never Reject), and proceed to payment only after acceptance.
 
 ### 10.2 Actors
 
@@ -547,12 +637,12 @@ Support variable-scope services by allowing customers to request a quote, receiv
 ### 10.3 Preconditions
 
 - Customer is authenticated.
-- Target service (or generic quote intake) is active and quote-enabled.
+- Target service is active and available in the requested supported city.
 - Customer provides sufficient requirement details.
 
 ### 10.4 Main Flow
 
-1. Customer selects a quotation-based service (or “Request a Quote” entry point).
+1. Customer selects **Request Quotation** from any active service (or an approved product request entry point).
 2. Customer submits requirements: description, preferred timing, location, attachments (images/videos/PDFs as enabled).
 3. System creates the quotation record with a unique Quotation Number (e.g. `QT-2026-000123`) in status **Pending Review**.
 4. System notifies operations.
@@ -799,7 +889,7 @@ The Admin Panel is the operational control plane for Fayadhowr. It is **not** pa
 | Domain | Responsibilities |
 | --- | --- |
 | **Dashboard** | Executive snapshot: KPIs, business monitoring, customer service metrics, revenue analytics, live activity |
-| **Catalog — Services** | Create/edit services, pricing model, media, schedule rules, visibility |
+| **Catalog — Services** | Create/edit services, Starting From pricing information, media, schedule rules, visibility, and both customer action paths |
 | **Catalog — Store** | Create/edit products, stock, categories, visibility, pricing |
 | **Bookings** | List/filter bookings, assign, update status, add internal notes |
 | **Quotations** | Review requests, issue/revise quotes, set validity and terms |
@@ -871,7 +961,7 @@ The Admin Panel is the operational control plane for Fayadhowr. It is **not** pa
 | Area | Future Capability |
 | --- | --- |
 | **Services** | Recurring bookings, subscriptions, multi-technician assignment |
-| **Store** | Variants at scale, promotions/coupons, wishlists, bundles |
+| **Store** | Variants at scale, promotions/coupons, wishlists, bundles, industrial cleaning machines, and equipment without schema redesign |
 | **Quotations** | Multi-option parallel quote packages, e-signature (In-app Discuss Quotation messaging + revision on the same quotation is **in scope for V1** — not future work) |
 | **Payments** | Multiple gateways, wallets, split payments, escrow-like holds |
 | **Notifications** | Preference center, marketing campaigns with consent |

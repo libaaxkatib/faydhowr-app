@@ -32,8 +32,6 @@ It intentionally does **not** include:
 
 | In Scope (v1) | Out of Scope (v1) |
 | --- | --- |
-| In Scope (v1) | Out of Scope (v1) |
-| --- | --- |
 | User authentication identities and customer profiles | Employee / technician / driver workforce tables |
 | Admin panel operator accounts (RBAC) | Multi-vendor seller portals |
 | Services, store, bookings, quotations, orders, payments, notifications | Multi-tenant SaaS tenancy |
@@ -46,7 +44,7 @@ It intentionally does **not** include:
 - The mobile application is **customer-only**; employees are not modeled in this version.
 - Store products **always display prices**; fixed-price purchase is the default path.
 - Customers may **optionally** request quotations for products (bulk, custom quantity, special requests).
-- Services may be **fixed-price bookable** or **quotation-required**.
+- Every active service supports both **Book Now** and **Request Quotation**. Services may display an optional Starting From price; final operational price is determined after assessment/review.
 - **Browse/catalog access** may occur without login; **authentication is required** to create a booking or place an order (and for related transactional actions such as quotation requests and payments, consistent with the SRS).
 
 ---
@@ -78,7 +76,7 @@ The Flutter customer app and the Laravel admin/API layer share this database thr
 | **Soft deactivation over hard delete** | Catalog entities can be deactivated while historical transactions remain intact. |
 | **Commercial immutability** | Order/booking/quotation line snapshots preserve what the customer agreed to at confirmation time. |
 | **Polymorphic commercial links where justified** | Payments and quotations may reference more than one payable/requestable entity type without inventing duplicate payment tables. |
-| **Least privilege data** | Mobile ownership is enforced through `users.id`; customer business data is linked through `customer_profiles`; admins operate through separate RBAC identities; no employee workforce schema in v1. |
+| **Least privilege data** | `users` is the sole authentication principal; `customer_profiles` owns customer business/profile data and approved business-module ownership; admins operate through separate RBAC identities; no employee workforce schema in v1. |
 | **PCI minimization** | No full card PAN/CVV storage; only provider references and internal payment status. |
 
 ## 1.3 Naming Conventions
@@ -87,7 +85,7 @@ The Flutter customer app and the Laravel admin/API layer share this database thr
 | --- | --- |
 | Table names | `snake_case`, plural (`users`, `customer_profiles`, `order_items`) |
 | Primary keys | `id` (unsigned big integer, surrogate) |
-| Foreign keys | `{referenced_table_singular}_id`; use `user_id` for customer-authenticated transactional ownership and `customer_profile_id` for profile-scoped records |
+| Foreign keys | `{referenced_table_singular}_id`; use `user_id` for authentication-adjacent records and `customer_profile_id` for approved customer business-module ownership |
 | Timestamps | `created_at`, `updated_at`; soft delete via `deleted_at` where noted |
 | Money | `DECIMAL(12,2)` (or equivalent) with explicit `currency` where amounts are stored |
 | Status fields | Constrained string/enumeration values documented per table |
@@ -111,9 +109,9 @@ Most transactional tables include:
 | Module | Responsibility | Primary Tables |
 | --- | --- | --- |
 | **User Management** | Mobile user identity, customer profiles, addresses, saved payment methods, devices, auth recovery; admin operators & roles | `users`, `customer_profiles`, `customer_addresses`, `customer_payment_methods`, `customer_devices`, `password_reset_tokens`, `admins`, `roles`, `admin_role`, `permissions`, `role_permission` |
-| **Service Management** | Service categories, services, media, schedule constraints | `service_categories`, `services`, `service_media`, `service_blackout_dates` |
+| **Service Management** | Official services, modes, coverage, media, and schedule constraints | `service_categories`, `services`, `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates` |
 | **Store Management** | Product categories, products, media, cart | `product_categories`, `products`, `product_media`, `carts`, `cart_items` |
-| **Booking Management** | Service bookings and status history | `bookings`, `booking_status_histories` |
+| **Booking Management** | Customer-profile-owned service bookings and status history | `bookings`, `booking_status_histories` |
 | **Quotation Management** | Quote requests, issued quote revisions, discussion messages, attachments, line items, timeline | `quotation_requests`, `quotation_request_attachments`, `quotations`, `quotation_items`, `quotation_messages`, `quotation_message_attachments`, `quotation_status_histories` |
 | **Payment Management** | Payment attempts, refunds | `payments`, `payment_refunds` |
 | **Order Management** | Store orders and line items | `orders`, `order_items`, `order_status_histories` |
@@ -131,11 +129,13 @@ Most transactional tables include:
 
 ### Service Management
 
-- Each service declares a **pricing model**: fixed-price bookable, quotation-based, or hybrid (per SRS §7).
+- Every active service supports both **Book Now** and **Request Quotation**. Service pricing may show an optional Starting From amount; final operational price follows assessment/review.
 - Inactive services remain in history but reject new bookings/quote requests.
 
 ### Store Management
 
+- Store is a separate product-commerce module; products are not services.
+- V1 category seed scope: Cleaning Products, Cleaning Supplies, Cleaning Accessories, Consumables.
 - Every product has a **display price**.
 - Normal path: cart → order → payment.
 - Optional path: product-related **quotation request** (does not replace fixed-price purchase).
@@ -163,9 +163,9 @@ ADR-001 is authoritative for every identity and ownership reference in this spec
 | --- | --- |
 | `customers` authentication table | `users` is the sole customer authentication identity; no standalone `customers` table exists |
 | Customer business/profile row | `customer_profiles` with unique `user_id` → `users.id` |
-| Customer transactional ownership | `user_id` → `users.id` |
+| Customer business-module ownership | `customer_profile_id` → `customer_profiles.id` where approved; Booking explicitly uses `customer_profile_id` |
 | Customer profile-scoped child ownership | `customer_profile_id` → `customer_profiles.id` |
-| Customer actor in polymorphic histories/messages | `user` with `users.id` |
+| Customer actor in polymorphic histories/messages | `user` with `users.id` for authentication actor audit; business records use `customer_profile_id` |
 | Admin/staff ownership or preferences | `admin_id` → `admins.id`; never `users.id` unless explicitly customer-owned |
 
 The historical `customers` references that remain in workflow prose describe the customer persona only. They must not be interpreted as a table, authentication principal, or foreign-key target.
@@ -239,7 +239,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | **Table Name** | `users` |
 | **Purpose** | Sole mobile-customer authentication identity. |
 | **Primary Key** | `id` |
-| **Relationships** | 1:1 → `customer_profiles`; 1:N → carts, bookings, quotation requests, orders, payments, notifications, reviews; authentication recovery and Sanctum tokens |
+| **Relationships** | 1:1 → `customer_profiles`; 1:N → carts, customer devices, authentication recovery, Sanctum tokens; customer business records are reached through `customer_profiles` |
 
 #### Identity Columns
 
@@ -270,7 +270,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | **Purpose** | One-to-one customer business/profile data; not an authentication identity. |
 | **Primary Key** | `id` |
 | **Foreign Keys** | `user_id` → `users.id` (UNIQUE, required) |
-| **Relationships** | 1:1 → `users`; 1:N → addresses, saved payment methods, internal customer notes |
+| **Relationships** | 1:1 → `users`; 1:N → addresses, saved payment methods, internal customer notes, bookings, quotation requests, orders, payments, notifications, reviews |
 
 #### Columns
 
@@ -652,10 +652,10 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `services` |
-| **Purpose** | Bookable / quotation-based service catalog items. |
+| **Purpose** | Official service catalog items; every active service supports both Book Now and Request Quotation. |
 | **Primary Key** | `id` |
 | **Foreign Keys** | `category_id` → `service_categories.id` |
-| **Relationships** | N:1 category; 1:N media, bookings, quotation_requests, blackout dates |
+| **Relationships** | N:1 category; 1:N modes, coverage cities, media, bookings, quotation requests, blackout dates |
 
 #### Columns
 
@@ -669,8 +669,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | `description` | TEXT | O | |
 | `inclusions` | TEXT | O | |
 | `exclusions` | TEXT | O | |
-| `pricing_model` | VARCHAR(30) | R | `fixed`, `quotation`, `hybrid` |
-| `base_price` | DECIMAL(12,2) | O | Required when `fixed` or for hybrid deposit display |
+| `starting_from_price` | DECIMAL(12,2) | O | Optional customer-facing “Starting From” amount; not the final operational price |
 | `currency` | CHAR(3) | R | System default typically |
 | `duration_minutes` | INT | O | Estimate |
 | `min_lead_hours` | INT | O | Eligibility |
@@ -684,23 +683,79 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 #### Constraints
 
-- `pricing_model` constrained to allowed values
-- If `pricing_model = fixed`, `base_price` must be present and >= 0
-- Inactive services cannot accept new bookings/quote requests
+- `starting_from_price`, when present, must be >= 0.
+- Inactive services cannot accept new bookings/quote requests.
 
 #### Validation Rules
 
-- Pricing model must be declared before customer visibility (SRS §7.4).
+- The V1 official service catalog is limited to: Deep Cleaning; Pest Control; Carpet Cleaning; Sofa & Chair Cleaning; Post Construction Cleaning; Window Cleaning; Fumigation Services; Housekeeper; and Monthly Cleaning Staff.
+- Each service must have at least one active `service_modes` row and coverage in at least one supported city before customer visibility.
 - Historical bookings remain readable after deactivation.
 
 #### Notes
 
-- Quotation-based services use Quotation Management before payment.
-- Hybrid may combine booking + later quotation per configured policy.
+- Final service price is set only after Fayadhowr operational assessment/review. A Starting From amount is informational and optional.
+- Service availability is not classified as booking-only or quotation-only; both customer actions are available for every active service.
 
 ---
 
-### 3.2.3 `service_media`
+### 3.2.3 `service_modes`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `service_modes` |
+| **Purpose** | Configures the approved delivery/contract modes and optional workforce subtype for each service. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `service_id` → `services.id` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `service_id` | BIGINT UNSIGNED | R | FK |
+| `mode` | VARCHAR(30) | R | `one_time` or `monthly_contract` |
+| `subtype` | VARCHAR(40) | O | Only applicable to Housekeeper and Monthly Cleaning Staff |
+| `is_active` | BOOLEAN | R | Controls customer visibility/selection |
+| `created_at`, `updated_at` | TIMESTAMP | R | |
+
+#### Constraints and Rules
+
+- Unique (`service_id`, `mode`, `subtype`) prevents duplicate choices.
+- Approved V1 modes are: Deep Cleaning, Pest Control, Window Cleaning, and Fumigation Services — `one_time` and `monthly_contract`; Carpet Cleaning, Sofa & Chair Cleaning, and Post Construction Cleaning — `one_time`; Housekeeper and Monthly Cleaning Staff — `monthly_contract`.
+- Housekeeper subtypes are `full_time`, `part_time`, `live_in`, and `live_out`.
+- Monthly Cleaning Staff subtypes are `office`, `hotel`, `restaurant`, `school`, `hospital_clinic`, and `other_business`.
+- Other services must have a null `subtype` in V1.
+
+---
+
+### 3.2.4 `service_coverage_cities`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `service_coverage_cities` |
+| **Purpose** | Records city-level availability for each service without coupling service coverage to customer addresses. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `service_id` → `services.id` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `service_id` | BIGINT UNSIGNED | R | FK |
+| `city` | VARCHAR(100) | R | V1: `Mogadishu` or `Hargeisa` |
+| `is_active` | BOOLEAN | R | |
+| `created_at`, `updated_at` | TIMESTAMP | R | |
+
+#### Constraints and Rules
+
+- Unique (`service_id`, `city`).
+- V1 supported cities are Mogadishu and Hargeisa only; new cities can be added as coverage data without redesigning the service schema.
+
+---
+
+### 3.2.5 `service_media`
 
 | Attribute | Detail |
 | --- | --- |
@@ -729,7 +784,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.2.4 `service_blackout_dates`
+### 3.2.6 `service_blackout_dates`
 
 | Attribute | Detail |
 | --- | --- |
@@ -952,27 +1007,30 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 | **Table Name** | `bookings` |
 | **Purpose** | Customer service booking records. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `user_id` → `users.id`, `service_id` → `services.id`, optional `quotation_id` → `quotations.id` |
-| **Relationships** | N:1 user/service; 1:N status histories; optional link to accepted quotation; payments via polymorphic payable |
+| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id`, `service_id` → `services.id`, `service_mode_id` → `service_modes.id`, optional `quotation_id` → `quotations.id` |
+| **Relationships** | N:1 customer profile/service/service mode; 1:N status histories; optional link to accepted quotation; payments via polymorphic payable |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `booking_number` | VARCHAR(40) | R | Unique public reference |
-| `user_id` | BIGINT UNSIGNED | R | FK — **login required** |
+| `booking_number` | VARCHAR(40) | R | Unique, system-generated public reference: `BK-YYYY-######`; not the primary key |
+| `customer_profile_id` | BIGINT UNSIGNED | R | FK — business ownership; authenticated through linked `users` record |
 | `service_id` | BIGINT UNSIGNED | R | FK |
+| `service_mode_id` | BIGINT UNSIGNED | R | FK — selected approved mode/subtype for this booking |
 | `quotation_id` | BIGINT UNSIGNED | O | When booking follows accepted quote |
 | `status` | VARCHAR(30) | R | Admin/customer operational statuses (see below) |
 | `priority` | VARCHAR(10) | R | Read-only operational badge: `high`, `medium`, `low` |
-| `scheduled_start_at` | TIMESTAMP | O | Preferred / confirmed service start |
-| `scheduled_end_at` | TIMESTAMP | O | |
+| `requested_date` | DATE | R | Customer-requested service date |
+| `requested_time_window` | VARCHAR(100) | R | Customer-requested time window |
+| `scheduled_start_at` | TIMESTAMP | O | Confirmed service start; null until operations confirms |
+| `scheduled_end_at` | TIMESTAMP | O | Confirmed service end; null until operations confirms |
 | `service_name_snapshot` | VARCHAR(200) | R | Immutable commercial snapshot |
-| `pricing_model_snapshot` | VARCHAR(30) | R | |
-| `quoted_or_base_amount` | DECIMAL(12,2) | O | Amount due context |
+| `starting_from_price_snapshot` | DECIMAL(12,2) | O | Optional informational Starting From amount shown when the booking was created; not an assessed final price |
 | `currency` | CHAR(3) | R | |
 | `address_snapshot` | JSON/TEXT | O | Copied address / property details |
+| `service_city` | VARCHAR(100) | R | Requested service city; must be covered by the selected service |
 | `customer_notes` | TEXT | O | Customer-visible request notes |
 | `assigned_to_name` | VARCHAR(150) | O | **Manual** informational assignee (v1 — no Staff Management module) |
 | `cancellation_reason` | VARCHAR(255) | O | |
@@ -983,7 +1041,7 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 #### Constraints
 
 - Unique `booking_number`
-- `user_id` NOT NULL
+- `customer_profile_id` NOT NULL
 - Status in: `pending_review`, `quotation_ready`, `under_discussion`, `accepted`, `scheduled`, `in_progress`, `completed`, `cancelled`  
   (Admin display labels: Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Cancelled)  
   **Never** `rejected`. No custom status values. Status updates use a controlled dropdown only.
@@ -991,9 +1049,10 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 
 #### Validation Rules
 
-- Customer must be authenticated and `active`.
-- Service must be `is_active` and bookable under its pricing model rules.
-- Capacity / blackout / lead-time checks enforced before insert/update of schedule.
+- Customer must authenticate as an active `users` record with a linked `customer_profiles` record; the booking is owned by `customer_profile_id`.
+- Service and selected `service_mode_id` must be active, mutually consistent, and cover `service_city`.
+- `requested_date` and `requested_time_window` are required when a booking is created. `scheduled_start_at` and `scheduled_end_at` are populated only after confirmation and must form a valid range.
+- Capacity / blackout / lead-time checks are enforced before insert/update of the confirmed schedule.
 - Customer cancel only when policy allows.
 - Booking records are never permanently deleted.
 - `assigned_to_name` is informational only (manual assignment outside the system).
@@ -1002,7 +1061,7 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 
 - Draft status is client-side only and not persisted as a server booking (SRS §9.6).
 - Internal staff notes use `booking_notes` (not a single `admin_notes` blob) for audit (name/role/date/time).
-- Media attachments follow quotation/booking upload patterns (images, videos, documents).
+- Booking Media V1 is limited to images and videos; documents are explicitly excluded. This specification intentionally defines no booking-media storage table or storage implementation in V1.
 
 ---
 
@@ -1055,10 +1114,12 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 - Admin Booking Timeline is read-only and must show **who** performed each event (resolved actor name + role for admins, customer name, or **System**).
 - Prefer a general booking activity/timeline feed when events are broader than status-only (e.g. Images Uploaded, Payment Received); status transitions still land here.
 
+## 3.5 Quotation Management
+
 Supports:
 
-1. **Service quotations** (required path for quotation-based services)
-2. **Optional product quotations** (bulk/custom/special; does not replace fixed-price purchase)
+1. **Service quotations** initiated from a booking; this is available for every active service and complements Book Now.
+2. **Optional product quotations** for bulk/custom/special requests; these do not replace fixed-price purchase.
 
 ### 3.5.1 `quotation_requests`
 
@@ -1067,7 +1128,7 @@ Supports:
 | **Table Name** | `quotation_requests` |
 | **Purpose** | Customer-submitted request for a formal quote. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `user_id` → `users.id`; optional `service_id` / `product_id` |
+| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id`; optional `service_id` / `product_id` |
 | **Relationships** | 1:N attachments, quotations |
 
 #### Columns
@@ -1076,7 +1137,7 @@ Supports:
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
 | `request_number` | VARCHAR(40) | R | Unique public reference; may match or link to canonical `QT-YYYY-######` once quotation family is created |
-| `user_id` | BIGINT UNSIGNED | R | FK — authenticated |
+| `customer_profile_id` | BIGINT UNSIGNED | R | FK — business owner; authenticated through linked user |
 | `request_target_type` | VARCHAR(20) | R | Quotation **origin** for Admin: `booking` (service booking path) or `product` (product request). Display: Booking / Product. Standalone quotes forbidden. |
 | `booking_id` | BIGINT UNSIGNED | O | Required when origin is Booking — permanent FK to `bookings.id` |
 | `service_id` | BIGINT UNSIGNED | O | Service context (often via booking) |
@@ -1334,8 +1395,8 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | **Table Name** | `payments` |
 | **Purpose** | Authoritative payment attempts/results for payable entities. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `user_id` → `users.id`; polymorphic payable reference |
-| **Relationships** | N:1 user; 1:N refunds |
+| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id`; polymorphic payable reference |
+| **Relationships** | N:1 customer profile; 1:N refunds |
 
 #### Columns
 
@@ -1343,7 +1404,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
 | `payment_number` | VARCHAR(40) | R | Unique internal/public reference |
-| `user_id` | BIGINT UNSIGNED | R | FK |
+| `customer_profile_id` | BIGINT UNSIGNED | R | FK |
 | `payable_type` | VARCHAR(30) | R | `order`, `booking`, `quotation` |
 | `payable_id` | BIGINT UNSIGNED | R | Target entity id |
 | `amount` | DECIMAL(12,2) | R | Charged amount |
@@ -1378,7 +1439,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 - No PAN/CVV/full card data stored.
 - Abandoned pending payments expire per policy.
 - **Admin Payments Management Module** notes:
-  - Every payment must originate from an existing Order — no manual creation by Admin/Sales/Accountant.
+  - Every payment must originate from an existing payable entity (`order`, `booking`, or accepted `quotation`) — no manual creation by Admin/Sales/Accountant.
   - Approved admin-facing payment statuses: Pending, Received, Confirmed, Failed, Refunded. These map from internal `status` column values at the application layer.
   - Supported payment methods: EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card — stored in `provider` column.
   - **Payment Progress Tracker** is UI-only; computed from the current `status` — no additional database field.
@@ -1456,9 +1517,9 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `orders` |
-| **Purpose** | Commercial transactions auto-created from accepted quotations. |
+| **Purpose** | Customer-profile-owned commercial transactions created by store checkout or an accepted quotation. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `user_id` → `users.id`, `quotation_id` → `quotations.id` (required — order always traces to an accepted quotation), optional `booking_id` → `bookings.id`, optional `cart_id` |
+| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id`, optional `quotation_id` → `quotations.id`, optional `booking_id` → `bookings.id`, optional `cart_id` → `carts.id` |
 | **Relationships** | 1:N `order_items`, `order_status_histories`, `order_notes`; payments via payable link |
 
 #### Columns
@@ -1467,11 +1528,11 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
 | `order_number` | VARCHAR(40) | R | Unique `ORD-YYYY-######` |
-| `user_id` | BIGINT UNSIGNED | R | FK — **login required** |
-| `quotation_id` | BIGINT UNSIGNED | R | FK — accepted quotation that triggered order creation |
+| `customer_profile_id` | BIGINT UNSIGNED | R | FK — authenticated through linked user |
+| `quotation_id` | BIGINT UNSIGNED | O | FK — accepted quotation when the order follows quotation acceptance |
 | `booking_id` | BIGINT UNSIGNED | O | FK — populated when source chain passes through a booking |
-| `source_type` | VARCHAR(20) | R | `booking` or `product` (Admin display: Booking / Product) |
-| `cart_id` | BIGINT UNSIGNED | O | Source cart (when applicable) |
+| `source_type` | VARCHAR(30) | R | `store_cart`, `product_quotation`, or `booking` |
+| `cart_id` | BIGINT UNSIGNED | O | Required for `store_cart`; source cart when applicable |
 | `status` | VARCHAR(30) | R | Order status: `awaiting_payment`, `paid`, `processing`, `ready`, `out_for_delivery`, `completed`, `cancelled` |
 | `payment_status` | VARCHAR(20) | R | `unpaid`, `partially_paid`, `paid`, `refunded` |
 | `currency` | CHAR(3) | R | |
@@ -1491,20 +1552,20 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 #### Constraints
 
 - Unique `order_number`
-- `user_id` required
-- `quotation_id` required (never NULL — order cannot exist without an accepted quotation)
-- `source_type` must be `booking` or `product`; when `booking`, `booking_id` must be populated
+- `customer_profile_id` required
+- `quotation_id` is required only for `product_quotation` or quotation-derived `booking` orders.
+- `source_type` must be `store_cart`, `product_quotation`, or `booking`; `cart_id` is required for `store_cart`, and `booking_id` is required for `booking`.
 - Totals must equal sum of item snapshots + discount + delivery + tax (policy)
 - Order status in: `awaiting_payment`, `paid`, `processing`, `ready`, `out_for_delivery`, `completed`, `cancelled`
 - Payment status in: `unpaid`, `partially_paid`, `paid`, `refunded`
 
 #### Validation Rules
 
-- Orders are created automatically by the system when a quotation is accepted — never manually by Admin/Sales/Accountant.
+- Orders are created by the system at authenticated store-cart checkout or when an accepted quotation requires an order; never manually by Admin/Sales/Accountant.
 - Stock and price re-validated at placement.
 - Suspended customers cannot place orders.
 - Order records are never permanently deleted.
-- Source link (quotation + booking/product) is permanent.
+- Source link (cart, quotation, and/or booking as applicable) is permanent.
 
 #### Notes
 
@@ -1681,15 +1742,15 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | **Table Name** | `reviews` |
 | **Purpose** | Customer ratings/comments after eligible completed store or service experiences. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `user_id` → `users.id`; optional `order_id` / `booking_id`; optional `product_id` / `service_id` |
-| **Relationships** | N:1 user; optionally linked to completed order/booking and catalog entity |
+| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id`; optional `order_id` / `booking_id`; optional `product_id` / `service_id` |
+| **Relationships** | N:1 customer profile; optionally linked to completed order/booking and catalog entity |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `user_id` | BIGINT UNSIGNED | R | FK |
+| `customer_profile_id` | BIGINT UNSIGNED | R | FK |
 | `review_target_type` | VARCHAR(20) | R | `product`, `service`, `order`, `booking` |
 | `product_id` | BIGINT UNSIGNED | O | |
 | `service_id` | BIGINT UNSIGNED | O | |
@@ -1705,7 +1766,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 #### Constraints
 
 - `rating` between 1 and 5
-- Unique review per user per target entity (e.g., unique (`user_id`, `order_id`) when order review)
+- Unique review per customer profile per target entity (e.g., unique (`customer_profile_id`, `order_id`) when order review)
 
 #### Validation Rules
 
@@ -1795,10 +1856,10 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 | Parent | Children | Description |
 | --- | --- | --- |
-| `users` | `customer_profiles`, `customer_devices`, `carts`, `bookings`, `quotation_requests`, `orders`, `payments`, `notifications`, `reviews` | Sole customer authentication principal and transactional owner |
-| `customer_profiles` | `customer_addresses`, `customer_payment_methods`, `customer_notes` | Customer business/profile data and profile-scoped children |
+| `users` | `customer_profiles`, `customer_devices`, `carts`, `notifications` | Sole customer authentication principal; authentication-adjacent children remain user-scoped |
+| `customer_profiles` | `customer_addresses`, `customer_payment_methods`, `customer_notes`, `bookings`, `quotation_requests`, `orders`, `payments`, `reviews` | Customer business/profile data and approved business-module ownership |
 | `service_categories` | `services` | Category catalog |
-| `services` | `service_media`, `service_blackout_dates`, `bookings`, `quotation_requests` | Service definition and usage |
+| `services` | `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates`, `bookings`, `quotation_requests` | Service definition, availability, and usage |
 | `product_categories` | `products` | Store taxonomy |
 | `products` | `product_media`, `cart_items`, `order_items`, `quotation_requests` | Product definition and commerce |
 | `carts` | `cart_items` | Cart composition |
@@ -1822,7 +1883,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | Source | Discriminator | Targets | Purpose |
 | --- | --- | --- | --- |
 | `payments` | `payable_type` + `payable_id` | `orders`, `bookings`, `quotations` | Single payment ledger |
-| `quotation_requests` | `request_target_type` | `services` or `products` | Service & optional product quotes |
+| `quotation_requests` | `request_target_type` | `bookings` or `products` | Booking-origin service and optional product quotes |
 | `notifications` | `reference_type` + `reference_id` | booking/order/quote/payment/etc. | Deep links |
 | `reviews` | `review_target_type` | product/service/order/booking | Feedback targets |
 
@@ -1831,17 +1892,19 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 ```text
 users ──┬── customer_profiles (1:1) ──┬── customer_addresses
         │                              ├── customer_payment_methods
-        │                              └── customer_notes
+        │                              ├── customer_notes
+        │                              ├── bookings ──── booking_status_histories
+        │                              │       └── services ──┬── service_modes
+        │                              │                       └── service_coverage_cities
+        │                              ├── quotation_requests ──┬── quotation_request_attachments
+        │                              │                        └── quotations ──── quotation_items
+        │                              ├── orders ──── order_items
+        │                              ├── payments ──── payment_refunds
+        │                              └── reviews
         ├── customer_devices
         ├── carts ──── cart_items ──── products
-        ├── bookings ──── booking_status_histories
-        │       └── services
-        ├── quotation_requests ──┬── quotation_request_attachments
-        │                        └── quotations ──── quotation_items
-        ├── orders ──── order_items
-        ├── payments ──── payment_refunds
         ├── notifications
-        └── reviews
+        └── authentication recovery/tokens
 
 products  <── product_categories
 services  <── service_categories
@@ -1876,7 +1939,8 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | `service_categories` | UNIQUE(`slug`) | SEO/API lookup |
 | `services` | UNIQUE(`slug`) | Detail lookup |
 | `services` | (`is_active`, `category_id`, `sort_order`) | Browse/filter |
-| `services` | (`pricing_model`, `is_active`) | Quote vs bookable lists |
+| `service_modes` | (`service_id`, `mode`, `is_active`) | Supported service-mode lookup |
+| `service_coverage_cities` | UNIQUE(`service_id`, `city`) | Service coverage validation |
 | `product_categories` | UNIQUE(`slug`) | Lookup |
 | `products` | UNIQUE(`slug`) | Detail lookup |
 | `products` | UNIQUE(`sku`) | Inventory ops |
@@ -1890,11 +1954,11 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | `carts` | (`user_id`, `status`) | Active cart |
 | `cart_items` | UNIQUE(`cart_id`, `product_id`) | Line upsert |
 | `bookings` | UNIQUE(`booking_number`) | Customer reference |
-| `bookings` | (`user_id`, `created_at`) | History |
-| `bookings` | (`service_id`, `scheduled_start_at`, `status`) | Capacity checks |
+| `bookings` | (`customer_profile_id`, `created_at`) | Customer history |
+| `bookings` | (`service_id`, `service_city`, `scheduled_start_at`, `status`) | Coverage and capacity checks |
 | `bookings` | (`status`, `created_at`) | Admin queues |
 | `orders` | UNIQUE(`order_number`) | Reference |
-| `orders` | (`user_id`, `placed_at`) | History |
+| `orders` | (`customer_profile_id`, `placed_at`) | Customer history |
 | `orders` | (`status`, `placed_at`) | Fulfillment queues |
 | `order_items` | (`order_id`) | Order detail |
 | `order_items` | (`product_id`) | Product sales queries |
@@ -1904,9 +1968,9 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | Table | Index | Purpose |
 | --- | --- | --- |
 | `quotation_requests` | UNIQUE(`request_number`) | Reference |
-| `quotation_requests` | (`user_id`, `created_at`) | History |
+| `quotation_requests` | (`customer_profile_id`, `created_at`) | Customer history |
 | `quotation_requests` | (`status`, `created_at`) | Admin queue |
-| `quotation_requests` | (`request_target_type`, `service_id`) | Service request lookup |
+| `quotation_requests` | (`request_target_type`, `booking_id`) | Booking-origin service request lookup |
 | `quotation_requests` | (`request_target_type`, `product_id`) | Product request lookup |
 | `quotations` | UNIQUE(`quotation_number`) | Reference |
 | `quotations` | (`quotation_request_id`, `version_no`) | Version chain |
@@ -1914,7 +1978,7 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | `payments` | UNIQUE(`payment_number`) | Reference |
 | `payments` | UNIQUE(`idempotency_key`) | Safe retries |
 | `payments` | (`payable_type`, `payable_id`) | Entity payment history |
-| `payments` | (`user_id`, `created_at`) | Customer payments |
+| `payments` | (`customer_profile_id`, `created_at`) | Customer payments |
 | `payments` | (`status`, `created_at`) | Finance queues |
 | `payments` | (`provider`, `provider_reference`) | Webhook reconciliation |
 | `notifications` | (`user_id`, `is_read`, `created_at`) | Inbox |
@@ -1925,7 +1989,7 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | Table | Index | Purpose |
 | --- | --- | --- |
 | `reviews` | (`review_target_type`, `product_id`, `status`) | Product rating aggregate |
-| `reviews` | (`user_id`, `created_at`) | Customer history |
+| `reviews` | (`customer_profile_id`, `created_at`) | Customer history |
 | `settings` | UNIQUE(`key`) | Config lookup |
 | `audit_logs` | (`entity_type`, `entity_id`, `created_at`) | Entity audit trail |
 | `audit_logs` | (`actor_type`, `actor_id`, `created_at`) | Actor activity |
@@ -1942,11 +2006,10 @@ Indexes below are recommendations for common access paths. Exact index types dep
 
 ## 6.1 Authentication Boundaries
 
-1. Catalog browse may occur without a customer row.
-2. Creating a **booking** requires an authenticated, `active` customer.
-3. Placing an **order** requires an authenticated, `active` customer.
-4. Submitting a **quotation request** and initiating **payment** require an authenticated, `active` customer (SRS transactional restriction).
-5. Suspended/deactivated customers cannot create new transactional records.
+1. Catalog browse may occur without a `users` or `customer_profiles` row.
+2. Creating a **booking** requires an authenticated, active `users` record and its linked `customer_profiles` record; the booking itself is owned by `customer_profile_id`.
+3. Placing an **order**, submitting a **quotation request**, and initiating **payment** requires an authenticated, active user and linked customer profile (SRS transactional restriction).
+4. Suspended/deactivated users cannot create new transactional records.
 
 ## 6.2 Catalog Integrity
 
@@ -1954,6 +2017,7 @@ Indexes below are recommendations for common access paths. Exact index types dep
 2. Fixed-price purchase remains available even when `allow_optional_quotation = true`.
 3. Inactive products/services are excluded from new carts/bookings/quote requests.
 4. Historical order/booking/quote snapshots remain valid after catalog edits.
+5. Every active service supports both Book Now and Request Quotation; the optional Starting From amount is not a final assessed price.
 
 ## 6.3 Stock & Pricing Integrity
 
@@ -1965,15 +2029,17 @@ Indexes below are recommendations for common access paths. Exact index types dep
 ## 6.4 Booking Integrity
 
 1. Reject bookings overlapping service blackout windows.
-2. Enforce `min_lead_hours` and `max_concurrent_bookings` where configured.
-3. Status transitions recorded in `booking_status_histories`.
-4. Cancelation eligibility enforced before status change to `cancelled`.
+2. Validate the requested city against the selected service's active `service_coverage_cities` row; V1 supports Mogadishu and Hargeisa.
+3. Require `requested_date` and `requested_time_window` at creation. Confirmed schedule fields remain null until operations confirms a valid start/end range.
+4. Enforce `min_lead_hours` and `max_concurrent_bookings` where configured.
+5. Status transitions recorded in `booking_status_histories`.
+6. Cancelation eligibility enforced before status change to `cancelled`.
 
 ## 6.5 Quotation Integrity
 
-1. `request_target_type` must match populated FK (`service_id` or `product_id`).
+1. `request_target_type` must match populated origin FK (`booking_id` or `product_id`).
 2. Product quote requests allowed only when product opts in.
-3. Service quote requests allowed only for quotation/hybrid services.
+3. Every active service supports a quotation request through its booking-origin path; no service pricing classification gates this action.
 4. Only one accept-eligible quotation active per request.
 5. Acceptance locked after `valid_until` or non-`issued` status.
 6. Accepted **latest** quotation required before quotation-targeted payment. Never use Rejected status.
@@ -2076,18 +2142,20 @@ Indexes below are recommendations for common access paths. Exact index types dep
 3. **Partition/archive** large append tables (`notifications`, `audit_logs`, old `payments`) by month/year.
 4. **Object storage** for media/attachments; database stores URLs/metadata only.
 5. **Async workers** for push sending and webhook processing to keep OLTP writes lean.
-6. **Avoid premature sharding**; if needed later, shard by `user_id` for customer-owned transactional data.
+6. **Avoid premature sharding**; if needed later, shard customer business data by `customer_profile_id`.
 
 ## 8.3 Extensibility Without Redesign
 
 | Future Need | How Current Design Extends |
 | --- | --- |
-| Product variants | Add `product_variants` child table; point cart/order items to variant_id |
+| Future equipment/products | Add product categories and products (including industrial cleaning machines/equipment) without redesigning core product tables; add `product_variants` later if needed |
+| Future service expansion | Add catalog rows, `service_modes`, and coverage rows; new service modes/subtypes do not require a second service schema |
 | Promotions/coupons | Add discount tables; keep order snapshot totals |
 | Multi-currency | Already have `currency` fields; extend settings + FX tables later |
-| Multi-branch geography | Add location entities; reference from services/orders |
+| Expanded service coverage | Add city coverage rows beyond V1 Mogadishu and Hargeisa; add location entities later only if operational granularity requires them |
 | Recurring bookings | Add recurrence rules table linked to `bookings` |
-| Staff/technician apps | New workforce module later — intentionally absent now |
+| Workforce module | Add staff/technician/housekeeper assignment tables later; existing `service_modes.subtype` captures service demand only and does not create workforce identities |
+| Delivery module | Add delivery/fulfillment entities later; store orders already retain fulfillment and address snapshots |
 | Multi-vendor | Not supported; would require seller bounded contexts beyond this schema |
 
 ## 8.4 Scalability Success Criteria

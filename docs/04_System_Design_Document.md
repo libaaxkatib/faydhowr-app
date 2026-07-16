@@ -2,30 +2,62 @@
 
 ## 1. System Overview
 
-Fayadhowr is a Flutter-based client application supported by a Laravel REST API and PostgreSQL database. The system coordinates customer interactions, bookings or store purchases, quotations, discussions, orders, payments, notifications, reports, and administrative settings. Laravel is the authoritative application layer for validation, business rules, authorization, workflow transitions, and data persistence.
+Fayadhowr is a Flutter-based client application supported by a Laravel REST API and PostgreSQL database. The system coordinates customer interactions, service bookings, quotations, discussions, Store purchases, orders, payments, notifications, reports, and administrative settings. Laravel is the authoritative application layer for validation, business rules, authorization, workflow transitions, and data persistence.
+
+### 1.1 Identity Architecture
+
+```text
+users
+  ↓
+customer_profiles
+  ↓
+approved business modules
+```
+
+`users` is the sole customer authentication identity and owns credentials, tokens, and authentication state. `customer_profiles` stores customer business/profile data and is not an authentication identity. Approved business modules resolve the authenticated User's linked profile and use `customer_profile_id` for business ownership; authentication is never performed through `customer_profiles`.
+
+### 1.2 Official Service Architecture
+
+The V1 service catalog consists of Deep Cleaning, Pest Control, Carpet Cleaning, Sofa & Chair Cleaning, Post Construction Cleaning, Window Cleaning, Fumigation Services, Housekeeper, and Monthly Cleaning Staff. Every active service supports both Book Now and Request Quotation, may show an optional Starting From price, and has a final operational price determined after assessment/review.
+
+| Service | Supported modes | Supported subtype choices |
+| --- | --- | --- |
+| Deep Cleaning | One-Time, Monthly Contract | — |
+| Pest Control | One-Time, Monthly Contract | — |
+| Carpet Cleaning | One-Time | — |
+| Sofa & Chair Cleaning | One-Time | — |
+| Post Construction Cleaning | One-Time | — |
+| Window Cleaning | One-Time, Monthly Contract | — |
+| Fumigation Services | One-Time, Monthly Contract | — |
+| Housekeeper | Monthly Contract | Full-Time, Part-Time, Live-In, Live-Out |
+| Monthly Cleaning Staff | Monthly Contract | Office, Hotel, Restaurant, School, Hospital / Clinic, Other Business |
+
+Services are available in Mogadishu and Hargeisa in V1. Service modes, subtype choices, and coverage are configuration data, allowing additional services and cities without a core-system redesign.
 
 ## 2. End-to-End Business Flow
 
 ```text
 Customer
   ↓
-Authentication (`users` + `customer_profiles`)
+Authentication (`users`)
   ↓
-Booking / Store Purchase
+Customer Profile (`customer_profiles`)
   ↓
-Quotation
+Service Booking (Book Now / Request Quotation)
   ↓
-Discussion
+Quotation / Discussion
   ↓
-Quotation Accepted
+Order (when Store checkout or quotation-derived)
   ↓
-Order
+Payments
   ↓
-Payment
+Notifications
   ↓
-Reports
+Admin
   ↓
-Settings
+Reports / Settings
+
+Store (separate flow): Products → Categories → Cart → Checkout → Orders → Payments
 ```
 
 Each transition is governed by approved business rules, authorization, validation, and recorded system state. The exact availability of each path depends on the approved workflow and user role.
@@ -33,23 +65,29 @@ Each transition is governed by approved business rules, authorization, validatio
 ## 3. Module Interaction Diagram
 
 ```text
-Authentication (`users`) ── Customer Profiles ── Bookings ── Quotations ── Orders ── Payments
-Settings ────────────────────────────────────────────│             │          │
-                                                       └─ Discussions ┘          │
-                                                                                │
-Notifications ◀────────────────────────────────────────────────────────────────┘
-Reports ◀──────────────────── Customer Profiles / Bookings / Quotations / Orders / Payments
+Authentication (`users`) ── Customer Profiles (`customer_profiles`) ── Services ── Bookings ── Quotations ── Payments
+                                         │                              │              │             │
+                                         │                              │              └─ Discussions ┘
+                                         │                              │
+                                         │                              └───────── Notifications
+                                         │
+                                         └── Store (separate): Products → Categories → Cart → Checkout → Orders → Payments
+                                                                                         │
+Reports ◀──────────────────── Customer Profiles / Bookings / Quotations / Orders / Payments ──┘
+Settings ────────────────────────────────────────────────────────────────────────────────────── Admin
 
 Admin Authentication (`admins`) ── Admin Panel / Settings / Reports
 ```
 
 - **Authentication (`users`)** validates customer credentials and issues mobile tokens; protected modules resolve the linked customer profile for business context.
-- **Customer Profiles (`customer_profiles`)** provides the one-to-one customer business context used by bookings, quotations, orders, payments, notifications, and reports. It is not an authentication identity.
+- **Customer Profiles (`customer_profiles`)** provides the one-to-one customer business context used by bookings, quotations, orders, payments, reviews, and reports. Notifications are addressed to the authenticated `users` identity and may reference related business records. Customer profiles are not authentication identities.
 - **Admin Authentication (`admins`)** is separate from customer authentication and gates admin-panel modules, settings, and operational reports.
-- **Bookings** captures approved booking activity and may initiate quotation processing.
+- **Services** provide the official catalog, supported modes/subtypes, coverage, optional Starting From information, and both Book Now / Request Quotation entry points.
+- **Bookings** captures approved customer-profile-owned booking activity and may initiate quotation processing.
 - **Quotations** records proposed commercial terms and supports the approved discussion and acceptance lifecycle.
-- **Orders** are created only from approved quotation acceptance or approved purchase workflows.
-- **Payments** record payment activity associated with eligible orders.
+- **Store** is a separate product-commerce flow for products, categories, cart, checkout, and orders; products are not services.
+- **Orders** are created by Store checkout or approved quotation-derived workflows.
+- **Payments** record payment activity associated with eligible orders, bookings, or accepted quotations.
 - **Notifications** communicate approved workflow events to authorized recipients.
 - **Reports** read authorized, aggregated operational data without becoming a source of transactional truth.
 - **Settings** governs approved system configuration and authorized administrative controls.
@@ -83,36 +121,37 @@ Flutter submits requests and renders API responses. The REST API routes requests
 
 ## 6. Booking Flow
 
-1. An authorized customer or staff member submits booking information.
-2. Laravel validates the request and confirms authorization.
-3. The booking is stored with its approved status and authenticated `user_id` ownership; the linked customer profile supplies business context.
-4. Authorized staff review or process the booking according to approved business rules.
-5. When applicable, the booking provides context for quotation creation.
-6. Relevant workflow changes may produce notifications and become available to reporting.
+1. An authenticated customer selects an active service, a supported mode/subtype, and a covered city.
+2. Flutter collects property information, address/GPS location, `requested_date`, `requested_time_window`, optional images/videos, and notes.
+3. Laravel validates the request and resolves the authenticated `users` record to its linked `customer_profiles` record.
+4. The booking is stored with `customer_profile_id` ownership and a system-generated public `booking_number` in format `BK-YYYY-######`; numeric `id` remains the primary key.
+5. `scheduled_start_at` and `scheduled_end_at` remain unset until operations confirms the schedule.
+6. The customer chooses Book Now or Request Quotation. For the quotation path, the booking becomes the permanent service-quotation origin.
+7. Authorized staff review/process the booking; workflow changes may produce notifications and become available to reporting.
 
 ## 7. Quotation Flow
 
-1. An authorized user creates a quotation from an approved booking, purchase context, or approved workflow.
+1. An authorized customer creates a quotation from an approved booking or product request.
 2. Laravel validates required details, pricing rules, and permitted state transitions.
-3. The quotation is saved and associated with the authenticated `user_id`, linked customer profile, and source context.
+3. The quotation request is saved with `customer_profile_id` business ownership and its permanent booking/product source context.
 4. Authorized participants conduct discussions through the approved quotation workflow.
 5. Acceptance is recorded only by an authorized action and approved business rule.
 6. An accepted quotation becomes eligible to create an order according to the approved process.
 
 ## 8. Order Flow
 
-1. Laravel verifies that the source quotation or purchase workflow is eligible for order creation.
-2. The system creates the order with the required `user_id`, customer-profile reference, and commercial references.
+1. Laravel verifies that a Store cart checkout or quotation-derived workflow is eligible for order creation.
+2. The system creates the order with `customer_profile_id` business ownership and applicable Store cart, booking, and/or quotation references.
 3. Authorized users process order status changes through approved transitions.
 4. Order events may initiate payment handling, notifications, and reporting updates.
 5. The order history remains traceable to its approved originating workflow.
 
 ## 9. Payment Flow
 
-1. An authorized payment action references an eligible order.
-2. Laravel validates the payment request, authorization, amount, and order state.
+1. An authorized payment action references an eligible order, booking, or accepted quotation.
+2. Laravel validates the payment request, customer-profile ownership, amount, and payable state.
 3. Payment activity is recorded using the approved payment workflow.
-4. The related order is updated only when the approved payment conditions are met.
+4. The related payable entity is updated only when the approved payment conditions are met.
 5. Authorized notifications and reports reflect the resulting payment state.
 
 ## 10. Notification Flow
@@ -152,7 +191,7 @@ Flutter submits requests and renders API responses. The REST API routes requests
 
 1. An authorized user selects a permitted file through Flutter.
 2. Flutter sends the file and required metadata to the REST API over HTTPS.
-3. Laravel validates authorization, file type, size, and other approved restrictions.
+3. Laravel validates authorization, file type, size, and other approved restrictions. Booking Media V1 permits images and videos only; documents are excluded from booking media.
 4. Laravel stores the file through the approved filesystem abstraction.
 5. The database stores authorized file metadata and references.
 6. File retrieval requires authorization and uses the approved access mechanism.
@@ -197,8 +236,8 @@ REST API → Flutter: Updated JSON response
 ```text
 Flutter → REST API: Submit payment action
 REST API → Laravel: Validate request and authorization
-Laravel → Database: Validate order and record payment
-Laravel → Database: Update order when approved conditions are met
+Laravel → Database: Validate payable entity and record payment
+Laravel → Database: Update payable entity when approved conditions are met
 Laravel → Notifications: Dispatch approved payment event
 Laravel → REST API: Return payment and order state
 REST API → Flutter: Updated JSON response
@@ -214,6 +253,16 @@ REST API → Flutter: Updated JSON response
 - Avoid duplicate logic and undocumented behavior.
 - Preserve backward compatibility whenever possible.
 
-## 18. Future Scalability
+## 18. Future Scalability and Extensibility
 
-The system shall scale through modular Laravel services, feature-first Flutter organization, API versioning, database indexing, pagination, caching of approved read-heavy data, queued background work, managed file storage, and horizontally scalable API infrastructure. Future expansion must be approved, documented, secure, and compatible with the architecture defined in the Technical Architecture Document.
+The system shall scale through modular Laravel services, feature-first Flutter organization, API versioning, database indexing, pagination, caching of approved read-heavy data, queued background work, managed file storage, and horizontally scalable API infrastructure.
+
+| Future module or capability | Extension path without redesigning the core system |
+| --- | --- |
+| Workforce Management | Add workforce identities, availability, and assignment records; current Housekeeper and Monthly Cleaning Staff service choices describe demand only |
+| Delivery | Add delivery/fulfillment records to Store orders while retaining existing cart, checkout, order, and payment boundaries |
+| Equipment Sales | Add industrial cleaning machines/equipment through Store categories/products and future product variants |
+| Additional Services | Add service catalog, mode/subtype, and coverage configuration without a second service architecture |
+| New Cities | Add coverage configuration beyond Mogadishu and Hargeisa |
+
+Future expansion must be approved, documented, secure, and compatible with the architecture defined in the Technical Architecture Document.

@@ -36,7 +36,7 @@ The design is **implementation-independent**. Backend technology may realize the
 - Authentication required for booking, quotation submit, checkout/order, favorites save/list, profile, and histories
 - Store products always expose price
 - Product quotation is optional and does not replace fixed-price purchase
-- Quotation image uploads: JPG, JPEG, PNG, WebP (v1); no PDF/video in v1
+- Quotation uploads support images, videos, and PDF documents under the quotation contract; Booking Media V1 is limited to images and videos
 - Favorites do not alter booking, quotation, cart, checkout, or payment workflows
 
 ---
@@ -67,6 +67,8 @@ Admin-panel APIs (if separate) are out of scope for this customer API design doc
 | **Payment Provider** | External gateway; Fayadhowr stores references/status only |
 
 The API is **stateless**: each protected request carries an access token. Session state is not stored server-side beyond token revocation/blacklist policy.
+
+Identity and ownership follow ADR-001: `users` is the only authentication principal, while `customer_profiles` owns customer business/profile data. Authentication APIs operate on `users`; approved business APIs resolve the authenticated user's linked `customer_profile_id` server-side and never accept it as a client-controlled ownership field.
 
 ## 1.3 REST Principles
 
@@ -103,7 +105,7 @@ The API is **stateless**: each protected request carries an access token. Sessio
 
 # 2. Authentication
 
-Login method priority for the customer app: **Phone (default)** → **Google** → **Email**.
+Authentication APIs operate on `users` only. Registration creates the authentication identity and provisions its linked `customer_profiles` record transactionally; business/profile data does not become a second authentication identity.
 
 ## 2.1 Register
 
@@ -111,7 +113,7 @@ Login method priority for the customer app: **Phone (default)** → **Google** �
 | --- | --- |
 | **Method / Path** | `POST /api/v1/auth/register` |
 | **Auth** | Guest |
-| **Purpose** | Create a customer account |
+| **Purpose** | Create a `users` authentication account and its linked customer profile |
 | **Body (logical)** | `full_name`, `phone` (**required**), `email` (**optional**), `password`, `password_confirmation` (must match `password`) |
 | **Result** | Customer profile + access token (or require phone OTP verification per policy) |
 | **Google** | After successful Google Sign-In, if no customer exists, server may auto-provision / complete registration |
@@ -153,7 +155,7 @@ Login method priority for the customer app: **Phone (default)** → **Google** �
 | --- | --- |
 | **Method / Path** | `POST /api/v1/auth/logout` |
 | **Auth** | Required |
-| **Purpose** | Revoke current access token (and optionally all tokens) |
+| **Purpose** | Revoke the current access token only; tokens issued to other devices remain valid |
 
 ## 2.4 Forgot Password
 
@@ -227,7 +229,8 @@ Optional: guest `session_token` header/body for carts prior to login; on login, 
 {
   "success": true,
   "message": "Optional human-readable message",
-  "data": {}
+  "data": {},
+  "meta": null
 }
 ```
 
@@ -266,13 +269,13 @@ HTTP `422`
   "success": true,
   "message": null,
   "data": {
-    "items": [],
-    "meta": {
-      "current_page": 1,
-      "per_page": 15,
-      "total": 100,
-      "last_page": 7
-    }
+    "items": []
+  },
+  "meta": {
+    "current_page": 1,
+    "per_page": 15,
+    "total": 100,
+    "last_page": 7
   }
 }
 ```
@@ -313,7 +316,7 @@ Base: authenticated customer scope; customers only access **their own** data.
 | `POST` | `/api/v1/customer/change-pin` | Change PIN (when enabled) |
 | `PUT` / `PATCH` | `/api/v1/customer/preferred-language` | Set `so` \| `en` \| `ar` (app-wide) |
 
-**Data includes:** `customer_number` (CUS, **read-only**), `full_name`, `phone`, `email`, `avatar_url`, `preferred_language`, `member_since` / `created_at`, `status`, verification timestamps, notification preferences, quick stats (`bookings_count`, `quotations_count`, `orders_count`). System flags and `customer_number` are never writable by the customer.
+**Data includes:** `customer_number` (CUS, **read-only**), `full_name`, `avatar_url`, `preferred_language`, `notification_preferences`, `classification`, `member_since` / `created_at`, and quick stats (`bookings_count`, `quotations_count`, `orders_count`). Authentication fields (`email`, phone credentials, password, verification state, tokens, and account status) remain on `users` and are not profile payload fields. System fields, `classification`, and `customer_number` are never writable by the customer.
 
 ## 4.2 Addresses
 
@@ -421,8 +424,8 @@ All guest-accessible. Optional auth may enrich `is_favorite` flags on service/pr
 | --- | --- | --- |
 | `GET` | `/api/v1/services` | Guest |
 
-**Query:** `category_id`, `pricing_model`, `page`, `per_page`, `sort`  
-**Returns:** Service cards including pricing model, price when fixed, media, optional `is_favorite` if authenticated.
+**Query:** `category_id`, `mode` (`one_time` | `monthly_contract`), `city` (`Mogadishu` | `Hargeisa`), `page`, `per_page`, `sort`  
+**Returns:** Service cards including optional `starting_from_price`, `currency`, available `modes`, coverage cities, media, and optional `is_favorite` if authenticated.
 
 ## 6.2 Service Details
 
@@ -430,7 +433,23 @@ All guest-accessible. Optional auth may enrich `is_favorite` flags on service/pr
 | --- | --- | --- |
 | `GET` | `/api/v1/services/{id}` | Guest |
 
-**Returns:** Full detail — media, description, inclusions/exclusions, pricing model, base price when applicable, before/after refs, FAQ refs, bookable/quote flags, `is_favorite` if authenticated.
+**Returns:** Full detail — media, description, inclusions/exclusions, optional `starting_from_price`, `currency`, service modes/subtypes, coverage cities, before/after refs, FAQ refs, both Book Now and Request Quotation actions, and `is_favorite` if authenticated.
+
+**Official V1 catalog and modes:**
+
+| Service | Supported modes | Supported subtypes |
+| --- | --- | --- |
+| Deep Cleaning | One-Time, Monthly Contract | — |
+| Pest Control | One-Time, Monthly Contract | — |
+| Carpet Cleaning | One-Time | — |
+| Sofa & Chair Cleaning | One-Time | — |
+| Post Construction Cleaning | One-Time | — |
+| Window Cleaning | One-Time, Monthly Contract | — |
+| Fumigation Services | One-Time, Monthly Contract | — |
+| Housekeeper | Monthly Contract | Full-Time, Part-Time, Live-In, Live-Out |
+| Monthly Cleaning Staff | Monthly Contract | Office, Hotel, Restaurant, School, Hospital / Clinic, Other Business |
+
+The service payload uses `mode` values `one_time` and `monthly_contract`; subtype values follow the Database Design naming. Service coverage in V1 is Mogadishu and Hargeisa. A Starting From price is optional and informational; final operational price follows Fayadhowr assessment/review.
 
 ## 6.3 Service Categories
 
@@ -454,18 +473,18 @@ All guest-accessible. Optional auth may enrich `is_favorite` flags on service/pr
 
 Or `POST /api/v1/bookings` with `service_id`.  
 
-**Body:** schedule fields, address/address_id, notes  
-**Rules:** service active & bookable; capacity/blackout/lead-time validation; customer active.  
-**Result:** `201` + booking resource.
+**Body:** `service_mode_id`, `requested_date`, `requested_time_window`, `service_city`, address/address_id, `customer_notes`, optional `idempotency_key`  
+**Rules:** service and selected mode active; service covers `service_city`; capacity/blackout/lead-time validation; active authenticated user with linked customer profile.  
+**Result:** `201` + booking resource. The API resolves `customer_profile_id` from the authenticated user; callers must not submit or change it.
 
 ## 6.6 Request Service Quotation
 
 | Method | Path | Auth |
 | --- | --- | --- |
-| `POST` | `/api/v1/services/{id}/quotation-requests` | Required |
+| `POST` | `/api/v1/bookings/{id}/quotation-requests` | Required |
 
 **Body:** `requirements` (required), `description` (optional but highly recommended), preferred timing/location, optional attachment ids  
-**Rules:** service pricing model allows quotation (`quotation` or `hybrid`).
+**Rules:** the booking must be owned by the authenticated customer's `customer_profile_id`. Every active service supports Request Quotation; no pricing-model classification gates this action.
 
 ## 6.7 Upload Service Images (Quotation)
 
@@ -473,13 +492,15 @@ Or `POST /api/v1/bookings` with `service_id`.
 | --- | --- | --- |
 | `POST` | `/api/v1/quotation-requests/{id}/attachments` | Required |
 
-Or pre-upload: `POST /api/v1/uploads/quotation-images` then reference IDs on create.  
+Or pre-upload: `POST /api/v1/uploads` then reference IDs on create.  
 
 See §14 for formats and limits. Ownership of quotation request required.
 
 ---
 
 # 7. Store APIs
+
+Store is a separate product-commerce module. Products are not services and Store endpoints never share service resources or service-mode fields. V1 product categories are Cleaning Products, Cleaning Supplies, Cleaning Accessories, and Consumables; the category/product APIs remain extensible for future industrial machines and equipment.
 
 ## 7.1 Product List
 
@@ -557,8 +578,10 @@ Checkout also accepts `contact_phone` for delivery coordination (prefill from pr
 | --- | --- | --- |
 | `POST` | `/api/v1/bookings` | Required |
 
-**Body:** `service_id`, `scheduled_start_at` / slot id, address fields, `customer_notes`, optional `idempotency_key`  
-**Result:** Booking with `booking_number` and status.
+**Body:** `service_id`, `service_mode_id`, `requested_date`, `requested_time_window`, `service_city`, address fields/address id, `customer_notes`, optional `idempotency_key`  
+**Result:** Booking with system-generated public `booking_number` in format `BK-YYYY-######`, status, requested schedule, and nullable confirmed schedule (`scheduled_start_at`, `scheduled_end_at`). The numeric `id` remains the primary key.
+
+**Ownership:** The server derives `customer_profile_id` from the authenticated `users` identity. It is the business owner of the booking and is never accepted as a client-writeable field.
 
 ## 8.2 Booking Details
 
@@ -583,6 +606,10 @@ Supports `status` filter + pagination.
 **Body:** optional `cancellation_reason`  
 **Errors:** `403`/`409` when policy disallows cancel.
 
+## 8.5 Booking Media
+
+Booking Media V1 is limited to **images** and **videos**. Documents are not accepted or returned as booking media. This API design intentionally does not define a separate Booking Media upload/storage endpoint in V1; any future endpoint must preserve these type restrictions and owner-scoped booking access.
+
 ---
 
 # 9. Quotation APIs
@@ -597,8 +624,8 @@ Covers **service** and **product** quotation requests and issued quotations.
 
 **Body:**
 
-- `request_target_type`: `service` | `product`
-- `service_id` or `product_id`
+- `request_target_type`: `booking` | `product`
+- `booking_id` (service quotation origin) or `product_id`
 - `requirements` (required)
 - `description` (optional but highly recommended — free-text notes to explain the request, uploaded files, or special instructions)
 - `preferred_timing`, `location`, `quantity_hint`
@@ -615,7 +642,7 @@ Covers **service** and **product** quotation requests and issued quotations.
 | `POST` | `/api/v1/quotation-requests/{id}/attachments` | Required |
 | `DELETE` | `/api/v1/quotation-requests/{id}/attachments/{attachment_id}` | Required |
 
-Multipart upload (images / videos / PDFs per §14).
+Multipart upload (images / videos / PDFs per §14). These are quotation attachments, not Booking Media.
 
 ## 9.3 Quotation Details
 
@@ -1125,7 +1152,7 @@ Use §3.5 consistently. Creating resources → `201`. Validation → `422`. Auth
 
 ## 19.4 Consistency Rules
 
-1. Always wrap payloads in the standard envelope (`success`, `message`, `data`).
+1. Always wrap payloads in the standard envelope (`success`, `message`, `data`, `meta`).
 2. Public catalog responses include inactive-filtered lists only.
 3. Money fields always accompany `currency`.
 4. Protected writes include ownership checks.
@@ -1153,7 +1180,7 @@ Use §3.5 consistently. Creating resources → `201`. Validation → `422`. Auth
 | Favorites | `/api/v1/favorites` |
 | Notifications | `/api/v1/notifications` |
 | Search | `/api/v1/search`, `/api/v1/search/suggestions` |
-| Uploads | `/api/v1/uploads/quotation-images` |
+| Uploads | `/api/v1/uploads` |
 
 ---
 

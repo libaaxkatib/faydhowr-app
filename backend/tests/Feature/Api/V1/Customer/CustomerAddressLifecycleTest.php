@@ -53,7 +53,7 @@ class CustomerAddressLifecycleTest extends TestCase
         $this->createAddress($profile, ['is_default' => true]);
         $inactiveAddress = $this->createAddress($profile, [
             'is_active' => false,
-            'is_default' => false,
+            'is_default' => true,
         ]);
         $token = $user->createToken('customer-mobile');
 
@@ -112,7 +112,7 @@ class CustomerAddressLifecycleTest extends TestCase
         $this->createAddress($profile, ['is_default' => true]);
         $inactiveAddress = $this->createAddress($profile, [
             'is_active' => false,
-            'is_default' => false,
+            'is_default' => true,
         ]);
         $token = $user->createToken('customer-mobile');
 

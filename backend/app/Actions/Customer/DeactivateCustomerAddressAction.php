@@ -28,7 +28,12 @@ class DeactivateCustomerAddressAction
             }
 
             if (! $address->is_active) {
-                return $address;
+                if ($address->is_default) {
+                    $address->is_default = false;
+                    $address->save();
+                }
+
+                return $address->refresh();
             }
 
             $activeAddressCount = $profile->addresses()->where('is_active', true)->count();

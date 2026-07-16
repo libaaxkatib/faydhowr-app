@@ -38,7 +38,7 @@ The Fayadhowr UI/UX Design Specification translates approved brand and journey r
 
 The product combines:
 
-- Professional cleaning **services** (bookable and quotation-based)
+- Professional cleaning **services** (each supports Book Now and Request Quotation)
 - A priced **store** with optional product quotations
 - **Booking**, **quotation**, **payment**, **notification**, and **profile** experiences
 
@@ -53,6 +53,10 @@ The product combines:
 | **Soft auth gates** | Login appears only when booking, quoting, ordering, or opening personal areas |
 | **One primary action per focused view** | Quotation stays secondary on priced products |
 | **Calm transactional closure** | Confirmations always show durable references and next steps |
+
+### Identity Architecture
+
+Customer-facing screens authenticate the active **User** (`users`) and display linked **Customer Profile** (`customer_profiles`) business/profile information. The profile is not a second login identity: credentials, tokens, and authentication state belong to `users`; customer number, profile preferences, and approved business records belong to `customer_profiles`.
 
 ## 1.3 Visual System Anchors (from Brand Guide)
 
@@ -91,7 +95,7 @@ The product combines:
 ### Supporting rules
 
 1. Never hide store product prices.
-2. Match service primary CTA to pricing model (`Book` vs `Request Quotation`).
+2. Every active service shows both **Book Now** and **Request Quotation**; the primary visual emphasis may follow the current journey without removing either action.
 3. Preserve enterable form data across recoverable network failures where safe.
 4. Prefer border + light elevation over heavy shadows.
 5. Keep motion subtle; never block critical feedback.
@@ -310,19 +314,37 @@ For each screen: Purpose, Components, Buttons, Inputs, Navigation, Empty / Loadi
 
 | Field | Specification |
 | --- | --- |
-| **Purpose** | Full evaluation before Book or Request Quotation |
-| **Components** | Image gallery; title; pricing model cue / price if fixed; description; inclusions/exclusions; Before & After teaser; FAQ teaser; sticky CTA bar |
-| **Buttons** | Primary: **Book Service** or **Request Quotation** (by model); secondary gallery/FAQ; share optional |
+| **Purpose** | Full evaluation before Book Now or Request Quotation |
+| **Components** | Hero Banner; Service Overview; What's Included; What's Not Included; Before & After Gallery; How It Works; Estimated Duration; Pricing Information; Things to Prepare Before We Arrive; Service Coverage; FAQs; Customer Reviews; Related Services; sticky CTA bar |
+| **Buttons** | **Book Now** and **Request Quotation** are both available for every active service; secondary gallery/FAQ; share optional |
 | **Inputs** | None (detail is read-only) |
 | **Navigation** | Back; Image Viewer; Before & After Viewer; FAQ; Booking Form / Quotation Request; soft auth if needed |
 | **Empty** | N/A for core content; hide missing optional blocks |
 | **Loading** | Detail skeleton |
 | **Error** | Retry load; unavailable service state without dead CTA |
-| **Success** | Detail ready; CTA enabled when bookable/quote-enabled |
+| **Success** | Detail ready; both actions enabled when the service is active |
+
+**Pricing and coverage:** Show an optional **Starting From** price with clear explanatory copy: “Final price is confirmed after Fayadhowr operational assessment.” Show supported city coverage for the service; V1 coverage is Mogadishu and Hargeisa.
+
+**Mode selection:** A service detail displays only its supported modes. The approved V1 catalog and selectable choices are:
+
+| Service | Mode choices | Additional choice |
+| --- | --- | --- |
+| Deep Cleaning | One-Time, Monthly Contract | — |
+| Pest Control | One-Time, Monthly Contract | — |
+| Carpet Cleaning | One-Time | — |
+| Sofa & Chair Cleaning | One-Time | — |
+| Post Construction Cleaning | One-Time | — |
+| Window Cleaning | One-Time, Monthly Contract | — |
+| Fumigation Services | One-Time, Monthly Contract | — |
+| Housekeeper | Monthly Contract | Full-Time, Part-Time, Live-In, Live-Out |
+| Monthly Cleaning Staff | Monthly Contract | Office, Hotel, Restaurant, School, Hospital / Clinic, Other Business |
 
 ---
 
 ## 4.6 Store Catalog (S-020) & Product Details (S-022)
+
+Store is a separate product-commerce module. Its Categories, Product List, Product Details, Cart, and Checkout screens must not display service modes, service booking steps, or service CTAs. V1 categories are Cleaning Products, Cleaning Supplies, Cleaning Accessories, and Consumables; the category structure can later present industrial cleaning machines and equipment.
 
 ### Store Catalog
 
@@ -409,12 +431,23 @@ For each screen: Purpose, Components, Buttons, Inputs, Navigation, Empty / Loadi
 
 | Screen | Purpose | Key UI |
 | --- | --- | --- |
-| Booking Form | Capture schedule, address, notes | Date/slot picker; address; notes; service summary |
-| Booking Review | Confirm before submit | Snapshot of service, time, location, amount/policy |
-| Booking Confirmation | Trust closure | Booking number, status, Pay CTA if payable, View History |
+| Booking Form | Collect the requested booking details | Service/mode summary; property, address, requested schedule, image/video upload, and review progression |
+| Booking Review | Confirm before selecting the final action | Snapshot of service, selected mode, property, address, requested schedule, uploaded media, Starting From information/policy |
+| Booking Confirmation | Trust closure | `BK-YYYY-######` booking number, status, requested/confirmed schedule when available, Pay CTA if payable, View History |
 
-**Buttons:** Continue / Submit Booking / Pay / View Booking  
-**Inputs:** Schedule, address fields, notes  
+**Booking steps (in order):**
+
+1. **Select Service**
+2. **Select Booking Mode** — One-Time or Monthly Contract; display only modes supported by the selected service. Show Housekeeper or Monthly Cleaning Staff subtype choices only when applicable.
+3. **Property Information** — Property Type, Area (m²), optional Number of Floors, Additional Information.
+4. **Address** — Saved Address, Add New Address, or GPS Location.
+5. **Schedule** — Requested Date and Requested Time Window. Confirmed schedule is operational information displayed after confirmation as `scheduled_start_at` and `scheduled_end_at`.
+6. **Upload Media** — Images and Videos only; documents are not offered.
+7. **Review Booking**
+8. **Actions** — **Book Now** or **Request Quotation**.
+
+**Buttons:** Continue / Book Now / Request Quotation / Pay / View Booking  
+**Inputs:** Mode, property information, address, requested schedule, images/videos, notes  
 **Navigation:** Soft auth → form → review → confirmation → Booking Details / Payment  
 **Empty:** No slots → explain + alternate time  
 **Loading:** Slot fetch; submit spinner on primary button  
@@ -567,7 +600,7 @@ Prioritize Somali payment methods in this order:
 | Field | Specification |
 | --- | --- |
 | **Purpose** | Account hub |
-| **Components** | Profile photo; full name; **CUS-YYYY-######** (read-only); email; phone; preferred language; member since; quick stats (Bookings / Quotations / Orders); quick actions menu |
+| **Components** | Authenticated User identity summary (email/phone where available); linked Customer Profile photo, full name, **CUS-YYYY-######** (read-only), preferred language, member since, and quick stats (Bookings / Quotations / Orders); quick actions menu |
 | **Quick actions** | Edit Profile · Saved Addresses · Payment Methods · Notifications · Language · Security · Help Center · About Fayadhowr |
 | **Buttons** | Quick action rows; Logout (opens confirmation — never immediate) |
 | **Navigation** | Soft auth; all account sub-screens; Favorites / Histories via hub or menus |
@@ -576,7 +609,7 @@ Prioritize Somali payment methods in this order:
 
 ### Edit Profile (S-081)
 
-Editable: profile photo, full name, email, phone. **Customer Reference Number read-only.** Primary: **Save Changes**.
+Editable Customer Profile fields: profile photo, full name, preferred language, and notification preferences. **Customer Reference Number and classification are read-only.** Authentication identity fields (email, phone credentials, password, and verification state) belong to the authenticated User and are handled through authentication/security experiences, not the profile form. Primary: **Save Changes**.
 
 ### Saved Addresses (S-082 / S-083)
 
@@ -686,7 +719,7 @@ White surface, `#E5E7EB` border, 12–16 px radius, 12–16 px padding, Level 0�
 
 ## 5.5 Service Card
 
-- Image, name, short value line, pricing-model cue (fixed price and/or Quotation)
+- Image, name, short value line, optional Starting From price, and available service-mode cue
 - Opens Service Details
 - **Favorite (Heart) icon** in the top-right corner
 - Customers can tap the icon to save or remove a service from Favorites
@@ -820,11 +853,15 @@ Deep links to protected entities must soft-gate auth, then continue to the targe
 | Fields | Notes |
 | --- | --- |
 | Service summary | Read-only |
-| Date / slot | Required; only valid options |
-| Address | Required when service requires address; reuse saved |
+| Booking mode | Required; show only selected service's supported One-Time / Monthly Contract mode |
+| Housekeeper / Monthly Cleaning Staff subtype | Required only when the selected service supports it |
+| Property information | Property Type and Area (m²) required; Number of Floors optional; Additional Information optional |
+| Address | Required when service requires address; reuse saved, Add New Address, or GPS Location |
+| Requested Date / Requested Time Window | Required; confirmed schedule is shown later when operations sets it |
+| Media | Optional images/videos only; do not offer document upload |
 | Notes | Optional |
 
-**Submit path:** Review → Confirmation  
+**Submit path:** Review → Book Now or Request Quotation → Confirmation  
 
 ## 7.3 Quotation Form
 
@@ -921,7 +958,7 @@ Used by booking and checkout; does not rewrite historical snapshots.
 
 - Local preview thumbnails before quote submit
 - Ability to remove/replace
-- Unsupported format: actionable error (v1 images only; no PDF/video)
+- Unsupported format: actionable error. Quotation uploads may include approved images, videos, and PDFs; Booking Media permits images and videos only.
 
 ## 9.4 Image Style Compliance
 
@@ -963,13 +1000,13 @@ Follow Brand Guide: bright, real, professional uniforms; no clipart, cartoons, o
 ## 11.1 Booking Process
 
 ```text
-Service Details → Book → Auth? → Booking Form → Review → Submit → Confirmation
+Service Details → Book Now / Request Quotation → Auth? → Select Mode → Property → Address → Requested Schedule → Image/Video Media → Review → Selected Action → Confirmation
 ```
 
 ## 11.2 Confirmation
 
 - Success message + booking number
-- Schedule and status summary
+- Requested schedule and status summary; confirmed start/end only when operations has confirmed them
 - Payment next-step if payable
 - Link to Booking Details / History
 
@@ -1014,7 +1051,7 @@ Service Details → Book → Auth? → Booking Form → Review → Submit → Co
 ## 13.1 My Account
 
 - Auth required (soft auth from Account tab)
-- Profile photo, name, read-only **CUS-YYYY-######**, email, phone, preferred language, member since
+- Authenticated User identity summary (email/phone where available) plus linked Customer Profile photo, name, read-only **CUS-YYYY-######**, preferred language, and member since
 - Quick stats: Bookings / Quotations / Orders
 - Quick actions: Edit Profile, Saved Addresses, Payment Methods, Notifications, Language, Security, Help Center, About Fayadhowr
 - Logout opens confirmation (Cancel / Log Out) — never immediate
@@ -1310,7 +1347,7 @@ Desktop-first. Primary access: **Admin**. Linked modules for Sales/Accountant vi
 | --- | --- |
 | **Search** | Booking number, customer, service |
 | **Advanced filters** | Status, priority, service date, assigned to, etc. |
-| **Columns** | Booking Number (`BK-…`), Customer, Service, Booking Date (+ **booking age** e.g. Created 2 days ago / Waiting 5 days), Preferred Service Date, Status, **Priority** (High / Medium / Low, read-only badge), Assigned To (Manual), Last Updated |
+| **Columns** | Booking Number (`BK-…`), Customer, Service, Booking Date (+ **booking age** e.g. Created 2 days ago / Waiting 5 days), Requested Date / Time Window, Confirmed Schedule when available, Status, **Priority** (High / Medium / Low, read-only badge), Assigned To (Manual), Last Updated |
 | **Row action** | **View Booking** only |
 | **Forbidden** | Permanent delete |
 
@@ -1328,12 +1365,12 @@ High · Medium · Low — Fayadhowr color badges on list and details.
 
 | Block | Content |
 | --- | --- |
-| **Header** | Booking Number (read-only), service title, status, **Priority** badge, **booking age**, customer/CUS, dates, **Assigned To** (manual informational name) |
+| **Header** | Booking Number (read-only), service title, selected mode/subtype, status, **Priority** badge, **booking age**, customer/CUS, requested date/time window, confirmed start/end when available, **Assigned To** (manual informational name) |
 | **Status update** | Controlled dropdown limited to the eight approved statuses (no free-text) |
 | **Customer Information** | Name, phone, email, CUS |
-| **Service Details** | Service, pricing model, duration, linked quotation when applicable |
+| **Service Details** | Service, selected mode/subtype, optional Starting From price, duration, coverage city, linked quotation when applicable |
 | **Property Details** | Address / property snapshot |
-| **Media** | Uploaded images, videos, documents with **counters** e.g. Images (12), Videos (3), Documents (2) |
+| **Media** | Booking Media counters for uploaded images and videos only, e.g. Images (12), Videos (3). Documents are excluded from Booking Media V1. |
 | **Customer Notes** | Notes from the booking request (customer-origin) |
 | **Timeline** | Read-only audit; each event shows action, **actor** (e.g. By Sara (Sales) or System), date · time |
 | **Linked Records** | Customer Profile, Quotations, Orders, Payments, Notifications |
@@ -1415,10 +1452,11 @@ Desktop-first. Access: **Admin**, **Sales**, **Accountant** (as permitted). No m
 
 ## 21.1 Origin Rule (mandatory)
 
-Every order is created **automatically** after a quotation is accepted. There is no Create Order action.
+Orders are system-created through authenticated Store cart checkout or, where applicable, after acceptance of a quotation. There is no manual Create Order action.
 
 | Source chain | Flow |
 | --- | --- |
+| **Store Cart** | Cart → Checkout → Order (Automatic) |
 | **Booking** | Booking → Quotation → Accepted → Order (Automatic) |
 | **Product Request** | Product Request → Quotation → Accepted → Order (Automatic) |
 
@@ -1471,8 +1509,8 @@ These colors must remain consistent everywhere Payment Status appears across the
 
 - Order Number is read-only and auto-generated.
 - Orders are never permanently deleted.
-- Orders can never exist without an accepted quotation (no manual create).
-- Every order remains permanently linked to its originating Booking or Product Request and its accepted Quotation.
+- Orders are never manually created.
+- Every order retains its applicable source link: Store Cart, Booking, or Product Request, plus an accepted quotation when quotation-derived.
 - Timeline is read-only audit history.
 - Discussion history remains accessible through the linked quotation.
 
@@ -1484,11 +1522,11 @@ Desktop-first. Access: **Admin**, **Sales**, **Accountant** (as permitted). No m
 
 ## 22.1 Origin Rule (mandatory)
 
-Every payment must originate from an existing **Order**. Payments can never be created manually.
+Every payment must originate from an existing payable entity: an **Order**, **Booking**, or accepted **Quotation**. Payments can never be created manually.
 
 | Source chain | Flow |
 | --- | --- |
-| **Full chain** | Booking / Product Request → Quotation → Accepted → Order → Payment (Automatic) |
+| **Payable paths** | Order → Payment; Booking → Payment; Accepted Quotation → Payment |
 
 The payment link to its originating Order is permanent and always traceable.
 
@@ -1540,8 +1578,7 @@ Icons displayed consistently in both list and details.
 
 - Payment Number (`PAY-…`) is read-only and auto-generated.
 - Payments are never permanently deleted.
-- Payments can never exist without an Order (no manual create).
-- Every payment remains permanently linked to its originating Order.
+- Payments can never be created manually and must retain their originating Order, Booking, or accepted Quotation link.
 - Timeline is read-only audit history.
 - Receipt history is permanent.
 - Payment status colors standardized: Confirmed (green), Received (teal), Pending (orange), Failed (red), Refunded (blue).

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\Auth\AuthenticatedUserController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\RegistrationController;
+use App\Http\Controllers\Api\V1\Booking\BookingController;
 use App\Http\Controllers\Api\V1\Customer\CustomerAddressController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
 use Illuminate\Http\Request;
@@ -52,6 +53,19 @@ Route::prefix('v1/customer/addresses')
             ->name('api.v1.customer.addresses.inactive');
         Route::post('{address}/reactivate', [CustomerAddressController::class, 'reactivate'])
             ->name('api.v1.customer.addresses.reactivate');
+    });
+
+Route::prefix('v1/bookings')
+    ->middleware('auth:sanctum')
+    ->group(function (): void {
+        Route::get('/', [BookingController::class, 'index'])
+            ->name('api.v1.bookings.index');
+        Route::post('/', [BookingController::class, 'store'])
+            ->name('api.v1.bookings.store');
+        Route::get('{booking}', [BookingController::class, 'show'])
+            ->name('api.v1.bookings.show');
+        Route::post('{booking}/cancel', [BookingController::class, 'cancel'])
+            ->name('api.v1.bookings.cancel');
     });
 
 Route::get('/user', function (Request $request) {

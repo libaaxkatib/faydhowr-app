@@ -24,6 +24,10 @@ class CreateCustomerAddressAction
                 ->where('is_active', true)
                 ->exists();
 
+            if ($attributes['is_default']) {
+                $profile->addresses()->where('is_default', true)->update(['is_default' => false]);
+            }
+
             return $profile->addresses()->create($attributes);
         });
     }

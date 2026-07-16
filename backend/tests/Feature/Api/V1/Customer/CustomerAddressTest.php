@@ -71,6 +71,33 @@ class CustomerAddressTest extends TestCase
         ]);
     }
 
+    public function test_first_active_address_clears_a_stale_inactive_default(): void
+    {
+        $user = User::factory()->create();
+        $profile = $this->createProfile($user);
+        $staleAddress = $this->createAddress($profile, [
+            'is_active' => false,
+            'is_default' => true,
+        ]);
+        $token = $user->createToken('customer-mobile');
+
+        $response = $this
+            ->withToken($token->plainTextToken)
+            ->postJson('/api/v1/customer/addresses', [
+                'line1' => '456 New Street',
+                'city' => 'Mogadishu',
+            ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.is_default', true);
+
+        $this->assertDatabaseHas('customer_addresses', [
+            'id' => $staleAddress->id,
+            'is_default' => false,
+        ]);
+    }
+
     public function test_customer_can_view_an_owned_address(): void
     {
         $user = User::factory()->create();
@@ -156,6 +183,26 @@ class CustomerAddressTest extends TestCase
             ->assertJsonPath('success', false)
             ->assertJsonPath('error_code', 'VALIDATION_ERROR')
             ->assertJsonValidationErrors(['line1', 'city', 'country_code', 'latitude']);
+    }
+
+    public function test_customer_address_update_rejects_empty_delivery_critical_fields(): void
+    {
+        $user = User::factory()->create();
+        $profile = $this->createProfile($user);
+        $address = $this->createAddress($profile);
+        $token = $user->createToken('customer-mobile');
+
+        $response = $this
+            ->withToken($token->plainTextToken)
+            ->patchJson("/api/v1/customer/addresses/{$address->id}", [
+                'line1' => '   ',
+                'city' => '',
+            ]);
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonPath('error_code', 'VALIDATION_ERROR')
+            ->assertJsonValidationErrors(['line1', 'city']);
     }
 
     public function test_unauthenticated_customer_cannot_access_addresses(): void

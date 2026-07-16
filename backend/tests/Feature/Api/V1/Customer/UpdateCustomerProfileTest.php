@@ -80,6 +80,30 @@ class UpdateCustomerProfileTest extends TestCase
             ->assertJsonValidationErrors(['preferred_language', 'avatar_url']);
     }
 
+    public function test_customer_profile_update_validates_notification_preference_structure(): void
+    {
+        $user = User::factory()->create();
+        $this->createProfile($user);
+        $token = $user->createToken('customer-mobile');
+
+        $response = $this
+            ->withToken($token->plainTextToken)
+            ->patchJson('/api/v1/customer/profile', [
+                'notification_preferences' => [
+                    'push' => 'invalid',
+                    'unsupported' => true,
+                ],
+            ]);
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonPath('error_code', 'VALIDATION_ERROR')
+            ->assertJsonValidationErrors([
+                'notification_preferences',
+                'notification_preferences.push',
+            ]);
+    }
+
     public function test_authenticated_customer_without_a_profile_cannot_update_it(): void
     {
         $user = User::factory()->create();
