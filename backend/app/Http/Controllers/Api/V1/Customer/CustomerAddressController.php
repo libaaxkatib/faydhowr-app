@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api\V1\Customer;
 
 use App\Actions\Customer\CreateCustomerAddressAction;
+use App\Actions\Customer\DeactivateCustomerAddressAction;
 use App\Actions\Customer\GetCustomerAddressAction;
 use App\Actions\Customer\GetCustomerProfileAction;
 use App\Actions\Customer\ListCustomerAddressesAction;
+use App\Actions\Customer\ReactivateCustomerAddressAction;
+use App\Actions\Customer\SetDefaultCustomerAddressAction;
 use App\Actions\Customer\UpdateCustomerAddressAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Customer\StoreCustomerAddressRequest;
@@ -13,6 +16,7 @@ use App\Http\Requests\Api\V1\Customer\UpdateCustomerAddressRequest;
 use App\Http\Resources\Api\V1\Customer\CustomerAddressResource;
 use App\Models\User;
 use App\Support\ApiResponse;
+use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Throwable;
@@ -158,6 +162,121 @@ class CustomerAddressController extends Controller
 
         return ApiResponse::success(
             'Customer address updated successfully.',
+            new CustomerAddressResource($customerAddress),
+        );
+    }
+
+    public function setDefault(
+        Request $request,
+        int $address,
+        GetCustomerProfileAction $getCustomerProfile,
+        SetDefaultCustomerAddressAction $setDefaultCustomerAddress,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+
+        try {
+            $profile = $getCustomerProfile->handle($user);
+
+            if ($profile === null) {
+                return $this->profileNotFound();
+            }
+
+            $customerAddress = $setDefaultCustomerAddress->handle($profile, $address);
+        } catch (DomainException $exception) {
+            return ApiResponse::error($exception->getMessage(), 'VALIDATION_ERROR', 422);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return ApiResponse::error(
+                'Failed to update customer address.',
+                'CUSTOMER_ADDRESS_OPERATION_FAILED',
+                500,
+            );
+        }
+
+        if ($customerAddress === null) {
+            return $this->addressNotFound();
+        }
+
+        return ApiResponse::success(
+            'Customer address default updated successfully.',
+            new CustomerAddressResource($customerAddress),
+        );
+    }
+
+    public function inactive(
+        Request $request,
+        int $address,
+        GetCustomerProfileAction $getCustomerProfile,
+        DeactivateCustomerAddressAction $deactivateCustomerAddress,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+
+        try {
+            $profile = $getCustomerProfile->handle($user);
+
+            if ($profile === null) {
+                return $this->profileNotFound();
+            }
+
+            $customerAddress = $deactivateCustomerAddress->handle($profile, $address);
+        } catch (DomainException $exception) {
+            return ApiResponse::error($exception->getMessage(), 'VALIDATION_ERROR', 422);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return ApiResponse::error(
+                'Failed to update customer address.',
+                'CUSTOMER_ADDRESS_OPERATION_FAILED',
+                500,
+            );
+        }
+
+        if ($customerAddress === null) {
+            return $this->addressNotFound();
+        }
+
+        return ApiResponse::success(
+            'Customer address marked inactive successfully.',
+            new CustomerAddressResource($customerAddress),
+        );
+    }
+
+    public function reactivate(
+        Request $request,
+        int $address,
+        GetCustomerProfileAction $getCustomerProfile,
+        ReactivateCustomerAddressAction $reactivateCustomerAddress,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+
+        try {
+            $profile = $getCustomerProfile->handle($user);
+
+            if ($profile === null) {
+                return $this->profileNotFound();
+            }
+
+            $customerAddress = $reactivateCustomerAddress->handle($profile, $address);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return ApiResponse::error(
+                'Failed to update customer address.',
+                'CUSTOMER_ADDRESS_OPERATION_FAILED',
+                500,
+            );
+        }
+
+        if ($customerAddress === null) {
+            return $this->addressNotFound();
+        }
+
+        return ApiResponse::success(
+            'Customer address reactivated successfully.',
             new CustomerAddressResource($customerAddress),
         );
     }

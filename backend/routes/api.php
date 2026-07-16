@@ -46,6 +46,12 @@ Route::prefix('v1/customer/addresses')
             ->name('api.v1.customer.addresses.show');
         Route::patch('{address}', [CustomerAddressController::class, 'update'])
             ->name('api.v1.customer.addresses.update');
+        Route::post('{address}/default', [CustomerAddressController::class, 'setDefault'])
+            ->name('api.v1.customer.addresses.default');
+        Route::post('{address}/inactive', [CustomerAddressController::class, 'inactive'])
+            ->name('api.v1.customer.addresses.inactive');
+        Route::post('{address}/reactivate', [CustomerAddressController::class, 'reactivate'])
+            ->name('api.v1.customer.addresses.reactivate');
     });
 
 Route::get('/user', function (Request $request) {
