@@ -7,6 +7,7 @@ use App\Actions\Payment\GetCustomerPaymentAction;
 use App\Actions\Payment\InitializePaymentAction;
 use App\Actions\Payment\ListCustomerPaymentsAction;
 use App\Actions\Payment\ProcessPaymentAction;
+use App\Actions\StoreOrder\InitializeStoreOrderPaymentAction;
 use App\Enums\PaymentStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Payment\InitializePaymentRequest;
@@ -134,9 +135,14 @@ class PaymentController extends Controller
         InitializePaymentRequest $request,
         GetCustomerProfileAction $getCustomerProfile,
         InitializePaymentAction $initializePayment,
+        InitializeStoreOrderPaymentAction $initializeStoreOrderPayment,
     ): JsonResponse {
         /** @var User $user */
         $user = $request->user();
+
+        $validated = $request->validated();
+        $isStoreOrderPayment = array_key_exists('store_order_id', $validated)
+            && $validated['store_order_id'] !== null;
 
         try {
             $profile = $getCustomerProfile->handle($user);
@@ -145,11 +151,13 @@ class PaymentController extends Controller
                 return $this->profileNotFound();
             }
 
-            $payment = $initializePayment->handle($profile, $request->validated());
+            $payment = $isStoreOrderPayment
+                ? $initializeStoreOrderPayment->handle($profile, $validated)
+                : $initializePayment->handle($profile, $validated);
         } catch (ModelNotFoundException) {
             return ApiResponse::error(
-                'Order not found.',
-                'ORDER_NOT_FOUND',
+                $isStoreOrderPayment ? 'Store order not found.' : 'Order not found.',
+                $isStoreOrderPayment ? 'STORE_ORDER_NOT_FOUND' : 'ORDER_NOT_FOUND',
                 404,
             );
         } catch (DomainException $exception) {
@@ -255,6 +263,6 @@ class PaymentController extends Controller
             return false;
         }
 
-        return in_array($payableType, ['order'], true) ? $payableType : false;
+        return in_array($payableType, ['order', 'store_order'], true) ? $payableType : false;
     }
 }

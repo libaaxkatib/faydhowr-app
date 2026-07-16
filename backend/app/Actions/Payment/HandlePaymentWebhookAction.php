@@ -2,6 +2,7 @@
 
 namespace App\Actions\Payment;
 
+use App\Actions\Inventory\ProcessStoreOrderPaidStockAction;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Events\Payment\PaymentFailed;
@@ -9,6 +10,7 @@ use App\Events\Payment\PaymentPaid;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentTransaction;
+use App\Models\StoreOrder;
 use App\Services\Payments\PaymentGatewayManager;
 use DomainException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -17,7 +19,10 @@ use InvalidArgumentException;
 
 class HandlePaymentWebhookAction
 {
-    public function __construct(private PaymentGatewayManager $gatewayManager) {}
+    public function __construct(
+        private PaymentGatewayManager $gatewayManager,
+        private ProcessStoreOrderPaidStockAction $processStoreOrderPaidStock,
+    ) {}
 
     /**
      * @param  array{gateway: string, transaction_reference: string, status: string}  $attributes
@@ -92,6 +97,7 @@ class HandlePaymentWebhookAction
         $payment->update([
             'status' => PaymentStatus::Paid,
             'paid_at' => now(),
+            'receipt_number' => $payment->receipt_number ?? $this->nextReceiptNumber(),
         ]);
 
         $transaction->update([
@@ -107,7 +113,7 @@ class HandlePaymentWebhookAction
             'notes' => null,
         ]);
 
-        $this->confirmOrder($payment);
+        $this->confirmPayable($payment);
 
         DB::afterCommit(fn (): mixed => PaymentPaid::dispatch($payment));
     }
@@ -137,12 +143,30 @@ class HandlePaymentWebhookAction
         DB::afterCommit(fn (): mixed => PaymentFailed::dispatch($payment));
     }
 
-    private function confirmOrder(Payment $payment): void
+    private function confirmPayable(Payment $payment): void
     {
-        if ($payment->payable_type !== Order::class) {
+        if ($payment->payable_type === Order::class) {
+            $this->confirmOrder($payment);
+
             return;
         }
 
+        if ($payment->payable_type === StoreOrder::class) {
+            $storeOrder = StoreOrder::query()
+                ->whereKey($payment->payable_id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($storeOrder === null) {
+                throw new DomainException('Store order not found for paid payment.');
+            }
+
+            $this->processStoreOrderPaidStock->handle($storeOrder);
+        }
+    }
+
+    private function confirmOrder(Payment $payment): void
+    {
         $order = Order::query()
             ->whereKey($payment->payable_id)
             ->lockForUpdate()
@@ -162,5 +186,30 @@ class HandlePaymentWebhookAction
             'changed_by_id' => null,
             'notes' => null,
         ]);
+    }
+
+    private function nextReceiptNumber(): string
+    {
+        $year = now()->format('Y');
+
+        if (DB::getDriverName() === 'pgsql') {
+            DB::select('SELECT pg_advisory_xact_lock(hashtext(?))', ["payment-receipt-number-{$year}"]);
+        }
+
+        $latestReceiptNumber = Payment::withTrashed()
+            ->where('receipt_number', 'like', "RCPT-{$year}-%")
+            ->orderByDesc('receipt_number')
+            ->lockForUpdate()
+            ->value('receipt_number');
+
+        $nextSequence = $latestReceiptNumber === null
+            ? 1
+            : ((int) substr($latestReceiptNumber, -6)) + 1;
+
+        if ($nextSequence > 999999) {
+            throw new DomainException('The receipt number range for this year is exhausted.');
+        }
+
+        return sprintf('RCPT-%s-%06d', $year, $nextSequence);
     }
 }

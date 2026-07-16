@@ -85,7 +85,7 @@ class CreateOrderTest extends TestCase
     {
         $user = User::factory()->create();
         $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
-        $quotation = $this->createQuotation($profile, QuotationStatus::Issued);
+        $quotation = $this->createQuotation($profile, QuotationStatus::QuotationReady);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)

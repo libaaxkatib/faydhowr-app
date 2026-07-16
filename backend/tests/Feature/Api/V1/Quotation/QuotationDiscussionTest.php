@@ -48,7 +48,7 @@ class QuotationDiscussionTest extends TestCase
     {
         $user = User::factory()->create();
         $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
-        $quotation = $this->createQuotation($profile, QuotationStatus::Issued);
+        $quotation = $this->createQuotation($profile, QuotationStatus::QuotationReady);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
@@ -118,7 +118,7 @@ class QuotationDiscussionTest extends TestCase
     {
         $user = User::factory()->create();
         $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
-        $quotation = $this->createQuotation($profile, QuotationStatus::Draft);
+        $quotation = $this->createQuotation($profile, QuotationStatus::PendingReview);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
@@ -136,7 +136,7 @@ class QuotationDiscussionTest extends TestCase
     {
         $user = User::factory()->create();
         CustomerProfile::factory()->create(['user_id' => $user->id]);
-        $quotation = $this->createQuotation(CustomerProfile::factory()->create(), QuotationStatus::Issued);
+        $quotation = $this->createQuotation(CustomerProfile::factory()->create(), QuotationStatus::QuotationReady);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
@@ -151,7 +151,7 @@ class QuotationDiscussionTest extends TestCase
     {
         $user = User::factory()->create();
         CustomerProfile::factory()->create(['user_id' => $user->id]);
-        $quotation = $this->createQuotation(CustomerProfile::factory()->create(), QuotationStatus::Issued);
+        $quotation = $this->createQuotation(CustomerProfile::factory()->create(), QuotationStatus::QuotationReady);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
@@ -167,7 +167,7 @@ class QuotationDiscussionTest extends TestCase
     public function test_discussion_returns_not_found_when_customer_profile_is_missing(): void
     {
         $user = User::factory()->create();
-        $quotation = $this->createQuotation(CustomerProfile::factory()->create(), QuotationStatus::Issued);
+        $quotation = $this->createQuotation(CustomerProfile::factory()->create(), QuotationStatus::QuotationReady);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
@@ -180,7 +180,7 @@ class QuotationDiscussionTest extends TestCase
 
     public function test_discussion_requires_authentication(): void
     {
-        $quotation = $this->createQuotation(CustomerProfile::factory()->create(), QuotationStatus::Issued);
+        $quotation = $this->createQuotation(CustomerProfile::factory()->create(), QuotationStatus::QuotationReady);
 
         $this
             ->postJson("/api/v1/quotations/{$quotation->id}/discussion", [

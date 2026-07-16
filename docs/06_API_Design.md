@@ -34,7 +34,7 @@ The design is **implementation-independent**. Backend technology may realize the
 - Customer-only mobile surface (no employee workforce APIs in v1)
 - Browse/catalog endpoints are guest-accessible
 - Authentication required for booking, quotation submit, checkout/order, favorites save/list, profile, and histories
-- Store products always expose price
+- Store products always expose Selling Price (Cost Price never on customer APIs)
 - Product quotation is optional and does not replace fixed-price purchase
 - Quotation uploads support images, videos, and PDF documents under the quotation contract; Booking Media V1 is limited to images and videos
 - Favorites do not alter booking, quotation, cart, checkout, or payment workflows
@@ -500,7 +500,9 @@ See §14 for formats and limits. Ownership of quotation request required.
 
 # 7. Store APIs
 
-Store is a separate product-commerce module. Products are not services and Store endpoints never share service resources or service-mode fields. V1 product categories are Cleaning Products, Cleaning Supplies, Cleaning Accessories, and Consumables; the category/product APIs remain extensible for future industrial machines and equipment.
+Store is a separate physical-product commerce module. Products are not services and Store endpoints never share service resources or service-mode fields. Store owns catalog, categories, images, cart, checkout, Store Orders, and Unified Payment integration. Inventory purchasing and stock-ledger management are outside Store APIs.
+
+V1 product categories: Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, Personal Protective Equipment (PPE), Air Fresheners. Heavy cleaning equipment and machines are outside V1.
 
 ## 7.1 Product List
 
@@ -508,7 +510,7 @@ Store is a separate product-commerce module. Products are not services and Store
 | --- | --- | --- |
 | `GET` | `/api/v1/products` | Guest |
 
-**Always includes `price` and `currency`.** Query: `category_id`, `page`, `per_page`.
+**Always includes `selling_price` and `currency`.** May include `current_stock` / low-stock cues for display. Query: `category_id`, `page`, `per_page`. Cost Price is never exposed on customer Store APIs.
 
 ## 7.2 Product Details
 
@@ -516,7 +518,7 @@ Store is a separate product-commerce module. Products are not services and Store
 | --- | --- | --- |
 | `GET` | `/api/v1/products/{id}` | Guest |
 
-Includes `price`, `currency`, `unit`, `sku`, `availability_status`, optional `badge`, optional `price_tiers[]`, media gallery (ordered), specifications, `allow_optional_quotation`, `is_favorite` if authenticated.
+Includes `selling_price`, `currency`, `unit`, `sku`, `current_stock` / `availability_status` (`in_stock`, `low_stock`, `out_of_stock`), optional `badge`, optional `price_tiers[]`, media gallery (ordered), specifications, `allow_optional_quotation`, `is_favorite` if authenticated.
 
 ## 7.3 Categories
 
@@ -542,7 +544,7 @@ Includes `price`, `currency`, `unit`, `sku`, `availability_status`, optional `ba
 
 \*Guest cart allowed via `session_token` if enabled; merges on login.
 
-**Rules:** Reprice against catalog on read; reject out-of-stock adds when tracking stock.
+**Rules:** Reprice against Selling Price on read; reject adds that would oversell available stock. Cart and Store Order creation never decrease stock.
 
 ## 7.6 Checkout
 
@@ -550,9 +552,25 @@ Includes `price`, `currency`, `unit`, `sku`, `availability_status`, optional `ba
 | --- | --- | --- |
 | `POST` | `/api/v1/checkout` | Required |
 
-**Body:** fulfillment type, address/address_id, **contact_phone**, notes, optional idempotency key  
-**Behavior:** Validates stock/prices (including quantity tiers); creates order; returns order + next payment step.  
-**Does not** require a quotation. Reuses saved addresses — do not re-collect address data already on file.
+**Body:** `address_id`, optional notes  
+**Behavior:** Validates stock/Selling Prices and address ownership; returns a **checkout preview summary only** (priced lines, totals, address). Does **not** create a Store Order and does **not** decrease stock.  
+**Next step:** Client creates the Store Order via `POST /api/v1/store-orders`, then initializes payment via the Unified Payment Module.
+
+**Stock rule:** Stock decreases only after Payment = `paid`. Failed or cancelled payments leave stock unchanged. Negative stock is not allowed.
+
+## 7.6A Store Orders
+
+| Method | Path | Auth |
+| --- | --- | --- |
+| `GET` | `/api/v1/store-orders` | Required |
+| `GET` | `/api/v1/store-orders/{id}` | Required (owner) |
+| `POST` | `/api/v1/store-orders` | Required |
+| `PATCH` | `/api/v1/store-orders/{id}/cancel` | Required (owner) |
+
+**Create behavior:** Creates a `store_orders` record in `pending_payment` with public number `STO-YYYY-######`, line snapshots, and clears cart items. Does **not** decrease stock.  
+**Cancel:** Allowed only while `pending_payment`.
+
+Service Orders remain under `/api/v1/orders` with `ORD-YYYY-######` and are commercially separate from Store Orders.
 
 ## 7.7 Product Quotation
 
@@ -567,6 +585,23 @@ Includes `price`, `currency`, `unit`, `sku`, `availability_status`, optional `ba
 Same attachment endpoints as §6.7 / §14, scoped to the product quotation request owned by the customer.
 
 Checkout also accepts `contact_phone` for delivery coordination (prefill from profile when available).
+
+## 7.9 Inventory Admin APIs (Architecture)
+
+Inventory Admin APIs (suppliers, purchase orders, goods receipts, stock adjustments, stock ledger, low-stock dashboard) are admin-realm endpoints and are separate from customer Store APIs.
+
+**Purchase Order lifecycle endpoints (implemented shape):**
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `POST` | `/api/v1/purchase-orders` | Create draft |
+| `PUT` | `/api/v1/purchase-orders/{id}` | Update draft only |
+| `PATCH` | `/api/v1/purchase-orders/{id}/submit` | `draft` → `submitted` |
+| `PATCH` | `/api/v1/purchase-orders/{id}/approve` | `submitted` → `approved` |
+| `PATCH` | `/api/v1/purchase-orders/{id}/cancel` | `draft` or `submitted` → `cancelled` |
+| `POST` | `/api/v1/goods-receipts` | Allowed only when PO is `approved` or `partially_received` |
+
+Stock movements are written to `stock_ledgers`. Supplier status uses `active` / `inactive`. Product gallery uses `product_images`.
 
 ---
 
@@ -709,9 +744,9 @@ Returns ordered events: Quotation Created, Customer Discussion, Team Replies, Qu
 | --- | --- | --- |
 | `POST` | `/api/v1/orders` | Required |
 
-Typically invoked by checkout (`POST /api/v1/checkout`) which creates the order from the active cart. Direct create may accept explicit line items only if supported; preferred path is cart → checkout.
+Typically invoked for **service** orders from quotation acceptance / booking fulfillment. Store commerce uses checkout preview (`POST /api/v1/checkout`) then `POST /api/v1/store-orders` (not this endpoint).
 
-**Optional:** `quotation_id` when fulfilling an accepted product quotation (does not replace normal cart checkout).
+**Optional:** `quotation_id` when fulfilling an accepted service quotation.
 
 ## 10.2 Order Details
 
@@ -739,7 +774,7 @@ Allowed only when business policy permits (e.g., before fulfillment / unpaid). O
 
 # 11. Payment APIs
 
-Payment V1 is a unified, customer-profile-owned module for Service Orders and future Store Orders. Requests identify the originating payable record through `payable_type` and `payable_id`; Payment does not own originating-domain rules.
+Payment V1 is a unified, customer-profile-owned module for Service Orders and Store Orders. Requests identify the originating payable record through `payable_type` and `payable_id`; Payment does not own originating-domain rules.
 
 ## 11.1 Payment Initialization
 
@@ -749,7 +784,7 @@ Payment V1 is a unified, customer-profile-owned module for Service Orders and fu
 
 **Body:**
 
-- `payable_type`: Service Order in V1; future Store Order support uses the same polymorphic contract
+- `payable_type`: Service Order and Store Order in V1 use the same polymorphic contract
 - `payable_id`
 - `payment_method`: preferred Somali-first enum — `evc_plus` (default) | `edahab` | `jeeb` | `salaam_somali_bank` | `bank_transfer` | `card` (optional) | `digital_wallet` (future placeholder)
 - `idempotency_key` (required)
@@ -758,7 +793,7 @@ Payment V1 is a unified, customer-profile-owned module for Service Orders and fu
 
 **UI Order Summary fields:** `subtotal`, `delivery_fee`, `tax` (default `0.00`), `total`.
 
-**Rules:** Amount equals the server-calculated payable total; the authenticated customer owns the payable entity. A payable has at most one active Payment (`pending`, `initialized`, or `processing`); a new Payment can be initialized only after the prior Payment is `paid`, `failed`, or `cancelled`. This domain rule applies to Service Orders in V1 and future Store Orders through the polymorphic payable reference. Gateway adapters remain provider-neutral for EVC Plus, Zaad, Sahal, Stripe, PayPal, and future providers.
+**Rules:** Amount equals the server-calculated payable total; the authenticated customer owns the payable entity. A payable has at most one active Payment (`pending`, `initialized`, or `processing`); a new Payment can be initialized only after the prior Payment is `paid`, `failed`, or `cancelled`. This domain rule applies to Service Orders and Store Orders through the polymorphic payable reference. For Store Orders, Payment = `paid` decreases stock and writes a Stock Ledger customer-sale entry; failed/cancelled payments leave stock unchanged. Gateway adapters remain provider-neutral for EVC Plus, Zaad, Sahal, Stripe, PayPal, and future providers.
 
 ## 11.2 Payment Callback
 
@@ -767,7 +802,7 @@ Payment V1 is a unified, customer-profile-owned module for Service Orders and fu
 | `POST` | `/api/v1/payments/webhook` | Provider signature (not customer token) |
 | `GET`/`POST` | `/api/v1/payments/callback` | Provider return URL pattern |
 
-**Behavior:** Before any business state changes, webhook/callback handling verifies in this order: gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment status, and duplicate-callback status. The resulting Payment update, `payment_transactions` update, `payment_status_histories` insert, and Order confirmation (only on success) execute in one database transaction. A successful callback changes Payment `processing -> paid` and then Order `pending_payment -> confirmed`; failed callbacks leave the Order unchanged. Repeated callbacks for the same successful transaction are idempotent and must not create duplicate state transitions. Payment publishes domain events (`PaymentPaid`, `PaymentFailed`, `PaymentCancelled`) rather than sending notifications directly.
+**Behavior:** Before any business state changes, webhook/callback handling verifies in this order: gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment status, and duplicate-callback status. The resulting Payment update, `payment_transactions` update, `payment_status_histories` insert, and Order confirmation (only on success) execute in one database transaction. A successful callback changes Payment `processing -> paid` and then Order `pending_payment -> confirmed`; failed callbacks leave the Order unchanged. Repeated callbacks for the same successful transaction are idempotent and must not create duplicate state transitions. Payment publishes domain events (`PaymentPaid`, `PaymentFailed`) rather than sending notifications directly.
 
 ## 11.3 Payment Success
 
@@ -830,7 +865,7 @@ Alternate body/query delete by `favorite_type` + target id for heart-toggle UX.
 | `GET` | `/api/v1/favorites` | Required |
 
 **Query:** `type=service|product|all`, pagination  
-**Returns:** Favorited services and products with card payloads (product price always present).
+**Returns:** Favorited services and products with card payloads (product Selling Price always present).
 
 Guest heart tap without token → API `401` → client soft auth → retry add.
 
@@ -1158,7 +1193,7 @@ Use §3.5 consistently. Creating resources → `201`. Validation → `422`. Auth
 4. Protected writes include ownership checks.
 5. Idempotency keys for payment initialize and recommended for booking/checkout.
 6. Favorites endpoints never mutate cart, booking, quotation commercial state, or payment state.
-7. Product payloads always expose `price` for sellable catalog products.
+7. Product payloads always expose `selling_price` for sellable catalog products; Cost Price is admin/inventory only.
 8. Error `error_code` values remain stable machine identifiers for mobile handling.
 
 ---

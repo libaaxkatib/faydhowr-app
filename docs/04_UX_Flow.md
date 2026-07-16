@@ -73,7 +73,7 @@ A shallow, predictable structure (Home, Services, Store, Activity/Account-orient
 | Guardrail | UX Implication |
 | --- | --- |
 | Customer-only mobile app | No employee/technician tooling in the customer journey |
-| Store products always show price | Price is visible on list and detail before cart |
+| Store products always show Selling Price | Selling Price is visible on list and detail before cart; Cost Price is never customer-facing |
 | Optional product quotations | Quote CTA is secondary to Buy / Add to Cart |
 | Service fixed vs quote models | Primary CTA matches pricing model (`Book` vs `Request Quotation`) |
 | Auth on transactional actions only | Soft gate with return-to-intent after login |
@@ -281,14 +281,16 @@ Customer may:
 
 # 5. Store Flow
 
-Complete shopping experience:
+Complete shopping experience for **physical products only** (V1 categories: Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, Air Fresheners). Heavy equipment is outside V1.
+
+Store owns catalog → cart → checkout → Store Orders → Unified Payment. Inventory purchasing is a separate admin domain.
 
 ```text
 Browse Products
         ↓
 View Product Details
         ↓
-View Price
+View Selling Price
         ↓
 Add to Cart
         ↓
@@ -296,7 +298,11 @@ Continue Shopping  ——or——  Checkout
         ↓
 Login (if required)
         ↓
+Create Store Order (stock NOT decreased)
+        ↓
 Payment
+        ↓
+Payment Paid → Inventory Decrease + Stock Ledger
         ↓
 Order Confirmation
 ```
@@ -307,30 +313,30 @@ Optional parallel path: **Request Product Quotation** (does not replace priced p
 
 **Entry points:** Home → Store Products; or Store tab; or category navigation.
 
-**Customer can:** browse categories, product lists, availability cues.
+**Customer can:** browse V1 categories, product lists, In Stock / Low Stock / Out of Stock cues.
 
 **Login:** Not required.
 
-## 5.2 View Product Details & Price
+## 5.2 View Product Details & Selling Price
 
 On product detail, customers always see:
 
 - Product media
 - Description
-- **Displayed price** (mandatory business rule)
-- Availability
+- **Selling Price** (mandatory business rule; Cost Price never shown)
+- Availability (In Stock / Low Stock / Out of Stock)
 - Primary commerce actions
 
-**Login:** Not required to view price or details.
+**Login:** Not required to view Selling Price or details.
 
 ## 5.3 Add to Cart
 
-1. Customer selects quantity (within stock rules).
+1. Customer selects quantity (within stock rules; overselling rejected).
 2. Taps **Add to Cart**.
 3. Receives lightweight confirmation (e.g., cart updated feedback).
 4. May **Continue Shopping** or open **Cart**.
 
-**Login:** Not required to add to cart.
+**Login:** Not required to add to cart. Adding to cart never decreases stock.
 
 ## 5.4 Cart → Checkout
 
@@ -340,9 +346,13 @@ On product detail, customers always see:
 4. Taps **Checkout**.
 5. Soft auth gate if needed (**login required to place an order**).
 6. Provide/confirm fulfillment details (delivery/pickup) and address as required.
-7. Review order summary with re-validated prices/stock.
-8. Proceed to **Payment**.
-9. **Order Confirmation** with order reference.
+7. Review order summary with re-validated Selling Prices/stock (overselling rejected).
+8. Create Store Order in `pending_payment` — **stock is not decreased**.
+9. Proceed to **Payment** via Unified Payment Module.
+10. Stock decreases only after Payment = Paid; failed/cancelled payment leaves stock unchanged.
+11. **Order Confirmation** with store order reference (`STO-YYYY-######`).
+
+Store Order lifecycle: `pending_payment` → `confirmed` → `processing` → `completed` / `cancelled`.
 
 ## 5.5 Optional Product Quotation
 
@@ -624,7 +634,7 @@ Mark as read / Mark all as read (no delete — permanent history)
 - Notifications never expose secrets (full payment credentials, etc.).
 - Preference controls (Push, Email, categories including Marketing) may reduce non-critical noise without hiding legally/operationally required notices.
 - Badge/count on Account / Notifications entry when unread items exist.
-- Always deep-link to the correct related record using reference numbers (`BK-`, `QT-`, `ORD-`, `PAY-`, …).
+- Always deep-link to the correct related record using reference numbers (`BK-`, `QT-`, `ORD-`, `STO-`, `PAY-`, `RCPT-`, `PO-`, `GR-`, …).
 - Customers never delete notifications.
 
 ---
@@ -895,11 +905,11 @@ Every order is created automatically via: Booking → Quotation → Accepted →
 ## 16.3 Primary Path
 
 1. Admin / Sales / Accountant opens **Orders** from the sidebar.
-2. Scans list — each row shows **Order Age** beneath the date (e.g., "Created 1 day ago", "Waiting 3 days" for Awaiting Payment).
+2. Scans list — each row shows **Order Age** beneath the date (e.g., "Created 1 day ago", "Waiting 3 days" for Pending Payment).
 3. Searches / applies advanced filters (order status, payment status, source, order date).
 4. Opens **View Order** on a row.
 5. Sees the **Current Stage Indicator** — compact read-only label showing "Current Stage: Processing" (or current stage name) above the progress tracker.
-6. Sees the **Order Progress Tracker** (visual stepper: Awaiting Payment → Paid → Processing → Ready → Out for Delivery → Completed) with the current step highlighted — visual indicator only.
+6. Sees the **Order Progress Tracker** (visual stepper: Pending Payment → Confirmed → Processing → Completed) with the current step highlighted — visual indicator only.
 7. Reviews **Order Age** in the header area (e.g., "Created 1 day ago").
 7. Reviews **Business Summary** cards (Total Amount, Amount Paid, Remaining Balance, Payment Status).
 8. Reviews **Financial Summary** (compact read-only: Subtotal, Discount, Delivery Fee, Tax, Grand Total, Amount Paid, Remaining Balance).
@@ -916,7 +926,7 @@ Every order is created automatically via: Booking → Quotation → Accepted →
 
 - Order Number (`ORD-…`) is read-only.
 - No manual order creation; every order must originate from an accepted quotation.
-- Order statuses: Awaiting Payment · Paid · Processing · Ready · Out for Delivery · Completed · Cancelled (no custom values).
+- Order statuses: Pending Payment · Confirmed · Processing · Completed · Cancelled (no custom values).
 - Payment statuses: Unpaid (red) · Partially Paid (orange) · Paid (green) · Refunded (blue) — standardized colors across Admin Panel.
 - No permanent delete; order always remains linked to its originating Booking or Product Request and its accepted Quotation.
 - Discussion history remains accessible through the linked quotation.
@@ -1266,8 +1276,8 @@ Settings Dashboard → Service Settings
 
 ```
 Settings Dashboard → Store Settings
-  → Product Categories (tag chips + "Add Category")
-  → Default Delivery Fee, Tax %, Inventory Warning Level
+  → Product Categories (Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, Air Fresheners)
+  → Default Delivery Fee, Tax %, Inventory Warning Level (dashboard Low Stock; Email/SMS outside V1)
   → Save / Discard footer
 ```
 

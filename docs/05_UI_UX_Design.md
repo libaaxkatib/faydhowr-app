@@ -344,14 +344,14 @@ For each screen: Purpose, Components, Buttons, Inputs, Navigation, Empty / Loadi
 
 ## 4.6 Store Catalog (S-020) & Product Details (S-022)
 
-Store is a separate product-commerce module. Its Categories, Product List, Product Details, Cart, and Checkout screens must not display service modes, service booking steps, or service CTAs. V1 categories are Cleaning Products, Cleaning Supplies, Cleaning Accessories, and Consumables; the category structure can later present industrial cleaning machines and equipment.
+Store is a separate product-commerce module. Its Categories, Product List, Product Details, Cart, and Checkout screens must not display service modes, service booking steps, or service CTAs. V1 categories are Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, Personal Protective Equipment (PPE), and Air Fresheners. Heavy cleaning equipment and machines are outside V1.
 
 ### Store Catalog
 
 | Field | Specification |
 | --- | --- |
 | **Purpose** | Browse priced products |
-| **Components** | Categories; Product Cards with **visible price**; stock cues |
+| **Components** | Categories; Product Cards with **visible Selling Price**; stock cues (In Stock / Low Stock / Out of Stock) |
 | **Buttons** | Open product; optional quick add if policy allows |
 | **Empty / Loading / Error** | Same pattern as Services catalog |
 | **Success** | Priced catalog visible without login |
@@ -361,16 +361,16 @@ Store is a separate product-commerce module. Its Categories, Product List, Produ
 | Field | Specification |
 | --- | --- |
 | **Purpose** | Inspect product, see price, purchase or optionally quote |
-| **Components** | Swipeable image gallery (placeholders + pagination; zoom-ready); name; **price with unit** (e.g. `12.00 / Bottle`); optional **tier pricing** table; availability badge; optional marketing badge (New / Best Seller / Popular / Limited Stock); SKU; rating & reviews; description; specifications; quantity control **`−  Qty  +`**; related products |
+| **Components** | Swipeable image gallery (placeholders + pagination; zoom-ready); name; **Selling Price with unit** (e.g. `12.00 / Bottle`); optional **tier pricing** table; availability badge (In Stock / Low Stock / Out of Stock); optional marketing badge (New / Best Seller / Popular / Limited Stock); SKU; rating & reviews; description; specifications; quantity control **`−  Qty  +`**; related products |
 | **Buttons** | **Add to Cart** (primary; disabled when Out of Stock); **Request Quotation** (secondary/outlined when enabled); Favorite; open cart |
 | **Inputs** | Quantity (`−` / `+`) |
 | **Navigation** | Cart; shared Quotation Module (same as Services); Image Viewer / zoom; back |
-| **Empty** | Out of Stock / Available on Request CTAs per status rules |
+| **Empty** | Out of Stock CTAs per status rules |
 | **Loading** | Detail skeleton |
 | **Error** | Retry; stock conflict messaging on add |
 | **Success** | Snackbar “Added to cart” with View Cart action |
 
-**Availability badges (required):** In Stock · Low Stock · Out of Stock · Available on Request  
+**Availability badges (required):** In Stock · Low Stock · Out of Stock  
 
 **Product quotation:** Uses the **same** Quotation Module as Services (Request → Quotation Ready → Accept **or** Discuss). Do **not** create a separate Product Discussion module. Source recorded as `Product` server-side.
 
@@ -415,7 +415,7 @@ Store is a separate product-commerce module. Its Categories, Product List, Produ
 | Field | Specification |
 | --- | --- |
 | **Purpose** | Close commerce loop with order reference |
-| **Components** | Success banner; **Order Reference Number** (`ORD-YYYY-######`); item summary; totals; next-step copy |
+| **Components** | Success banner; **Store Order Reference Number** (`STO-YYYY-######`); item summary; totals; next-step copy |
 | **Buttons** | **View Order**; **Download Receipt (PDF)**; **Continue Shopping** |
 | **Inputs** | None |
 | **Navigation** | Order Details; Home; Store |
@@ -519,7 +519,7 @@ Store is a separate product-commerce module. Its Categories, Product List, Produ
 
 **Buttons:** Confirm Payment / Pay; Retry; View entity; Home  
 **Inputs:** Provider-managed; Fayadhowr shows amount summary only  
-**Navigation:** From a Service Order in V1; future Store Orders use the same unified payment experience.  
+**Navigation:** From a Service Order or Store Order using the same unified payment experience.  
 
 **Order Summary on Payment (required lines):** Subtotal · Delivery Fee · Tax (default `0.00`) · Total  
 
@@ -709,7 +709,10 @@ White surface, `#E5E7EB` border, 12–16 px radius, 12–16 px padding, Level 0�
 ## 5.4 Product Card
 
 - Image, name, **mandatory visible price with unit** (e.g. `12.00 / Bottle`)
-- **Availability badge:** In Stock · Low Stock · Out of Stock · Available on Request
+- **Availability badge:** In Stock · Low Stock · Out of Stock
+- **Selling Price** with unit; Cost Price is never shown to customers
+- Creating a Store Order after Checkout preview does not decrease stock; stock decreases only after Payment is Paid
+- Checkout preview validates cart/stock/address; Store Order is created by a dedicated Store Order step (`STO-…`)
 - Optional marketing badge: New · Best Seller · Popular · Limited Stock
 - Opens Product Details
 - Clean retail layout; no hidden pricing
@@ -885,7 +888,7 @@ Deep links to protected entities must soft-gate auth, then continue to the targe
 | Address | Required for delivery |
 | Notes | Optional |
 
-Revalidate price/stock before pay/place.
+Revalidate Selling Price/stock before place; stock decreases only after Payment Paid.
 
 ## 7.5 Profile Form
 
@@ -1023,7 +1026,7 @@ Service Details → Book Now / Request Quotation → Auth? → Select Mode → P
 
 ## 12.1 Payment Screen
 
-- Entity context uses the unified Payment contract (`payable_type`, `payable_id`) for Service Orders and future Store Orders.
+- Entity context uses the unified Payment contract (`payable_type`, `payable_id`) for Service Orders and Store Orders.
 - Amount and currency (authoritative)
 - What is being paid (short summary)
 - Primary **Pay** launches a provider-neutral gateway handoff
@@ -1454,7 +1457,7 @@ Desktop-first. Access: **Admin**, **Sales**, **Accountant** (as permitted). No m
 
 ## 21.1 Origin Rule (mandatory)
 
-Orders are system-created through authenticated Store cart checkout or, where applicable, after acceptance of a quotation. There is no manual Create Order action.
+Orders for services are system-created through quotation acceptance / booking fulfillment (`ORD-…`). Store Orders are created after checkout preview via authenticated Store Order creation (`STO-…`). There is no manual Create Order action.
 
 | Source chain | Flow |
 | --- | --- |
@@ -1471,13 +1474,13 @@ The source link is permanent and always traceable.
 | **Search** | ORD number, customer, service or product |
 | **Advanced filters** | Order status, payment status, source, order date, etc. |
 | **Columns** | Order Number (`ORD-…`), Source (Booking / Product), Customer, Service or Product, Order Date + **Order Age**, Total Amount, Payment Status, Order Status, Last Updated |
-| **Order Age** | Display order age beneath the date (e.g., "Created Today", "Created 2 days ago", "Waiting 5 days"). "Waiting" style uses warning colour for orders in Awaiting Payment status |
+| **Order Age** | Display order age beneath the date (e.g., "Created Today", "Created 2 days ago", "Waiting 5 days"). "Waiting" style uses warning colour for orders in Pending Payment status |
 | **Row action** | **View Order** only |
 | **Forbidden** | Permanent delete; Create Order (manual) |
 
 ### Approved order statuses (only — controlled dropdown)
 
-Awaiting Payment · Paid · Processing · Ready · Out for Delivery · Completed · Cancelled
+Pending Payment · Confirmed · Processing · Completed · Cancelled
 
 ### Payment statuses (only) — standardized color system
 
@@ -1496,7 +1499,7 @@ These colors must remain consistent everywhere Payment Status appears across the
 | --- | --- |
 | **Header** | ORD Number (read-only), Source, Order Status, Payment Status, linked Booking or Product Request, linked Quotation (version + Accepted), Customer/CUS, dates, **Order Age** (e.g., "Created 1 day ago") |
 | **Current Stage Indicator** | Compact read-only summary above the progress tracker: label "Current Stage" + current stage name (e.g., "Processing") with a primary-coloured dot. Allows immediate stage recognition |
-| **Order Progress Tracker** | Visual horizontal stepper: Awaiting Payment → Paid → Processing → Ready → Out for Delivery → Completed. Completed steps show ✓ with green; current step highlighted in primary; future steps muted. Visual indicator only (read-only) |
+| **Order Progress Tracker** | Visual horizontal stepper: Pending Payment → Confirmed → Processing → Completed. Completed steps show ✓ with green; current step highlighted in primary; future steps muted. Visual indicator only (read-only) |
 | **Business Summary** | Summary cards: Total Amount, Amount Paid, Remaining Balance, Payment Status |
 | **Financial Summary** | Compact read-only breakdown below Business Summary: Subtotal, Discount, Delivery Fee, Tax, Grand Total, Amount Paid, Remaining Balance |
 | **Customer Information** | Name, phone, email, CUS |
@@ -2057,10 +2060,10 @@ Displays 10 premium settings category cards in a 3-column grid. Each card shows:
 
 | Field | Type | Example |
 | --- | --- | --- |
-| Product Categories | Tag chips with "+ Add Category" | Cleaning Supplies, Equipment, Detergents, Floor Care, Sanitizers |
+| Product Categories | Tag chips with "+ Add Category" | Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, Air Fresheners |
 | Default Delivery Fee | Currency input | $5.00 |
 | Tax Percentage | Percentage input | 5% |
-| Inventory Warning Level | Number input | 10 units |
+| Inventory Warning Level | Number input | Low Stock Threshold / dashboard alerts; Email/SMS outside V1 |
 
 ### 24.7 Payment Settings
 

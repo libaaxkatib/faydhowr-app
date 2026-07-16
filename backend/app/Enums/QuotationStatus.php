@@ -4,11 +4,10 @@ namespace App\Enums;
 
 enum QuotationStatus: string
 {
-    case Draft = 'draft';
-    case Issued = 'issued';
+    case PendingReview = 'pending_review';
+    case QuotationReady = 'quotation_ready';
     case UnderDiscussion = 'under_discussion';
     case Accepted = 'accepted';
-    case Rejected = 'rejected';
     case Expired = 'expired';
     case Cancelled = 'cancelled';
 }

@@ -23,12 +23,12 @@ class AcceptQuotationTest extends TestCase
 
     private int $quotationSequence = 1;
 
-    public function test_customer_can_accept_an_issued_quotation_without_changing_its_booking(): void
+    public function test_customer_can_accept_a_quotation_ready_quotation_without_changing_its_booking(): void
     {
         $user = User::factory()->create();
         $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
         $booking = $this->createBooking($profile, BookingStatus::Submitted);
-        $quotation = $this->createQuotation($profile, $booking, QuotationStatus::Issued);
+        $quotation = $this->createQuotation($profile, $booking, QuotationStatus::QuotationReady);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
@@ -78,7 +78,7 @@ class AcceptQuotationTest extends TestCase
     {
         $user = User::factory()->create();
         $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
-        $quotation = $this->createQuotation($profile, null, QuotationStatus::Draft);
+        $quotation = $this->createQuotation($profile, null, QuotationStatus::PendingReview);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
@@ -94,7 +94,7 @@ class AcceptQuotationTest extends TestCase
     {
         $user = User::factory()->create();
         CustomerProfile::factory()->create(['user_id' => $user->id]);
-        $quotation = $this->createQuotation(CustomerProfile::factory()->create(), null, QuotationStatus::Issued);
+        $quotation = $this->createQuotation(CustomerProfile::factory()->create(), null, QuotationStatus::QuotationReady);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
@@ -108,7 +108,7 @@ class AcceptQuotationTest extends TestCase
     public function test_acceptance_returns_not_found_when_customer_profile_is_missing(): void
     {
         $user = User::factory()->create();
-        $quotation = $this->createQuotation(CustomerProfile::factory()->create(), null, QuotationStatus::Issued);
+        $quotation = $this->createQuotation(CustomerProfile::factory()->create(), null, QuotationStatus::QuotationReady);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
@@ -121,7 +121,7 @@ class AcceptQuotationTest extends TestCase
 
     public function test_acceptance_requires_authentication(): void
     {
-        $quotation = $this->createQuotation(CustomerProfile::factory()->create(), null, QuotationStatus::Issued);
+        $quotation = $this->createQuotation(CustomerProfile::factory()->create(), null, QuotationStatus::QuotationReady);
 
         $this
             ->postJson("/api/v1/quotations/{$quotation->id}/accept")

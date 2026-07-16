@@ -37,6 +37,11 @@ class PaymentWebhookTest extends TestCase
             ->assertJsonPath('data.payment_number', $payment->payment_number)
             ->assertJsonPath('data.status', 'paid');
 
+        self::assertMatchesRegularExpression(
+            '/^RCPT-'.now()->format('Y').'-\d{6}$/',
+            (string) $response->json('data.receipt_number'),
+        );
+
         $this->assertDatabaseHas('payments', [
             'id' => $payment->id,
             'status' => 'paid',

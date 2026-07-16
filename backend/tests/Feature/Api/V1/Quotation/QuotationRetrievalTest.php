@@ -27,8 +27,8 @@ class QuotationRetrievalTest extends TestCase
     {
         $user = User::factory()->create();
         $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
-        $olderQuotation = $this->createQuotation($profile, null, QuotationStatus::Draft, now()->subDay());
-        $newerQuotation = $this->createQuotation($profile, null, QuotationStatus::Issued, now());
+        $olderQuotation = $this->createQuotation($profile, null, QuotationStatus::PendingReview, now()->subDay());
+        $newerQuotation = $this->createQuotation($profile, null, QuotationStatus::QuotationReady, now());
         $this->createQuotation(CustomerProfile::factory()->create());
 
         $response = $this
@@ -71,18 +71,18 @@ class QuotationRetrievalTest extends TestCase
     {
         $user = User::factory()->create();
         $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
-        $this->createQuotation($profile, null, QuotationStatus::Draft);
-        $issuedQuotation = $this->createQuotation($profile, null, QuotationStatus::Issued);
+        $this->createQuotation($profile, null, QuotationStatus::PendingReview);
+        $issuedQuotation = $this->createQuotation($profile, null, QuotationStatus::QuotationReady);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
-            ->getJson('/api/v1/quotations?status=issued');
+            ->getJson('/api/v1/quotations?status=quotation_ready');
 
         $response
             ->assertOk()
             ->assertJsonCount(1, 'data.items')
             ->assertJsonPath('data.items.0.quotation_number', $issuedQuotation->quotation_number)
-            ->assertJsonPath('data.items.0.status', 'issued');
+            ->assertJsonPath('data.items.0.status', 'quotation_ready');
     }
 
     public function test_customer_can_filter_quotations_by_booking(): void
@@ -139,7 +139,7 @@ class QuotationRetrievalTest extends TestCase
         $user = User::factory()->create();
         $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
         $booking = $this->createBooking($profile);
-        $quotation = $this->createQuotation($profile, $booking, QuotationStatus::Issued);
+        $quotation = $this->createQuotation($profile, $booking, QuotationStatus::QuotationReady);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
@@ -150,7 +150,7 @@ class QuotationRetrievalTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('message', 'Quotation retrieved successfully.')
             ->assertJsonPath('data.quotation_number', $quotation->quotation_number)
-            ->assertJsonPath('data.status', 'issued')
+            ->assertJsonPath('data.status', 'quotation_ready')
             ->assertJsonPath('data.booking.booking_number', $booking->booking_number)
             ->assertJsonPath('data.subtotal', '100.00')
             ->assertJsonPath('data.discount_amount', '10.00')
@@ -201,7 +201,7 @@ class QuotationRetrievalTest extends TestCase
     private function createQuotation(
         CustomerProfile $profile,
         ?Booking $booking = null,
-        QuotationStatus $status = QuotationStatus::Draft,
+        QuotationStatus $status = QuotationStatus::PendingReview,
         mixed $createdAt = null,
     ): Quotation {
         $quotation = Quotation::query()->create([

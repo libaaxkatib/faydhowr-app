@@ -57,7 +57,9 @@ Admin
   ↓
 Reports / Settings
 
-Store (separate flow): Products → Categories → Cart → Checkout → Orders → Payments
+Store (separate flow): Products → Categories → Cart → Checkout → Store Orders → Payments
+Inventory (admin): Suppliers → Purchase Orders → Goods Receipts → Stock ↑ → Products
+On Payment Paid (Store): Inventory Decrease → Stock Ledger Entry
 ```
 
 Each transition is governed by approved business rules, authorization, validation, and recorded system state. The exact availability of each path depends on the approved workflow and user role.
@@ -73,21 +75,24 @@ Authentication (`users`) ── Customer Profiles (`customer_profiles`) ── S
                                          │
                                          └── Store (separate): Products → Categories → Cart → Checkout → Orders → Payments
                                                                                          │
-Reports ◀──────────────────── Customer Profiles / Bookings / Quotations / Orders / Payments ──┘
+                                                                                         └─ (Payment Paid) → Inventory stock decrease + Stock Ledger
+Inventory (admin): Suppliers → Purchase Orders → Goods Receipts → Stock ↑ + Stock Ledger → Products.current_stock
+Reports ◀──────────────────── Customer Profiles / Bookings / Quotations / Orders / Payments / Inventory ──┘
 Settings ────────────────────────────────────────────────────────────────────────────────────── Admin
 
-Admin Authentication (`admins`) ── Admin Panel / Settings / Reports
+Admin Authentication (`admins`) ── Admin Panel / Settings / Reports / Inventory
 ```
 
 - **Authentication (`users`)** validates customer credentials and issues mobile tokens; protected modules resolve the linked customer profile for business context.
 - **Customer Profiles (`customer_profiles`)** provides the one-to-one customer business context used by bookings, quotations, orders, payments, reviews, and reports. Notifications are addressed to the authenticated `users` identity and may reference related business records. Customer profiles are not authentication identities.
-- **Admin Authentication (`admins`)** is separate from customer authentication and gates admin-panel modules, settings, and operational reports.
+- **Admin Authentication (`admins`)** is separate from customer authentication and gates admin-panel modules, settings, inventory operations, and operational reports.
 - **Services** provide the official catalog, supported modes/subtypes, coverage, optional Starting From information, and both Book Now / Request Quotation entry points.
 - **Bookings** captures approved customer-profile-owned booking activity and may initiate quotation processing.
 - **Quotations** records proposed commercial terms and supports the approved discussion and acceptance lifecycle.
-- **Store** is a separate product-commerce flow for products, categories, cart, checkout, and orders; products are not services.
-- **Orders** are created by Store checkout or approved quotation-derived workflows.
-- **Payments** record payment activity associated with eligible orders, bookings, or accepted quotations.
+- **Store** is a separate physical-product commerce flow for catalog, categories, images, cart, checkout, and Store Orders; it integrates Unified Payment and is not responsible for purchasing or stock management.
+- **Inventory** is a separate domain for suppliers, purchase orders, goods receipts, stock ledger, adjustments, stock quantity, and low-stock alerts.
+- **Orders** are created by Store checkout or approved quotation-derived workflows; Store Order creation never decreases stock.
+- **Payments** record payment activity for Service Orders and Store Orders; when Payment becomes Paid for a Store Order, Inventory decreases stock and writes a Stock Ledger sale entry.
 - **Notifications** communicate approved workflow events to authorized recipients.
 - **Reports** read authorized, aggregated operational data without becoming a source of transactional truth.
 - **Settings** governs approved system configuration and authorized administrative controls.
@@ -140,21 +145,33 @@ Flutter submits requests and renders API responses. The REST API routes requests
 
 ## 8. Order Flow
 
-1. Laravel verifies that a Store cart checkout or quotation-derived workflow is eligible for order creation.
-2. The system creates the order with `customer_profile_id` business ownership and applicable Store cart, booking, and/or quotation references.
-3. Authorized users process order status changes through approved transitions.
-4. Order events may initiate payment handling, notifications, and reporting updates.
-5. The order history remains traceable to its approved originating workflow.
+1. For Store commerce, Laravel validates checkout preview eligibility, then the client creates a Store Order via `POST /api/v1/store-orders` (checkout itself does not create the order).
+2. The system creates the Store Order in `store_orders` with `customer_profile_id` ownership, `STO-YYYY-######`, and cart line snapshots.
+3. For Store Orders, Selling Price and available stock are re-validated; overselling is rejected. Creating the Store Order never decreases stock.
+4. Authorized users process Store Order status changes through approved transitions (`pending_payment` → `confirmed` → `processing` → `completed` / `cancelled`).
+5. Store Order events may initiate Unified Payment handling, notifications, and reporting updates.
+6. Service Orders remain on `orders` (`ORD-YYYY-######`) and stay commercially separate from Store Orders.
+
+## 8A. Inventory Flow
+
+1. Admin creates or maintains a Supplier (`status`: `active` / `inactive`).
+2. Admin creates a Purchase Order (`Draft` → `Submitted` → `Approved`). Purchase Order alone never changes stock. Submitted POs must not receive inventory.
+3. After approval, Admin records a Goods Receipt against the Purchase Order (`approved` or `partially_received` only). Stock increases and Stock Ledger `purchase_receipt` entries are written to `stock_ledgers`. PO may become `Partially Received` or `Completed`.
+4. Store Products reflect updated `current_stock` for catalog and checkout availability.
+5. After a customer Store Order Payment becomes `paid`, Inventory decreases stock and writes a Stock Ledger `customer_sale` entry. Failed/cancelled payments leave stock unchanged. Paid payments also receive a one-time `RCPT-YYYY-######` on `payments.receipt_number`.
+6. Manual Stock Adjustments require quantity and reason (`Damaged`, `Lost`, `Correction`, `Physical Count`) and always write Stock Ledger entries (future).
+7. Dashboard Low Stock alerts use each product’s Current Stock and Low Stock Threshold. Email/SMS low-stock notifications are outside V1.
 
 ## 9. Payment Flow
 
-1. An authorized customer-profile-owned payment references an originating payable record through `payable_type` and `payable_id` (Service Order in V1; Store Order in the future).
+1. An authorized customer-profile-owned payment references an originating payable record through `payable_type` and `payable_id` (Service Orders and Store Orders).
 2. Laravel validates customer-profile ownership, amount, and payable state through the originating domain.
 3. Laravel returns the existing active Payment when the payable has one in `pending`, `initialized`, or `processing`; it creates a new Payment only after the preceding Payment is `paid`, `failed`, or `cancelled`. This rule is enforced at the polymorphic Payment domain boundary, independent of gateway behavior.
 4. Payment records the lifecycle (Pending, Initialized, Processing, Paid, Failed, Cancelled) and one-or-more provider-neutral `payment_transactions`.
-5. Callback/webhook processing verifies gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment status, and duplicate-callback status before any state mutation. Payment update, transaction update, status history insert, and Order confirmation execute atomically in one database transaction.
-6. A successful callback changes Payment from `processing` to `paid` and then the originating Order from `pending_payment` to `confirmed`; Failed or Cancelled payments do not cancel Orders, and failed callbacks leave the Order unchanged.
-7. Every Paid payment creates one `RCPT-YYYY-######` receipt. Payment publishes `PaymentPaid`, `PaymentFailed`, or `PaymentCancelled` events for future notification consumption; it does not notify directly. Refunds and receipt PDF generation are outside V1.
+5. Callback/webhook processing verifies gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment status, and duplicate-callback status before any state mutation. Payment update, transaction update, status history insert, receipt number assignment (`RCPT-YYYY-######`, once), and Order/Store Order confirmation (plus Store stock/ledger when applicable) execute atomically in one database transaction.
+6. A successful callback changes Payment from `processing` to `paid` and then confirms the originating Service Order or Store Order; Failed or Cancelled payments do not cancel Orders, and failed callbacks leave the Order unchanged. Duplicate paid webhooks never regenerate `receipt_number`.
+7. For Store Orders, Payment = `paid` is also the sole trigger that decreases product stock and writes the customer-sale Stock Ledger entry in `stock_ledgers`.
+8. Every Paid payment creates one `RCPT-YYYY-######` receipt on `payments.receipt_number`. Payment publishes `PaymentPaid` and `PaymentFailed` events for future notification consumption; it does not notify directly. Refunds and receipt PDF generation are outside V1.
 
 ## 10. Notification Flow
 
@@ -263,7 +280,7 @@ The system shall scale through modular Laravel services, feature-first Flutter o
 | --- | --- |
 | Workforce Management | Add workforce identities, availability, and assignment records; current Housekeeper and Monthly Cleaning Staff service choices describe demand only |
 | Delivery | Add delivery/fulfillment records to Store orders while retaining existing cart, checkout, order, and payment boundaries |
-| Equipment Sales | Add industrial cleaning machines/equipment through Store categories/products and future product variants |
+| Equipment Sales | Heavy cleaning equipment/machines are outside V1; when approved later, extend Store categories/products and Inventory without redesigning core commerce or ledger boundaries |
 | Additional Services | Add service catalog, mode/subtype, and coverage configuration without a second service architecture |
 | New Cities | Add coverage configuration beyond Mogadishu and Hargeisa |
 

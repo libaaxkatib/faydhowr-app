@@ -94,7 +94,8 @@ Phases are sequential for **major dependencies**, with limited parallelization o
 | **6** | Authentication | Register, login, logout, forgot/reset password, tokens, soft auth |
 | **7** | Home Module | Hero, search, categories, featured services, products, gallery, reviews, FAQ, contact |
 | **8** | Services Module | Catalog, details, search, book/quote CTAs |
-| **9** | Store Module | Catalog, details (prices), cart primitives, optional product quote entry |
+| **9** | Store Module | Catalog (V1 physical categories), Selling Price, `product_images`, cart, checkout **preview**, `store_orders` (`STO-…`) + Unified Payment; stock decrease only after Payment Paid + one-time `RCPT-…` |
+| **9A** | Inventory Module | Suppliers (`status` active/inactive), POs (Draft→Submitted→**Approved**→…), Goods Receipts only after approval, `stock_ledgers`, adjustments, low-stock dashboard (separate from Store) |
 | **10** | Quotation Module | Requests, uploads (`POST /uploads`), description, Discuss Quotation, revisions, timeline, Accept (no Reject) |
 | **11** | Booking Module | Create, details, history, cancel (policy) |
 | **12** | Cart & Checkout | Cart management, checkout, order create/confirm |
@@ -139,7 +140,7 @@ Assumes **2-week sprints**. Exact sprint count may flex by team velocity; order 
 | **Sprint 4** | Data & Auth | Phase 5 Database implementation + Phase 6 Authentication (API + app soft gate) |
 | **Sprint 5** | Home + Browse shell | Phase 7 Home Module; navigation shell; search entry |
 | **Sprint 6** | Services | Phase 8 Services Module (list, detail, search, CTA wiring) |
-| **Sprint 7** | Store | Phase 9 Store Module (list, detail with price, add-to-cart) |
+| **Sprint 7** | Store | Phase 9 Store Module (list, Selling Price, cart; stock decrease only after Payment Paid) |
 | **Sprint 8** | Quotation | Phase 10 Quotation Module (uploads, description, request, Discuss, revisions, Accept) |
 | **Sprint 9** | Booking | Phase 11 Booking Module |
 | **Sprint 10** | Cart & Checkout | Phase 12 Cart & Checkout / orders |
@@ -172,10 +173,11 @@ Assumes **2-week sprints**. Exact sprint count may flex by team velocity; order 
 | **G6** | Phase 6 Authentication | Register/login/logout/recovery works; token security reviewed | Guest browse broken by forced login |
 | **G7** | Phase 7 Home | Home block order correct; search available; guest access verified | Login wall; missing Search under Hero |
 | **G8** | Phase 8 Services | Details + Book/Quote CTAs match pricing model | Wrong primary CTA; broken soft auth |
-| **G9** | Phase 9 Store | Prices always visible; cart add works | Hidden prices; checkout without auth gate errors |
+| **G9** | Phase 9 Store | Selling Price always visible; cart add works; checkout is preview; Store Order create (`STO-…`) does not decrease stock | Hidden Selling Price; Cost Price exposed to customers; stock decreased at order create; checkout creates order without preview split |
+| **G9A** | Phase 9A Inventory | PO alone does not change stock; GR only after PO approval; Goods Receipt + Paid sale write `stock_ledgers`; low-stock dashboard | Stock changed by PO; GR on submitted PO; missing ledger; Email/SMS required for V1 low-stock |
 | **G10** | Phase 10 Quotation | Uploads + description + Accept/Discuss + revisions + QT references | Missing file types; `/reject` present; cannot attach file IDs |
 | **G11** | Phase 11 Booking | Create/history/cancel policy verified | Capacity/validation bugs; duplicate bookings |
-| **G12** | Phase 12 Cart & Checkout | Order create + confirmation references | Stock/price race not handled |
+| **G12** | Phase 12 Cart & Checkout | Order create + confirmation; overselling rejected; stock unchanged until Payment Paid | Stock decreased at checkout; negative stock allowed |
 | **G13** | Phase 13 Payments | Initialize + webhook idempotency + success/failure UX | Client-only “success”; amount mismatches |
 | **G14** | Phase 14 Favorites | Auth save/list; hearts on cards | Favorites mutating checkout/booking flows |
 | **G15** | Phase 15 Notifications | List/read/count + deep links | Secrets in payloads; missing owner scope |
@@ -250,10 +252,10 @@ Version 1 is successful when measurable criteria are met:
 | --- | --- | --- |
 | 1 | Guest value before login | Home and catalogs usable without authentication |
 | 2 | Soft auth correctness | Book, quote, checkout, favorites save, profile require login; browse does not |
-| 3 | Store price transparency | 100% of active products expose price in list and detail APIs/UI |
+| 3 | Store price transparency | 100% of active products expose Selling Price in list and detail APIs/UI; Cost Price never customer-facing |
 | 4 | Quotation completeness | Customers can submit service/product quotes with description + images/videos/PDF via single upload endpoint |
 | 5 | Booking path | Customer can create, view, and (policy permitting) cancel bookings |
-| 6 | Commerce path | Cart → checkout → order confirmation works end-to-end |
+| 6 | Commerce path | Cart → checkout preview → Store Order (`STO-…`) → payment confirmation works end-to-end |
 | 7 | Payments | Server-authoritative success/failure; no client-only paid state |
 | 8 | Favorites | Save/remove/list without affecting booking/cart/payment workflows |
 | 9 | Notifications | Customer receives and can open key lifecycle events |

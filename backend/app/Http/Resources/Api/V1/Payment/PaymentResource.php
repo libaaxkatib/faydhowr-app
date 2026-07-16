@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1\Payment;
 
 use App\Models\Order;
+use App\Models\StoreOrder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -20,8 +21,13 @@ class PaymentResource extends JsonResource
                 $payable = $this->payable;
 
                 return [
-                    'type' => $payable instanceof Order ? 'order' : class_basename($payable),
+                    'type' => match (true) {
+                        $payable instanceof Order => 'order',
+                        $payable instanceof StoreOrder => 'store_order',
+                        default => class_basename($payable),
+                    },
                     'order_number' => $payable instanceof Order ? $payable->order_number : null,
+                    'store_order_number' => $payable instanceof StoreOrder ? $payable->store_order_number : null,
                 ];
             }),
             'status' => $this->status->value,

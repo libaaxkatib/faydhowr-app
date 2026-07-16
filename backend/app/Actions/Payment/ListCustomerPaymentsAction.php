@@ -6,6 +6,7 @@ use App\Enums\PaymentStatus;
 use App\Models\CustomerProfile;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\StoreOrder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class ListCustomerPaymentsAction
@@ -34,6 +35,7 @@ class ListCustomerPaymentsAction
     {
         return match ($payableType) {
             'order' => Order::class,
+            'store_order' => StoreOrder::class,
             default => $payableType,
         };
     }

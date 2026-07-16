@@ -219,7 +219,7 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | ID | Requirement | Priority |
 | --- | --- | --- |
 | FR-010 | The system shall present service categories and service listings with name, description, media, optional Starting From price, and both **Book Now** and **Request Quotation** options. | Must |
-| FR-011 | The system shall present store categories and product listings with name, description, media, price, and availability. | Must |
+| FR-011 | The system shall present store categories and product listings with name, description, media, Selling Price, and availability (In Stock / Low Stock / Out of Stock). V1 categories: Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, Air Fresheners. | Must |
 | FR-012 | The system shall support search and/or filter of services and products. | Should |
 | FR-013 | The system shall show product/service detail pages with complete customer-facing information. | Must |
 
@@ -229,14 +229,27 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | --- | --- | --- |
 | FR-020 | The customer shall be able to add products to a cart with quantity using the standard `−` / `+` control. | Must |
 | FR-021 | The customer shall be able to update or remove cart items. | Must |
-| FR-022 | The system shall validate stock/availability before checkout confirmation. | Must |
-| FR-023 | The customer shall be able to place a store order and receive an order reference (`ORD-YYYY-######`). | Must |
+| FR-022 | The system shall validate stock availability before Store Order creation and reject overselling. Creating a Store Order shall never decrease stock. | Must |
+| FR-022A | Stock shall decrease only after the related Payment becomes `paid`. Failed or cancelled payments shall leave stock unchanged. Negative stock is never allowed. | Must |
+| FR-023 | The customer shall be able to place a store order and receive a store order reference (`STO-YYYY-######`). Service Orders continue to use `ORD-YYYY-######`. | Must |
 | FR-024 | The customer shall be able to view order history and order detail/status (Active / Completed / Cancelled; search and filter). | Must |
-| FR-025 | Every product shall display availability status: In Stock, Low Stock, Out of Stock, or Available on Request. | Must |
-| FR-026 | Every product shall have a unique SKU and a selling unit displayed with price (e.g. `12.00 / Bottle`). | Must |
-| FR-027 | Products may optionally define quantity tier pricing; when configured, tiers are displayed and applied by quantity. | Should |
+| FR-025 | Every product shall expose current stock and low-stock state derived from Current Stock and Low Stock Threshold. | Must |
+| FR-026 | Every product shall have a unique SKU, Selling Price, Cost Price, Currency, Current Stock, Low Stock Threshold, and Status. Selling Price is customer-facing; Cost Price is for inventory valuation and profit reporting. | Must |
+| FR-027 | Products may optionally define quantity tier pricing for Selling Price; when configured, tiers are displayed and applied by quantity. | Should |
 | FR-028 | Checkout shall capture a Contact Phone Number for delivery coordination (prefill from profile when available). | Must |
 | FR-029 | Payment method presentation shall prioritize Somali methods: EVC Plus (default), eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, then optional Card and future Digital Wallet. | Must |
+| FR-029A | Store Orders shall reuse the Unified Payment Module and follow Order lifecycle: `pending_payment` → `confirmed` → `processing` → `completed` / `cancelled`. | Must |
+
+### 5.3A Inventory
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| FR-030I | Inventory shall manage Suppliers, Purchase Orders, Goods Receipts, Stock Ledger, Stock Adjustments, Stock Quantity, and Low Stock Alerts as a domain separate from Store commerce. | Must |
+| FR-031I | Purchase Order lifecycle shall be: Draft → Submitted → Approved → Partially Received → Completed / Cancelled. Purchase Order alone shall never change stock. Goods Receipts are allowed only when the Purchase Order is `approved` or `partially_received` (never while only `submitted`). | Must |
+| FR-032I | Goods Receipt shall increase stock and create Stock Ledger entries. Goods Receipt requires a Purchase Order in `approved` or `partially_received` status. | Must |
+| FR-033I | Every stock movement shall be recorded in Stock Ledger with quantity, movement type, reference, user, and timestamp. Movement types include Purchase Receipt, Customer Sale, Stock Adjustment, Correction, Damage, and Loss. | Must |
+| FR-034I | Manual stock adjustments shall require quantity and reason (`Damaged`, `Lost`, `Correction`, `Physical Count`) and shall create Stock Ledger entries. | Must |
+| FR-035I | Dashboard shall display Low Stock alerts from Current Stock vs Low Stock Threshold. Email/SMS low-stock notifications are outside V1. | Must |
 
 ### 5.4 Bookings
 
@@ -269,10 +282,10 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-050 | The unified Payment V1 module shall initiate customer-profile-owned payments for Service Orders and future Store Orders using `payable_type` and `payable_id`. | Must |
+| FR-050 | The unified Payment V1 module shall initiate customer-profile-owned payments for Service Orders and Store Orders using `payable_type` and `payable_id`. | Must |
 | FR-051 | The system shall record the authoritative lifecycle: Pending, Initialized, Processing, Paid, Failed, or Cancelled. Refunds are outside V1. | Must |
 | FR-051A | A payable entity may have only one active Payment at a time. Active statuses are `pending`, `initialized`, and `processing`; initialization shall return that active Payment. A new Payment may be initialized only after the prior Payment is `paid`, `failed`, or `cancelled`. | Must |
-| FR-052 | When a payment becomes Paid, the originating Order shall become `confirmed`; Failed or Cancelled payments shall not automatically cancel Orders. | Must |
+| FR-052 | When a payment becomes Paid, the originating Order shall become `confirmed`; Failed or Cancelled payments shall not automatically cancel Orders. For Store Orders, Payment = Paid shall also decrease stock and create a Stock Ledger customer-sale entry. | Must |
 | FR-053 | The system shall handle payment failures with clear retry guidance. | Must |
 | FR-054 | Every successful payment shall produce one receipt with public number `RCPT-YYYY-######`; receipt PDF generation is outside V1. | Must |
 
@@ -309,7 +322,7 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | FR-080 | Admins shall manage products, services, categories, pricing, and availability (subject to role — **Admin**). | Must |
 | FR-081 | Admins shall manage bookings (list/search/filter; view details with media counters, timeline with actor audit, linked records; status updates via controlled dropdown of approved statuses only; read-only Priority High/Medium/Low; booking age; informational manual Assigned To; internal staff notes with name/role/date/time). Booking Number is read-only. Bookings are never permanently deleted. No Booking Value / Estimated Value on this module. | Must |
 | FR-082 | Admins shall manage quotations (list/search/filter; view details with price breakdown, revision history with Created By/role/date/time, read-only Compare Revisions between any two versions, discussion with keyword search and attachment counters, timeline with actor audit, linked records; status updates via controlled dropdown; validity countdown on list and details; issue revisions; internal staff notes). Every quotation must originate from a **Booking** or **Product Request** only — Admin / Sales / Accountant shall never create a standalone quotation. QT Number is read-only. Quotations are never permanently deleted. Only the latest revision may be accepted. Discussion history cannot be deleted. | Must |
-| FR-083 | Admins shall manage orders (list/search/filter; view details with ordered items, price breakdown with discounts/delivery/tax, business summary cards, timeline with actor audit, order documents with availability status, linked records incl. **Order Documents** shortcut; status updates via controlled dropdown of approved order statuses only; **Current Stage Indicator** compact read-only label above progress tracker showing current workflow stage; **Order Progress Tracker** visual stepper Awaiting Payment → Paid → Processing → Ready → Out for Delivery → Completed highlighting current step; **Order Age** displayed in list and details; **Payment Timeline** with expanded payment events Payment Requested/Received/Confirmed/Refund Processed each with Performed By, Staff Role, Date, Time; **Documents Status** each document shows ✅ Available or ⏳ Not Available Yet; **Financial Summary** compact read-only breakdown Subtotal/Discount/Delivery Fee/Tax/Grand Total/Amount Paid/Remaining Balance; **Latest Note indicator** read-only timestamp of most recent internal note). Every order is created **automatically** from an accepted quotation — no manual Create Order. Order Number is read-only. Orders are never permanently deleted. Every order remains permanently linked to its originating Booking or Product Request and its accepted Quotation. **Payment Status color system** standardized across Admin Panel: Paid (green), Partially Paid (orange), Unpaid (red), Refunded (blue). Order statuses: Awaiting Payment, Paid, Processing, Ready, Out for Delivery, Completed, Cancelled. Internal staff notes with name/role/date/time. | Must |
+| FR-083 | Admins shall manage orders (list/search/filter; view details with ordered items, price breakdown with discounts/delivery/tax, business summary cards, timeline with actor audit, order documents with availability status, linked records incl. **Order Documents** shortcut; status updates via controlled dropdown of approved order statuses only; **Current Stage Indicator** compact read-only label above progress tracker showing current workflow stage; **Order Progress Tracker** visual stepper Pending Payment → Confirmed → Processing → Completed highlighting current step; **Order Age** displayed in list and details; **Payment Timeline** with expanded payment events Payment Requested/Received/Confirmed/Refund Processed each with Performed By, Staff Role, Date, Time; **Documents Status** each document shows ✅ Available or ⏳ Not Available Yet; **Financial Summary** compact read-only breakdown Subtotal/Discount/Delivery Fee/Tax/Grand Total/Amount Paid/Remaining Balance; **Latest Note indicator** read-only timestamp of most recent internal note). Every order is created **automatically** from an accepted quotation — no manual Create Order. Order Number is read-only. Orders are never permanently deleted. Every order remains permanently linked to its originating Booking or Product Request and its accepted Quotation. **Payment Status color system** standardized across Admin Panel: Paid (green), Partially Paid (orange), Unpaid (red), Refunded (blue). Order statuses: Pending Payment, Confirmed, Processing, Completed, Cancelled. Internal staff notes with name/role/date/time. | Must |
 | FR-084 | Admins shall manage customer profiles (list/search/filter with default **Active Customers**; view profile joined to `users` contact data, Member Since, business summary including **Total Spent**, timeline with icons, linked records; internal staff notes with name/role/date/time audit; set Inactive / suspend per policy). Customer Number is auto-generated and read-only on `customer_profiles`. Classification is **Lead** vs **Active Customer** (no VIP). Customer identities and profiles are never permanently deleted. | Must |
 | FR-085 | Admins shall configure notification templates and operational settings (**Admin**). | Should |
 | FR-086 | Admins shall manage payments (list/search/filter; view details with payment information, transaction reference with **Copy** button, business summary cards Amount Due/Amount Paid/Remaining Balance/Payment Status, **Financial Audit Summary** Payment Requested By/Payment Confirmed By/Confirmation Date/Last Updated, source chain & linkage, payment documents with availability status, payment timeline with actor audit, linked records, internal staff notes with name/role/date/time; **Payment Verification Badge** Verified/Pending Verification independent from status displayed in list and details; **Payment Age** displayed in list and details e.g. "Received 1 day ago"/"Waiting Verification 3 days"; **Payment Method Icons** consistent branded icons in list and details; **Current Stage Indicator** compact read-only label above progress tracker; **Payment Progress Tracker** visual stepper Pending → Received → Confirmed / Pending → Failed / Confirmed → Refunded highlighting current step; **Payment Documents** Payment Receipt/Invoice/Order PDF with ✅ Available or ⏳ Pending; **Latest Note indicator** read-only timestamp). Every payment must originate from an existing **Order** — no manual Create Payment. Payment Number (`PAY-…`) is read-only. Payments are never permanently deleted. Every payment remains permanently linked to its originating Order. Approved payment statuses: Pending, Received, Confirmed, Failed, Refunded. Supported payment methods: EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card. Receipt history is permanent. Status updates via controlled dropdown only. | Must |
@@ -490,57 +503,162 @@ V1 supported service cities are:
 
 ### 8.1 Purpose
 
-The Store Module is a separate physical-product commerce domain. It is not a service module and does not represent service fulfillment or scheduling.
+The Store Module is a separate physical-product commerce domain. It is not a service module and does not represent service fulfillment or scheduling. Store is also not the Inventory purchasing domain.
 
-V1 Store catalog scope:
+V1 Store supports **physical products only** in these categories:
 
-- Cleaning Products
-- Cleaning Supplies
+- Cleaning Chemicals
+- Cleaning Tools
 - Cleaning Accessories
-- Consumables
+- Personal Protective Equipment (PPE)
+- Air Fresheners
 
-The store architecture must support future industrial cleaning machines and equipment without schema redesign.
+Heavy cleaning equipment and machines are outside V1.
 
-### 8.2 Store Capabilities
+### 8.2 Store Responsibilities
+
+Store is responsible for:
+
+- Product catalog
+- Categories
+- Product images
+- Cart
+- Checkout
+- Store Orders
+- Unified Payment integration
+
+Store is **not** responsible for inventory purchasing, suppliers, purchase orders, goods receipts, stock ledger maintenance, or stock adjustments. Those belong to Inventory.
+
+### 8.3 Store Capabilities
 
 - Product categories and catalog browsing.
-- Product detail: title, description, **swipeable image gallery**, price **with unit**, optional **tier pricing**, SKU, availability badge, optional marketing badge, specifications, related products.
+- Product detail: title, description, **swipeable image gallery**, **Selling Price** with unit, optional **tier pricing**, SKU, stock/low-stock cues, optional marketing badge, specifications, related products.
 - Quantity control **`−` / `+`** on detail and cart.
 - Cart management (add, update quantity, remove).
-- Checkout with delivery/pickup, **saved address reuse**, and **Contact Phone Number**.
-- Payment with Somali-first method order (EVC Plus default).
-- Order creation with unique order reference (`ORD-YYYY-######`).
-- Order confirmation with receipt PDF download (no Estimated Delivery block).
-- Order history (Active / Completed / Cancelled), search/filter, Order Details with **Buy Again** and **Track Order** (track is UI placeholder until logistics backend is connected).
+- Checkout preview that re-validates Selling Price and stock (does not create the Store Order).
+- Store Order creation via dedicated Store Order API after checkout preview, with unique store order reference (`STO-YYYY-######`).
+- Unified Payment initialization/processing for Store Orders.
+- Order confirmation and order history (Active / Completed / Cancelled).
 
-### 8.3 Store Business Rules
+### 8.4 Store Business Rules
 
-- Cart prices are indicative until checkout confirmation against backend prices (including applicable quantity tiers).
-- Checkout must re-validate availability and price.
-- Availability statuses: **In Stock**, **Low Stock**, **Out of Stock**, **Available on Request**.
-- Out of Stock items cannot be purchased via Add to Cart.
-- Partial fulfillment policies (if any) must be defined by operations; v1 may assume whole-order fulfillment unless otherwise approved.
-- Store orders are commercially separate from service bookings unless an explicit bundle product/service offering is introduced later.
+- Cart prices are indicative until checkout confirmation against backend Selling Prices (including applicable quantity tiers).
+- Checkout preview must re-validate Selling Price and available stock, and must prevent overselling.
+- Store Order creation follows checkout preview and never decreases stock.
+- Stock decreases only after Payment status becomes `paid`.
+- Failed or cancelled payments leave stock unchanged.
+- Negative stock is not allowed.
+- Store Orders are persisted in `store_orders` (separate from service `orders`), reuse the Unified Payment Module, and follow: `pending_payment` → `confirmed` → `processing` → `completed` / `cancelled`.
+- Store orders are commercially separate from service bookings unless an explicit bundle offering is introduced later.
 - Optional product badges: New, Best Seller, Popular, Limited Stock.
 - Selling units include Piece, Pack, Box, Carton, Bottle, Liter, Kg (extensible by admin).
+- Product gallery images are stored in `product_images`.
 
-### Store Product Pricing
+### 8.5 Product Pricing
 
-- All store products shall display their prices to customers, with unit (e.g. `$12.00 / Bottle`).
-- If quantity tier pricing is configured for a product, display the tiers and apply the matching tier to quantity.
-- If only a single fixed price exists, display that price.
-- Customers can browse products, view prices, add products to the cart, and complete purchases.
-- If a customer needs a quotation for products (such as bulk orders, custom quantities, or special requests), they submit a quotation request through the **shared Quotation Module** (same Accept / Discuss / revision rules as Services). Source = `Product`.
+Every Product stores two prices:
+
+- **Cost Price** — amount Fayadhowr paid the supplier.
+- **Selling Price** — amount charged to customers.
+
+Business rules:
+
+- Cost Price supports future inventory valuation, profit reporting, and accounting.
+- Selling Price is used for customer purchases, cart, checkout, and payments.
+- Changing Selling Price never changes Cost Price.
+- Future purchase receipts may update Cost Price according to future inventory costing policies.
+- Inventory costing methods are outside V1.
+
+### 8.6 Optional Product Quotation
+
+- Customers may request a quotation for bulk/custom/special product needs through the **shared Quotation Module** (same Accept / Discuss / revision rules as Services). Source = `Product`.
 - This quotation process is optional and does not replace the normal fixed-price purchasing workflow.
 
-### 8.4 Store ↔ Other Modules
+### 8.7 Store ↔ Other Modules
 
 | Interaction | Description |
 | --- | --- |
-| **Payments** | Store orders create payable amounts |
-| **Notifications** | Order placed, paid, shipped/ready, cancelled |
+| **Payments** | Store Orders use the Unified Payment Module (`payable_type` / `payable_id`) |
+| **Inventory** | Paid Store Order sales decrease stock and create Stock Ledger sale entries |
+| **Notifications** | Order placed, paid, cancelled (and future fulfillment events) |
 | **Profile** | Orders appear in customer history; addresses may be reused |
-| **Admin** | Catalog and fulfillment managed in admin panel |
+| **Admin** | Catalog and Store Order fulfillment managed in admin panel |
+
+---
+
+## 8A. Inventory Module
+
+### 8A.1 Purpose
+
+Inventory is a separate business domain from Store. It manages stock acquisition, stock quantity integrity, and stock movement history for physical products.
+
+### 8A.2 Inventory Responsibilities
+
+Inventory manages:
+
+- Suppliers
+- Purchase Orders
+- Goods Receipts
+- Stock Ledger
+- Stock Adjustments
+- Stock Quantity
+- Low Stock Alerts
+
+### 8A.3 Stock Flow
+
+```text
+Supplier
+  ↓
+Purchase Order
+  ↓
+Goods Receipt
+  ↓
+Inventory Increase
+  ↓
+Store Product
+  ↓
+Customer Purchase
+  ↓
+Payment Paid
+  ↓
+Inventory Decrease
+  ↓
+Stock Ledger Entry
+```
+
+### 8A.4 Purchase Order Lifecycle
+
+`Draft` → `Submitted` → `Approved` → `Partially Received` → `Completed` / `Cancelled`
+
+Purchase Order alone never changes stock. Inventory may be received only after approval (`approved` or subsequent `partially_received`).
+
+### 8A.5 Goods Receipt
+
+- Goods Receipt is allowed only for Purchase Orders in `approved` or `partially_received` status.
+- Goods Receipt increases stock.
+- Every Goods Receipt creates Stock Ledger entries (`purchase_receipt`) in `stock_ledgers`.
+- Submitted Purchase Orders must not receive inventory.
+
+### 8A.6 Stock Ledger
+
+Every stock movement is recorded. Movement types include:
+
+- Purchase Receipt
+- Customer Sale
+- Stock Adjustment
+- Correction
+- Damage
+- Loss
+
+Ledger stores quantity, movement type, reference, user, and timestamp.
+
+### 8A.7 Inventory Adjustment
+
+Manual stock adjustments require quantity and reason. Reasons include Damaged, Lost, Correction, and Physical Count. Every adjustment creates Stock Ledger entries.
+
+### 8A.8 Low Stock
+
+Each product defines Current Stock and Low Stock Threshold. Dashboard displays Low Stock alerts. Email/SMS low-stock notifications are outside V1.
 
 ---
 
@@ -717,8 +835,12 @@ Linked navigation (admin and support): Customer → Booking (when applicable) �
 | Customer | `CUS-YYYY-######` | `CUS-2026-000001` |
 | Booking | `BK-YYYY-######` | `BK-2026-000001` |
 | Quotation | `QT-YYYY-######` | `QT-2026-000001` |
-| Order | `ORD-YYYY-######` | `ORD-2026-000001` |
+| Order (Service) | `ORD-YYYY-######` | `ORD-2026-000001` |
+| Store Order | `STO-YYYY-######` | `STO-2026-000001` |
 | Payment | `PAY-YYYY-######` | `PAY-2026-000001` |
+| Receipt | `RCPT-YYYY-######` | `RCPT-2026-000001` |
+| Purchase Order | `PO-YYYY-######` | `PO-2026-000001` |
+| Goods Receipt | `GR-YYYY-######` | `GR-2026-000001` |
 | Invoice | `INV-YYYY-######` | `INV-2026-000001` |
 | Refund | `REF-YYYY-######` | `REF-2026-000001` |
 
@@ -730,7 +852,7 @@ Reference numbers must be unique within their type (and globally unique in recom
 
 ### 11.1 Purpose
 
-Provide one gateway-independent payment lifecycle for Service Orders and future Store Orders. Payment owns payment records, gateway transactions, receipts, and lifecycle state; originating domains retain their own commercial rules.
+Provide one gateway-independent payment lifecycle for Service Orders and Store Orders. Payment owns payment records, gateway transactions, receipts, and lifecycle state; originating domains retain their own commercial rules.
 
 ### 11.2 Payable Entities
 
@@ -748,12 +870,13 @@ Provide one gateway-independent payment lifecycle for Service Orders and future 
 5. System verifies payment authenticity and callback validity server-side in this order: gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment check, duplicate-callback check, then one atomic database transaction.
 6. On success:
    - Change Payment from `Processing` to `Paid`.
-   - Change the originating Order from `pending_payment` to `confirmed` in the same transaction.
+   - Assign a unique receipt number `RCPT-YYYY-######` once on `payments.receipt_number` (duplicate paid webhooks never regenerate it).
+   - Change the originating Service Order from `pending_payment` to `confirmed`, or confirm the Store Order and decrease stock with a Stock Ledger `customer_sale` entry, in the same transaction.
    - Publish `PaymentPaid` for future Notification consumption.
 7. On failure:
    - Mark payment `Failed` or `Cancelled`.
    - Keep the Order unchanged and payable if still valid.
-   - Publish `PaymentFailed` or `PaymentCancelled` for future Notification consumption.
+   - Publish `PaymentFailed` for future Notification consumption.
 
 ### 11.4 Payment Status Model (Logical)
 
@@ -891,11 +1014,12 @@ The Admin Panel is the operational control plane for Fayadhowr. It is **not** pa
 | --- | --- |
 | **Dashboard** | Executive snapshot: KPIs, business monitoring, customer service metrics, revenue analytics, live activity |
 | **Catalog — Services** | Create/edit services, Starting From pricing information, media, schedule rules, visibility, and both customer action paths |
-| **Catalog — Store** | Create/edit products, stock, categories, visibility, pricing |
+| **Catalog — Store** | Create/edit products, categories, images, Selling Price, Cost Price, Current Stock display, Low Stock Threshold, visibility |
+| **Inventory** | Suppliers, Purchase Orders, Goods Receipts, Stock Ledger, Stock Adjustments, Low Stock alerts |
 | **Bookings** | List/filter bookings, assign, update status, add internal notes |
 | **Quotations** | Review requests, issue/revise quotes, set validity and terms |
-| **Orders** | Fulfill store orders, update shipping/pickup status |
-| **Payments** | View transactions, initiate refunds, reconcile exceptions |
+| **Orders** | Fulfill Store Orders, update processing/completion status |
+| **Payments** | View transactions, reconcile exceptions (refunds outside V1) |
 | **Customers** | Search/filter `customer_profiles` with joined `users` contact data; view profile, business summary, timeline, linked records; internal staff notes; Inactive/suspend per policy — never permanent delete |
 | **Notifications** | Templates, manual broadcast (optional), delivery diagnostics |
 | **Settings** | Business info, currency, payment provider config, roles/permissions |
@@ -962,7 +1086,7 @@ The Admin Panel is the operational control plane for Fayadhowr. It is **not** pa
 | Area | Future Capability |
 | --- | --- |
 | **Services** | Recurring bookings, subscriptions, multi-technician assignment |
-| **Store** | Variants at scale, promotions/coupons, wishlists, bundles, industrial cleaning machines, and equipment without schema redesign |
+| **Store** | Variants at scale, promotions/coupons, wishlists, bundles; heavy cleaning equipment/machines (outside V1) |
 | **Quotations** | Multi-option parallel quote packages, e-signature (In-app Discuss Quotation messaging + revision on the same quotation is **in scope for V1** — not future work) |
 | **Payments** | Multiple gateways, wallets, split payments, escrow-like holds |
 | **Notifications** | Preference center, marketing campaigns with consent |
@@ -1125,7 +1249,7 @@ The system shall allow Admin to edit: Company Name, Logo (upload PNG/SVG, max 2 
 The system shall allow Admin to configure: Booking Working Hours (start/end), Working Days (day toggles), Holidays (table of holiday name, date, status), Booking Availability (open/closed), Default Booking Lead Time (12h/24h/48h/72h).
 
 #### FR-091.5 Store Settings
-The system shall allow Admin to manage: Product Categories (tag chips with add/remove), Default Delivery Fee (currency input), Tax Percentage, Inventory Warning Level (unit threshold).
+The system shall allow Admin to manage: Product Categories (Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, Air Fresheners), Default Delivery Fee (currency input), Tax Percentage, Inventory Warning Level / Low Stock Threshold (dashboard alerts; Email/SMS outside V1).
 
 #### FR-091.6 Payment Settings
 The system shall allow Admin to enable/disable the following payment methods via toggles: EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card. Additionally: Currency selector (USD/SOS), Payment Instructions (textarea). No payment gateway integration is included in this release.

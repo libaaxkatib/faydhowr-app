@@ -34,7 +34,7 @@ class CreateQuotationTest extends TestCase
             ->assertJsonPath('message', 'Quotation created successfully.')
             ->assertJsonPath('meta', null)
             ->assertJsonPath('data.booking', null)
-            ->assertJsonPath('data.status', 'draft')
+            ->assertJsonPath('data.status', 'pending_review')
             ->assertJsonPath('data.currency', 'USD')
             ->assertJsonPath('data.total_amount', '95.00');
 
@@ -46,7 +46,7 @@ class CreateQuotationTest extends TestCase
         $this->assertDatabaseHas('quotations', [
             'customer_profile_id' => $profile->id,
             'booking_id' => null,
-            'status' => 'draft',
+            'status' => 'pending_review',
             'currency' => 'USD',
             'subtotal' => 100,
             'discount_amount' => 10,
@@ -54,7 +54,7 @@ class CreateQuotationTest extends TestCase
             'total_amount' => 95,
         ]);
         $this->assertDatabaseHas('quotation_status_histories', [
-            'status' => 'draft',
+            'status' => 'pending_review',
             'changed_by_type' => 'user',
             'changed_by_id' => $user->id,
         ]);

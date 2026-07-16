@@ -26,11 +26,11 @@ class AcceptQuotationAction
                 ->first();
 
             if ($quotation === null) {
-                throw new ModelNotFoundException();
+                throw new ModelNotFoundException;
             }
 
             if (! in_array($quotation->status, [
-                QuotationStatus::Issued,
+                QuotationStatus::QuotationReady,
                 QuotationStatus::UnderDiscussion,
             ], true)) {
                 throw new DomainException('This quotation cannot be accepted.');

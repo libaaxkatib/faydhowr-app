@@ -22,7 +22,7 @@ return new class extends Migration
                 ->nullable()
                 ->constrained()
                 ->restrictOnDelete();
-            $table->string('status', 30)->default('draft');
+            $table->string('status', 30)->default('pending_review');
             $table->decimal('subtotal', 12, 2);
             $table->decimal('discount_amount', 12, 2)->default(0);
             $table->decimal('tax_amount', 12, 2)->default(0);
@@ -39,12 +39,12 @@ return new class extends Migration
 
         if (DB::getDriverName() === 'pgsql') {
             DB::statement(
-                "ALTER TABLE quotations ADD CONSTRAINT quotations_status_check "
-                ."CHECK (status IN ('draft', 'issued', 'under_discussion', 'accepted', "
-                ."'rejected', 'expired', 'cancelled'))",
+                'ALTER TABLE quotations ADD CONSTRAINT quotations_status_check '
+                ."CHECK (status IN ('pending_review', 'quotation_ready', 'under_discussion', "
+                ."'accepted', 'expired', 'cancelled'))",
             );
             DB::statement(
-                "ALTER TABLE quotations ADD CONSTRAINT quotations_number_format_check "
+                'ALTER TABLE quotations ADD CONSTRAINT quotations_number_format_check '
                 ."CHECK (quotation_number ~ '^QT-[0-9]{4}-[0-9]{6}$')",
             );
             DB::statement(

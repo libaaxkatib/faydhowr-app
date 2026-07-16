@@ -32,11 +32,11 @@ class CreateQuotationDiscussionMessageAction
                 ->first();
 
             if ($quotation === null) {
-                throw new ModelNotFoundException();
+                throw new ModelNotFoundException;
             }
 
             if (! in_array($quotation->status, [
-                QuotationStatus::Issued,
+                QuotationStatus::QuotationReady,
                 QuotationStatus::UnderDiscussion,
             ], true)) {
                 throw new DomainException('Discussion is not available for this quotation.');
@@ -49,7 +49,7 @@ class CreateQuotationDiscussionMessageAction
                 'attachments' => $attributes['attachments'] ?? null,
             ]);
 
-            if ($quotation->status === QuotationStatus::Issued) {
+            if ($quotation->status === QuotationStatus::QuotationReady) {
                 $quotation->status = QuotationStatus::UnderDiscussion;
                 $quotation->save();
 

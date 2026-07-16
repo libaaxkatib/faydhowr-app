@@ -28,12 +28,12 @@ return new class extends Migration
 
         if (DB::getDriverName() === 'pgsql') {
             DB::statement(
-                "ALTER TABLE quotation_status_histories ADD CONSTRAINT quotation_status_histories_status_check "
-                ."CHECK (status IN ('draft', 'issued', 'under_discussion', 'accepted', "
-                ."'rejected', 'expired', 'cancelled'))",
+                'ALTER TABLE quotation_status_histories ADD CONSTRAINT quotation_status_histories_status_check '
+                ."CHECK (status IN ('pending_review', 'quotation_ready', 'under_discussion', "
+                ."'accepted', 'expired', 'cancelled'))",
             );
             DB::statement(
-                "ALTER TABLE quotation_status_histories ADD CONSTRAINT quotation_status_histories_actor_type_check "
+                'ALTER TABLE quotation_status_histories ADD CONSTRAINT quotation_status_histories_actor_type_check '
                 ."CHECK (changed_by_type IN ('user', 'admin', 'system'))",
             );
         }

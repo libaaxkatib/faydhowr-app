@@ -147,7 +147,7 @@ Files shall be stored through Laravel's filesystem abstraction using an approved
 
 ### 10.1 Module Boundary
 
-Payment V1 is one unified, gateway-independent module for Service Orders and future Store Orders. A payment uses a polymorphic payable reference (`payable_type`, `payable_id`) to identify the originating payable domain record. The originating domain retains its commercial and workflow rules; Payment owns only the payment lifecycle, payment records, gateway integration, transactions, and receipt records.
+Payment V1 is one unified, gateway-independent module for Service Orders and Store Orders. A payment uses a polymorphic payable reference (`payable_type`, `payable_id`) to identify the originating payable domain record. The originating domain retains its commercial and workflow rules; Payment owns only the payment lifecycle, payment records, gateway integration, transactions, and receipt records.
 
 Payments follow ADR-001 ownership:
 
@@ -165,7 +165,7 @@ payments
 
 The approved Payment V1 lifecycle is: Pending → Initialized → Processing → Paid, Failed, or Cancelled. Refunds are outside V1.
 
-Orders begin in `pending_payment`. When a payment becomes Paid, the originating Order becomes `confirmed`. Failed or Cancelled payments do not automatically cancel an Order. Payment status transitions must be transactional and leave the originating domain responsible for its own allowed transitions.
+Orders begin in `pending_payment`. When a payment becomes Paid, the originating Order becomes `confirmed`. For Store Orders, Payment = Paid is also the sole trigger that decreases product stock and writes a Stock Ledger customer-sale entry; Failed or Cancelled payments do not change stock and do not automatically cancel an Order. Payment status transitions must be transactional and leave the originating domain responsible for its own allowed transitions.
 
 ### 10.3 Payment Persistence and Receipts
 
@@ -180,7 +180,52 @@ The Payment domain shall define a provider-neutral gateway abstraction. Provider
 
 ### 10.5 Events and Notifications
 
-Payment does not send notifications directly. It publishes domain events such as `PaymentPaid`, `PaymentFailed`, and `PaymentCancelled`; the future Notification Module consumes those events according to approved notification rules.
+Payment does not send notifications directly. It publishes domain events such as `PaymentPaid` and `PaymentFailed`; the future Notification Module consumes those events according to approved notification rules.
+
+## 10A. Store Domain Architecture
+
+### 10A.1 Module Boundary
+
+Store V1 is a physical-product commerce domain separate from Services and separate from Inventory purchasing. Store owns product catalog, categories, product images, cart, checkout, Store Orders, and Unified Payment integration. Store does not own suppliers, purchase orders, goods receipts, stock ledger maintenance, or stock adjustments.
+
+V1 categories: Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, Personal Protective Equipment (PPE), Air Fresheners. Heavy cleaning equipment and machines are outside V1.
+
+### 10A.2 Product Entity
+
+Products remain a single business entity shared across Store and Inventory. Product stores SKU, Name, Description, Selling Price, Cost Price, Currency, Current Stock, Low Stock Threshold, and Status. Inventory movements are stored separately in Stock Ledger. Changing Selling Price never changes Cost Price. Inventory costing methods are outside V1.
+
+### 10A.3 Store Order and Stock Rules
+
+Store Orders reuse the Unified Payment Module and follow `pending_payment` → `confirmed` → `processing` → `completed` / `cancelled`. Creating a Store Order never decreases stock. Stock decreases only after Payment = Paid. Failed or cancelled payments leave stock unchanged. Negative stock and overselling are not allowed.
+
+## 10B. Inventory Domain Architecture
+
+### 10B.1 Module Boundary
+
+Inventory is a separate business domain that manages Suppliers, Purchase Orders, Goods Receipts, Stock Ledger, Stock Adjustments, Stock Quantity, and Low Stock Alerts.
+
+### 10B.2 Stock Flow
+
+```text
+Supplier → Purchase Order → Goods Receipt → Inventory Increase → Store Product
+→ Customer Purchase → Payment Paid → Inventory Decrease → Stock Ledger Entry
+```
+
+Purchase Order alone never changes stock. Goods Receipt is allowed only after Purchase Order approval (`approved` or `partially_received`) and increases stock while creating Stock Ledger entries in `stock_ledgers`. Manual adjustments require quantity and reason (`Damaged`, `Lost`, `Correction`, `Physical Count`) and create Stock Ledger entries.
+
+### 10B.3 Purchase Order Lifecycle
+
+`Draft` → `Submitted` → `Approved` → `Partially Received` → `Completed` / `Cancelled`
+
+Submitted Purchase Orders must not receive inventory. Approval is required before Goods Receipt.
+
+### 10B.4 Stock Ledger
+
+Every stock movement is recorded in `stock_ledgers` with quantity, movement type, polymorphic reference, and timestamp. Movement types include Purchase Receipt, Customer Sale, Adjustment, Correction, Damage, and Loss.
+
+### 10B.5 Low Stock
+
+Each product defines Current Stock and Low Stock Threshold. Dashboard displays Low Stock alerts. Email/SMS low-stock notifications are outside V1.
 
 ## 11. Notification Architecture
 

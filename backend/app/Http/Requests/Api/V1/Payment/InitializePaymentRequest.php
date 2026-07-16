@@ -20,7 +20,8 @@ class InitializePaymentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'order_id' => ['required', 'integer'],
+            'order_id' => ['required_without:store_order_id', 'prohibits:store_order_id', 'integer'],
+            'store_order_id' => ['required_without:order_id', 'prohibits:order_id', 'integer'],
             'gateway' => ['required', 'string', 'max:50'],
             'gateway_reference' => ['nullable', 'string', 'max:191'],
         ];

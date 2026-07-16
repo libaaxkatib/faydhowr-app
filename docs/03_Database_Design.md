@@ -42,7 +42,8 @@ It intentionally does **not** include:
 **Business rules reflected in this design:**
 
 - The mobile application is **customer-only**; employees are not modeled in this version.
-- Store products **always display prices**; fixed-price purchase is the default path.
+- Store products **always display Selling Prices**; fixed-price purchase is the default path.
+- Every product also stores **Cost Price** for inventory valuation and profit reporting (not customer-facing checkout).
 - Customers may **optionally** request quotations for products (bulk, custom quantity, special requests).
 - Every active service supports both **Book Now** and **Request Quotation**. Services may display an optional Starting From price; final operational price is determined after assessment/review.
 - **Browse/catalog access** may occur without login; **authentication is required** to create a booking or place an order (and for related transactional actions such as quotation requests and payments, consistent with the SRS).
@@ -89,7 +90,7 @@ The Flutter customer app and the Laravel admin/API layer share this database thr
 | Timestamps | `created_at`, `updated_at`; soft delete via `deleted_at` where noted |
 | Money | `DECIMAL(12,2)` (or equivalent) with explicit `currency` where amounts are stored |
 | Status fields | Constrained string/enumeration values documented per table |
-| Public references | Unified unique codes: `CUS-YYYY-######`, `BK-YYYY-######`, `QT-YYYY-######`, `ORD-YYYY-######`, `PAY-YYYY-######`, `INV-YYYY-######`, `REF-YYYY-######` (stored in `*_number` fields in addition to internal `id`) |
+| Public references | Unified unique codes: `CUS-YYYY-######`, `BK-YYYY-######`, `QT-YYYY-######`, `ORD-YYYY-######` (service orders), `STO-YYYY-######` (store orders), `PAY-YYYY-######`, `RCPT-YYYY-######`, `PO-YYYY-######`, `GR-YYYY-######`, `INV-YYYY-######`, `REF-YYYY-######` (stored in `*_number` fields in addition to internal `id`) |
 
 ## 1.4 Common Column Patterns
 
@@ -110,7 +111,8 @@ Most transactional tables include:
 | --- | --- | --- |
 | **User Management** | Mobile user identity, customer profiles, addresses, saved payment methods, devices, auth recovery; admin operators & roles | `users`, `customer_profiles`, `customer_addresses`, `customer_payment_methods`, `customer_devices`, `password_reset_tokens`, `admins`, `roles`, `admin_role`, `permissions`, `role_permission` |
 | **Service Management** | Official services, modes, coverage, media, and schedule constraints | `service_categories`, `services`, `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates` |
-| **Store Management** | Product categories, products, media, cart | `product_categories`, `products`, `product_media`, `carts`, `cart_items` |
+| **Store Management** | Product catalog, categories, images, cart, store orders | `product_categories`, `products`, `product_images`, `product_price_tiers`, `carts`, `cart_items`, `store_orders`, `store_order_items`, `store_order_status_histories` |
+| **Inventory Management** | Suppliers, purchase orders, goods receipts, stock ledger, adjustments, low-stock | `suppliers`, `purchase_orders`, `purchase_order_items`, `purchase_order_status_histories`, `goods_receipts`, `goods_receipt_items`, `stock_ledgers`, `stock_adjustments` |
 | **Booking Management** | Customer-profile-owned service bookings and status history | `bookings`, `booking_status_histories` |
 | **Quotation Management** | Quote requests, issued quote revisions, discussion messages, attachments, line items, timeline | `quotation_requests`, `quotation_request_attachments`, `quotations`, `quotation_items`, `quotation_messages`, `quotation_message_attachments`, `quotation_status_histories` |
 | **Payment Management** | Unified payment lifecycle, gateway transactions, and receipts | `payments`, `payment_transactions`, `receipts` |
@@ -134,16 +136,28 @@ Most transactional tables include:
 
 ### Store Management
 
-- Store is a separate product-commerce module; products are not services.
-- V1 category seed scope: Cleaning Products, Cleaning Supplies, Cleaning Accessories, Consumables.
-- Every product has a **display price**.
-- Normal path: cart → order → payment.
+- Store is a separate physical-product commerce module; products are not services.
+- V1 category seed scope: Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, Personal Protective Equipment (PPE), Air Fresheners.
+- Heavy cleaning equipment and machines are outside V1.
+- Store owns catalog, categories, product images, cart, checkout, Store Orders, and Unified Payment integration.
+- Store does **not** own suppliers, purchase orders, goods receipts, stock ledger, or stock adjustments.
+- Every product has **Selling Price** (customer-facing) and **Cost Price** (inventory/accounting).
+- Normal path: cart → Store Order (`pending_payment`) → Payment → on `paid`, confirm order and decrease stock.
 - Optional path: product-related **quotation request** (does not replace fixed-price purchase).
+
+### Inventory Management
+
+- Inventory is a separate business domain from Store.
+- Inventory manages suppliers, purchase orders, goods receipts, stock ledger, stock adjustments, stock quantity, and low-stock alerts.
+- Purchase Order alone never changes stock; Goods Receipt increases stock and writes Stock Ledger entries.
+- Store Order creation never decreases stock; stock decreases only after Payment = `paid`.
+- Negative stock and overselling are not allowed.
+- Low-stock alerts appear on the Admin dashboard; Email/SMS low-stock notifications are outside V1.
 
 ### Booking / Quotation / Order / Payment
 
 - Aligns to SRS workflows §§9–11.
-- Payments attach to exactly one payable entity type: `order`, `booking`, or `quotation`.
+- Payments attach to a payable entity through polymorphic `payable_type` / `payable_id` (Service Orders and Store Orders in V1).
 
 ### Review Management
 
@@ -819,7 +833,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `product_categories` |
-| **Purpose** | Store catalog categories. |
+| **Purpose** | Store catalog categories. V1 seeds: Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, Air Fresheners. |
 | **Primary Key** | `id` |
 | **Foreign Keys** | `parent_id` → `product_categories.id` (optional) |
 
@@ -845,30 +859,32 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `products` |
-| **Purpose** | Sellable store products with **always-visible prices**. |
+| **Purpose** | Single sellable product entity shared by Store (catalog/commerce) and Inventory (stock quantity). |
 | **Primary Key** | `id` |
 | **Foreign Keys** | `category_id` → `product_categories.id` |
-| **Relationships** | 1:N media, cart_items, order_items; optional quotation_requests |
+| **Relationships** | 1:N product_images, cart_items, store_order_items, stock_ledgers; optional quotation_requests |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `category_id` | BIGINT UNSIGNED | R | FK |
+| `category_id` | BIGINT UNSIGNED | R | FK — V1 categories: Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, Air Fresheners |
 | `name` | VARCHAR(200) | R | |
 | `slug` | VARCHAR(220) | R | Unique |
 | `sku` | VARCHAR(64) | R | Unique inventory SKU (e.g. `CLN-000245`) |
 | `short_description` | VARCHAR(500) | O | |
 | `description` | TEXT | O | |
-| `price` | DECIMAL(12,2) | R | Base unit price — **always displayed** when no active tier applies |
+| `selling_price` | DECIMAL(12,2) | R | Customer-facing unit price — always displayed when no active tier applies |
+| `cost_price` | DECIMAL(12,2) | R | Amount paid to supplier; used for valuation/profit reporting; never changed by Selling Price edits |
 | `currency` | CHAR(3) | R | |
-| `unit` | VARCHAR(30) | R | Selling unit: `piece`, `pack`, `box`, `carton`, `bottle`, `liter`, `kg` (display with price, e.g. `12.00 / Bottle`) |
-| `availability_status` | VARCHAR(30) | R | `in_stock`, `low_stock`, `out_of_stock`, `available_on_request` |
-| `stock_qty` | INT | R | Inventory quantity when tracking |
-| `track_stock` | BOOLEAN | R | If false, stock qty checks may be skipped; status still required |
+| `unit` | VARCHAR(30) | R | Selling unit: `piece`, `pack`, `box`, `carton`, `bottle`, `liter`, `kg` (display with Selling Price, e.g. `12.00 / Bottle`) |
+| `current_stock` | INT | R | Authoritative on-hand quantity; never negative |
+| `low_stock_threshold` | INT | R | Dashboard Low Stock alert when `current_stock` <= threshold |
+| `status` | VARCHAR(30) | R | Product operational status (e.g. `active`, `inactive`); catalog visibility also uses `is_active` |
+| `availability_status` | VARCHAR(30) | R | Derived/display cue: `in_stock`, `low_stock`, `out_of_stock` (from Current Stock vs Low Stock Threshold) |
 | `badge` | VARCHAR(30) | O | Optional marketing badge: `new`, `best_seller`, `popular`, `limited_stock` |
-| `has_tier_pricing` | BOOLEAN | R | When true, use `product_price_tiers` for quantity bands |
+| `has_tier_pricing` | BOOLEAN | R | When true, use `product_price_tiers` for quantity bands on Selling Price |
 | `allow_optional_quotation` | BOOLEAN | R | Enables optional product quote via **shared** Quotation Module |
 | `is_active` | BOOLEAN | R | |
 | `sort_order` | INT | R | |
@@ -878,20 +894,28 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 #### Constraints
 
-- `price` >= 0 and NOT NULL (store product pricing rule)
+- `selling_price` >= 0 and NOT NULL
+- `cost_price` >= 0 and NOT NULL
+- `current_stock` >= 0 (negative stock never allowed)
+- `low_stock_threshold` >= 0
 - Unique `slug`; unique `sku` (required)
-- Purchases blocked when `availability_status = out_of_stock` (and when `track_stock=true` and `stock_qty <= 0`)
+- Purchases blocked when `availability_status = out_of_stock` or `current_stock` insufficient for requested quantity
 
 #### Validation Rules
 
-- Customers can browse, view price (+ unit), add to cart, and purchase at fixed or tier price.
-- Optional quotation for bulk/custom/special requests uses the **same** Quotation Module as services (`source = product`); does **not** hide `price`.
-- Checkout re-validates price (including applicable tier), availability, and stock at confirmation time.
+- Customers can browse, view Selling Price (+ unit), add to cart, and purchase at fixed or tier Selling Price.
+- Changing Selling Price never changes Cost Price.
+- Future purchase receipts may update Cost Price according to future inventory costing policies; costing methods are outside V1.
+- Optional quotation for bulk/custom/special requests uses the **same** Quotation Module as services (`source = product`); does **not** hide Selling Price.
+- Checkout / Store Order creation re-validates Selling Price (including applicable tier) and available stock; creation never decreases `current_stock`.
+- Stock decreases only after related Payment becomes `paid`; failed/cancelled payments leave stock unchanged.
+- Inventory movements are recorded in Stock Ledger; `current_stock` is the product’s on-hand balance.
 
 #### Notes
 
-- Gallery images live in `product_media` (ordered); client supports swipe + pagination + future zoom.
+- Gallery images live in `product_images` (ordered); client supports swipe + pagination + future zoom.
 - Variants at scale remain a future item; v1 keeps one sellable row per product with optional tier bands.
+- Heavy cleaning equipment and machines are outside V1 category scope.
 
 ### 3.3.2A `product_price_tiers` (optional quantity pricing)
 
@@ -908,16 +932,16 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | `unit_price` | Price per product unit within this band |
 | `sort_order` | Display order |
 
-If a product has only one fixed price (`has_tier_pricing=false`), show the single price. If tier pricing is enabled, display all tiers and apply the matching band to cart/checkout.
+If a product has only one fixed Selling Price (`has_tier_pricing=false`), show the single Selling Price. If tier pricing is enabled, display all tiers and apply the matching band to cart/checkout.
 
 ---
 
-### 3.3.3 `product_media`
+### 3.3.3 `product_images`
 
 | Attribute | Detail |
 | --- | --- |
-| **Table Name** | `product_media` |
-| **Purpose** | Product images/media. |
+| **Table Name** | `product_images` |
+| **Purpose** | Product gallery images (primary + additional). |
 | **Primary Key** | `id` |
 | **Foreign Keys** | `product_id` → `products.id` |
 
@@ -927,11 +951,9 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
 | `product_id` | BIGINT UNSIGNED | R | FK |
-| `media_type` | VARCHAR(30) | R | |
-| `url` | VARCHAR(500) | R | |
-| `alt_text` | VARCHAR(255) | O | |
+| `image_path` | VARCHAR(500) | R | Storage path |
 | `sort_order` | INT | R | |
-| `is_primary` | BOOLEAN | R | |
+| `is_primary` | BOOLEAN | R | Exactly one primary per product |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
 
@@ -966,7 +988,7 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 
 #### Notes
 
-- Cart unit prices are indicative until checkout confirmation.
+- Cart Selling Prices are indicative until checkout confirmation.
 
 ---
 
@@ -987,7 +1009,7 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 | `cart_id` | BIGINT UNSIGNED | R | FK |
 | `product_id` | BIGINT UNSIGNED | R | FK |
 | `quantity` | INT | R | > 0 |
-| `unit_price_snapshot` | DECIMAL(12,2) | R | Last seen price |
+| `unit_price_snapshot` | DECIMAL(12,2) | R | Last seen Selling Price |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
 
@@ -995,6 +1017,213 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 
 - Unique (`cart_id`, `product_id`) recommended
 - `quantity` > 0
+
+---
+
+## 3.3A Inventory Management
+
+Inventory is a separate domain from Store. Store owns catalog commerce; Inventory owns stock acquisition and stock movement integrity. Products remain a single entity; movements live in Stock Ledger while `products.current_stock` holds on-hand quantity.
+
+### 3.3A.1 `suppliers`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `suppliers` |
+| **Purpose** | Vendors from whom Fayadhowr purchases stock. |
+| **Primary Key** | `id` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `name` | VARCHAR(200) | R | |
+| `contact_person` | VARCHAR(150) | O | |
+| `phone` | VARCHAR(40) | O | |
+| `email` | VARCHAR(150) | O | |
+| `address` | TEXT | O | |
+| `status` | VARCHAR(30) | R | `active`, `inactive` |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
+| `deleted_at` | TIMESTAMP | O | |
+
+---
+
+### 3.3A.2 `purchase_orders`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `purchase_orders` |
+| **Purpose** | Inventory purchase commitments. Alone, never changes stock. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `supplier_id` → `suppliers.id` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `po_number` | VARCHAR(40) | R | Unique public reference |
+| `supplier_id` | BIGINT UNSIGNED | R | FK |
+| `status` | VARCHAR(30) | R | `draft`, `submitted`, `approved`, `partially_received`, `completed`, `cancelled` |
+| `currency` | CHAR(3) | R | |
+| `notes` | TEXT | O | |
+| `submitted_at` | TIMESTAMP | O | |
+| `approved_at` | TIMESTAMP | O | |
+| `completed_at` | TIMESTAMP | O | |
+| `cancelled_at` | TIMESTAMP | O | |
+| `created_by_admin_id` | BIGINT UNSIGNED | O | FK → `admins.id` |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
+
+#### Lifecycle
+
+`Draft` → `Submitted` → `Approved` → `Partially Received` → `Completed` / `Cancelled`
+
+#### Notes
+
+- Purchase Order never increments or decrements `products.current_stock`.
+- Stock changes only through Goods Receipt (increase) or paid customer sale / adjustment (decrease or correction).
+
+---
+
+### 3.3A.3 `purchase_order_items`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `purchase_order_items` |
+| **Purpose** | Ordered product lines on a Purchase Order. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `purchase_order_id` → `purchase_orders.id`, `product_id` → `products.id` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `purchase_order_id` | BIGINT UNSIGNED | R | FK |
+| `product_id` | BIGINT UNSIGNED | R | FK |
+| `quantity_ordered` | INT | R | > 0 |
+| `quantity_received` | INT | R | Default 0; updated by Goods Receipts |
+| `unit_cost` | DECIMAL(12,2) | R | Expected Cost Price for this PO line |
+| `line_total` | DECIMAL(12,2) | R | |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
+
+---
+
+### 3.3A.4 `goods_receipts`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `goods_receipts` |
+| **Purpose** | Confirmed receipt of goods against a Purchase Order; increases stock. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `purchase_order_id` → `purchase_orders.id` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `receipt_number` | VARCHAR(40) | R | Unique public reference |
+| `purchase_order_id` | BIGINT UNSIGNED | R | FK |
+| `received_at` | TIMESTAMP | R | |
+| `received_by_admin_id` | BIGINT UNSIGNED | O | FK → `admins.id` |
+| `notes` | TEXT | O | |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
+
+#### Validation Rules
+
+- Goods Receipt is allowed only when Purchase Order status is `approved` or `partially_received`.
+- Submitted Purchase Orders must not receive inventory.
+- Every Goods Receipt increases `products.current_stock` for received quantities.
+- Every Goods Receipt creates Stock Ledger entries in `stock_ledgers` (`movement_type = purchase_receipt`).
+- May move Purchase Order to `partially_received` or `completed`.
+
+---
+
+### 3.3A.5 `goods_receipt_items`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `goods_receipt_items` |
+| **Purpose** | Quantities received per product on a Goods Receipt. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `goods_receipt_id` → `goods_receipts.id`, `purchase_order_item_id` → `purchase_order_items.id`, `product_id` → `products.id` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `goods_receipt_id` | BIGINT UNSIGNED | R | FK |
+| `purchase_order_item_id` | BIGINT UNSIGNED | R | FK |
+| `product_id` | BIGINT UNSIGNED | R | FK |
+| `quantity_received` | INT | R | > 0 |
+| `unit_cost` | DECIMAL(12,2) | R | Actual received unit cost; may inform future Cost Price updates |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
+
+---
+
+### 3.3A.6 `stock_ledgers`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `stock_ledgers` |
+| **Purpose** | Append-only record of every stock movement. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `product_id` → `products.id` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `product_id` | BIGINT UNSIGNED | R | FK |
+| `movement_type` | VARCHAR(40) | R | `purchase_receipt`, `customer_sale`, `adjustment`, `correction`, `damage`, `loss` |
+| `quantity` | INT | R | Signed delta applied to stock (positive = increase, negative = decrease); nonzero |
+| `reference_type` | VARCHAR(40) | O | Polymorphic source (e.g. GoodsReceipt, StoreOrder) |
+| `reference_id` | BIGINT UNSIGNED | O | Polymorphic reference to source record |
+| `created_at` | TIMESTAMP | R | Movement timestamp |
+
+#### Notes
+
+- Customer Sale ledger entries are created only when Payment becomes `paid` (not at Store Order creation).
+- Purchase Receipt entries are created on Goods Receipt.
+- Adjustment / Correction / Damage / Loss entries are created from Inventory Adjustments (future).
+- Table name in implementation is `stock_ledgers` (not `stock_ledger_entries`).
+
+---
+
+### 3.3A.7 `stock_adjustments`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `stock_adjustments` |
+| **Purpose** | Manual inventory corrections requiring quantity and reason. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `product_id` → `products.id` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `product_id` | BIGINT UNSIGNED | R | FK |
+| `quantity` | INT | R | Signed adjustment delta; resulting stock must remain >= 0 |
+| `reason` | VARCHAR(40) | R | `damaged`, `lost`, `correction`, `physical_count` |
+| `notes` | TEXT | O | |
+| `adjusted_by_admin_id` | BIGINT UNSIGNED | O | FK → `admins.id` |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
+
+#### Validation Rules
+
+- Quantity and reason are required.
+- Every adjustment creates Stock Ledger entries with matching movement type (`damage`, `loss`, `correction`, or `stock_adjustment` for physical count).
 
 ---
 
@@ -1394,7 +1623,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `payments` |
-| **Purpose** | Customer-profile-owned authoritative payment lifecycle for Service Orders and future Store Orders. |
+| **Purpose** | Customer-profile-owned authoritative payment lifecycle for Service Orders and Store Orders. |
 | **Primary Key** | `id` |
 | **Foreign Keys** | `customer_profile_id` → `customer_profiles.id`; polymorphic payable reference |
 | **Relationships** | N:1 customer profile; 1:N gateway transactions; 1:1 receipt after successful payment |
@@ -1406,7 +1635,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | `id` | BIGINT UNSIGNED | R | PK |
 | `payment_number` | VARCHAR(40) | R | Unique public payment reference |
 | `customer_profile_id` | BIGINT UNSIGNED | R | FK |
-| `payable_type` | VARCHAR(30) | R | Polymorphic originating payable type; V1 Service Order, future Store Order |
+| `payable_type` | VARCHAR(30) | R | Polymorphic originating payable type; V1 Service Order and Store Order |
 | `payable_id` | BIGINT UNSIGNED | R | Originating payable entity id |
 | `amount` | DECIMAL(12,2) | R | Charged amount |
 | `currency` | CHAR(3) | R | |
@@ -1432,7 +1661,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 - Client cannot mark payment Paid; only gateway verification may do so.
 - Callback/webhook verification order is mandatory before state change: gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment validation, duplicate-callback check, then one atomic database transaction.
 - When Payment becomes Paid, the originating Order transitions from `pending_payment` to `confirmed` in the same approved transaction; Failed or Cancelled payments do not cancel Orders.
-- Payment publishes `PaymentPaid`, `PaymentFailed`, or `PaymentCancelled`; it does not notify customers directly.
+- Payment publishes `PaymentPaid` or `PaymentFailed`; it does not notify customers directly.
 
 #### Notes
 
@@ -1519,7 +1748,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | `booking_id` | BIGINT UNSIGNED | O | FK — populated when source chain passes through a booking |
 | `source_type` | VARCHAR(30) | R | `store_cart`, `product_quotation`, or `booking` |
 | `cart_id` | BIGINT UNSIGNED | O | Required for `store_cart`; source cart when applicable |
-| `status` | VARCHAR(30) | R | Order status: `awaiting_payment`, `paid`, `processing`, `ready`, `out_for_delivery`, `completed`, `cancelled` |
+| `status` | VARCHAR(30) | R | Order status: `pending_payment`, `confirmed`, `processing`, `completed`, `cancelled` |
 | `payment_status` | VARCHAR(20) | R | `unpaid`, `partially_paid`, `paid`, `refunded` |
 | `currency` | CHAR(3) | R | |
 | `subtotal_amount` | DECIMAL(12,2) | R | |
@@ -1543,16 +1772,20 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 - `quotation_id` is required only for `product_quotation` or quotation-derived `booking` orders.
 - `source_type` must be `store_cart`, `product_quotation`, or `booking`; `cart_id` is required for `store_cart`, and `booking_id` is required for `booking`.
 - Totals must equal sum of item snapshots + discount + delivery + tax (policy)
-- Order status in: `awaiting_payment`, `paid`, `processing`, `ready`, `out_for_delivery`, `completed`, `cancelled`
+- Order status in: `pending_payment`, `confirmed`, `processing`, `completed`, `cancelled`
 - Payment status in: `unpaid`, `partially_paid`, `paid`, `refunded`
 
 #### Validation Rules
 
 - Orders are created by the system at authenticated store-cart checkout or when an accepted quotation requires an order; never manually by Admin/Sales/Accountant.
-- Stock and price re-validated at placement.
+- Selling Price and available stock re-validated at Store Order placement; overselling is rejected.
+- Creating a Store Order never decreases `products.current_stock`.
+- Stock decreases only after related Payment becomes `paid`, and then a Stock Ledger `customer_sale` entry is written.
+- Failed or cancelled payments leave stock unchanged.
 - Suspended customers cannot place orders.
 - Order records are never permanently deleted.
 - Source link (cart, quotation, and/or booking as applicable) is permanent.
+- Store Orders reuse the Unified Payment Module and lifecycle: `pending_payment` → `confirmed` → `processing` → `completed` / `cancelled`.
 
 #### Notes
 
@@ -1589,7 +1822,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | `product_id` | BIGINT UNSIGNED | R | FK (reference; snapshot is source of truth) |
 | `product_name_snapshot` | VARCHAR(200) | R | |
 | `sku_snapshot` | VARCHAR(64) | O | |
-| `unit_price_snapshot` | DECIMAL(12,2) | R | Confirmed price |
+| `unit_price_snapshot` | DECIMAL(12,2) | R | Confirmed Selling Price |
 | `quantity` | INT | R | > 0 |
 | `line_total_snapshot` | DECIMAL(12,2) | R | |
 | `created_at` | TIMESTAMP | R | |
@@ -1648,7 +1881,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 #### Notes
 
 - Admin Order Timeline is read-only and must show **who** performed each event (resolved actor name + role for admins, customer name, or **System**).
-- Order statuses: Awaiting Payment · Paid · Processing · Ready · Out for Delivery · Completed · Cancelled.
+- Order statuses: Pending Payment · Confirmed · Processing · Completed · Cancelled.
 - Payment statuses: Unpaid · Partially Paid · Paid · Refunded.
 
 ---
@@ -1847,8 +2080,11 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | `customer_profiles` | `customer_addresses`, `customer_payment_methods`, `customer_notes`, `bookings`, `quotation_requests`, `orders`, `payments`, `reviews` | Customer business/profile data and approved business-module ownership |
 | `service_categories` | `services` | Category catalog |
 | `services` | `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates`, `bookings`, `quotation_requests` | Service definition, availability, and usage |
-| `product_categories` | `products` | Store taxonomy |
-| `products` | `product_media`, `cart_items`, `order_items`, `quotation_requests` | Product definition and commerce |
+| `product_categories` | `products` | Store taxonomy (V1: Chemicals, Tools, Accessories, PPE, Air Fresheners) |
+| `products` | `product_images`, `cart_items`, `store_order_items`, `quotation_requests`, `stock_ledgers`, `purchase_order_items`, `stock_adjustments` | Product definition, commerce, and on-hand stock |
+| `suppliers` | `purchase_orders` | Inventory procurement |
+| `purchase_orders` | `purchase_order_items`, `goods_receipts` | PO lifecycle; never changes stock alone |
+| `goods_receipts` | `goods_receipt_items`, `stock_ledgers` | Stock increase source |
 | `carts` | `cart_items` | Cart composition |
 | `bookings` | `booking_status_histories` | Status audit |
 | `quotation_requests` | `quotation_request_attachments`, `quotations` | Request lifecycle |
@@ -1869,7 +2105,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 | Source | Discriminator | Targets | Purpose |
 | --- | --- | --- | --- |
-| `payments` | `payable_type` + `payable_id` | Service Orders and future Store Orders | Unified payment ledger |
+| `payments` | `payable_type` + `payable_id` | Service Orders and Store Orders | Unified payment ledger |
 | `quotation_requests` | `request_target_type` | `bookings` or `products` | Booking-origin service and optional product quotes |
 | `notifications` | `reference_type` + `reference_id` | booking/order/quote/payment/etc. | Deep links |
 | `reviews` | `review_target_type` | product/service/order/booking | Feedback targets |
@@ -1894,6 +2130,11 @@ users ──┬── customer_profiles (1:1) ──┬── customer_addresses
         └── authentication recovery/tokens
 
 products  <── product_categories
+products  <── stock_ledgers / stock_adjustments / purchase_order_items
+suppliers ── purchase_orders ── purchase_order_items
+purchase_orders ── goods_receipts ── goods_receipt_items
+customer_profiles ── store_orders ── store_order_items
+store_orders / goods_receipts ── stock_ledgers (polymorphic reference)
 services  <── service_categories
 
 admins ── admin_role ── roles ── role_permission ── permissions
@@ -1930,9 +2171,17 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | `service_coverage_cities` | UNIQUE(`service_id`, `city`) | Service coverage validation |
 | `product_categories` | UNIQUE(`slug`) | Lookup |
 | `products` | UNIQUE(`slug`) | Detail lookup |
-| `products` | UNIQUE(`sku`) | Inventory ops |
+| `products` | UNIQUE(`sku`) | Inventory / catalog ops |
 | `products` | (`is_active`, `category_id`, `sort_order`) | Store browse |
+| `products` | (`current_stock`, `low_stock_threshold`) | Low-stock dashboard alerts |
 | `products` | (`allow_optional_quotation`, `is_active`) | Quote-enabled products |
+| `purchase_orders` | UNIQUE(`po_number`) | PO lookup |
+| `purchase_orders` | (`status`, `supplier_id`, `created_at`) | Inventory ops lists |
+| `goods_receipts` | UNIQUE(`receipt_number`) | Receipt lookup |
+| `stock_ledgers` | (`product_id`, `created_at`) | Product movement history |
+| `stock_ledgers` | (`reference_type`, `reference_id`) | Trace source document |
+| `store_orders` | UNIQUE(`store_order_number`) | Store order lookup |
+| `store_orders` | (`customer_profile_id`, `status`, `created_at`) | Customer order lists |
 
 ## 5.3 Cart / Order / Booking
 
@@ -2000,18 +2249,25 @@ Indexes below are recommendations for common access paths. Exact index types dep
 
 ## 6.2 Catalog Integrity
 
-1. Every **product** must have a non-null display `price` (>= 0).
-2. Fixed-price purchase remains available even when `allow_optional_quotation = true`.
-3. Inactive products/services are excluded from new carts/bookings/quote requests.
-4. Historical order/booking/quote snapshots remain valid after catalog edits.
-5. Every active service supports both Book Now and Request Quotation; the optional Starting From amount is not a final assessed price.
+1. Every **product** must have a non-null `selling_price` (>= 0) and `cost_price` (>= 0).
+2. Changing Selling Price never changes Cost Price.
+3. Fixed-price purchase remains available even when `allow_optional_quotation = true`.
+4. Inactive products/services are excluded from new carts/bookings/quote requests.
+5. Historical order/booking/quote snapshots remain valid after catalog edits.
+6. Every active service supports both Book Now and Request Quotation; the optional Starting From amount is not a final assessed price.
+7. V1 Store categories are limited to Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, and Air Fresheners.
 
 ## 6.3 Stock & Pricing Integrity
 
-1. At checkout, re-validate product price and stock against `products`.
-2. Persist confirmed amounts on `order_items` snapshots.
+1. At Store Order creation, re-validate Selling Price and available stock against `products`; reject overselling.
+2. Persist confirmed Selling Price amounts on `order_items` snapshots.
 3. Cart snapshots are indicative only.
-4. Payment `amount` must equal server-calculated payable total at initiation.
+4. Creating a Store Order never decreases stock.
+5. Stock decreases only after Payment = `paid`; failed or cancelled payments leave stock unchanged.
+6. Negative stock is never allowed; every movement leaves `quantity_after` >= 0.
+7. Purchase Order alone never changes stock; Goods Receipt increases stock and writes Stock Ledger entries.
+8. Manual adjustments require quantity + reason and write Stock Ledger entries.
+9. Payment `amount` must equal server-calculated payable total at initiation.
 
 ## 6.4 Booking Integrity
 
@@ -2028,7 +2284,7 @@ Indexes below are recommendations for common access paths. Exact index types dep
 2. Product quote requests allowed only when product opts in.
 3. Every active service supports a quotation request through its booking-origin path; no service pricing classification gates this action.
 4. Only one accept-eligible quotation active per request.
-5. Acceptance locked after `valid_until` or non-`issued` status.
+5. Acceptance locked after `valid_until` or status outside `quotation_ready` / `under_discussion`.
 6. Accepted **latest** quotation required before quotation-targeted payment. Never use Rejected status.
 
 ## 6.6 Payment Integrity
@@ -2136,7 +2392,7 @@ Indexes below are recommendations for common access paths. Exact index types dep
 
 | Future Need | How Current Design Extends |
 | --- | --- |
-| Future equipment/products | Add product categories and products (including industrial cleaning machines/equipment) without redesigning core product tables; add `product_variants` later if needed |
+| Future equipment/products | Heavy cleaning equipment and machines are outside V1; when approved later, add categories/products without redesigning core product or inventory ledger tables; add `product_variants` later if needed |
 | Future service expansion | Add catalog rows, `service_modes`, and coverage rows; new service modes/subtypes do not require a second service schema |
 | Promotions/coupons | Add discount tables; keep order snapshot totals |
 | Multi-currency | Already have `currency` fields; extend settings + FX tables later |

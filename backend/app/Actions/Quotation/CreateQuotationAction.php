@@ -32,7 +32,7 @@ class CreateQuotationAction
                 'quotation_number' => $this->nextQuotationNumber(),
                 'customer_profile_id' => $profile->id,
                 'booking_id' => $booking?->id,
-                'status' => QuotationStatus::Draft,
+                'status' => QuotationStatus::PendingReview,
                 'currency' => $attributes['currency'],
                 'subtotal' => $attributes['subtotal'],
                 'discount_amount' => $attributes['discount_amount'] ?? 0,
@@ -43,7 +43,7 @@ class CreateQuotationAction
             ]);
 
             $quotation->statusHistories()->create([
-                'status' => QuotationStatus::Draft,
+                'status' => QuotationStatus::PendingReview,
                 'changed_by_type' => 'user',
                 'changed_by_id' => $profile->user_id,
                 'notes' => null,
