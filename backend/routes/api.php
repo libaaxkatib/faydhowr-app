@@ -7,6 +7,9 @@ use App\Http\Controllers\Api\V1\Auth\RegistrationController;
 use App\Http\Controllers\Api\V1\Booking\BookingController;
 use App\Http\Controllers\Api\V1\Customer\CustomerAddressController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
+use App\Http\Controllers\Api\V1\Quotation\QuotationController;
+use App\Http\Controllers\Api\V1\Quotation\QuotationAcceptanceController;
+use App\Http\Controllers\Api\V1\Quotation\QuotationDiscussionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -66,6 +69,23 @@ Route::prefix('v1/bookings')
             ->name('api.v1.bookings.show');
         Route::post('{booking}/cancel', [BookingController::class, 'cancel'])
             ->name('api.v1.bookings.cancel');
+    });
+
+Route::prefix('v1/quotations')
+    ->middleware('auth:sanctum')
+    ->group(function (): void {
+        Route::get('/', [QuotationController::class, 'index'])
+            ->name('api.v1.quotations.index');
+        Route::post('/', [QuotationController::class, 'store'])
+            ->name('api.v1.quotations.store');
+        Route::get('{quotation}/discussion', [QuotationDiscussionController::class, 'index'])
+            ->name('api.v1.quotations.discussion.index');
+        Route::post('{quotation}/discussion', [QuotationDiscussionController::class, 'store'])
+            ->name('api.v1.quotations.discussion.store');
+        Route::post('{quotation}/accept', [QuotationAcceptanceController::class, 'store'])
+            ->name('api.v1.quotations.accept');
+        Route::get('{quotation}', [QuotationController::class, 'show'])
+            ->name('api.v1.quotations.show');
     });
 
 Route::get('/user', function (Request $request) {

@@ -44,6 +44,14 @@ class CustomerProfile extends Model
     }
 
     /**
+     * @return HasMany<Quotation, $this>
+     */
+    public function quotations(): HasMany
+    {
+        return $this->hasMany(Quotation::class);
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
