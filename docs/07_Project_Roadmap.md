@@ -101,7 +101,7 @@ Phases are sequential for **major dependencies**, with limited parallelization o
 | **12** | Cart & Checkout | Cart management, checkout, order create/confirm |
 | **13** | Payment Integration | Initialize, webhook/callback, success/failure, history |
 | **14** | Favorites | Add/remove/list; heart on service/product cards |
-| **15** | Notifications | List, mark read, unread count, push wiring |
+| **15** | Notifications | Sprint 12 foundation: list/read/unread-count, preferences, templates, channel queues, lifecycle, archive |
 | **16** | Profile | Profile, addresses, histories entry, settings, legal, logout |
 | **17** | Testing | Functional, integration, regression, device/QA cycles |
 | **18** | Bug Fixes | Resolve blockers, criticals, and high-priority defects |
@@ -181,7 +181,7 @@ Assumes **2-week sprints**. Exact sprint count may flex by team velocity; order 
 | **G12** | Phase 12 Cart & Checkout | Order create + confirmation; overselling rejected; stock unchanged until Payment Paid | Stock decreased at checkout; negative stock allowed |
 | **G13** | Phase 13 Payments | Initialize + webhook idempotency + success/failure UX | Client-only “success”; amount mismatches |
 | **G14** | Phase 14 Favorites | Auth save/list; hearts on cards | Favorites mutating checkout/booking flows |
-| **G15** | Phase 15 Notifications | List/read/count + deep links | Secrets in payloads; missing owner scope |
+| **G15** | Phase 15 Notifications | List/read/count + lifecycle + owner scope | Secrets in payloads; missing owner scope; skipping archive for terminal cleanup |
 | **G16** | Phase 16 Profile | Profile/addresses/histories/logout complete | Asking duplicate data already known |
 | **G17** | Phase 17 Testing | Test plan executed; critical paths green | Untested payments/booking/quote |
 | **G18** | Phase 18 Bug Fixes | No open critical/blocker bugs | Critical defects remain |

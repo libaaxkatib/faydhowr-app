@@ -2,9 +2,12 @@
 
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminPermissionController;
+use App\Http\Controllers\Api\V1\Admin\ArchivedNotificationController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\Auth\AdminAuthController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
+use App\Http\Controllers\Api\V1\Admin\NotificationTemplateController;
+use App\Http\Controllers\Api\V1\Admin\NotificationTemplateTranslationController;
 use App\Http\Controllers\Api\V1\Admin\PermissionController;
 use App\Http\Controllers\Api\V1\Auth\AuthenticatedUserController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
@@ -16,6 +19,8 @@ use App\Http\Controllers\Api\V1\Checkout\CheckoutController;
 use App\Http\Controllers\Api\V1\Customer\CustomerAddressController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
 use App\Http\Controllers\Api\V1\GoodsReceipt\GoodsReceiptController;
+use App\Http\Controllers\Api\V1\Notification\NotificationController;
+use App\Http\Controllers\Api\V1\Notification\NotificationPreferenceController;
 use App\Http\Controllers\Api\V1\Order\OrderController;
 use App\Http\Controllers\Api\V1\Order\OrderLifecycleController;
 use App\Http\Controllers\Api\V1\Payment\PaymentController;
@@ -108,6 +113,39 @@ Route::prefix('v1/admin')
         Route::put('admins/{admin}/permissions', [AdminPermissionController::class, 'update'])
             ->middleware('permission:roles.manage')
             ->name('api.v1.admin.admins.permissions.update');
+
+        Route::get('notification-templates', [NotificationTemplateController::class, 'index'])
+            ->middleware('permission:notifications.manage')
+            ->name('api.v1.admin.notification-templates.index');
+        Route::get('notification-templates/{template}', [NotificationTemplateController::class, 'show'])
+            ->middleware('permission:notifications.manage')
+            ->whereNumber('template')
+            ->name('api.v1.admin.notification-templates.show');
+        Route::post('notification-templates', [NotificationTemplateController::class, 'store'])
+            ->middleware('permission:notifications.manage')
+            ->name('api.v1.admin.notification-templates.store');
+        Route::put('notification-templates/{template}', [NotificationTemplateController::class, 'update'])
+            ->middleware('permission:notifications.manage')
+            ->whereNumber('template')
+            ->name('api.v1.admin.notification-templates.update');
+
+        Route::get('notification-templates/{template}/translations', [NotificationTemplateTranslationController::class, 'index'])
+            ->middleware('permission:notifications.manage')
+            ->whereNumber('template')
+            ->name('api.v1.admin.notification-templates.translations.index');
+        Route::post('notification-templates/{template}/translations', [NotificationTemplateTranslationController::class, 'store'])
+            ->middleware('permission:notifications.manage')
+            ->whereNumber('template')
+            ->name('api.v1.admin.notification-templates.translations.store');
+        Route::put('notification-templates/{template}/translations/{translation}', [NotificationTemplateTranslationController::class, 'update'])
+            ->middleware('permission:notifications.manage')
+            ->whereNumber('template')
+            ->whereNumber('translation')
+            ->name('api.v1.admin.notification-templates.translations.update');
+
+        Route::get('archived-notifications', [ArchivedNotificationController::class, 'index'])
+            ->middleware('permission:notifications.manage')
+            ->name('api.v1.admin.archived-notifications.index');
     });
 
 Route::get('v1/customer/profile', [CustomerProfileController::class, 'show'])
@@ -314,6 +352,28 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:goods_receipts.manage'])
         ->name('api.v1.goods-receipts.show');
     Route::post('v1/goods-receipts', [GoodsReceiptController::class, 'store'])
         ->name('api.v1.goods-receipts.store');
+});
+
+Route::middleware('auth:sanctum')->prefix('v1/notifications')->group(function (): void {
+    Route::get('/', [NotificationController::class, 'index'])
+        ->name('api.v1.notifications.index');
+    Route::get('unread-count', [NotificationController::class, 'unreadCount'])
+        ->name('api.v1.notifications.unread-count');
+    Route::patch('read-all', [NotificationController::class, 'markAllRead'])
+        ->name('api.v1.notifications.read-all');
+    Route::get('{notification}', [NotificationController::class, 'show'])
+        ->whereNumber('notification')
+        ->name('api.v1.notifications.show');
+    Route::patch('{notification}/read', [NotificationController::class, 'markRead'])
+        ->whereNumber('notification')
+        ->name('api.v1.notifications.read');
+});
+
+Route::middleware('auth:sanctum')->prefix('v1/notification-preferences')->group(function (): void {
+    Route::get('/', [NotificationPreferenceController::class, 'index'])
+        ->name('api.v1.notification-preferences.index');
+    Route::put('/', [NotificationPreferenceController::class, 'update'])
+        ->name('api.v1.notification-preferences.update');
 });
 
 Route::get('/user', function (Request $request) {

@@ -184,7 +184,7 @@ The Payment domain shall define a provider-neutral gateway abstraction. Provider
 
 ### 10.5 Events and Notifications
 
-Payment does not send notifications directly. It publishes domain events such as `PaymentPaid` and `PaymentFailed`; the future Notification Module consumes those events according to approved notification rules.
+Payment does not send notifications directly. It publishes domain events such as `PaymentPaid` and `PaymentFailed`; the Notification Module consumes those via `NotificationRequested` according to approved notification rules.
 
 ## 10A. Store Domain Architecture
 
@@ -233,7 +233,15 @@ Each product defines Current Stock and Low Stock Threshold. Dashboard displays L
 
 ## 11. Notification Architecture
 
-Notifications shall use Laravel notification channels and queued delivery where applicable. Notification templates, preferences, delivery status, and failure handling shall be designed around approved business requirements.
+Sprint 12 Notification Architecture (Option B):
+
+1. **Event-driven dispatch:** Domain modules publish `NotificationRequested`. Listeners persist notifications; business modules never dispatch notification jobs directly.
+2. **Templates:** Admin-managed `notification_templates` with optional `notification_template_translations` (`so`/`en`/`ar`) and `{{placeholder}}` rendering.
+3. **Preferences:** Polymorphic `notification_preferences` gate channels per type (defaults: in_app/email on, sms off).
+4. **Channel queues:** Dedicated queues `notifications-in-app`, `notifications-email`, `notifications-sms` selected from `Notification.channel`.
+5. **Enterprise lifecycle:** `pending` → `processing` → `sent` → `delivered` → `read`, with `processing` → `failed`. V1 in-app auto-marks `delivered` after successful send; email/SMS await provider callbacks for `delivered`.
+6. **Archive:** Terminal `read`/`failed` rows move atomically to `archived_notifications` (admin browse with `notifications.manage`).
+7. **Idempotency:** Unique (`recipient_type`, `recipient_id`, `channel`, `event_id`).
 
 ## 12. Logging & Error Handling
 

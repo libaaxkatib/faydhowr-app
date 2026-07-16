@@ -117,7 +117,7 @@ Most transactional tables include:
 | **Quotation Management** | Quote requests, issued quote revisions, discussion messages, attachments, line items, timeline | `quotation_requests`, `quotation_request_attachments`, `quotations`, `quotation_items`, `quotation_messages`, `quotation_message_attachments`, `quotation_status_histories` |
 | **Payment Management** | Unified payment lifecycle, gateway transactions, and receipts | `payments`, `payment_transactions`, `receipts` |
 | **Order Management** | Store orders and line items | `orders`, `order_items`, `order_status_histories` |
-| **Notification Management** | Templates, in-app notifications | `notification_templates`, `notifications` |
+| **Notification Management** | Templates, translations, preferences, lifecycle delivery, archive | `notification_templates`, `notification_template_translations`, `notification_preferences`, `notifications`, `archived_notifications` |
 | **Review Management** | Customer reviews after eligible completed activity | `reviews` |
 | **Settings** | System configuration and audit | `settings`, `audit_logs` |
 
@@ -1887,6 +1887,8 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 ## 3.8 Notification Management
 
+Sprint 12 Notification Architecture (Option B) is authoritative for schema and lifecycle.
+
 ### 3.8.1 `notification_templates`
 
 | Attribute | Detail |
@@ -1900,55 +1902,106 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `code` | VARCHAR(100) | R | Unique event key |
-| `channel` | VARCHAR(30) | R | `push`, `in_app`, `email`, `sms` |
-| `title_template` | VARCHAR(255) | R | |
-| `body_template` | TEXT | R | |
-| `is_active` | BOOLEAN | R | |
+| `template_key` | VARCHAR(100) | R | Unique template key |
+| `name` | VARCHAR(150) | R | Admin display name |
+| `type` | VARCHAR(30) | R | `booking`, `quotation`, `order`, `payment`, `store_order`, `inventory`, `system` |
+| `channel` | VARCHAR(30) | R | `in_app`, `email`, `sms` |
+| `language` | VARCHAR(10) | R | Base/default language code |
+| `title` | VARCHAR(255) | R | Base title template (`{{placeholders}}`) |
+| `message` | TEXT | R | Base message template |
+| `subject` | VARCHAR(255) | O | Email subject template |
+| `status` | VARCHAR(30) | R | `active`, `inactive` |
+| `variables` | JSON | O | Declared placeholder names |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
 
 #### Validation Rules
 
 - Templates must not include secret placeholders (card data, raw OTPs outside auth flows).
+- Only `active` templates may be rendered for dispatch.
 
----
+### 3.8.2 `notification_template_translations`
 
-### 3.8.2 `notifications`
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `notification_template_translations` |
+| **Purpose** | Per-language overrides for templates (`so`, `en`, `ar`). |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `notification_template_id` → `notification_templates.id` (cascade delete) |
+
+Unique (`notification_template_id`, `language`). Render fallback: requested language → base template language → `en` → template body.
+
+### 3.8.3 `notification_preferences`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `notification_preferences` |
+| **Purpose** | Per-recipient, per-type channel toggles (polymorphic recipient). |
+| **Primary Key** | `id` |
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `recipient_type` | VARCHAR(100) | R | `App\Models\Admin` or `App\Models\CustomerProfile` |
+| `recipient_id` | BIGINT UNSIGNED | R | |
+| `notification_type` | VARCHAR(30) | R | Same catalog as notification `type` |
+| `in_app` | BOOLEAN | R | Default true when unresolved |
+| `email` | BOOLEAN | R | Default true when unresolved |
+| `sms` | BOOLEAN | R | Default false when unresolved |
+
+Unique (`recipient_type`, `recipient_id`, `notification_type`). Missing rows use dynamic defaults (no auto-seeded preference rows).
+
+### 3.8.4 `notifications`
 
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `notifications` |
-| **Purpose** | Persisted in-app notifications for customers. |
+| **Purpose** | Persisted notifications for polymorphic recipients (`Admin` \| `CustomerProfile`). |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `user_id` → `users.id` |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `user_id` | BIGINT UNSIGNED | R | FK |
-| `template_code` | VARCHAR(100) | O | |
+| `recipient_type` | VARCHAR(100) | R | Morph type |
+| `recipient_id` | BIGINT UNSIGNED | R | Morph id |
+| `type` | VARCHAR(30) | R | Business notification type |
+| `channel` | VARCHAR(30) | R | `in_app`, `email`, `sms` |
+| `status` | VARCHAR(30) | R | Enterprise lifecycle (below) |
 | `title` | VARCHAR(255) | R | Rendered |
-| `body` | TEXT | R | Rendered |
-| `event_type` | VARCHAR(50) | R | booking/order/quote/payment/account |
-| `reference_type` | VARCHAR(30) | O | Related entity type |
-| `reference_id` | BIGINT UNSIGNED | O | Related entity id |
-| `is_read` | BOOLEAN | R | Default false |
-| `read_at` | TIMESTAMP | O | |
-| `push_status` | VARCHAR(30) | O | `pending`, `sent`, `failed`, `skipped` |
+| `message` | TEXT | R | Rendered |
+| `data` | JSON | O | Includes `event_id`, template metadata, variables |
+| `event_id` | VARCHAR(100) | R | Dispatch idempotency key (also mirrored in `data`) |
+| `processing_started_at` | TIMESTAMPTZ | O | |
+| `sent_at` | TIMESTAMPTZ | O | |
+| `delivered_at` | TIMESTAMPTZ | O | |
+| `read_at` | TIMESTAMPTZ | O | |
+| `failed_at` | TIMESTAMPTZ | O | |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
 
+#### Enterprise lifecycle
+
+`pending` → `processing` → `sent` → `delivered` → `read`  
+`processing` → `failed`
+
+V1 in-app: after successful channel processing, `sent` → `delivered` immediately. Email/SMS remain at `sent` until future provider callbacks move them to `delivered`.
+
 #### Constraints / Validation
 
-- Users may only read their own notifications.
-- Delivery failure must not roll back the business transaction that emitted the event.
+- Unique (`recipient_type`, `recipient_id`, `channel`, `event_id`).
+- Recipients may only read their own notifications.
+- Delivery failure must not roll back the business transaction that emitted the domain event.
+- Customers never delete live notifications; terminal rows may be moved to archive.
 
-#### Notes
+### 3.8.5 `archived_notifications`
 
-- Deep link targets use `reference_type` + `reference_id`.
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `archived_notifications` |
+| **Purpose** | Cold storage for terminal notifications (`read`, `failed`). Never delete without archiving. |
+
+Preserves recipient, type, channel, status, title, message, data, lifecycle timestamps, `original_notification_id`, `archived_at`, and original `created_at`. Unique `original_notification_id`. Admin browse only (`notifications.manage`).
 
 ---
 
@@ -2218,8 +2271,9 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | `payments` | (`customer_profile_id`, `created_at`) | Customer payments |
 | `payments` | (`status`, `created_at`) | Finance queues |
 | `payments` | (`provider`, `provider_reference`) | Webhook reconciliation |
-| `notifications` | (`user_id`, `is_read`, `created_at`) | Inbox |
-| `notifications` | (`reference_type`, `reference_id`) | Entity-related notices |
+| `notifications` | (`recipient_type`, `recipient_id`, `status`) | Inbox |
+| `notifications` | (`recipient_type`, `recipient_id`, `channel`, `event_id`) UNIQUE | Dispatch idempotency |
+| `archived_notifications` | (`archived_at`), (`recipient_type`, `recipient_id`) | Admin archive browse |
 
 ## 5.5 Reviews / Settings / Audit
 
@@ -2378,14 +2432,14 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | Catalog (products/services) | Medium | Category + active composite indexes; media in object storage |
 | Orders / bookings / quotes | High | Number-based lookups; status queues indexed; paginated history |
 | Payments | High | Idempotent unique keys; archive successful old rows to cold storage later if needed |
-| Notifications | Very high | Per-customer composite indexes; retention/purge policy for old read notifications |
+| Notifications | Very high | Per-recipient composite indexes; archive terminal (`read`/`failed`) rows to `archived_notifications`; retention via archive foundation |
 | Audit logs | High write | Append-only; partition by time when volume requires |
 
 ## 8.2 Vertical & Horizontal Strategies
 
 1. **Start monolithic DB** with clear module boundaries (matches SRS modular domains).
 2. **Read replicas** for heavy catalog browse and customer history reads as traffic grows.
-3. **Partition/archive** large append tables (`notifications`, `audit_logs`, old `payments`) by month/year.
+3. **Partition/archive** large append tables (`notifications` via `archived_notifications`, `audit_logs`, old `payments`) by month/year.
 4. **Object storage** for media/attachments; database stores URLs/metadata only.
 5. **Async workers** for push sending and webhook processing to keep OLTP writes lean.
 6. **Avoid premature sharding**; if needed later, shard customer business data by `customer_profile_id`.
@@ -2545,16 +2599,7 @@ Stores company holidays for Service Settings.
 
 ### `notification_templates` Table
 
-Stores editable notification message templates.
-
-| Column | Type | Constraints | Description |
-| --- | --- | --- | --- |
-| `id` | BIGINT | PK, auto-increment | Template ID |
-| `template_key` | VARCHAR(50) | NOT NULL, UNIQUE | Template identifier (e.g., "booking_confirmation") |
-| `title` | VARCHAR(100) | NOT NULL | Display name |
-| `body` | TEXT | NOT NULL | Template body with placeholders ({customer_name}, {booking_id}, etc.) |
-| `updated_by` | BIGINT | FK → `users.id`, NULLABLE | Last editor |
-| `updated_at` | TIMESTAMP | NOT NULL | Last modification timestamp |
+Authoritative schema is §3.8.1 (Sprint 12). Settings UI manages the same table via Admin Notification Template APIs (`notifications.manage`): `template_key`, `name`, `type`, `channel` (`in_app`|`email`|`sms`), base language body, status, variables, plus optional `notification_template_translations`.
 
 ### Settings Category → Key Mapping
 
@@ -2564,7 +2609,7 @@ Stores editable notification message templates.
 | service | booking_start_time, booking_end_time, working_days (JSON array), booking_availability, default_lead_time |
 | store | default_delivery_fee, tax_percentage, inventory_warning_level |
 | payment | enabled_methods (JSON array), currency, payment_instructions |
-| notification | push_enabled, email_enabled, sms_enabled |
+| notification | Managed via Notification Module tables/APIs (templates, translations, preferences, archive) — not legacy push/email/sms JSON keys |
 | security | min_password_length, password_complexity, password_expiry, session_timeout, login_audit_enabled |
 | numbering | prefix_customer, prefix_booking, prefix_quotation, prefix_order, prefix_payment |
 | localization | default_language, currency, timezone, date_format |

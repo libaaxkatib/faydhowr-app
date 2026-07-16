@@ -14,6 +14,7 @@ enum AdminPermission: string
 
     case AdminsManage = 'admins.manage';
     case RolesManage = 'roles.manage';
+    case NotificationsManage = 'notifications.manage';
 
     public function label(): string
     {
@@ -26,6 +27,7 @@ enum AdminPermission: string
             self::GoodsReceiptsManage => 'Manage Goods Receipts',
             self::AdminsManage => 'Manage Admins',
             self::RolesManage => 'Manage Roles',
+            self::NotificationsManage => 'Manage Notifications',
         };
     }
 
@@ -39,7 +41,8 @@ enum AdminPermission: string
             self::PurchaseOrdersManage,
             self::GoodsReceiptsManage => 'Inventory',
             self::AdminsManage,
-            self::RolesManage => 'Admins',
+            self::RolesManage,
+            self::NotificationsManage => 'Admins',
         };
     }
 

@@ -559,26 +559,26 @@ Prioritize Somali payment methods in this order:
 
 | Field | Specification |
 | --- | --- |
-| **Purpose** | In-app lifecycle inbox for all customer notifications |
-| **Components** | Search; filters All / Unread / Read; category accents; rows with icon, title, short message, date/time, read/unread indicator |
+| **Purpose** | In-app lifecycle inbox for recipient notifications |
+| **Components** | Filters by status/type/channel; rows with type accent, title, short message, date/time, lifecycle status |
 | **Buttons** | Open notification; **Mark as Read**; **Mark All as Read** |
-| **Inputs** | Search query |
-| **Navigation** | Notification Details → related record (Booking / Quotation / Order / Payment / Account) |
+| **Inputs** | Filter query params |
+| **Navigation** | Notification Details → related record via `data` payload |
 | **Empty** | “No notifications yet” |
 | **Loading** | List skeletons |
 | **Error** | Retry |
 | **Success** | Opens details / related entity |
-| **Do not include** | Delete Notification; Clear All Read (notifications are permanent history) |
+| **Do not include** | Delete Notification; Clear All Read (notifications are permanent history; archive is admin-side) |
 
-**Categories (icon + color accent each):** Booking · Quotation · Discussion · Order · Payment · Delivery · Account · General Announcements
+**Types:** Booking · Quotation · Order · Payment · Store Order · Inventory · System
 
 ### Notification Details (S-086A)
 
 | Field | Specification |
 | --- | --- |
 | **Purpose** | Full message + deep-link action |
-| **Components** | Title; date/time; **status Read / Unread**; full message; related reference number (`BK-` / `QT-` / `ORD-` / `PAY-`…); primary action |
-| **Buttons** | View Booking / View Quotation / View Order / View Payment (context-specific); Mark as Read (when Unread) |
+| **Components** | Title; date/time; **enterprise status** (`pending`…`read`/`failed`); lifecycle timestamps; full message; related reference from `data`; primary action |
+| **Buttons** | Context action (View Booking / Quotation / Order / Payment…); Mark as Read (when `delivered`) |
 | **Navigation** | Related entity details |
 | **Do not include** | Delete Notification |
 
@@ -586,10 +586,11 @@ Prioritize Somali payment methods in this order:
 
 | Field | Specification |
 | --- | --- |
-| **Purpose** | Customer preference toggles |
-| **Components** | Switches for **Push Notifications**; **Email Notifications**; Booking; Quotation; Discussion; Order; Payment; Marketing |
+| **Purpose** | Per-type preference toggles |
+| **Components** | Switches for **In-App**, **Email**, **SMS** per notification type |
 | **Buttons** | Save (or auto-save toggles) |
 | **Navigation** | Back to Notifications / Settings |
+| **API** | `GET/PUT /api/v1/notification-preferences` |
 
 ---
 
@@ -2093,24 +2094,21 @@ Note: No payment gateway integration yet. Payment methods are listed for custome
 
 ### 24.8 Notification Settings
 
-**Route:** `/admin/settings/notifications`
+**Route:** `/admin/settings/notifications`  
+**API permission:** `notifications.manage`
 
-#### Notification Channels (Enable / Disable toggles)
-| Channel | Default |
-| --- | --- |
-| Push Notifications | Enabled |
-| Email Notifications | Enabled |
-| SMS Notifications | Disabled |
+#### Delivery Channels (Sprint 12)
+| Channel | Queue | Notes |
+| --- | --- | --- |
+| In-App | `notifications-in-app` | Auto `sent` → `delivered` in V1 |
+| Email | `notifications-email` | Remains `sent` until provider callback |
+| SMS | `notifications-sms` | Default preference off; provider later |
 
-#### Editable Templates
-| Template | Placeholders |
-| --- | --- |
-| Booking Confirmation | {customer_name}, {booking_id}, {date}, {time} |
-| Quotation Ready | {customer_name}, {quotation_id} |
-| Payment Received | {customer_name}, {amount}, {order_id} |
-| Order Completed | {customer_name}, {order_id} |
+#### Templates & Translations
+Admin CRUD for `notification_templates` and nested translations (`so` / `en` / `ar`) with `{{placeholders}}`. Inactive templates are not dispatched.
 
-Each template card shows the current message body and an "Edit Template" action.
+#### Archive
+Admin list of `archived_notifications` for terminal `read` / `failed` rows (no restore/delete in V1 foundation).
 
 ### 24.9 Security Settings
 

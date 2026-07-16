@@ -229,6 +229,7 @@ class AdminConsistencyPatchTest extends TestCase
         $this->assertSame([
             'admins.manage',
             'goods_receipts.manage',
+            'notifications.manage',
             'products.create',
             'products.delete',
             'products.update',

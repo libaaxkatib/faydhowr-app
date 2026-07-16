@@ -299,12 +299,12 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-060 | The system shall create an in-app notification for every major business event (booking, quotation, discussion, order, payment, delivery, account, general announcements). | Must |
-| FR-061 | The customer shall be able to view a searchable, filterable notification list (All / Unread / Read) with category icons. | Must |
-| FR-062 | The customer shall be able to mark a notification as read and mark all as read. Customers shall **never** delete notification records (notifications are permanent business history). | Must |
-| FR-063 | The system shall support push notifications where device permissions allow. | Must |
-| FR-064 | Opening a notification shall deep-link to the correct related record and display the reference number when applicable (`BK-`, `QT-`, `ORD-`, `PAY-`, etc.). Notification Details shall show Read / Unread status. | Must |
-| FR-065 | Customers shall be able to manage notification preferences: Push Notifications, Email Notifications, plus Booking, Quotation, Discussion, Order, Payment, and Marketing toggles. | Must |
+| FR-060 | The system shall create notifications for major business events using templates and polymorphic recipients (`Admin` \| `CustomerProfile`), with types: booking, quotation, order, payment, store_order, inventory, system. | Must |
+| FR-061 | The customer (and admin recipient) shall be able to view a filterable notification list with status/type/channel filters and pagination. Unread count shall be available. | Must |
+| FR-062 | Recipients shall be able to mark a delivered notification as read and mark all delivered as read. Customers shall **never** delete notification records from the live inbox (permanent history; terminal rows may be archived by admin process). | Must |
+| FR-063 | The system shall support channel delivery for `in_app`, `email`, and `sms` via dedicated queues. Push remains a future enhancement. | Must |
+| FR-064 | Opening a notification shall deep-link using payload/`data` reference fields when present. Notification details shall expose enterprise lifecycle status and timestamps. | Must |
+| FR-065 | Recipients shall manage per-type notification preferences for `in_app`, `email`, and `sms` (defaults: in_app/email on, sms off). | Must |
 
 ### 5.8 Customer Profile & Support Context
 
@@ -917,51 +917,40 @@ Provide one gateway-independent payment lifecycle for Service Orders and Store O
 
 ### 12.1 Purpose
 
-Deliver timely, relevant updates to customers (and optionally admins) about commercial and operational events.
+Deliver timely, relevant updates to customers and admins about commercial and operational events using the Sprint 12 Notification Architecture.
 
 ### 12.2 Channels
 
 | Channel | Use |
 | --- | --- |
-| **Push Notification** | Time-sensitive alerts when app is backgrounded |
-| **In-App Notification Center** | Persistent history of events |
-| **Email/SMS** (optional) | Configurable for critical events if providers are integrated |
+| **In-App** | Persistent inbox; dedicated queue `notifications-in-app` |
+| **Email** | Queued delivery (`notifications-email`); V1 stub pending provider |
+| **SMS** | Queued delivery (`notifications-sms`); default preference off; V1 stub pending provider |
 
-### 12.3 Trigger Events (Minimum Set)
+Push remains a future enhancement (not a V1 channel enum).
 
-| Domain | Events |
-| --- | --- |
-| **Booking** | Booking Submitted, Confirmed, Rescheduled, Cleaner Assigned, Cleaning Started, Cleaning Completed, Booking Cancelled |
-| **Quotation** | Quotation Ready, Quotation Updated, New Discussion Reply, Quotation Accepted, Quotation Expired, Quotation Cancelled |
-| **Discussion** | New message / reply on an open quotation discussion |
-| **Order** | Order Placed, Confirmed, Packed, Shipped, Out for Delivery, Delivered, Order Cancelled |
-| **Payment** | Payment Received, Payment Failed, Refund Processed |
-| **Delivery** | Shipment / delivery progress events (aligned with order fulfillment) |
-| **Account** | Password Changed, Email Updated, Phone Updated, Security Alert |
-| **General Announcements** | Operational or service announcements (non-transactional) |
+### 12.3 Types
 
-### 12.3A Categories
-
-Each notification has a category with a distinct icon and color accent: Booking · Quotation · Discussion · Order · Payment · Delivery · Account · General Announcements.
-
-Reference numbers (`BK-`, `QT-`, `ORD-`, `PAY-`, etc.) are included in the payload/UI wherever applicable.
+`booking` · `quotation` · `order` · `payment` · `store_order` · `inventory` · `system`
 
 ### 12.4 Notification Flow
 
-1. Domain event occurs in the backend.
-2. Notification service selects template, category, and recipients (respecting preference toggles for non-critical types).
-3. System persists an in-app notification for the customer (with `reference_type` / `reference_number` for deep links).
-4. System attempts push delivery if Push Notifications are enabled and device permissions allow.
-5. Customer opens the list or a push → Notification Details → action opens the related record.
-6. Customer may mark as read / mark all as read (no delete).
+1. Domain code publishes `NotificationRequested` (never dispatches jobs directly).
+2. Listener renders active template (with translation fallback), resolves preference-allowed channels, and persists pending notification(s) with `event_id` idempotency.
+3. `DispatchNotificationJobAction` places `ProcessNotificationJob` on the channel-specific queue.
+4. Processing lifecycle: `pending` → `processing` → `sent` (or `failed`). V1 in-app then auto-transitions `sent` → `delivered`. Email/SMS stay at `sent` until provider callbacks.
+5. Recipient lists/filters notifications; marks **delivered** → `read` (idempotent if already read).
+6. Terminal rows (`read` / `failed`) may be archived to `archived_notifications` (admin only); never hard-deleted from inbox without archive.
 
 ### 12.5 Rules
 
-- Notifications must not expose sensitive secrets (full payment credentials, OTPs beyond dedicated auth flows, etc.).
-- Customers see only their own notifications.
-- Template content is admin-configurable where practical.
+- Notifications must not expose sensitive secrets.
+- Recipients see only their own notifications; admins with `notifications.manage` manage templates/translations/archives.
+- Template content is admin-configurable; multi-language via translation rows (`so` / `en` / `ar`).
 - Delivery failures must not roll back the underlying business transaction.
-- Preference controls may suppress non-critical notifications (including Marketing) but not legally/operationally required notices.
+- Unique (`recipient`, `channel`, `event_id`) enforces dispatch idempotency.
+
+---- Preference controls may suppress non-critical notifications (including Marketing) but not legally/operationally required notices.
 - Every major business event automatically creates a notification.
 - Notifications must always open the correct related record.
 

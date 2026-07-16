@@ -586,56 +586,48 @@ Failure → Clear failure state + retry guidance (entity remains payable if vali
 
 ## 9.1 Purpose
 
-Keep customers informed of lifecycle changes without requiring them to poll history screens.
+Keep customers and admins informed of lifecycle changes without requiring them to poll history screens.
 
 ## 9.2 Channels (Customer UX)
 
 | Channel | Behavior |
 | --- | --- |
-| **Push** | Time-sensitive alert when permissions allow and Push toggle is on |
-| **In-app Notification Center** | Searchable list; All / Unread / Read; Mark as Read / Mark All as Read only (no delete) |
-| **Notification Details** | Full message, Read/Unread status, reference number, action to related record |
-| **Notification Settings** | Push + Email masters; category toggles |
-| Optional email/SMS | If configured later; not required for core in-app flow |
+| **In-app Notification Center** | Filterable list; status/type/channel; Mark as Read / Mark All as Read only (no delete) |
+| **Notification Details** | Full message, enterprise lifecycle status, timestamps, deep-link payload |
+| **Notification Preferences** | Per-type toggles for in-app / email / SMS |
+| **Email / SMS** | Delivered via dedicated queues when preference + template channel allow; provider callbacks may later set delivered |
 
 ## 9.3 Customer Journey
 
 ```text
-Domain event occurs
+Domain publishes NotificationRequested
         ↓
-In-app notification created (category + reference number)
+Template rendered (+ translation) + preferences applied
         ↓
-Push attempted (if enabled)
+Pending notification persisted (event_id idempotent)
         ↓
-Customer opens Notifications List or Push
+Channel queue → processing → sent
         ↓
-Notification Details
+V1 in-app: auto delivered
         ↓
-Action → related record (Booking / Quotation / Order / Payment / …)
+Customer opens Notifications List
         ↓
-Mark as read / Mark all as read (no delete — permanent history)
+Notification Details → related record (via data payload)
+        ↓
+Mark as read / Mark all as read (delivered → read; no delete)
 ```
 
-## 9.4 Categories & Example Events
+## 9.4 Types
 
-| Category | Example titles |
-| --- | --- |
-| **Booking** | Booking Submitted, Confirmed, Rescheduled, Cleaner Assigned, Cleaning Started, Cleaning Completed, Cancelled |
-| **Quotation** | Quotation Ready, Updated, Accepted, Expired, Cancelled |
-| **Discussion** | New Discussion Reply |
-| **Order** | Order Placed, Confirmed, Packed, Shipped, Out for Delivery, Delivered, Cancelled |
-| **Payment** | Payment Received, Failed, Refund Processed |
-| **Delivery** | Delivery progress events |
-| **Account** | Password Changed, Email/Phone Updated, Security Alert |
-| **General Announcements** | Service announcements |
+Booking · Quotation · Order · Payment · Store Order · Inventory · System
 
 ## 9.5 UX Rules
 
 - Notifications never expose secrets (full payment credentials, etc.).
-- Preference controls (Push, Email, categories including Marketing) may reduce non-critical noise without hiding legally/operationally required notices.
-- Badge/count on Account / Notifications entry when unread items exist.
-- Always deep-link to the correct related record using reference numbers (`BK-`, `QT-`, `ORD-`, `STO-`, `PAY-`, `RCPT-`, `PO-`, `GR-`, …).
-- Customers never delete notifications.
+- Preferences may reduce non-critical noise without hiding operationally required notices.
+- Badge/count uses unread-count API (`status != read`).
+- Deep links use reference fields in notification `data` when present.
+- Customers never delete notifications; admins may archive terminal rows.
 
 ---
 
@@ -1285,12 +1277,10 @@ Settings Dashboard → Payment Settings
 
 ```
 Settings Dashboard → Notification Settings
-  → 3 notification channel toggles (Push, Email, SMS)
-  → 4 notification template cards with "Edit Template" action
-  → Admin clicks "Edit Template"
-      → Template textarea becomes editable
-      → Admin modifies template text (preserving placeholders)
-      → Save / Discard applies to all changes
+  → Manage templates via Admin Notification Templates APIs
+      (template_key, type, channel in_app|email|sms, translations so/en/ar)
+  → Browse archived notifications (terminal read/failed) when needed
+  → Channel delivery uses dedicated queues; push remains future
 ```
 
 ### 19.9 Security Settings Flow

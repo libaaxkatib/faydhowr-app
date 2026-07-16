@@ -873,16 +873,20 @@ Guest heart tap without token → API `401` → client soft auth → retry add.
 
 # 13. Notifications APIs
 
+Sprint 12 Notification Architecture is authoritative. Recipients are the authenticated `Admin` or the `CustomerProfile` linked to the authenticated `User`.
+
 ## 13.1 List Notifications
 
 | Method | Path | Auth |
 | --- | --- | --- |
 | `GET` | `/api/v1/notifications` | Required |
 
-Paginated; newest first. Query: `status=all|unread|read`, `category`, `q` (search).  
-Payload includes `category`, `title`, `body`, `is_read`, `created_at`, `reference_type`, `reference_id`, `reference_number` (e.g. `QT-2026-000041`) for deep links.
+Paginated; newest first. Query: `status`, `type`, `channel`, `per_page`.  
+Payload includes `type`, `channel`, `status`, `title`, `message`, `data`, lifecycle timestamps (`processing_started_at`, `sent_at`, `delivered_at`, `read_at`, `failed_at`).
 
-**Categories:** `booking` | `quotation` | `discussion` | `order` | `payment` | `delivery` | `account` | `announcement`
+**Types:** `booking` | `quotation` | `order` | `payment` | `store_order` | `inventory` | `system`  
+**Channels:** `in_app` | `email` | `sms`  
+**Statuses:** `pending` | `processing` | `sent` | `delivered` | `read` | `failed`
 
 ## 13.2 Notification Details
 
@@ -890,14 +894,16 @@ Payload includes `category`, `title`, `body`, `is_read`, `created_at`, `referenc
 | --- | --- | --- |
 | `GET` | `/api/v1/notifications/{id}` | Required |
 
-Returns full message + deep-link target metadata.
+Owner-scoped; non-owned → `NOTIFICATION_NOT_FOUND`.
 
 ## 13.3 Mark As Read
 
 | Method | Path | Auth |
 | --- | --- | --- |
-| `POST` | `/api/v1/notifications/{id}/read` | Required |
-| `POST` | `/api/v1/notifications/read-all` | Required |
+| `PATCH` | `/api/v1/notifications/{id}/read` | Required |
+| `PATCH` | `/api/v1/notifications/read-all` | Required |
+
+Valid transition: `delivered` → `read` (idempotent if already `read`). Mark-all updates delivered rows only.
 
 ## 13.4 Unread Count
 
@@ -905,18 +911,28 @@ Returns full message + deep-link target metadata.
 | --- | --- | --- |
 | `GET` | `/api/v1/notifications/unread-count` | Required |
 
-**Returns:** `{ "unread_count": 3 }` inside `data`.
+**Returns:** `{ "unread_count": 3 }` inside `data` (count of owner notifications where `status != read`).
 
-> **V1 rule:** There is **no** customer delete/clear API for notifications. Notification records are permanent business history. Only mark-as-read actions are supported.
+> **V1 rule:** There is **no** customer delete/clear API for notifications. Notification records are permanent business history. Terminal rows may be archived by admin process.
 
 ## 13.5 Notification Preferences
 
 | Method | Path | Auth |
 | --- | --- | --- |
-| `GET` | `/api/v1/notifications/preferences` | Required |
-| `PUT` | `/api/v1/notifications/preferences` | Required |
+| `GET` | `/api/v1/notification-preferences` | Required |
+| `PUT` | `/api/v1/notification-preferences` | Required |
 
-Toggles: `push_enabled`, `email_enabled`, `booking`, `quotation`, `discussion`, `order`, `payment`, `marketing`.
+Per-type channel toggles: `in_app`, `email`, `sms`.
+
+## 13.6 Admin Notification APIs
+
+Require `auth:sanctum` + `admin` + `permission:notifications.manage`.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET/POST/PUT` | `/api/v1/admin/notification-templates` | Template CRUD (no delete) |
+| `GET/POST/PUT` | `/api/v1/admin/notification-templates/{id}/translations` | Translation CRUD |
+| `GET` | `/api/v1/admin/archived-notifications` | Browse archived terminal notifications |
 
 ---
 

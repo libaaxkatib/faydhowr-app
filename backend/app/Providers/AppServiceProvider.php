@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Services\Notification\Channels\EmailNotificationChannel;
+use App\Services\Notification\Channels\InAppNotificationChannel;
+use App\Services\Notification\Channels\SmsNotificationChannel;
+use App\Services\Notification\NotificationChannelManager;
 use App\Services\Payments\Gateways\ManualPaymentGateway;
 use App\Services\Payments\PaymentGatewayManager;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -20,6 +24,15 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(PaymentGatewayManager::class, function (): PaymentGatewayManager {
             $manager = new PaymentGatewayManager;
             $manager->register('manual', new ManualPaymentGateway);
+
+            return $manager;
+        });
+
+        $this->app->singleton(NotificationChannelManager::class, function (): NotificationChannelManager {
+            $manager = new NotificationChannelManager;
+            $manager->register('in_app', new InAppNotificationChannel);
+            $manager->register('email', new EmailNotificationChannel);
+            $manager->register('sms', new SmsNotificationChannel);
 
             return $manager;
         });

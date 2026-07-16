@@ -84,7 +84,7 @@ Admin Authentication (`admins`) ── Admin Panel / Settings / Reports / Invent
 ```
 
 - **Authentication (`users`)** validates customer credentials and issues mobile tokens; protected modules resolve the linked customer profile for business context.
-- **Customer Profiles (`customer_profiles`)** provides the one-to-one customer business context used by bookings, quotations, orders, payments, reviews, and reports. Notifications are addressed to the authenticated `users` identity and may reference related business records. Customer profiles are not authentication identities.
+- **Customer Profiles (`customer_profiles`)** provides the one-to-one customer business context used by bookings, quotations, orders, payments, reviews, reports, and notification preferences. Notifications are addressed polymorphically to `Admin` or `CustomerProfile` (customer auth resolves the linked profile). Customer profiles are not authentication identities.
 - **Admin Authentication (`admins`)** is separate from customer authentication and gates admin-panel modules, settings, inventory operations, and operational reports.
 - **Services** provide the official catalog, supported modes/subtypes, coverage, optional Starting From information, and both Book Now / Request Quotation entry points.
 - **Bookings** captures approved customer-profile-owned booking activity and may initiate quotation processing.
@@ -175,11 +175,13 @@ Flutter submits requests and renders API responses. The REST API routes requests
 
 ## 10. Notification Flow
 
-1. A supported workflow event occurs, such as a booking, quotation, acceptance, order, or payment change.
-2. Laravel determines whether the event requires notification under approved rules.
-3. The system identifies authorized recipients and permitted delivery channels.
-4. The notification is delivered synchronously or through an approved queue.
-5. Delivery outcomes and failures are logged without exposing sensitive information.
+1. A supported workflow publishes `NotificationRequested` for an `Admin` or `CustomerProfile` recipient with `template_key` + variables.
+2. Laravel renders the active template (translated when available), applies preference channel gates, and persists a pending notification with an `event_id`.
+3. `DispatchNotificationJobAction` enqueues `ProcessNotificationJob` on the channel-specific queue.
+4. Processing advances `pending` → `processing` → `sent` or `failed`. For V1 in-app, `sent` → `delivered` immediately after success.
+5. Recipients retrieve owner-scoped notifications via API; mark delivered notifications as read; unread count excludes `read`.
+6. Admins with `notifications.manage` manage templates/translations and browse archived terminal notifications.
+7. Delivery outcomes and failures are recorded without exposing sensitive information.
 
 ## 11. Reporting Flow
 
