@@ -3,10 +3,10 @@
 namespace Tests\Feature\Api\V1\Product;
 
 use App\Enums\ProductStatus;
+use App\Models\Admin;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductImage;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -112,12 +112,12 @@ class ProductCatalogTest extends TestCase
 
     public function test_authenticated_admin_can_filter_by_status(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         Product::factory()->create(['name' => 'Active Product']);
         Product::factory()->inactive()->create(['name' => 'Inactive Product']);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->getJson('/api/v1/products?status=inactive');
 
         $response
@@ -178,11 +178,11 @@ class ProductCatalogTest extends TestCase
 
     public function test_authenticated_user_can_create_a_product(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $category = ProductCategory::factory()->create();
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/products', [
                 'category_id' => $category->id,
                 'sku' => 'CLN-000245',
@@ -218,10 +218,10 @@ class ProductCatalogTest extends TestCase
 
     public function test_product_creation_validation_rejects_invalid_payload(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/products', [
                 'category_id' => 999,
                 'sku' => '',
@@ -252,7 +252,7 @@ class ProductCatalogTest extends TestCase
 
     public function test_product_creation_rejects_duplicate_sku_and_slug(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $category = ProductCategory::factory()->create();
         Product::factory()->create([
             'sku' => 'DUP-SKU',
@@ -260,7 +260,7 @@ class ProductCatalogTest extends TestCase
         ]);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/products', [
                 'category_id' => $category->id,
                 'sku' => 'DUP-SKU',
@@ -281,7 +281,7 @@ class ProductCatalogTest extends TestCase
 
     public function test_authenticated_user_can_update_a_product(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $product = Product::factory()->create([
             'name' => 'Old Name',
             'selling_price' => 10,
@@ -292,7 +292,7 @@ class ProductCatalogTest extends TestCase
         $newCategory = ProductCategory::factory()->create();
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->putJson('/api/v1/products/'.$product->id, [
                 'category_id' => $newCategory->id,
                 'name' => 'Updated Name',
@@ -323,11 +323,11 @@ class ProductCatalogTest extends TestCase
 
     public function test_authenticated_user_can_soft_delete_a_product(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $product = Product::factory()->create();
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->deleteJson('/api/v1/products/'.$product->id);
 
         $response

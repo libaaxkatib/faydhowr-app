@@ -3,11 +3,11 @@
 namespace Tests\Feature\Api\V1\PurchaseOrder;
 
 use App\Enums\PurchaseOrderStatus;
+use App\Models\Admin;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -17,11 +17,11 @@ class PurchaseOrderApprovalTest extends TestCase
 
     public function test_authenticated_user_can_approve_a_submitted_purchase_order(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $purchaseOrder = $this->createPurchaseOrder(PurchaseOrderStatus::Submitted);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->patchJson('/api/v1/purchase-orders/'.$purchaseOrder->id.'/approve');
 
         $response
@@ -44,8 +44,8 @@ class PurchaseOrderApprovalTest extends TestCase
 
     public function test_goods_receipt_is_blocked_for_submitted_purchase_orders(): void
     {
-        $user = User::factory()->create();
-        $token = $user->createToken('admin-panel')->plainTextToken;
+        $admin = Admin::factory()->superAdmin()->create();
+        $token = $admin->createToken('admin-panel')->plainTextToken;
         $purchaseOrder = $this->createPurchaseOrder(PurchaseOrderStatus::Submitted);
         $item = $purchaseOrder->items()->first();
 
@@ -69,8 +69,8 @@ class PurchaseOrderApprovalTest extends TestCase
 
     public function test_goods_receipt_is_allowed_after_purchase_order_approval(): void
     {
-        $user = User::factory()->create();
-        $token = $user->createToken('admin-panel')->plainTextToken;
+        $admin = Admin::factory()->superAdmin()->create();
+        $token = $admin->createToken('admin-panel')->plainTextToken;
         $purchaseOrder = $this->createPurchaseOrder(PurchaseOrderStatus::Submitted);
         $item = $purchaseOrder->items()->first();
 
@@ -93,8 +93,8 @@ class PurchaseOrderApprovalTest extends TestCase
 
     public function test_only_submitted_purchase_orders_can_be_approved(): void
     {
-        $user = User::factory()->create();
-        $token = $user->createToken('admin-panel')->plainTextToken;
+        $admin = Admin::factory()->superAdmin()->create();
+        $token = $admin->createToken('admin-panel')->plainTextToken;
         $draft = $this->createPurchaseOrder(PurchaseOrderStatus::Draft);
         $approved = $this->createPurchaseOrder(PurchaseOrderStatus::Approved);
 

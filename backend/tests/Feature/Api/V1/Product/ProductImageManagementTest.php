@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Api\V1\Product;
 
+use App\Models\Admin;
 use App\Models\Product;
 use App\Models\ProductImage;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -23,12 +23,12 @@ class ProductImageManagementTest extends TestCase
 
     public function test_authenticated_user_can_upload_a_product_image(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $product = Product::factory()->create();
         $file = UploadedFile::fake()->image('cleaner.jpg', 600, 600);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->post('/api/v1/products/'.$product->id.'/images', [
                 'image' => $file,
             ]);
@@ -53,9 +53,9 @@ class ProductImageManagementTest extends TestCase
 
     public function test_first_uploaded_image_is_primary_and_later_images_are_not(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $product = Product::factory()->create();
-        $token = $user->createToken('admin-panel')->plainTextToken;
+        $token = $admin->createToken('admin-panel')->plainTextToken;
 
         $first = $this
             ->withToken($token)
@@ -87,21 +87,21 @@ class ProductImageManagementTest extends TestCase
 
     public function test_upload_validation_rejects_invalid_files(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $product = Product::factory()->create();
 
         $missing = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/products/'.$product->id.'/images', []);
 
         $invalidType = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->post('/api/v1/products/'.$product->id.'/images', [
                 'image' => UploadedFile::fake()->create('notes.pdf', 100, 'application/pdf'),
             ]);
 
         $tooLarge = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->post('/api/v1/products/'.$product->id.'/images', [
                 'image' => UploadedFile::fake()->image('huge.jpg')->size(
                     ((int) config('products.images.max_kilobytes')) + 1,
@@ -126,7 +126,7 @@ class ProductImageManagementTest extends TestCase
 
     public function test_authenticated_user_can_change_primary_image(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $product = Product::factory()->create();
         $primary = ProductImage::factory()->primary()->create([
             'product_id' => $product->id,
@@ -141,7 +141,7 @@ class ProductImageManagementTest extends TestCase
         ]);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->patchJson('/api/v1/products/'.$product->id.'/images/'.$secondary->id.'/primary');
 
         $response
@@ -162,7 +162,7 @@ class ProductImageManagementTest extends TestCase
 
     public function test_authenticated_user_can_reorder_images(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $product = Product::factory()->create();
         $first = ProductImage::factory()->primary()->create([
             'product_id' => $product->id,
@@ -177,7 +177,7 @@ class ProductImageManagementTest extends TestCase
         ]);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->patchJson('/api/v1/products/'.$product->id.'/images/reorder', [
                 'images' => [
                     ['id' => $second->id, 'sort_order' => 0],
@@ -204,7 +204,7 @@ class ProductImageManagementTest extends TestCase
 
     public function test_authenticated_user_can_delete_a_non_primary_image(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $product = Product::factory()->create();
         $primary = ProductImage::factory()->primary()->create([
             'product_id' => $product->id,
@@ -221,7 +221,7 @@ class ProductImageManagementTest extends TestCase
         Storage::disk((string) config('products.images.disk'))->put($secondary->image_path, 'fake');
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->deleteJson('/api/v1/products/'.$product->id.'/images/'.$secondary->id);
 
         $response
@@ -238,7 +238,7 @@ class ProductImageManagementTest extends TestCase
 
     public function test_deleting_primary_image_promotes_next_image(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $product = Product::factory()->create();
         $primary = ProductImage::factory()->primary()->create([
             'product_id' => $product->id,
@@ -255,7 +255,7 @@ class ProductImageManagementTest extends TestCase
         Storage::disk((string) config('products.images.disk'))->put($primary->image_path, 'fake');
 
         $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->deleteJson('/api/v1/products/'.$product->id.'/images/'.$primary->id)
             ->assertOk();
 
@@ -269,7 +269,7 @@ class ProductImageManagementTest extends TestCase
 
     public function test_deleting_last_image_leaves_product_without_primary(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $product = Product::factory()->create();
         $image = ProductImage::factory()->primary()->create([
             'product_id' => $product->id,
@@ -280,7 +280,7 @@ class ProductImageManagementTest extends TestCase
         Storage::disk((string) config('products.images.disk'))->put($image->image_path, 'fake');
 
         $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->deleteJson('/api/v1/products/'.$product->id.'/images/'.$image->id)
             ->assertOk();
 

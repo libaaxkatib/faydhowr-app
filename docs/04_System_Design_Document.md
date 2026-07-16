@@ -191,10 +191,10 @@ Flutter submits requests and renders API responses. The REST API routes requests
 
 ## 12. Admin Workflow
 
-1. An administrator authenticates against the separate `admins` identity using the approved admin guard/session policy.
-2. Role-based authorization grants access only to approved administrative modules.
-3. The administrator manages approved settings, operational records, and reports.
-4. Every administrative action is validated, authorized, logged where required, and limited by approved business rules.
+1. An administrator authenticates against the separate `admins` identity (Sanctum admin realm). Inactive admins are rejected on login and on authenticated admin requests.
+2. Dual Dashboard Architecture returns Super Admin or Operations dashboard; Hybrid RBAC (role ∪ direct permissions) gates modules and `permission:` protected routes.
+3. The administrator manages approved settings, operational records, inventory, and reports within effective permissions.
+4. Admin CRUD, role permission updates, and direct permission updates dispatch `AuditEvent` and invalidate per-admin dashboard statistics cache.
 5. Administrative access does not permit unapproved changes to business rules, schema, or UI/UX.
 
 ## 13. Error Flow

@@ -1,5 +1,11 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\AdminController;
+use App\Http\Controllers\Api\V1\Admin\AdminPermissionController;
+use App\Http\Controllers\Api\V1\Admin\AuditLogController;
+use App\Http\Controllers\Api\V1\Admin\Auth\AdminAuthController;
+use App\Http\Controllers\Api\V1\Admin\DashboardController;
+use App\Http\Controllers\Api\V1\Admin\PermissionController;
 use App\Http\Controllers\Api\V1\Auth\AuthenticatedUserController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
@@ -42,6 +48,67 @@ Route::prefix('v1/auth')->group(function (): void {
         ->middleware('throttle:auth-register')
         ->name('api.v1.auth.register');
 });
+
+Route::prefix('v1/admin/auth')->group(function (): void {
+    Route::post('login', [AdminAuthController::class, 'login'])
+        ->middleware('throttle:auth-login')
+        ->name('api.v1.admin.auth.login');
+
+    Route::post('logout', [AdminAuthController::class, 'logout'])
+        ->middleware(['auth:sanctum', 'admin'])
+        ->name('api.v1.admin.auth.logout');
+
+    Route::get('me', [AdminAuthController::class, 'me'])
+        ->middleware(['auth:sanctum', 'admin'])
+        ->name('api.v1.admin.auth.me');
+});
+
+Route::prefix('v1/admin')
+    ->middleware(['auth:sanctum', 'admin'])
+    ->group(function (): void {
+        Route::get('dashboard', [DashboardController::class, 'show'])
+            ->name('api.v1.admin.dashboard.show');
+
+        Route::get('audit-logs', [AuditLogController::class, 'index'])
+            ->middleware('permission:admins.manage')
+            ->name('api.v1.admin.audit-logs.index');
+
+        Route::get('permissions', [PermissionController::class, 'index'])
+            ->middleware('permission:roles.manage')
+            ->name('api.v1.admin.permissions.index');
+
+        Route::put('roles/{role}/permissions', [PermissionController::class, 'updateRolePermissions'])
+            ->middleware('permission:roles.manage')
+            ->name('api.v1.admin.roles.permissions.update');
+
+        Route::get('admins', [AdminController::class, 'index'])
+            ->middleware('permission:admins.manage')
+            ->name('api.v1.admin.admins.index');
+
+        Route::post('admins', [AdminController::class, 'store'])
+            ->middleware('permission:admins.manage')
+            ->name('api.v1.admin.admins.store');
+
+        Route::get('admins/{admin}', [AdminController::class, 'show'])
+            ->middleware('permission:admins.manage')
+            ->name('api.v1.admin.admins.show');
+
+        Route::put('admins/{admin}', [AdminController::class, 'update'])
+            ->middleware('permission:admins.manage')
+            ->name('api.v1.admin.admins.update');
+
+        Route::delete('admins/{admin}', [AdminController::class, 'destroy'])
+            ->middleware('permission:admins.manage')
+            ->name('api.v1.admin.admins.destroy');
+
+        Route::get('admins/{admin}/permissions', [AdminPermissionController::class, 'show'])
+            ->middleware('permission:roles.manage')
+            ->name('api.v1.admin.admins.permissions.show');
+
+        Route::put('admins/{admin}/permissions', [AdminPermissionController::class, 'update'])
+            ->middleware('permission:roles.manage')
+            ->name('api.v1.admin.admins.permissions.update');
+    });
 
 Route::get('v1/customer/profile', [CustomerProfileController::class, 'show'])
     ->middleware('auth:sanctum')
@@ -171,92 +238,83 @@ Route::get('v1/products/{product}', [ProductController::class, 'show'])
     ->name('api.v1.products.show');
 
 Route::post('v1/products', [ProductController::class, 'store'])
-    ->middleware('auth:sanctum')
+    ->middleware(['auth:sanctum', 'admin', 'permission:products.create'])
     ->name('api.v1.products.store');
 Route::put('v1/products/{product}', [ProductController::class, 'update'])
-    ->middleware('auth:sanctum')
+    ->middleware(['auth:sanctum', 'admin', 'permission:products.update'])
     ->whereNumber('product')
     ->name('api.v1.products.update');
 Route::delete('v1/products/{product}', [ProductController::class, 'destroy'])
-    ->middleware('auth:sanctum')
+    ->middleware(['auth:sanctum', 'admin', 'permission:products.delete'])
     ->whereNumber('product')
     ->name('api.v1.products.destroy');
 
 Route::post('v1/products/{product}/images', [ProductImageController::class, 'store'])
-    ->middleware('auth:sanctum')
+    ->middleware(['auth:sanctum', 'admin', 'permission:products.update'])
     ->whereNumber('product')
     ->name('api.v1.products.images.store');
 Route::patch('v1/products/{product}/images/reorder', [ProductImageController::class, 'reorder'])
-    ->middleware('auth:sanctum')
+    ->middleware(['auth:sanctum', 'admin', 'permission:products.update'])
     ->whereNumber('product')
     ->name('api.v1.products.images.reorder');
 Route::patch('v1/products/{product}/images/{image}/primary', [ProductImageController::class, 'primary'])
-    ->middleware('auth:sanctum')
+    ->middleware(['auth:sanctum', 'admin', 'permission:products.update'])
     ->whereNumber('product')
     ->whereNumber('image')
     ->name('api.v1.products.images.primary');
 Route::delete('v1/products/{product}/images/{image}', [ProductImageController::class, 'destroy'])
-    ->middleware('auth:sanctum')
+    ->middleware(['auth:sanctum', 'admin', 'permission:products.update'])
     ->whereNumber('product')
     ->whereNumber('image')
     ->name('api.v1.products.images.destroy');
 
-Route::get('v1/suppliers', [SupplierController::class, 'index'])
-    ->middleware('auth:sanctum')
-    ->name('api.v1.suppliers.index');
-Route::get('v1/suppliers/{supplier}', [SupplierController::class, 'show'])
-    ->middleware('auth:sanctum')
-    ->whereNumber('supplier')
-    ->name('api.v1.suppliers.show');
-Route::post('v1/suppliers', [SupplierController::class, 'store'])
-    ->middleware('auth:sanctum')
-    ->name('api.v1.suppliers.store');
-Route::put('v1/suppliers/{supplier}', [SupplierController::class, 'update'])
-    ->middleware('auth:sanctum')
-    ->whereNumber('supplier')
-    ->name('api.v1.suppliers.update');
-Route::delete('v1/suppliers/{supplier}', [SupplierController::class, 'destroy'])
-    ->middleware('auth:sanctum')
-    ->whereNumber('supplier')
-    ->name('api.v1.suppliers.destroy');
+Route::middleware(['auth:sanctum', 'admin', 'permission:suppliers.manage'])->group(function (): void {
+    Route::get('v1/suppliers', [SupplierController::class, 'index'])
+        ->name('api.v1.suppliers.index');
+    Route::get('v1/suppliers/{supplier}', [SupplierController::class, 'show'])
+        ->whereNumber('supplier')
+        ->name('api.v1.suppliers.show');
+    Route::post('v1/suppliers', [SupplierController::class, 'store'])
+        ->name('api.v1.suppliers.store');
+    Route::put('v1/suppliers/{supplier}', [SupplierController::class, 'update'])
+        ->whereNumber('supplier')
+        ->name('api.v1.suppliers.update');
+    Route::delete('v1/suppliers/{supplier}', [SupplierController::class, 'destroy'])
+        ->whereNumber('supplier')
+        ->name('api.v1.suppliers.destroy');
+});
 
-Route::get('v1/purchase-orders', [PurchaseOrderController::class, 'index'])
-    ->middleware('auth:sanctum')
-    ->name('api.v1.purchase-orders.index');
-Route::get('v1/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show'])
-    ->middleware('auth:sanctum')
-    ->whereNumber('purchaseOrder')
-    ->name('api.v1.purchase-orders.show');
-Route::post('v1/purchase-orders', [PurchaseOrderController::class, 'store'])
-    ->middleware('auth:sanctum')
-    ->name('api.v1.purchase-orders.store');
-Route::put('v1/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'update'])
-    ->middleware('auth:sanctum')
-    ->whereNumber('purchaseOrder')
-    ->name('api.v1.purchase-orders.update');
-Route::patch('v1/purchase-orders/{purchaseOrder}/submit', [PurchaseOrderController::class, 'submit'])
-    ->middleware('auth:sanctum')
-    ->whereNumber('purchaseOrder')
-    ->name('api.v1.purchase-orders.submit');
-Route::patch('v1/purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])
-    ->middleware('auth:sanctum')
-    ->whereNumber('purchaseOrder')
-    ->name('api.v1.purchase-orders.approve');
-Route::patch('v1/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])
-    ->middleware('auth:sanctum')
-    ->whereNumber('purchaseOrder')
-    ->name('api.v1.purchase-orders.cancel');
+Route::middleware(['auth:sanctum', 'admin', 'permission:purchase_orders.manage'])->group(function (): void {
+    Route::get('v1/purchase-orders', [PurchaseOrderController::class, 'index'])
+        ->name('api.v1.purchase-orders.index');
+    Route::get('v1/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show'])
+        ->whereNumber('purchaseOrder')
+        ->name('api.v1.purchase-orders.show');
+    Route::post('v1/purchase-orders', [PurchaseOrderController::class, 'store'])
+        ->name('api.v1.purchase-orders.store');
+    Route::put('v1/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'update'])
+        ->whereNumber('purchaseOrder')
+        ->name('api.v1.purchase-orders.update');
+    Route::patch('v1/purchase-orders/{purchaseOrder}/submit', [PurchaseOrderController::class, 'submit'])
+        ->whereNumber('purchaseOrder')
+        ->name('api.v1.purchase-orders.submit');
+    Route::patch('v1/purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])
+        ->whereNumber('purchaseOrder')
+        ->name('api.v1.purchase-orders.approve');
+    Route::patch('v1/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])
+        ->whereNumber('purchaseOrder')
+        ->name('api.v1.purchase-orders.cancel');
+});
 
-Route::get('v1/goods-receipts', [GoodsReceiptController::class, 'index'])
-    ->middleware('auth:sanctum')
-    ->name('api.v1.goods-receipts.index');
-Route::get('v1/goods-receipts/{goodsReceipt}', [GoodsReceiptController::class, 'show'])
-    ->middleware('auth:sanctum')
-    ->whereNumber('goodsReceipt')
-    ->name('api.v1.goods-receipts.show');
-Route::post('v1/goods-receipts', [GoodsReceiptController::class, 'store'])
-    ->middleware('auth:sanctum')
-    ->name('api.v1.goods-receipts.store');
+Route::middleware(['auth:sanctum', 'admin', 'permission:goods_receipts.manage'])->group(function (): void {
+    Route::get('v1/goods-receipts', [GoodsReceiptController::class, 'index'])
+        ->name('api.v1.goods-receipts.index');
+    Route::get('v1/goods-receipts/{goodsReceipt}', [GoodsReceiptController::class, 'show'])
+        ->whereNumber('goodsReceipt')
+        ->name('api.v1.goods-receipts.show');
+    Route::post('v1/goods-receipts', [GoodsReceiptController::class, 'store'])
+        ->name('api.v1.goods-receipts.store');
+});
 
 Route::get('/user', function (Request $request) {
     return $request->user();

@@ -1022,7 +1022,7 @@ The Reports & Analytics module is accessible from the main admin sidebar. The si
 ```
 Sidebar click "Reports"
   → Load Reports Dashboard
-    → Display role badge (Admin / Sales / Accountant)
+    → Display role badge (Super Admin / Manager / Sales / Inventory / Accountant)
     → Display date range chips (default: Last 7 Days)
     → Render KPI cards (filtered by role)
     → Render interactive charts
@@ -1099,22 +1099,12 @@ User clicks "Print"
 ```
 User logs in → Role determined from session
 
-IF Admin:
-  → All 6 KPI cards visible
-  → All 6 category cards visible
-  → All detail reports accessible
+IF Super Admin:
+  → All KPI cards and categories visible
 
-IF Sales:
-  → 4 KPI cards visible (Customers, Bookings, Quotations, Orders)
-  → 4 category cards visible (Customer, Booking, Quotation, Order)
-  → Payment & Revenue categories hidden
-  → Warning banner: "Payment Reports and Revenue Reports are restricted"
-
-IF Accountant:
-  → 3 KPI cards visible (Payments, Revenue, Pending Verifications)
-  → 2 category cards visible (Payment, Revenue)
-  → Customer, Booking, Quotation, Order categories hidden
-  → Warning banner: "Customer, Booking, Quotation, and Order Reports are restricted"
+IF Manager / Sales / Inventory / Accountant:
+  → KPI and category cards filtered by Hybrid RBAC effective permissions / Dual Dashboard module visibility
+  → Modules without granted permissions remain hidden
 ```
 
 ### 18.9 Revenue Reports Detail Flow
@@ -1221,7 +1211,7 @@ Admin opens Reports Dashboard
 
 ### 19.1 Entry Point
 
-**Sidebar → Settings** (active state, visible only to Admin role)
+**Sidebar → Settings** (active state, visible to Super Admin / admins with settings module access when implemented)
 
 ### 19.2 Settings Dashboard Flow
 
@@ -1427,7 +1417,7 @@ Admin opens System Information
 
 | # | Rule |
 | --- | --- |
-| BR-S01 | Settings are available to Admin role only. |
+| BR-S01 | Settings are available to Super Admin (and roles with settings permissions when implemented). |
 | BR-S02 | Settings change system configuration only; never modify historical records. |
 | BR-S03 | All settings changes are logged (who, what, when). |
 | BR-S04 | Future features (2FA, Maintenance Mode) are clearly labelled and non-interactive. |

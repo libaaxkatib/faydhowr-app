@@ -144,11 +144,12 @@ Assumes **2-week sprints**. Exact sprint count may flex by team velocity; order 
 | **Sprint 8** | Quotation | Phase 10 Quotation Module (uploads, description, request, Discuss, revisions, Accept) |
 | **Sprint 9** | Booking | Phase 11 Booking Module |
 | **Sprint 10** | Cart & Checkout | Phase 12 Cart & Checkout / orders |
-| **Sprint 11** | Payments | Phase 13 Payment Integration |
-| **Sprint 12** | Account extras | Phase 14 Favorites + Phase 15 Notifications + Phase 16 Profile polish |
-| **Sprint 13** | System test | Phase 17 Testing (full regression pass 1) |
-| **Sprint 14** | Stabilize | Phase 18 Bug Fixes + start Phase 19 Performance |
-| **Sprint 15** | Release candidate | Phase 19 complete + Phase 20 Production Release |
+| **Sprint 11** | Admin Module | Phase Admin: Foundation, Auth, Hybrid RBAC, CRUD, Dual Dashboard, Statistics, Audit |
+| **Sprint 12** | Payments | Phase 13 Payment Integration |
+| **Sprint 13** | Account extras | Phase 14 Favorites + Phase 15 Notifications + Phase 16 Profile polish |
+| **Sprint 14** | System test | Phase 17 Testing (full regression pass 1) |
+| **Sprint 15** | Stabilize | Phase 18 Bug Fixes + start Phase 19 Performance |
+| **Sprint 16** | Release candidate | Phase 19 complete + Phase 20 Production Release |
 
 ### Sprint planning rules
 

@@ -3,12 +3,12 @@
 namespace Tests\Feature\Api\V1\GoodsReceipt;
 
 use App\Enums\PurchaseOrderStatus;
+use App\Models\Admin;
 use App\Models\GoodsReceipt;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -18,13 +18,13 @@ class GoodsReceiptTest extends TestCase
 
     public function test_authenticated_user_can_create_a_full_goods_receipt(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         [$purchaseOrder, $item] = $this->createReceivablePurchaseOrder(quantity: 10);
 
         $stockBefore = Product::query()->findOrFail($item->product_id)->current_stock;
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/goods-receipts', [
                 'purchase_order_id' => $purchaseOrder->id,
                 'items' => [
@@ -72,11 +72,11 @@ class GoodsReceiptTest extends TestCase
 
     public function test_authenticated_user_can_create_a_partial_goods_receipt(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         [$purchaseOrder, $item] = $this->createReceivablePurchaseOrder(quantity: 10);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/goods-receipts', [
                 'purchase_order_id' => $purchaseOrder->id,
                 'items' => [
@@ -104,11 +104,11 @@ class GoodsReceiptTest extends TestCase
 
     public function test_goods_receipt_create_returns_validation_errors_for_over_receipt(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         [$purchaseOrder, $item] = $this->createReceivablePurchaseOrder(quantity: 5);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/goods-receipts', [
                 'purchase_order_id' => $purchaseOrder->id,
                 'items' => [
@@ -132,10 +132,10 @@ class GoodsReceiptTest extends TestCase
 
     public function test_goods_receipt_create_requires_valid_payload(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
 
         $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/goods-receipts', [
                 'items' => [],
             ])
@@ -146,8 +146,8 @@ class GoodsReceiptTest extends TestCase
 
     public function test_authenticated_user_can_list_goods_receipts_newest_first(): void
     {
-        $user = User::factory()->create();
-        $token = $user->createToken('admin-panel')->plainTextToken;
+        $admin = Admin::factory()->superAdmin()->create();
+        $token = $admin->createToken('admin-panel')->plainTextToken;
 
         [$firstOrder, $firstItem] = $this->createReceivablePurchaseOrder(quantity: 2);
         [$secondOrder, $secondItem] = $this->createReceivablePurchaseOrder(quantity: 2);
@@ -181,11 +181,11 @@ class GoodsReceiptTest extends TestCase
 
     public function test_authenticated_user_can_view_goods_receipt_detail(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         [$purchaseOrder, $item] = $this->createReceivablePurchaseOrder(quantity: 3);
 
         $created = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/goods-receipts', [
                 'purchase_order_id' => $purchaseOrder->id,
                 'items' => [
@@ -200,7 +200,7 @@ class GoodsReceiptTest extends TestCase
             ->value('id');
 
         $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->getJson('/api/v1/goods-receipts/'.$goodsReceiptId)
             ->assertOk()
             ->assertJsonPath('message', 'Goods receipt retrieved successfully.')
@@ -211,8 +211,8 @@ class GoodsReceiptTest extends TestCase
 
     public function test_authenticated_user_can_filter_goods_receipts_by_supplier_and_purchase_order(): void
     {
-        $user = User::factory()->create();
-        $token = $user->createToken('admin-panel')->plainTextToken;
+        $admin = Admin::factory()->superAdmin()->create();
+        $token = $admin->createToken('admin-panel')->plainTextToken;
 
         [$firstOrder, $firstItem] = $this->createReceivablePurchaseOrder(quantity: 2);
         [$secondOrder, $secondItem] = $this->createReceivablePurchaseOrder(quantity: 2);
@@ -247,8 +247,8 @@ class GoodsReceiptTest extends TestCase
 
     public function test_goods_receipt_rejects_invalid_purchase_order_lifecycle(): void
     {
-        $user = User::factory()->create();
-        $token = $user->createToken('admin-panel')->plainTextToken;
+        $admin = Admin::factory()->superAdmin()->create();
+        $token = $admin->createToken('admin-panel')->plainTextToken;
 
         $draft = $this->createPurchaseOrderWithItem(PurchaseOrderStatus::Draft, quantity: 2);
         $cancelled = $this->createPurchaseOrderWithItem(PurchaseOrderStatus::Cancelled, quantity: 2);

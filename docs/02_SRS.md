@@ -131,11 +131,13 @@ Exact numeric targets shall be defined by product leadership after baseline anal
 
 | Persona | Description | Primary Goals |
 | --- | --- | --- |
-| **Admin** | Full operational and configuration control of the Admin Panel (combines former Super Admin + Manager scope) | Executive oversight, all modules, settings, audit |
-| **Sales** | Commerce-facing Admin Panel operator | Customers, quotations, orders |
-| **Accountant** | Finance-facing Admin Panel operator | Payments, invoices, receipts, orders |
+| **Super Admin** | Full Admin Panel control; implicit all permissions | Admin CRUD, role/direct permissions, all modules, audit |
+| **Manager** | Operations Admin Panel operator | Modules granted via Hybrid RBAC |
+| **Sales** | Commerce-facing Admin Panel operator | Modules granted via Hybrid RBAC |
+| **Inventory** | Inventory / store operations operator | Modules granted via Hybrid RBAC |
+| **Accountant** | Finance-facing Admin Panel operator | Modules granted via Hybrid RBAC |
 
-Admin users share **one Admin Login** and **one Admin Panel**. Role is detected after authentication; the sidebar, dashboard visibility, and actions adapt automatically.
+Admin users share **one Admin Login** and **one Admin Panel**. After authentication, Dual Dashboard Architecture selects Super Admin vs Operations dashboard; sidebar/module visibility follows effective permissions.
 
 ### 3.3 User Characteristics
 
@@ -154,22 +156,26 @@ Admin users share **one Admin Login** and **one Admin Panel**. Role is detected 
 | --- | --- | --- |
 | **Guest** | Mobile | Limited browse of public catalog/content (if enabled); cannot transact |
 | **Customer** | Mobile | Full customer features after authentication |
-| **Admin** | Admin Panel | Access to **all** approved admin modules; Executive Dashboard |
-| **Sales** | Admin Panel | Customers, Quotations, Orders (and Dashboard) |
-| **Accountant** | Admin Panel | Payments, Invoices, Receipts, Orders (and Dashboard); internal customer notes when profile is in context |
+| **Super Admin** | Admin Panel | Implicit all permissions; Super Admin Dashboard; admin/role management |
+| **Manager** | Admin Panel | Operations Dashboard; modules from Hybrid RBAC |
+| **Sales** | Admin Panel | Operations Dashboard; modules from Hybrid RBAC |
+| **Inventory** | Admin Panel | Operations Dashboard; modules from Hybrid RBAC |
+| **Accountant** | Admin Panel | Operations Dashboard; modules from Hybrid RBAC |
 
-> Admin Panel roles are exactly these three: **Admin**, **Sales**, **Accountant**. Do **not** invent additional admin roles. There is no Staff Management module in v1.
+> Admin Panel roles are exactly these five: **Super Admin**, **Manager**, **Sales**, **Inventory**, **Accountant**. There is no Staff Management (field workforce) module in v1.
 
-> **Identity architecture:** Customer is a mobile application role backed by `users` authentication and a linked `customer_profiles` record. Admin, Sales, and Accountant are admin-panel roles backed by the separate `admins` identity. These authentication realms do not share credentials, guards, or tokens.
+> **Identity architecture:** Customer is a mobile application role backed by `users` authentication and a linked `customer_profiles` record. Admin-panel roles are backed by the separate `admins` identity. These authentication realms do not share credentials, guards, or tokens.
 
 ### 4.1A Admin Panel Authentication & RBAC
 
 - **One Admin Login** page only — no separate login pages per role.
-- **One Admin Panel** application — no separate dashboards per role.
-- After authentication, the system detects the admin user’s role and loads the permitted **dashboard**, **sidebar**, **statistics**, and **actions**.
+- **One Admin Panel** application with **Dual Dashboard Architecture**: Super Admin Dashboard vs Operations Dashboard (Manager / Sales / Inventory / Accountant).
+- After authentication, inactive admins are rejected on protected admin routes (existing tokens included).
+- **Hybrid RBAC:** effective permissions = role permissions ∪ direct admin permissions (additive). Super Admin permissions are implicit and not persisted.
+- Permission catalog keys must align with protected admin routes; do not invent keys for unimplemented modules.
 - Header displays **Welcome, {User Name}** and **Role: {Role Name}**.
-- Permissions are role-based (least privilege).
-- The Admin Dashboard is an **Executive Dashboard**: overall business health without opening individual modules.
+- Dashboard statistics are cached per admin and invalidated on relevant Admin mutations.
+- Sensitive admin mutations dispatch **AuditEvent** (event-driven audit logs).
 
 ### 4.2 Authentication & Authorization Principles
 
@@ -179,9 +185,9 @@ Admin users share **one Admin Login** and **one Admin Panel**. Role is detected 
 - Google Sign-In uses native Android/iOS account pickers with accounts already on the device (future implementation — customer does not type a Gmail address).
 - Email login remains fully supported (email + password, Show/Hide, Forgot Password, Remember Me).
 - Sessions/tokens must expire and be refreshable according to security policy.
-- Role-based access control (RBAC) applies to the admin panel.
+- Hybrid RBAC applies to the admin panel (role + direct permissions).
 - Customers may only access their own data (bookings, quotes, orders, payments, profile).
-- Admin-panel authentication operates on `admins` only; Admin, Sales, and Accountant roles do not exist on `users`.
+- Admin-panel authentication operates on `admins` only; admin roles do not exist on `users`.
 - Cross-realm privilege escalation must be impossible: `users` cannot obtain admin roles or tokens, and `admins` cannot authenticate as customers on mobile endpoints.
 
 ### 4.2A Identity Architecture
@@ -326,8 +332,10 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | FR-084 | Admins shall manage customer profiles (list/search/filter with default **Active Customers**; view profile joined to `users` contact data, Member Since, business summary including **Total Spent**, timeline with icons, linked records; internal staff notes with name/role/date/time audit; set Inactive / suspend per policy). Customer Number is auto-generated and read-only on `customer_profiles`. Classification is **Lead** vs **Active Customer** (no VIP). Customer identities and profiles are never permanently deleted. | Must |
 | FR-085 | Admins shall configure notification templates and operational settings (**Admin**). | Should |
 | FR-086 | Admins shall manage payments (list/search/filter; view details with payment information, transaction reference with **Copy** button, business summary cards Amount Due/Amount Paid/Remaining Balance/Payment Status, **Financial Audit Summary** Payment Requested By/Payment Confirmed By/Confirmation Date/Last Updated, source chain & linkage, payment documents with availability status, payment timeline with actor audit, linked records, internal staff notes with name/role/date/time; **Payment Verification Badge** Verified/Pending Verification independent from status displayed in list and details; **Payment Age** displayed in list and details e.g. "Received 1 day ago"/"Waiting Verification 3 days"; **Payment Method Icons** consistent branded icons in list and details; **Current Stage Indicator** compact read-only label above progress tracker; **Payment Progress Tracker** visual stepper Pending → Received → Confirmed / Pending → Failed / Confirmed → Refunded highlighting current step; **Payment Documents** Payment Receipt/Invoice/Order PDF with ✅ Available or ⏳ Pending; **Latest Note indicator** read-only timestamp). Every payment must originate from an existing **Order** — no manual Create Payment. Payment Number (`PAY-…`) is read-only. Payments are never permanently deleted. Every payment remains permanently linked to its originating Order. Approved payment statuses: Pending, Received, Confirmed, Failed, Refunded. Supported payment methods: EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card. Receipt history is permanent. Status updates via controlled dropdown only. | Must |
-| FR-087 | The Admin Panel shall use **one login** and **one panel**; after sign-in the system loads role-based dashboard, sidebar, and permissions for **Admin**, **Sales**, or **Accountant** only. | Must |
-| FR-088 | The Admin Dashboard shall provide an executive view: KPI overview (interactive shortcuts with trend indicators), business monitoring (filtered module links), customer service metrics (clickable queues), revenue analytics (report drill-downs), and live activity — without staff-performance analytics (no Staff Management in v1). | Must |
+| FR-087 | The Admin Panel shall use **one login** and **one panel**; after sign-in Dual Dashboard Architecture loads Super Admin or Operations dashboard, sidebar, and Hybrid RBAC permissions for **Super Admin**, **Manager**, **Sales**, **Inventory**, or **Accountant** only. | Must |
+| FR-088 | The Admin Dashboard shall expose role-appropriate **Dashboard Statistics** (cached per admin) and navigation from Dual Dashboard Architecture — without staff-performance analytics (no Staff Management / field workforce in v1). | Must |
+| FR-088A | Admin mutations that change accounts, role permissions, or direct permissions shall dispatch event-driven **AuditEvent** records and invalidate the actor’s (and affected admin’s) dashboard statistics cache. | Must |
+| FR-088B | Inactive admin accounts shall be rejected at login and on every authenticated admin request (including existing tokens). | Must |
 
 ---
 

@@ -109,7 +109,7 @@ Most transactional tables include:
 
 | Module | Responsibility | Primary Tables |
 | --- | --- | --- |
-| **User Management** | Mobile user identity, customer profiles, addresses, saved payment methods, devices, auth recovery; admin operators & roles | `users`, `customer_profiles`, `customer_addresses`, `customer_payment_methods`, `customer_devices`, `password_reset_tokens`, `admins`, `roles`, `admin_role`, `permissions`, `role_permission` |
+| **User Management** | Mobile user identity, customer profiles, addresses, saved payment methods, devices, auth recovery; admin operators & Hybrid RBAC | `users`, `customer_profiles`, `customer_addresses`, `customer_payment_methods`, `customer_devices`, `password_reset_tokens`, `admins`, `permissions`, `admin_role_permissions`, `admin_permissions` |
 | **Service Management** | Official services, modes, coverage, media, and schedule constraints | `service_categories`, `services`, `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates` |
 | **Store Management** | Product catalog, categories, images, cart, store orders | `product_categories`, `products`, `product_images`, `product_price_tiers`, `carts`, `cart_items`, `store_orders`, `store_order_items`, `store_order_status_histories` |
 | **Inventory Management** | Suppliers, purchase orders, goods receipts, stock ledger, adjustments, low-stock | `suppliers`, `purchase_orders`, `purchase_order_items`, `purchase_order_status_histories`, `goods_receipts`, `goods_receipt_items`, `stock_ledgers`, `stock_adjustments` |
@@ -509,10 +509,10 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `admins` |
-| **Purpose** | Admin panel operators (not mobile customers; not field employees). |
+| **Purpose** | Admin panel operators (not mobile customers; not field employees). Separate Sanctum authenticatable from `users`. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | None directly (roles via pivot) |
-| **Relationships** | M:N → `roles` via `admin_role` |
+| **Foreign Keys** | None (role is an enum column; permissions via pivots) |
+| **Relationships** | M:N → `permissions` via `admin_permissions` |
 
 #### Columns
 
@@ -521,60 +521,40 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | `id` | BIGINT UNSIGNED | R | PK |
 | `full_name` | VARCHAR(150) | R | |
 | `email` | VARCHAR(191) | R | Unique login |
-| `password_hash` | VARCHAR(255) | R | |
-| `status` | VARCHAR(30) | R | `active`, `suspended` |
+| `phone` | VARCHAR(30) | R | Unique |
+| `password` | VARCHAR(255) | R | Hashed via Eloquent `hashed` cast |
+| `role` | VARCHAR(30) | R | `super_admin`, `manager`, `sales`, `inventory`, `accountant` |
+| `status` | VARCHAR(30) | R | `active`, `inactive` |
 | `last_login_at` | TIMESTAMP | O | |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
-| `deleted_at` | TIMESTAMP | O | |
+| `deleted_at` | TIMESTAMP | O | Soft delete |
 
 #### Constraints
 
-- Unique `email`
-- Status constrained
+- Unique `email`, unique `phone`
+- Role and status constrained
+- Inactive admins cannot authenticate or use existing tokens on protected admin routes
 
 #### Validation Rules
 
 - Admins cannot authenticate via customer mobile APIs as `users`.
 - Privilege separation mandatory (SRS §4.2).
+- Password hashing uses a single strategy (`Admin` model `hashed` cast).
 
 #### Notes
 
 - **Employees / technicians are not modeled.** Assignment of field staff is out of scope for v1.
+- Five admin roles only (Sprint 11). Super Admin has implicit permissions (not stored).
 
 ---
 
-### 3.1.9 `roles`
-
-| Attribute | Detail |
-| --- | --- |
-| **Table Name** | `roles` |
-| **Purpose** | Admin RBAC roles. Approved system roles only: **Admin**, **Sales**, **Accountant**. |
-| **Primary Key** | `id` |
-
-#### Columns
-
-| Column | Data Type | Required | Notes |
-| --- | --- | --- | --- |
-| `id` | BIGINT UNSIGNED | R | PK |
-| `name` | VARCHAR(100) | R | Unique |
-| `slug` | VARCHAR(100) | R | Unique machine key |
-| `description` | VARCHAR(255) | O | |
-| `created_at` | TIMESTAMP | R | |
-| `updated_at` | TIMESTAMP | R | |
-
-#### Constraints / Validation
-
-- Slug unique; system roles protected from accidental deletion.
-
----
-
-### 3.1.10 `permissions`
+### 3.1.9 `permissions`
 
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `permissions` |
-| **Purpose** | Fine-grained admin permissions. |
+| **Purpose** | Fine-grained admin permission catalog aligned to protected admin routes. |
 | **Primary Key** | `id` |
 
 #### Columns
@@ -582,49 +562,68 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `name` | VARCHAR(100) | R | |
-| `slug` | VARCHAR(100) | R | Unique |
-| `module` | VARCHAR(50) | R | e.g., bookings, catalog |
+| `key` | VARCHAR(100) | R | Unique machine key (e.g. `products.create`) |
+| `name` | VARCHAR(150) | R | Display label |
+| `group` | VARCHAR(50) | R | e.g. Products, Inventory, Admins |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
 
+#### Notes
+
+- Catalog is seeded from `AdminPermission` enum. Keys without implemented protected routes must not be invented.
+
 ---
 
-### 3.1.11 `admin_role` (pivot)
+### 3.1.10 `admin_role_permissions` (Hybrid RBAC — role grants)
 
 | Attribute | Detail |
 | --- | --- |
-| **Table Name** | `admin_role` |
-| **Purpose** | Many-to-many: admins ↔ roles |
-| **Primary Key** | (`admin_id`, `role_id`) or surrogate `id` |
-| **Foreign Keys** | `admin_id` → `admins.id`, `role_id` → `roles.id` |
+| **Table Name** | `admin_role_permissions` |
+| **Purpose** | Role → permission grants for assignable roles (`manager`, `sales`, `inventory`, `accountant`). |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `permission_id` → `permissions.id` (cascade delete) |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `role` | VARCHAR(30) | R | Assignable role slug (not `super_admin`) |
+| `permission_id` | BIGINT UNSIGNED | R | FK |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
+
+#### Constraints
+
+- Unique (`role`, `permission_id`)
+- Super Admin permissions are never persisted here
+
+---
+
+### 3.1.11 `admin_permissions` (Hybrid RBAC — direct grants)
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `admin_permissions` |
+| **Purpose** | Direct admin → permission grants. Additive to role grants. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `admin_id` → `admins.id`, `permission_id` → `permissions.id` (cascade delete) |
 
 #### Columns
 
 | Column | Data Type | Required |
 | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R |
 | `admin_id` | BIGINT UNSIGNED | R |
-| `role_id` | BIGINT UNSIGNED | R |
-| `created_at` | TIMESTAMP | R |
-
----
-
-### 3.1.12 `role_permission` (pivot)
-
-| Attribute | Detail |
-| --- | --- |
-| **Table Name** | `role_permission` |
-| **Purpose** | Many-to-many: roles ↔ permissions |
-| **Primary Key** | (`role_id`, `permission_id`) |
-| **Foreign Keys** | `role_id` → `roles.id`, `permission_id` → `permissions.id` |
-
-#### Columns
-
-| Column | Data Type | Required |
-| --- | --- | --- |
-| `role_id` | BIGINT UNSIGNED | R |
 | `permission_id` | BIGINT UNSIGNED | R |
 | `created_at` | TIMESTAMP | R |
+| `updated_at` | TIMESTAMP | R |
+
+#### Constraints / Rules
+
+- Unique (`admin_id`, `permission_id`)
+- Effective permissions = role permissions ∪ direct permissions
+- Super Admin direct permissions cannot be persisted
 
 ---
 
@@ -2035,7 +2034,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `audit_logs` |
-| **Purpose** | Tamper-evident operational audit for sensitive admin/system actions. |
+| **Purpose** | Event-driven operational audit for sensitive admin actions. Rows are written by listeners on `AuditEvent`, not by direct controller writes. |
 | **Primary Key** | `id` |
 
 #### Columns
@@ -2043,20 +2042,20 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `actor_type` | VARCHAR(20) | R | `admin`, `system` |
-| `actor_id` | BIGINT UNSIGNED | O | |
-| `action` | VARCHAR(100) | R | e.g., `payment.refund`, `booking.status_change` |
-| `entity_type` | VARCHAR(50) | O | |
+| `admin_id` | BIGINT UNSIGNED | O | FK → `admins.id` (actor) |
+| `action` | VARCHAR(50) | R | e.g. `login`, `logout`, `create`, `update`, `delete`, `role_update`, `permission_update` |
+| `entity_type` | VARCHAR(100) | O | |
 | `entity_id` | BIGINT UNSIGNED | O | |
-| `before_data` | JSON | O | |
-| `after_data` | JSON | O | |
+| `description` | VARCHAR(255) | R | |
+| `metadata` | JSON | O | |
 | `ip_address` | VARCHAR(45) | O | |
+| `user_agent` | VARCHAR(255) | O | |
 | `created_at` | TIMESTAMP | R | |
 
 #### Validation Rules
 
 - Append-oriented; no customer update of audit rows.
-- Required for money/status/catalog-critical admin actions (SRS NFR-024).
+- Required for money/status/catalog-critical admin actions (SRS NFR-024) and Admin Module mutations (create/update/delete admin, role permission update, direct permission update, login/logout).
 
 ---
 
@@ -2091,15 +2090,15 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | `quotations` | `quotation_items` | Quote breakdown |
 | `orders` | `order_items`, `order_status_histories` | Order composition and audit |
 | `payments` | `payment_transactions`, `receipts` | Gateway transaction history and one successful-payment receipt |
-| `admins` | (via pivots) roles; also appear as actors on histories/refunds/audit | Admin operations |
-| `roles` | (via pivots) permissions | RBAC |
+| `admins` | `admin_permissions`, `audit_logs`; also appear as actors on histories/refunds | Admin operations |
+| `permissions` | `admin_role_permissions`, `admin_permissions` | Hybrid RBAC catalog |
 
 ## 4.3 Many-to-Many
 
 | Entity A | Entity B | Pivot | Description |
 | --- | --- | --- | --- |
-| `admins` | `roles` | `admin_role` | Admin panel RBAC |
-| `roles` | `permissions` | `role_permission` | Permission grants |
+| assignable roles | `permissions` | `admin_role_permissions` | Role permission grants (Hybrid RBAC) |
+| `admins` | `permissions` | `admin_permissions` | Direct admin permission grants (Hybrid RBAC) |
 
 ## 4.4 Polymorphic / Discriminated Relationships
 
@@ -2137,7 +2136,9 @@ customer_profiles ── store_orders ── store_order_items
 store_orders / goods_receipts ── stock_ledgers (polymorphic reference)
 services  <── service_categories
 
-admins ── admin_role ── roles ── role_permission ── permissions
+admins ── role (enum) ── admin_role_permissions ── permissions
+admins ── admin_permissions ── permissions
+admins ── audit_logs (via AuditEvent)
 ```
 
 ---
@@ -2352,9 +2353,10 @@ Indexes below are recommendations for common access paths. Exact index types dep
 
 ## 7.5 Admin Security
 
-- Separate `admins` and future staff identities from customer `users`.
-- RBAC via roles/permissions with least privilege.
-- Session timeout and audit logging for money/status/catalog changes.
+- Separate `admins` identity from customer `users`.
+- Hybrid RBAC (role permissions ∪ direct permissions) with least privilege; Super Admin implicit.
+- Inactive admins rejected on authenticated admin requests.
+- Session timeout and event-driven audit logging for money/status/catalog and Admin Module mutations.
 - No privilege escalation path from mobile customer tokens to admin permissions.
 
 ## 7.6 Application-Level Controls

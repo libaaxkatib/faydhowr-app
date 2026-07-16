@@ -130,7 +130,11 @@ Laravel Sanctum shall provide token-based authentication with separate customer 
 ### 8.2 Admin and Staff Authentication
 
 - Principal: `admins`, separate from `users`.
-- RBAC applies within the admin realm for **Admin**, **Sales**, and **Accountant** only.
+- Five roles: **Super Admin**, **Manager**, **Sales**, **Inventory**, **Accountant**.
+- **Hybrid RBAC:** effective permissions = role permissions ∪ direct admin permissions; Super Admin has all permissions implicitly.
+- **Dual Dashboard Architecture:** Super Admin Dashboard vs Operations Dashboard; module visibility from effective permissions; Dashboard Statistics cached per admin.
+- Inactive admins are rejected by admin middleware on protected routes (including existing tokens).
+- Sensitive admin mutations dispatch `AuditEvent` for event-driven audit log persistence.
 - Future staff identities remain separate from customer identities and must not share customer guards or token scopes.
 
 ### 8.3 Cross-Realm Rules

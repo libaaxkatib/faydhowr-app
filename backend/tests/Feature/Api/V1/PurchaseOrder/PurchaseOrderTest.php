@@ -3,11 +3,11 @@
 namespace Tests\Feature\Api\V1\PurchaseOrder;
 
 use App\Enums\PurchaseOrderStatus;
+use App\Models\Admin;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -17,7 +17,7 @@ class PurchaseOrderTest extends TestCase
 
     public function test_authenticated_user_can_create_a_purchase_order(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $supplier = Supplier::factory()->create();
         $product = Product::factory()->create([
             'sku' => 'CLN-100001',
@@ -25,7 +25,7 @@ class PurchaseOrderTest extends TestCase
         ]);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/purchase-orders', [
                 'supplier_id' => $supplier->id,
                 'currency' => 'USD',
@@ -77,7 +77,7 @@ class PurchaseOrderTest extends TestCase
 
     public function test_authenticated_user_can_update_a_draft_purchase_order(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $supplier = Supplier::factory()->create();
         $otherSupplier = Supplier::factory()->create();
         $firstProduct = Product::factory()->create(['sku' => 'OLD-001', 'name' => 'Old Item']);
@@ -100,7 +100,7 @@ class PurchaseOrderTest extends TestCase
         ]);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->putJson('/api/v1/purchase-orders/'.$purchaseOrder->id, [
                 'supplier_id' => $otherSupplier->id,
                 'currency' => 'USD',
@@ -133,11 +133,11 @@ class PurchaseOrderTest extends TestCase
 
     public function test_authenticated_user_can_submit_a_draft_purchase_order(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $purchaseOrder = $this->createDraftPurchaseOrderWithItem();
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->patchJson('/api/v1/purchase-orders/'.$purchaseOrder->id.'/submit');
 
         $response
@@ -154,8 +154,8 @@ class PurchaseOrderTest extends TestCase
 
     public function test_authenticated_user_can_cancel_draft_or_submitted_purchase_orders(): void
     {
-        $user = User::factory()->create();
-        $token = $user->createToken('admin-panel')->plainTextToken;
+        $admin = Admin::factory()->superAdmin()->create();
+        $token = $admin->createToken('admin-panel')->plainTextToken;
 
         $draft = $this->createDraftPurchaseOrderWithItem();
         $submitted = $this->createDraftPurchaseOrderWithItem();
@@ -186,7 +186,7 @@ class PurchaseOrderTest extends TestCase
 
     public function test_authenticated_user_can_list_purchase_orders_newest_first(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $older = PurchaseOrder::factory()->create([
             'created_at' => now()->subDay(),
         ]);
@@ -195,7 +195,7 @@ class PurchaseOrderTest extends TestCase
         ]);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->getJson('/api/v1/purchase-orders');
 
         $response
@@ -208,11 +208,11 @@ class PurchaseOrderTest extends TestCase
 
     public function test_authenticated_user_can_view_purchase_order_detail(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $purchaseOrder = $this->createDraftPurchaseOrderWithItem();
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->getJson('/api/v1/purchase-orders/'.$purchaseOrder->id);
 
         $response
@@ -226,10 +226,10 @@ class PurchaseOrderTest extends TestCase
 
     public function test_purchase_order_create_returns_validation_errors(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/purchase-orders', [
                 'currency' => 'usd',
                 'items' => [],
@@ -243,8 +243,8 @@ class PurchaseOrderTest extends TestCase
 
     public function test_lifecycle_rules_prevent_invalid_updates_submits_and_cancels(): void
     {
-        $user = User::factory()->create();
-        $token = $user->createToken('admin-panel')->plainTextToken;
+        $admin = Admin::factory()->superAdmin()->create();
+        $token = $admin->createToken('admin-panel')->plainTextToken;
 
         $submitted = $this->createDraftPurchaseOrderWithItem();
         $submitted->update([
@@ -279,7 +279,7 @@ class PurchaseOrderTest extends TestCase
 
     public function test_authenticated_user_can_filter_purchase_orders_by_status_and_supplier(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $supplier = Supplier::factory()->create();
         $otherSupplier = Supplier::factory()->create();
 
@@ -294,7 +294,7 @@ class PurchaseOrderTest extends TestCase
             'supplier_id' => $otherSupplier->id,
         ]);
 
-        $token = $user->createToken('admin-panel')->plainTextToken;
+        $token = $admin->createToken('admin-panel')->plainTextToken;
 
         $byStatus = $this->withToken($token)->getJson('/api/v1/purchase-orders?status=submitted');
         $bySupplier = $this->withToken($token)->getJson(

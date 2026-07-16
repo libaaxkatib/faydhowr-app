@@ -7,6 +7,7 @@ use App\Enums\PurchaseOrderStatus;
 use App\Enums\StockMovementType;
 use App\Enums\StoreOrderStatus;
 use App\Events\Payment\PaymentPaid;
+use App\Models\Admin;
 use App\Models\CustomerProfile;
 use App\Models\GoodsReceipt;
 use App\Models\Payment;
@@ -16,7 +17,6 @@ use App\Models\PurchaseOrderItem;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
 use App\Models\Supplier;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
@@ -29,12 +29,12 @@ class InventoryStockUpdateTest extends TestCase
 
     public function test_goods_receipt_increases_product_stock(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $product = Product::factory()->create(['current_stock' => 20]);
         [$purchaseOrder, $item] = $this->createSubmittedPurchaseOrder($product, quantity: 7);
 
         $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/goods-receipts', [
                 'purchase_order_id' => $purchaseOrder->id,
                 'items' => [[
@@ -52,12 +52,12 @@ class InventoryStockUpdateTest extends TestCase
 
     public function test_goods_receipt_creates_purchase_receipt_ledger_entries(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $product = Product::factory()->create(['current_stock' => 5]);
         [$purchaseOrder, $item] = $this->createSubmittedPurchaseOrder($product, quantity: 3);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/goods-receipts', [
                 'purchase_order_id' => $purchaseOrder->id,
                 'items' => [[
@@ -151,13 +151,13 @@ class InventoryStockUpdateTest extends TestCase
 
     public function test_goods_receipt_stock_update_rolls_back_atomically_when_product_is_missing(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $product = Product::factory()->create(['current_stock' => 8]);
         [$purchaseOrder, $item] = $this->createSubmittedPurchaseOrder($product, quantity: 2);
         $product->delete();
 
         $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/goods-receipts', [
                 'purchase_order_id' => $purchaseOrder->id,
                 'items' => [[

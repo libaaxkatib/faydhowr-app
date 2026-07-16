@@ -3,8 +3,8 @@
 namespace Tests\Feature\Api\V1\Supplier;
 
 use App\Enums\SupplierStatus;
+use App\Models\Admin;
 use App\Models\Supplier;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -14,10 +14,10 @@ class SupplierManagementTest extends TestCase
 
     public function test_authenticated_user_can_create_a_supplier(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/suppliers', [
                 'name' => 'Horn Africa Supplies',
                 'contact_person' => 'Amina Ali',
@@ -48,14 +48,14 @@ class SupplierManagementTest extends TestCase
 
     public function test_authenticated_user_can_update_a_supplier(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $supplier = Supplier::factory()->create([
             'name' => 'Old Name',
             'status' => SupplierStatus::Active,
         ]);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->putJson('/api/v1/suppliers/'.$supplier->id, [
                 'name' => 'Updated Supplies Co',
                 'contact_person' => 'Hassan Omar',
@@ -81,13 +81,13 @@ class SupplierManagementTest extends TestCase
 
     public function test_authenticated_user_can_soft_delete_a_supplier(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $supplier = Supplier::factory()->create([
             'name' => 'Delete Me Supplies',
         ]);
 
         $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->deleteJson('/api/v1/suppliers/'.$supplier->id)
             ->assertOk()
             ->assertJsonPath('success', true)
@@ -106,7 +106,7 @@ class SupplierManagementTest extends TestCase
 
     public function test_authenticated_user_can_list_suppliers_newest_first(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $older = Supplier::factory()->create([
             'name' => 'Older Supplier',
             'created_at' => now()->subDay(),
@@ -117,7 +117,7 @@ class SupplierManagementTest extends TestCase
         ]);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->getJson('/api/v1/suppliers');
 
         $response
@@ -132,14 +132,14 @@ class SupplierManagementTest extends TestCase
 
     public function test_authenticated_user_can_view_supplier_detail(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $supplier = Supplier::factory()->create([
             'name' => 'Detail Supplier',
             'contact_person' => 'Nuur Abdi',
         ]);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->getJson('/api/v1/suppliers/'.$supplier->id);
 
         $response
@@ -155,7 +155,7 @@ class SupplierManagementTest extends TestCase
 
     public function test_authenticated_user_can_search_suppliers_by_name_or_contact_person(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         Supplier::factory()->create([
             'name' => 'Blue Ocean Trading',
             'contact_person' => 'Sara Yusuf',
@@ -165,7 +165,7 @@ class SupplierManagementTest extends TestCase
             'contact_person' => 'Omar Farah',
         ]);
 
-        $token = $user->createToken('admin-panel')->plainTextToken;
+        $token = $admin->createToken('admin-panel')->plainTextToken;
 
         $byName = $this->withToken($token)->getJson('/api/v1/suppliers?search=Blue Ocean');
         $byContact = $this->withToken($token)->getJson('/api/v1/suppliers?search=Omar');
@@ -183,12 +183,12 @@ class SupplierManagementTest extends TestCase
 
     public function test_authenticated_user_can_filter_suppliers_by_status(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         Supplier::factory()->create(['name' => 'Active Supplier']);
         Supplier::factory()->inactive()->create(['name' => 'Inactive Supplier']);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->getJson('/api/v1/suppliers?status=inactive');
 
         $response
@@ -200,11 +200,11 @@ class SupplierManagementTest extends TestCase
 
     public function test_supplier_create_returns_validation_errors(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         Supplier::factory()->create(['name' => 'Existing Supplier']);
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/suppliers', [
                 'name' => 'Existing Supplier',
                 'email' => 'not-an-email',
@@ -219,12 +219,12 @@ class SupplierManagementTest extends TestCase
 
     public function test_soft_deleted_supplier_name_can_be_reused(): void
     {
-        $user = User::factory()->create();
+        $admin = Admin::factory()->superAdmin()->create();
         $supplier = Supplier::factory()->create(['name' => 'Reusable Name']);
         $supplier->delete();
 
         $response = $this
-            ->withToken($user->createToken('admin-panel')->plainTextToken)
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
             ->postJson('/api/v1/suppliers', [
                 'name' => 'Reusable Name',
             ]);

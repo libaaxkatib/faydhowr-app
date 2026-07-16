@@ -1227,18 +1227,22 @@ Responsive changes adjust **layout density only**. They must not change:
 | --- | --- |
 | **Login** | **One** Admin Login page only (email + password). No per-role login pages. |
 | **Panel** | **One** Admin Panel application for all roles. |
-| **Roles** | **Admin** · **Sales** · **Accountant** only |
-| **After login** | System detects role and loads permitted dashboard, sidebar, statistics, and actions |
-| **Header** | `Welcome, {Name}` and `Role: {Role Name}` (e.g., Welcome, Asad · Role: Admin) |
-| **Purpose** | Executive Dashboard — business health at a glance |
+| **Roles** | **Super Admin** · **Manager** · **Sales** · **Inventory** · **Accountant** |
+| **Authorization** | Hybrid RBAC (role ∪ direct permissions); Super Admin implicit |
+| **Dashboards** | Dual Dashboard — Super Admin vs Operations; cached Dashboard Statistics |
+| **After login** | System loads dashboard type, navigation, statistics, and actions from effective permissions |
+| **Inactive** | Inactive admins rejected (including existing tokens) |
+| **Header** | `Welcome, {Name}` and `Role: {Role Name}` |
+| **Purpose** | Dual Dashboard Architecture — Super Admin oversight vs Operations module navigation |
 
-### Sidebar by role (approved modules only — no “Later” placeholders)
+### Sidebar visibility (permission-driven)
 
 | Role | Visible navigation |
 | --- | --- |
-| **Admin** | Dashboard, Customers, Bookings, Quotations, Orders, Payments, Invoices, Receipts, Reports, Services, Store, Notifications, Settings, Audit / Logs |
-| **Sales** | Dashboard, Customers, Quotations, Orders |
-| Accountant | Dashboard, Payments, Invoices, Receipts, Orders; may add/view **internal customer notes** when profile is opened from a linked finance record |
+| **Super Admin** | All modules on Super Admin Dashboard |
+| **Manager / Sales / Inventory / Accountant** | Operations modules unlocked by effective Hybrid RBAC permissions |
+
+Modules without protected admin permission keys remain Super-Admin-only until implemented.
 
 ## 17.1 Desktop Shell
 

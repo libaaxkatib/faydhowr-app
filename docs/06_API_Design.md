@@ -52,7 +52,7 @@ Provide a secure, versioned REST JSON API that enables the Fayadhowr Flutter cus
 - Create bookings, quotation requests, carts/orders, and payments
 - Manage profile, addresses, favorites, notifications, and commercial histories
 
-Admin-panel APIs (if separate) are out of scope for this customer API design document, except where payment webhooks are system-facing.
+Admin-panel APIs are documented in **§18 Admin Panel APIs** (Sprint 11). Customer APIs remain the primary focus of this document; payment webhooks remain system-facing.
 
 ## 1.2 Architecture
 
@@ -1256,6 +1256,55 @@ Future API and product enhancements may include the following. These items are *
 ## 20.2 Versioning Note
 
 Additive future capabilities should prefer non-breaking extensions within `/api/v1` where possible. Breaking contract changes require a new major API version (for example `/api/v2`) with a defined deprecation window.
+
+---
+
+# 18. Admin Panel APIs (Sprint 11)
+
+Admin APIs use Sanctum tokens issued to `admins`, middleware `auth:sanctum` + `admin`, and Hybrid RBAC via `permission:<key>` where applicable. Inactive admins receive `ADMIN_ACCOUNT_INACTIVE` (403).
+
+## 18.1 Authentication
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| POST | `/api/v1/admin/auth/login` | Email + password against `admins` |
+| POST | `/api/v1/admin/auth/logout` | Revoke current token; AuditEvent logout |
+| GET | `/api/v1/admin/auth/me` | Current admin profile |
+
+## 18.2 Hybrid RBAC
+
+| Method | Path | Permission |
+| --- | --- | --- |
+| GET | `/api/v1/admin/permissions` | `roles.manage` |
+| PUT | `/api/v1/admin/roles/{role}/permissions` | Super Admin; AuditEvent `role_update` |
+| GET | `/api/v1/admin/admins/{admin}/permissions` | `roles.manage` |
+| PUT | `/api/v1/admin/admins/{admin}/permissions` | Super Admin; AuditEvent `permission_update` |
+
+Effective permissions = role permissions ∪ direct permissions. Super Admin permissions are implicit and not persisted.
+
+Permission catalog (route-aligned): `products.create`, `products.update`, `products.delete`, `suppliers.manage`, `purchase_orders.manage`, `goods_receipts.manage`, `admins.manage`, `roles.manage`.
+
+## 18.3 Admin CRUD
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/api/v1/admin/admins` | List/filter; `admins.manage` |
+| GET | `/api/v1/admin/admins/{admin}` | Detail + effective permissions |
+| POST | `/api/v1/admin/admins` | Super Admin; AuditEvent create; cache forget |
+| PUT | `/api/v1/admin/admins/{admin}` | Super Admin; AuditEvent update; cache forget |
+| DELETE | `/api/v1/admin/admins/{admin}` | Super Admin soft-delete; AuditEvent delete; cache forget |
+
+## 18.4 Dual Dashboard & Statistics
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/api/v1/admin/dashboard` | `dashboard_type`, `visible_modules`, `visible_navigation`, cached `statistics` |
+
+## 18.5 Audit Logs
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/api/v1/admin/audit-logs` | `admins.manage`; event-sourced rows |
 
 ---
 
