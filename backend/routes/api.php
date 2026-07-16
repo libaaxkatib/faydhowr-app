@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\Auth\AuthenticatedUserController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\RegistrationController;
+use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -24,6 +25,14 @@ Route::prefix('v1/auth')->group(function (): void {
         ->middleware('throttle:auth-register')
         ->name('api.v1.auth.register');
 });
+
+Route::get('v1/customer/profile', [CustomerProfileController::class, 'show'])
+    ->middleware('auth:sanctum')
+    ->name('api.v1.customer.profile');
+
+Route::patch('v1/customer/profile', [CustomerProfileController::class, 'update'])
+    ->middleware('auth:sanctum')
+    ->name('api.v1.customer.profile.update');
 
 Route::get('/user', function (Request $request) {
     return $request->user();

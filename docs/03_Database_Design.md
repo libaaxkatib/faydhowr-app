@@ -34,7 +34,7 @@ It intentionally does **not** include:
 | --- | --- |
 | In Scope (v1) | Out of Scope (v1) |
 | --- | --- |
-| Customer accounts and profiles | Employee / technician / driver workforce tables |
+| User authentication identities and customer profiles | Employee / technician / driver workforce tables |
 | Admin panel operator accounts (RBAC) | Multi-vendor seller portals |
 | Services, store, bookings, quotations, orders, payments, notifications | Multi-tenant SaaS tenancy |
 | Optional product quotations and service quotations | Marketplace / partner inventory |
@@ -57,7 +57,7 @@ It intentionally does **not** include:
 
 Fayadhowr uses a **single relational database** as the system of record for:
 
-- Customer identity and profile data
+- User authentication identity and one-to-one customer profile data
 - Admin identity and authorization (admin panel only)
 - Service and store catalogs
 - Bookings, quotation requests/quotations, store carts/orders
@@ -78,16 +78,16 @@ The Flutter customer app and the Laravel admin/API layer share this database thr
 | **Soft deactivation over hard delete** | Catalog entities can be deactivated while historical transactions remain intact. |
 | **Commercial immutability** | Order/booking/quotation line snapshots preserve what the customer agreed to at confirmation time. |
 | **Polymorphic commercial links where justified** | Payments and quotations may reference more than one payable/requestable entity type without inventing duplicate payment tables. |
-| **Least privilege data** | Customers own only their rows; admins operate through RBAC; no employee workforce schema in v1. |
+| **Least privilege data** | Mobile ownership is enforced through `users.id`; customer business data is linked through `customer_profiles`; admins operate through separate RBAC identities; no employee workforce schema in v1. |
 | **PCI minimization** | No full card PAN/CVV storage; only provider references and internal payment status. |
 
 ## 1.3 Naming Conventions
 
 | Convention | Rule |
 | --- | --- |
-| Table names | `snake_case`, plural (`customers`, `order_items`) |
+| Table names | `snake_case`, plural (`users`, `customer_profiles`, `order_items`) |
 | Primary keys | `id` (unsigned big integer, surrogate) |
-| Foreign keys | `{referenced_table_singular}_id` (e.g., `customer_id`) |
+| Foreign keys | `{referenced_table_singular}_id`; use `user_id` for customer-authenticated transactional ownership and `customer_profile_id` for profile-scoped records |
 | Timestamps | `created_at`, `updated_at`; soft delete via `deleted_at` where noted |
 | Money | `DECIMAL(12,2)` (or equivalent) with explicit `currency` where amounts are stored |
 | Status fields | Constrained string/enumeration values documented per table |
@@ -110,7 +110,7 @@ Most transactional tables include:
 
 | Module | Responsibility | Primary Tables |
 | --- | --- | --- |
-| **User Management** | Customers, addresses, saved payment methods, devices, auth recovery; admin operators & roles | `customers`, `customer_addresses`, `customer_payment_methods`, `customer_devices`, `password_reset_tokens`, `admins`, `roles`, `admin_role`, `permissions`, `role_permission` |
+| **User Management** | Mobile user identity, customer profiles, addresses, saved payment methods, devices, auth recovery; admin operators & roles | `users`, `customer_profiles`, `customer_addresses`, `customer_payment_methods`, `customer_devices`, `password_reset_tokens`, `admins`, `roles`, `admin_role`, `permissions`, `role_permission` |
 | **Service Management** | Service categories, services, media, schedule constraints | `service_categories`, `services`, `service_media`, `service_blackout_dates` |
 | **Store Management** | Product categories, products, media, cart | `product_categories`, `products`, `product_media`, `carts`, `cart_items` |
 | **Booking Management** | Service bookings and status history | `bookings`, `booking_status_histories` |
@@ -125,9 +125,9 @@ Most transactional tables include:
 
 ### User Management
 
-- **Customers** are the only mobile end users.
-- **Admins** exist solely for the web admin panel (SRS §14). They are not field employees, technicians, or drivers.
-- Guests may browse catalogs without a `customers` row; a customer record is required before booking or ordering.
+- **Users** are the only mobile authentication identities. Each mobile customer has one linked `customer_profiles` record for business and profile data.
+- **Admins** exist solely for the web admin panel (SRS §14). They are separate from `users` and are not field employees, technicians, or drivers.
+- Guests may browse catalogs without a `users` row; an authenticated active user is required before booking or ordering.
 
 ### Service Management
 
@@ -155,6 +155,21 @@ Most transactional tables include:
 - Key/value operational configuration (currency, feature flags, provider config references).
 - Audit log for sensitive admin actions (SRS NFR-024).
 
+### ADR-001 Identity Mapping
+
+ADR-001 is authoritative for every identity and ownership reference in this specification:
+
+| Legacy reference | Approved replacement |
+| --- | --- |
+| `customers` authentication table | `users` is the sole customer authentication identity; no standalone `customers` table exists |
+| Customer business/profile row | `customer_profiles` with unique `user_id` → `users.id` |
+| Customer transactional ownership | `user_id` → `users.id` |
+| Customer profile-scoped child ownership | `customer_profile_id` → `customer_profiles.id` |
+| Customer actor in polymorphic histories/messages | `user` with `users.id` |
+| Admin/staff ownership or preferences | `admin_id` → `admins.id`; never `users.id` unless explicitly customer-owned |
+
+The historical `customers` references that remain in workflow prose describe the customer persona only. They must not be interpreted as a table, authentication principal, or foreign-key target.
+
 ---
 
 # 3. Table Specifications
@@ -165,7 +180,9 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ## 3.1 User Management
 
-### 3.1.1 `customers`
+### Superseded: `customers` standalone identity table
+
+> **Superseded by ADR-001.** This historical combined identity/profile design must not be implemented. `users` is the only mobile authentication identity and `customer_profiles` is the one-to-one business/profile extension.
 
 | Attribute | Detail |
 | --- | --- |
@@ -215,24 +232,85 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 - Guest browsing does not require a row here.
 - Login is enforced at booking/order (and related transactional) boundaries.
 
+### 3.1.1 `users`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `users` |
+| **Purpose** | Sole mobile-customer authentication identity. |
+| **Primary Key** | `id` |
+| **Relationships** | 1:1 → `customer_profiles`; 1:N → carts, bookings, quotation requests, orders, payments, notifications, reviews; authentication recovery and Sanctum tokens |
+
+#### Identity Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | Surrogate PK |
+| `email` | VARCHAR(191) | O | Unique when present; email login/recovery |
+| `phone` | VARCHAR(30) | R | Unique; primary login identifier candidate |
+| `password` | VARCHAR(255) | R | One-way hash only |
+| `google_subject` | VARCHAR(191) | O | Unique provider subject when linked |
+| `email_verified_at`, `phone_verified_at` | TIMESTAMP | O | Verification markers |
+| `status` | VARCHAR(30) | R | `pending_verification`, `active`, `suspended`, `deactivated` |
+| `last_login_at` | TIMESTAMP | O | Audit/support |
+| `created_at`, `updated_at`, `deleted_at` | TIMESTAMP | R/O | Account lifecycle and soft deletion |
+
+#### Constraints and Rules
+
+- Unique: `phone`, nullable `email`, nullable `google_subject`.
+- Check/enum: `status` in the defined set.
+- Suspended/deactivated users cannot create bookings, orders, or quotation requests.
+- Guest browsing does not require a `users` row; authentication is enforced at transactional boundaries.
+
+### 3.1.2 `customer_profiles`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `customer_profiles` |
+| **Purpose** | One-to-one customer business/profile data; not an authentication identity. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `user_id` → `users.id` (UNIQUE, required) |
+| **Relationships** | 1:1 → `users`; 1:N → addresses, saved payment methods, internal customer notes |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | Surrogate PK |
+| `user_id` | BIGINT UNSIGNED | R | Unique one-to-one link to `users` |
+| `customer_number` | VARCHAR(40) | R | Unique public reference `CUS-YYYY-######`; read-only |
+| `full_name` | VARCHAR(150) | R | Display name |
+| `avatar_url` | VARCHAR(500) | O | Profile photo |
+| `preferred_language` | VARCHAR(10) | R | `so` · `en` · `ar` |
+| `notification_preferences` | JSON | O | Push/email and category toggles |
+| `classification` | VARCHAR(30) | R | `lead` or `active_customer`; not an authentication role |
+| `created_at`, `updated_at`, `deleted_at` | TIMESTAMP | R/O | Profile lifecycle and soft deletion |
+
+#### Constraints and Rules
+
+- Unique: `user_id`, `customer_number`.
+- Check/enum: `preferred_language` in `so|en|ar`; `classification` in `lead|active_customer`.
+- `customer_number` is generated by the system and is not customer-editable.
+- `customer_profiles` cannot authenticate, own Sanctum tokens, or replace `users`.
+
 ---
 
-### 3.1.2 `customer_addresses`
+### 3.1.3 `customer_addresses`
 
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `customer_addresses` |
 | **Purpose** | Saved delivery/service locations for a customer. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `customer_id` → `customers.id` |
-| **Relationships** | N:1 → `customers` |
+| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id` |
+| **Relationships** | N:1 → `customer_profiles` |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `customer_id` | BIGINT UNSIGNED | R | FK |
+| `customer_profile_id` | BIGINT UNSIGNED | R | FK |
 | `label` | VARCHAR(50) | O | e.g., Home, Office |
 | `contact_name` | VARCHAR(150) | O | |
 | `phone` | VARCHAR(30) | O | |
@@ -252,7 +330,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 #### Constraints
 
 - FK cascade behavior: restrict preferred; **do not hard-delete** customer addresses from the customer app.
-- At most one `is_default = true` among **active** addresses per customer.
+- At most one `is_default = true` among **active** addresses per customer profile.
 
 #### Validation Rules
 
@@ -266,22 +344,22 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.3 `customer_payment_methods`
+### 3.1.4 `customer_payment_methods`
 
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `customer_payment_methods` |
 | **Purpose** | Saved checkout instruments for a customer (separate from immutable `payments` history). |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `customer_id` → `customers.id` |
-| **Relationships** | N:1 → `customers` |
+| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id` |
+| **Relationships** | N:1 → `customer_profiles` |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `customer_id` | BIGINT UNSIGNED | R | FK |
+| `customer_profile_id` | BIGINT UNSIGNED | R | FK |
 | `type` | VARCHAR(40) | R | `evc_plus`, `edahab`, `jeeb`, `salaam_somali_bank`, `bank_transfer`, `card` |
 | `display_label` | VARCHAR(100) | O | Customer-facing nickname |
 | `masked_account` | VARCHAR(60) | R | Masked phone / account / last4 |
@@ -307,22 +385,22 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.4 `customer_devices`
+### 3.1.5 `customer_devices`
 
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `customer_devices` |
 | **Purpose** | Push notification device tokens for customers. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `customer_id` → `customers.id` |
-| **Relationships** | N:1 → `customers` |
+| **Foreign Keys** | `user_id` → `users.id` |
+| **Relationships** | N:1 → `users` |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `customer_id` | BIGINT UNSIGNED | R | FK |
+| `user_id` | BIGINT UNSIGNED | R | FK |
 | `platform` | VARCHAR(20) | R | `ios`, `android` |
 | `device_token` | VARCHAR(255) | R | Push token |
 | `app_version` | VARCHAR(30) | O | |
@@ -333,7 +411,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 #### Constraints
 
-- Unique: (`customer_id`, `device_token`) or globally unique `device_token`
+- Unique: (`user_id`, `device_token`) or globally unique `device_token`
 
 #### Validation Rules
 
@@ -345,22 +423,22 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.5 `customer_notes` (Admin internal)
+### 3.1.6 `customer_notes` (Admin internal)
 
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `customer_notes` |
 | **Purpose** | Internal staff notes on a customer. **Never** exposed on customer mobile APIs. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `customer_id` → `customers.id`, `admin_id` → `admins.id` |
-| **Relationships** | N:1 → `customers`, N:1 → `admins` |
+| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id`, `admin_id` → `admins.id` |
+| **Relationships** | N:1 → `customer_profiles`, N:1 → `admins` |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `customer_id` | BIGINT UNSIGNED | R | FK |
+| `customer_profile_id` | BIGINT UNSIGNED | R | FK |
 | `admin_id` | BIGINT UNSIGNED | R | Author (Admin / Sales / Accountant operator) |
 | `body` | TEXT | R | Note content |
 | `created_at` | TIMESTAMP | R | |
@@ -374,23 +452,23 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.6 `password_reset_tokens`
+### 3.1.7 `password_reset_tokens`
 
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `password_reset_tokens` |
-| **Purpose** | Credential recovery tokens for customers (and optionally admins if co-located by design). |
+| **Purpose** | Credential recovery tokens for `users` (and separately for `admins` when approved). |
 | **Primary Key** | Composite or `id` |
 | **Foreign Keys** | Logical link via email/phone (implementation choice) |
-| **Relationships** | Associated to `customers` by identifier |
+| **Relationships** | Associated to `users` or `admins` by subject identity |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK (recommended) |
-| `subject_type` | VARCHAR(30) | R | `customer` (v1) |
-| `subject_id` | BIGINT UNSIGNED | R | Customer id |
+| `subject_type` | VARCHAR(30) | R | `user` (v1); `admin` only for a separate approved admin recovery path |
+| `subject_id` | BIGINT UNSIGNED | R | `users.id` or `admins.id`, matching `subject_type` |
 | `token_hash` | VARCHAR(255) | R | Store hash, not raw token |
 | `expires_at` | TIMESTAMP | R | |
 | `used_at` | TIMESTAMP | O | |
@@ -412,7 +490,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.7 `admins`
+### 3.1.8 `admins`
 
 | Attribute | Detail |
 | --- | --- |
@@ -443,7 +521,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 #### Validation Rules
 
-- Admins cannot authenticate via customer mobile APIs as customers.
+- Admins cannot authenticate via customer mobile APIs as `users`.
 - Privilege separation mandatory (SRS §4.2).
 
 #### Notes
@@ -452,7 +530,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.8 `roles`
+### 3.1.9 `roles`
 
 | Attribute | Detail |
 | --- | --- |
@@ -477,7 +555,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.9 `permissions`
+### 3.1.10 `permissions`
 
 | Attribute | Detail |
 | --- | --- |
@@ -498,7 +576,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.10 `admin_role` (pivot)
+### 3.1.11 `admin_role` (pivot)
 
 | Attribute | Detail |
 | --- | --- |
@@ -517,7 +595,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.11 `role_permission` (pivot)
+### 3.1.12 `role_permission` (pivot)
 
 | Attribute | Detail |
 | --- | --- |
@@ -811,7 +889,7 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 | **Table Name** | `carts` |
 | **Purpose** | Shopping cart header. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `customer_id` → `customers.id` (required at checkout; may be set when user logs in) |
+| **Foreign Keys** | `user_id` → `users.id` (required at checkout; may be set when user logs in) |
 | **Relationships** | 1:N `cart_items` |
 
 #### Columns
@@ -819,7 +897,7 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `customer_id` | BIGINT UNSIGNED | O | Required before placing order |
+| `user_id` | BIGINT UNSIGNED | O | Required before placing order |
 | `session_token` | VARCHAR(100) | O | Optional guest cart bridge |
 | `status` | VARCHAR(20) | R | `active`, `converted`, `abandoned` |
 | `currency` | CHAR(3) | R | |
@@ -828,7 +906,7 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 
 #### Constraints / Validation
 
-- Placing an order requires authenticated `customer_id` (login required to place order).
+- Placing an order requires authenticated `user_id` (login required to place order).
 - Guest may build a cart only if product policy allows; conversion requires login.
 
 #### Notes
@@ -874,8 +952,8 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 | **Table Name** | `bookings` |
 | **Purpose** | Customer service booking records. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `customer_id` → `customers.id`, `service_id` → `services.id`, optional `quotation_id` → `quotations.id` |
-| **Relationships** | N:1 customer/service; 1:N status histories; optional link to accepted quotation; payments via polymorphic payable |
+| **Foreign Keys** | `user_id` → `users.id`, `service_id` → `services.id`, optional `quotation_id` → `quotations.id` |
+| **Relationships** | N:1 user/service; 1:N status histories; optional link to accepted quotation; payments via polymorphic payable |
 
 #### Columns
 
@@ -883,7 +961,7 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
 | `booking_number` | VARCHAR(40) | R | Unique public reference |
-| `customer_id` | BIGINT UNSIGNED | R | FK — **login required** |
+| `user_id` | BIGINT UNSIGNED | R | FK — **login required** |
 | `service_id` | BIGINT UNSIGNED | R | FK |
 | `quotation_id` | BIGINT UNSIGNED | O | When booking follows accepted quote |
 | `status` | VARCHAR(30) | R | Admin/customer operational statuses (see below) |
@@ -905,7 +983,7 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 #### Constraints
 
 - Unique `booking_number`
-- `customer_id` NOT NULL
+- `user_id` NOT NULL
 - Status in: `pending_review`, `quotation_ready`, `under_discussion`, `accepted`, `scheduled`, `in_progress`, `completed`, `cancelled`  
   (Admin display labels: Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Cancelled)  
   **Never** `rejected`. No custom status values. Status updates use a controlled dropdown only.
@@ -967,7 +1045,7 @@ If a product has only one fixed price (`has_tier_pricing=false`), show the singl
 | `booking_id` | BIGINT UNSIGNED | R | FK |
 | `from_status` | VARCHAR(30) | O | |
 | `to_status` | VARCHAR(30) | R | |
-| `changed_by_type` | VARCHAR(20) | R | `customer`, `admin`, `system` |
+| `changed_by_type` | VARCHAR(20) | R | `user`, `admin`, `system` |
 | `changed_by_id` | BIGINT UNSIGNED | O | |
 | `note` | VARCHAR(255) | O | |
 | `created_at` | TIMESTAMP | R | |
@@ -989,7 +1067,7 @@ Supports:
 | **Table Name** | `quotation_requests` |
 | **Purpose** | Customer-submitted request for a formal quote. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `customer_id` → `customers.id`; optional `service_id` / `product_id` |
+| **Foreign Keys** | `user_id` → `users.id`; optional `service_id` / `product_id` |
 | **Relationships** | 1:N attachments, quotations |
 
 #### Columns
@@ -998,7 +1076,7 @@ Supports:
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
 | `request_number` | VARCHAR(40) | R | Unique public reference; may match or link to canonical `QT-YYYY-######` once quotation family is created |
-| `customer_id` | BIGINT UNSIGNED | R | FK — authenticated |
+| `user_id` | BIGINT UNSIGNED | R | FK — authenticated |
 | `request_target_type` | VARCHAR(20) | R | Quotation **origin** for Admin: `booking` (service booking path) or `product` (product request). Display: Booking / Product. Standalone quotes forbidden. |
 | `booking_id` | BIGINT UNSIGNED | O | Required when origin is Booking — permanent FK to `bookings.id` |
 | `service_id` | BIGINT UNSIGNED | O | Service context (often via booking) |
@@ -1193,7 +1271,7 @@ These files help administrators accurately assess the requested work and prepare
 | **Table Name** | `quotation_messages` |
 | **Purpose** | Discussion thread attached to a quotation (same Quotation Number). |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `quotation_number` / `quotation_request_id`; optional `customer_id` or `admin_id` as author |
+| **Foreign Keys** | `quotation_number` / `quotation_request_id`; optional `user_id` or `admin_id` as author |
 
 #### Columns (logical)
 
@@ -1256,8 +1334,8 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | **Table Name** | `payments` |
 | **Purpose** | Authoritative payment attempts/results for payable entities. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `customer_id` → `customers.id`; polymorphic payable reference |
-| **Relationships** | N:1 customer; 1:N refunds |
+| **Foreign Keys** | `user_id` → `users.id`; polymorphic payable reference |
+| **Relationships** | N:1 user; 1:N refunds |
 
 #### Columns
 
@@ -1265,7 +1343,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
 | `payment_number` | VARCHAR(40) | R | Unique internal/public reference |
-| `customer_id` | BIGINT UNSIGNED | R | FK |
+| `user_id` | BIGINT UNSIGNED | R | FK |
 | `payable_type` | VARCHAR(30) | R | `order`, `booking`, `quotation` |
 | `payable_id` | BIGINT UNSIGNED | R | Target entity id |
 | `amount` | DECIMAL(12,2) | R | Charged amount |
@@ -1380,7 +1458,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | **Table Name** | `orders` |
 | **Purpose** | Commercial transactions auto-created from accepted quotations. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `customer_id` → `customers.id`, `quotation_id` → `quotations.id` (required — order always traces to an accepted quotation), optional `booking_id` → `bookings.id`, optional `cart_id` |
+| **Foreign Keys** | `user_id` → `users.id`, `quotation_id` → `quotations.id` (required — order always traces to an accepted quotation), optional `booking_id` → `bookings.id`, optional `cart_id` |
 | **Relationships** | 1:N `order_items`, `order_status_histories`, `order_notes`; payments via payable link |
 
 #### Columns
@@ -1389,7 +1467,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
 | `order_number` | VARCHAR(40) | R | Unique `ORD-YYYY-######` |
-| `customer_id` | BIGINT UNSIGNED | R | FK — **login required** |
+| `user_id` | BIGINT UNSIGNED | R | FK — **login required** |
 | `quotation_id` | BIGINT UNSIGNED | R | FK — accepted quotation that triggered order creation |
 | `booking_id` | BIGINT UNSIGNED | O | FK — populated when source chain passes through a booking |
 | `source_type` | VARCHAR(20) | R | `booking` or `product` (Admin display: Booking / Product) |
@@ -1413,7 +1491,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 #### Constraints
 
 - Unique `order_number`
-- `customer_id` required
+- `user_id` required
 - `quotation_id` required (never NULL — order cannot exist without an accepted quotation)
 - `source_type` must be `booking` or `product`; when `booking`, `booking_id` must be populated
 - Totals must equal sum of item snapshots + discount + delivery + tax (policy)
@@ -1563,14 +1641,14 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | **Table Name** | `notifications` |
 | **Purpose** | Persisted in-app notifications for customers. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `customer_id` → `customers.id` |
+| **Foreign Keys** | `user_id` → `users.id` |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `customer_id` | BIGINT UNSIGNED | R | FK |
+| `user_id` | BIGINT UNSIGNED | R | FK |
 | `template_code` | VARCHAR(100) | O | |
 | `title` | VARCHAR(255) | R | Rendered |
 | `body` | TEXT | R | Rendered |
@@ -1585,7 +1663,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 #### Constraints / Validation
 
-- Customers may only read their own notifications.
+- Users may only read their own notifications.
 - Delivery failure must not roll back the business transaction that emitted the event.
 
 #### Notes
@@ -1603,15 +1681,15 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | **Table Name** | `reviews` |
 | **Purpose** | Customer ratings/comments after eligible completed store or service experiences. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `customer_id` → `customers.id`; optional `order_id` / `booking_id`; optional `product_id` / `service_id` |
-| **Relationships** | N:1 customer; optionally linked to completed order/booking and catalog entity |
+| **Foreign Keys** | `user_id` → `users.id`; optional `order_id` / `booking_id`; optional `product_id` / `service_id` |
+| **Relationships** | N:1 user; optionally linked to completed order/booking and catalog entity |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `customer_id` | BIGINT UNSIGNED | R | FK |
+| `user_id` | BIGINT UNSIGNED | R | FK |
 | `review_target_type` | VARCHAR(20) | R | `product`, `service`, `order`, `booking` |
 | `product_id` | BIGINT UNSIGNED | O | |
 | `service_id` | BIGINT UNSIGNED | O | |
@@ -1627,11 +1705,11 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 #### Constraints
 
 - `rating` between 1 and 5
-- Unique review per customer per target entity (e.g., unique (`customer_id`, `order_id`) when order review)
+- Unique review per user per target entity (e.g., unique (`user_id`, `order_id`) when order review)
 
 #### Validation Rules
 
-- Only owning customer may create review for their completed order/booking.
+- Only owning user may create review for their completed order/booking.
 - No employee/technician review entity (workforce out of scope).
 - Admin may hide abusive content via `status`.
 
@@ -1707,6 +1785,7 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 | Parent | Child | Description |
 | --- | --- | --- |
+| `users` | `customer_profiles` | Exactly one business/profile record per authenticated mobile customer (`customer_profiles.user_id` UNIQUE) |
 | `quotation_requests` | Current accept-eligible `quotations` row | Logical 1:1 “active quote” via status/version rules (multiple historical versions may exist) |
 | `carts` | Converted `orders` | A cart may convert to at most one order (`status=converted`) |
 
@@ -1716,7 +1795,8 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 | Parent | Children | Description |
 | --- | --- | --- |
-| `customers` | `customer_addresses`, `customer_payment_methods`, `customer_devices`, `customer_notes`, `carts`, `bookings`, `quotation_requests`, `orders`, `payments`, `notifications`, `reviews` | Customer owns transactional and profile data |
+| `users` | `customer_profiles`, `customer_devices`, `carts`, `bookings`, `quotation_requests`, `orders`, `payments`, `notifications`, `reviews` | Sole customer authentication principal and transactional owner |
+| `customer_profiles` | `customer_addresses`, `customer_payment_methods`, `customer_notes` | Customer business/profile data and profile-scoped children |
 | `service_categories` | `services` | Category catalog |
 | `services` | `service_media`, `service_blackout_dates`, `bookings`, `quotation_requests` | Service definition and usage |
 | `product_categories` | `products` | Store taxonomy |
@@ -1749,17 +1829,19 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 ## 4.5 Relationship Diagram (Logical)
 
 ```text
-customers ──┬── customer_addresses
-            ├── customer_devices
-            ├── carts ──── cart_items ──── products
-            ├── bookings ──── booking_status_histories
-            │       └── services
-            ├── quotation_requests ──┬── quotation_request_attachments
-            │                        └── quotations ──── quotation_items
-            ├── orders ──── order_items
-            ├── payments ──── payment_refunds
-            ├── notifications
-            └── reviews
+users ──┬── customer_profiles (1:1) ──┬── customer_addresses
+        │                              ├── customer_payment_methods
+        │                              └── customer_notes
+        ├── customer_devices
+        ├── carts ──── cart_items ──── products
+        ├── bookings ──── booking_status_histories
+        │       └── services
+        ├── quotation_requests ──┬── quotation_request_attachments
+        │                        └── quotations ──── quotation_items
+        ├── orders ──── order_items
+        ├── payments ──── payment_refunds
+        ├── notifications
+        └── reviews
 
 products  <── product_categories
 services  <── service_categories
@@ -1777,11 +1859,13 @@ Indexes below are recommendations for common access paths. Exact index types dep
 
 | Table | Index | Purpose |
 | --- | --- | --- |
-| `customers` | UNIQUE(`phone`) | Login lookup |
-| `customers` | UNIQUE(`email`) | Login/recovery |
-| `customers` | (`status`, `created_at`) | Admin customer lists |
+| `users` | UNIQUE(`phone`) | Login lookup |
+| `users` | UNIQUE(`email`) | Login/recovery |
+| `users` | (`status`, `created_at`) | Account eligibility and admin customer lists |
+| `customer_profiles` | UNIQUE(`user_id`) | Enforce one-to-one profile relationship |
+| `customer_profiles` | UNIQUE(`customer_number`) | Customer public-reference lookup |
 | `admins` | UNIQUE(`email`) | Admin login |
-| `customer_devices` | (`customer_id`, `is_active`) | Push fan-out |
+| `customer_devices` | (`user_id`, `is_active`) | Push fan-out |
 | `customer_devices` | UNIQUE(`device_token`) | Token upsert |
 | `password_reset_tokens` | (`subject_type`, `subject_id`, `expires_at`) | Recovery cleanup |
 
@@ -1803,14 +1887,14 @@ Indexes below are recommendations for common access paths. Exact index types dep
 
 | Table | Index | Purpose |
 | --- | --- | --- |
-| `carts` | (`customer_id`, `status`) | Active cart |
+| `carts` | (`user_id`, `status`) | Active cart |
 | `cart_items` | UNIQUE(`cart_id`, `product_id`) | Line upsert |
 | `bookings` | UNIQUE(`booking_number`) | Customer reference |
-| `bookings` | (`customer_id`, `created_at`) | History |
+| `bookings` | (`user_id`, `created_at`) | History |
 | `bookings` | (`service_id`, `scheduled_start_at`, `status`) | Capacity checks |
 | `bookings` | (`status`, `created_at`) | Admin queues |
 | `orders` | UNIQUE(`order_number`) | Reference |
-| `orders` | (`customer_id`, `placed_at`) | History |
+| `orders` | (`user_id`, `placed_at`) | History |
 | `orders` | (`status`, `placed_at`) | Fulfillment queues |
 | `order_items` | (`order_id`) | Order detail |
 | `order_items` | (`product_id`) | Product sales queries |
@@ -1820,7 +1904,7 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | Table | Index | Purpose |
 | --- | --- | --- |
 | `quotation_requests` | UNIQUE(`request_number`) | Reference |
-| `quotation_requests` | (`customer_id`, `created_at`) | History |
+| `quotation_requests` | (`user_id`, `created_at`) | History |
 | `quotation_requests` | (`status`, `created_at`) | Admin queue |
 | `quotation_requests` | (`request_target_type`, `service_id`) | Service request lookup |
 | `quotation_requests` | (`request_target_type`, `product_id`) | Product request lookup |
@@ -1830,10 +1914,10 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | `payments` | UNIQUE(`payment_number`) | Reference |
 | `payments` | UNIQUE(`idempotency_key`) | Safe retries |
 | `payments` | (`payable_type`, `payable_id`) | Entity payment history |
-| `payments` | (`customer_id`, `created_at`) | Customer payments |
+| `payments` | (`user_id`, `created_at`) | Customer payments |
 | `payments` | (`status`, `created_at`) | Finance queues |
 | `payments` | (`provider`, `provider_reference`) | Webhook reconciliation |
-| `notifications` | (`customer_id`, `is_read`, `created_at`) | Inbox |
+| `notifications` | (`user_id`, `is_read`, `created_at`) | Inbox |
 | `notifications` | (`reference_type`, `reference_id`) | Entity-related notices |
 
 ## 5.5 Reviews / Settings / Audit
@@ -1841,7 +1925,7 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | Table | Index | Purpose |
 | --- | --- | --- |
 | `reviews` | (`review_target_type`, `product_id`, `status`) | Product rating aggregate |
-| `reviews` | (`customer_id`, `created_at`) | Customer history |
+| `reviews` | (`user_id`, `created_at`) | Customer history |
 | `settings` | UNIQUE(`key`) | Config lookup |
 | `audit_logs` | (`entity_type`, `entity_id`, `created_at`) | Entity audit trail |
 | `audit_logs` | (`actor_type`, `actor_id`, `created_at`) | Actor activity |
@@ -1958,7 +2042,7 @@ Indexes below are recommendations for common access paths. Exact index types dep
 
 ## 7.5 Admin Security
 
-- Separate `admins` identity from `customers`.
+- Separate `admins` and future staff identities from customer `users`.
 - RBAC via roles/permissions with least privilege.
 - Session timeout and audit logging for money/status/catalog changes.
 - No privilege escalation path from mobile customer tokens to admin permissions.
@@ -1992,7 +2076,7 @@ Indexes below are recommendations for common access paths. Exact index types dep
 3. **Partition/archive** large append tables (`notifications`, `audit_logs`, old `payments`) by month/year.
 4. **Object storage** for media/attachments; database stores URLs/metadata only.
 5. **Async workers** for push sending and webhook processing to keep OLTP writes lean.
-6. **Avoid premature sharding**; if needed later, shard by `customer_id` for customer-owned transactional data.
+6. **Avoid premature sharding**; if needed later, shard by `user_id` for customer-owned transactional data.
 
 ## 8.3 Extensibility Without Redesign
 
@@ -2031,7 +2115,7 @@ The Reports & Analytics Module is a **read-only aggregation layer**. All report 
 
 | Report Category | Primary Source Table(s) | Key Columns / Aggregations |
 | --- | --- | --- |
-| Customer Reports | `customers` | `COUNT(*)`, `created_at` for growth, `SUM(total_spent)` for top customers |
+| Customer Reports | `users` + `customer_profiles` | Growth from `users.created_at`; customer profile metrics through the one-to-one join |
 | Booking Reports | `bookings` | `COUNT(*)` by status, `AVG(completed_at - created_at)` for avg completion time |
 | Quotation Reports | `quotation_requests` | `COUNT(*)` by status, `COUNT(accepted) / COUNT(total)` for conversion rate |
 | Order Reports | `orders` | `COUNT(*)` by status, `AVG(total_amount)` for avg order value |
@@ -2092,7 +2176,7 @@ Two lightweight tables are introduced for user-specific report preferences. Thes
 
 ### Performance Considerations
 
-- Reports on large datasets should use indexed columns (`created_at`, `status`, `customer_id`).
+- Reports on large datasets should use indexed columns (`created_at`, `status`, `user_id`).
 - Materialised views or caching may be added in future optimisation phases but are **not required** at this stage.
 - No reporting-specific denormalised tables are introduced (except the two user-preference tables above).
 

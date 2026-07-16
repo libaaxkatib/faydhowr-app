@@ -67,7 +67,7 @@ Middleware shall handle cross-cutting concerns, including authentication, author
 - Select and document a state-management solution before implementation; no state-management package is mandated by this document.
 - Use repositories to isolate data access from presentation and state logic.
 - Use services for API communication, secure storage, notifications, and platform integrations.
-- Centralize routing and guard protected routes according to authenticated user roles.
+- Centralize routing and guard protected customer routes according to the authenticated `users` principal and linked `customer_profiles` record. Admin routes use a separate `admins` guard and RBAC.
 
 ## 6. Database Architecture
 
@@ -78,6 +78,14 @@ PostgreSQL is the authoritative data store. The schema shall be normalized where
 ### Relationships
 
 Relationships shall be explicitly modeled with foreign keys and Laravel Eloquent relationships.
+
+### Identity & Persistence Model
+
+- `users` is the sole authentication identity for mobile customers. It owns credentials, verification state, provider linkage, account eligibility, and Sanctum token ownership.
+- `customer_profiles` is a one-to-one business/profile extension of `users` (`customer_profiles.user_id` is unique). It owns the public Customer Reference (`CUS-YYYY-######`), display/profile fields, classification, and customer business context.
+- There is no standalone `customers` authentication identity table.
+- Customer transactional records use `user_id`; profile-scoped records use `customer_profile_id`.
+- `admins` and future staff identities are separate from `users`, with independent guards, authorization policies, and tokens.
 
 ### Migrations
 
@@ -111,14 +119,25 @@ Error responses shall use a consistent JSON envelope containing an error message
 
 ## 8. Authentication & Authorization
 
-Laravel Sanctum shall provide token-based authentication for Flutter clients. Role-Based Access Control shall govern access for the following roles:
+Laravel Sanctum shall provide token-based authentication with separate customer and admin realms.
 
-- Customer
-- Admin
-- Sales
-- Accountant
+### 8.1 Customer Mobile Authentication
 
-Policies, middleware, and service-level rules shall enforce permissions. Clients shall never be treated as the authority for authorization decisions.
+- Principal: `users`, linked one-to-one to `customer_profiles`.
+- Sanctum customer tokens are issued to `users` only.
+- Customer APIs are owner-scoped through `users.id`; profile data is resolved through the linked `customer_profiles` record.
+
+### 8.2 Admin and Staff Authentication
+
+- Principal: `admins`, separate from `users`.
+- RBAC applies within the admin realm for **Admin**, **Sales**, and **Accountant** only.
+- Future staff identities remain separate from customer identities and must not share customer guards or token scopes.
+
+### 8.3 Cross-Realm Rules
+
+- A `users` record must never be promoted to an admin role through the mobile API.
+- An `admins` record must never authenticate as a customer on mobile endpoints.
+- Policies, middleware, and service-level rules enforce permissions. Clients are never the authority for authorization decisions.
 
 ## 9. File Storage Architecture
 
@@ -138,6 +157,7 @@ The backend shall use structured application logging with appropriate severity l
 - Validate and authorize every protected request.
 - Use Laravel Sanctum for authenticated API access.
 - Apply least-privilege access through roles and policies.
+- Enforce strict separation between customer (`users`) and admin/staff authentication guards, token issuers, and authorization policies.
 - Protect secrets through environment configuration.
 - Prevent sensitive data exposure through API Resources and secure storage.
 - Apply rate limiting and security headers where appropriate.

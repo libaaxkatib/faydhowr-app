@@ -2,6 +2,7 @@
 
 namespace App\Actions\Auth;
 
+use App\Models\CustomerProfile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -21,6 +22,15 @@ class RegisterCustomerAction
                 'email' => Str::lower($attributes['email']),
                 'password' => Hash::make($attributes['password']),
             ]);
+
+            $profile = new CustomerProfile([
+                'full_name' => $user->name,
+                'preferred_language' => 'so',
+            ]);
+            $profile->customer_number = sprintf('CUS-%s-%06d', now()->format('Y'), $user->id);
+            $profile->classification = 'lead';
+
+            $user->customerProfile()->save($profile);
 
             return [
                 'user' => $user,

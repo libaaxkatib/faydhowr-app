@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api\V1\Auth;
 
 use App\Actions\Auth\RegisterCustomerAction;
+use App\Models\CustomerProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -51,6 +52,14 @@ class RegisterCustomerTest extends TestCase
             'tokenable_type' => User::class,
             'tokenable_id' => $user->id,
         ]);
+        $this->assertDatabaseHas('customer_profiles', [
+            'user_id' => $user->id,
+            'customer_number' => sprintf('CUS-%s-%06d', now()->format('Y'), $user->id),
+            'full_name' => 'Fayadhowr Customer',
+            'preferred_language' => 'so',
+            'classification' => 'lead',
+        ]);
+        $this->assertInstanceOf(CustomerProfile::class, $user->customerProfile);
     }
 
     public function test_customer_cannot_register_with_an_existing_email(): void

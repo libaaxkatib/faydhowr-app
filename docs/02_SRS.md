@@ -158,6 +158,8 @@ Admin users share **one Admin Login** and **one Admin Panel**. Role is detected 
 
 > Admin Panel roles are exactly these three: **Admin**, **Sales**, **Accountant**. Do **not** invent additional admin roles. There is no Staff Management module in v1.
 
+> **Identity architecture:** Customer is a mobile application role backed by `users` authentication and a linked `customer_profiles` record. Admin, Sales, and Accountant are admin-panel roles backed by the separate `admins` identity. These authentication realms do not share credentials, guards, or tokens.
+
 ### 4.1A Admin Panel Authentication & RBAC
 
 - **One Admin Login** page only — no separate login pages per role.
@@ -177,13 +179,17 @@ Admin users share **one Admin Login** and **one Admin Panel**. Role is detected 
 - Sessions/tokens must expire and be refreshable according to security policy.
 - Role-based access control (RBAC) applies to the admin panel.
 - Customers may only access their own data (bookings, quotes, orders, payments, profile).
-- Privilege escalation between customer and admin roles must be impossible via the mobile API.
+- Customer authentication operates on `users` only; one linked `customer_profiles` record stores customer business and profile data.
+- There is no standalone `customers` authentication identity table.
+- Admin-panel authentication operates on `admins` only; Admin, Sales, and Accountant roles do not exist on `users`.
+- Cross-realm privilege escalation must be impossible: `users` cannot obtain admin roles or tokens, and `admins` cannot authenticate as customers on mobile endpoints.
 
 ### 4.3 Account Lifecycle
 
-- Registration → verification (as required) → active use.
-- Profile update and password/credential reset.
-- Account deactivation / deletion request subject to legal and retention policy.
+- Registration creates a `users` identity and linked `customer_profiles` record → verification (as required) → active use.
+- Profile updates may change `users` authentication/contact fields or `customer_profiles` business/display fields according to ownership rules.
+- Account deactivation / deletion request applies to the `users` identity and linked profile, subject to legal and retention policy.
+- Admin accounts have a separate lifecycle on `admins`.
 
 ---
 
@@ -195,8 +201,8 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-001 | The system shall allow a customer to register with **Phone Number (primary)** and optional Email, plus Password and **Confirm Password** (must match). Google users may complete registration automatically after Google Sign-In when required. | Must |
-| FR-002 | The system shall authenticate customers in this priority: (1) Continue with Phone + OTP (default country Somalia +252), (2) Continue with Google (native device accounts), (3) Continue with Email + password; and maintain a secure session. | Must |
+| FR-001 | The system shall allow a customer to register by creating a **`users`** identity with **Phone Number (primary)** and optional Email, plus Password and **Confirm Password** (must match), and a linked **`customer_profiles`** record. Google users may provision both after Google Sign-In when required. | Must |
+| FR-002 | The system shall authenticate customers against **`users`** in this priority: (1) Continue with Phone + OTP (default country Somalia +252), (2) Continue with Google (native device accounts), (3) Continue with Email + password; and maintain a secure session bound to the `users` principal. | Must |
 | FR-003 | The system shall allow customers to reset or recover credentials securely (email/password path includes Forgot Password). | Must |
 | FR-004 | The system shall allow customers to log out from the mobile app (with confirmation). | Must |
 | FR-005 | The system shall restrict transactional features to authenticated customers. | Must |
@@ -277,11 +283,11 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-070 | The customer shall be able to view My Account (photo, name, **read-only** Customer Reference `CUS-YYYY-######`, email, phone, preferred language, member since) plus quick stats for Bookings / Quotations / Orders. | Must |
+| FR-070 | The customer shall be able to view My Account using `customer_profiles` fields (photo, name, **read-only** Customer Reference `CUS-YYYY-######`, preferred language, member since) and `users` fields (email, phone), plus quick stats for Bookings / Quotations / Orders. | Must |
 | FR-071 | The customer shall be able to add/edit saved addresses and set a default. Addresses shall **never be permanently deleted**; unused addresses are marked **Inactive**. | Must |
 | FR-072 | The customer shall be able to view consolidated history of orders, bookings, quotations, and payments via account navigation. | Must |
 | FR-073 | The customer shall be able to manage notification preferences (Push, Email, and category toggles). | Must |
-| FR-074 | The customer shall be able to edit profile photo, full name, email, and phone. Customer Reference Number remains read-only. | Must |
+| FR-074 | The customer shall be able to edit profile photo and full name on `customer_profiles`, and email and phone on `users`. Customer Reference Number remains read-only on `customer_profiles`. | Must |
 | FR-075 | The customer shall be able to select preferred language: Somali, English, or Arabic; selection updates the entire application. | Must |
 | FR-076 | The customer shall be able to manage saved payment methods (add / set default) for EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, and Debit/Credit Card. Payment **history** is never deleted by the customer. | Must |
 | FR-077 | Security screens shall support Change Password, optional Change PIN, and placeholders for Two-Factor Authentication and Active Devices. | Should |
@@ -296,7 +302,7 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | FR-081 | Admins shall manage bookings (list/search/filter; view details with media counters, timeline with actor audit, linked records; status updates via controlled dropdown of approved statuses only; read-only Priority High/Medium/Low; booking age; informational manual Assigned To; internal staff notes with name/role/date/time). Booking Number is read-only. Bookings are never permanently deleted. No Booking Value / Estimated Value on this module. | Must |
 | FR-082 | Admins shall manage quotations (list/search/filter; view details with price breakdown, revision history with Created By/role/date/time, read-only Compare Revisions between any two versions, discussion with keyword search and attachment counters, timeline with actor audit, linked records; status updates via controlled dropdown; validity countdown on list and details; issue revisions; internal staff notes). Every quotation must originate from a **Booking** or **Product Request** only — Admin / Sales / Accountant shall never create a standalone quotation. QT Number is read-only. Quotations are never permanently deleted. Only the latest revision may be accepted. Discussion history cannot be deleted. | Must |
 | FR-083 | Admins shall manage orders (list/search/filter; view details with ordered items, price breakdown with discounts/delivery/tax, business summary cards, timeline with actor audit, order documents with availability status, linked records incl. **Order Documents** shortcut; status updates via controlled dropdown of approved order statuses only; **Current Stage Indicator** compact read-only label above progress tracker showing current workflow stage; **Order Progress Tracker** visual stepper Awaiting Payment → Paid → Processing → Ready → Out for Delivery → Completed highlighting current step; **Order Age** displayed in list and details; **Payment Timeline** with expanded payment events Payment Requested/Received/Confirmed/Refund Processed each with Performed By, Staff Role, Date, Time; **Documents Status** each document shows ✅ Available or ⏳ Not Available Yet; **Financial Summary** compact read-only breakdown Subtotal/Discount/Delivery Fee/Tax/Grand Total/Amount Paid/Remaining Balance; **Latest Note indicator** read-only timestamp of most recent internal note). Every order is created **automatically** from an accepted quotation — no manual Create Order. Order Number is read-only. Orders are never permanently deleted. Every order remains permanently linked to its originating Booking or Product Request and its accepted Quotation. **Payment Status color system** standardized across Admin Panel: Paid (green), Partially Paid (orange), Unpaid (red), Refunded (blue). Order statuses: Awaiting Payment, Paid, Processing, Ready, Out for Delivery, Completed, Cancelled. Internal staff notes with name/role/date/time. | Must |
-| FR-084 | Admins shall manage customers (list/search/filter with default **Active Customers**; view profile, Member Since, business summary including **Total Spent**, timeline with icons, linked records; internal staff notes with name/role/date/time audit; set Inactive / suspend per policy). Customer Number is auto-generated and read-only. Classification is **Lead** vs **Active Customer** (no VIP). Customer records are never permanently deleted. | Must |
+| FR-084 | Admins shall manage customer profiles (list/search/filter with default **Active Customers**; view profile joined to `users` contact data, Member Since, business summary including **Total Spent**, timeline with icons, linked records; internal staff notes with name/role/date/time audit; set Inactive / suspend per policy). Customer Number is auto-generated and read-only on `customer_profiles`. Classification is **Lead** vs **Active Customer** (no VIP). Customer identities and profiles are never permanently deleted. | Must |
 | FR-085 | Admins shall configure notification templates and operational settings (**Admin**). | Should |
 | FR-086 | Admins shall manage payments (list/search/filter; view details with payment information, transaction reference with **Copy** button, business summary cards Amount Due/Amount Paid/Remaining Balance/Payment Status, **Financial Audit Summary** Payment Requested By/Payment Confirmed By/Confirmation Date/Last Updated, source chain & linkage, payment documents with availability status, payment timeline with actor audit, linked records, internal staff notes with name/role/date/time; **Payment Verification Badge** Verified/Pending Verification independent from status displayed in list and details; **Payment Age** displayed in list and details e.g. "Received 1 day ago"/"Waiting Verification 3 days"; **Payment Method Icons** consistent branded icons in list and details; **Current Stage Indicator** compact read-only label above progress tracker; **Payment Progress Tracker** visual stepper Pending → Received → Confirmed / Pending → Failed / Confirmed → Refunded highlighting current step; **Payment Documents** Payment Receipt/Invoice/Order PDF with ✅ Available or ⏳ Pending; **Latest Note indicator** read-only timestamp). Every payment must originate from an existing **Order** — no manual Create Payment. Payment Number (`PAY-…`) is read-only. Payments are never permanently deleted. Every payment remains permanently linked to its originating Order. Approved payment statuses: Pending, Received, Confirmed, Failed, Refunded. Supported payment methods: EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card. Receipt history is permanent. Status updates via controlled dropdown only. | Must |
 | FR-087 | The Admin Panel shall use **one login** and **one panel**; after sign-in the system loads role-based dashboard, sidebar, and permissions for **Admin**, **Sales**, or **Accountant** only. | Must |
@@ -743,18 +749,16 @@ Reference numbers (`BK-`, `QT-`, `ORD-`, `PAY-`, etc.) are included in the paylo
 
 ### 13.1 Purpose
 
-Provide a secure personal space for identity, contact details, preferences, and activity history.
+Provide a secure personal space for the authenticated `users` identity, linked `customer_profiles` business data, contact details, preferences, and activity history.
 
 ### 13.2 Profile Data (Logical)
 
-- Identity: name, phone, email, avatar (as applicable)
-- Customer Reference Number: `CUS-YYYY-######` (system-assigned, read-only)
-- Preferred language: Somali / English / Arabic
-- Authentication metadata (not displayed secrets)
+- `users`: phone, email, password/credential metadata, provider linkage, verification flags, account status, and last-login metadata
+- `customer_profiles`: name, avatar, Customer Reference Number `CUS-YYYY-######` (system-assigned, read-only), preferred language, classification, and notification preferences
 - Addresses / service locations (`is_active`; never customer hard-deleted)
 - Saved payment methods (masked; distinct from payment history ledger)
 - Notification preferences
-- Account status (active, suspended, pending verification)
+- Account eligibility is enforced on `users`; Customer classification is held by `customer_profiles`
 - Activity summaries: orders, bookings, quotations, payments
 - Member since (`created_at`)
 
@@ -774,7 +778,7 @@ Provide a secure personal space for identity, contact details, preferences, and 
 
 ### 13.4 Profile Rules
 
-- Customers cannot edit system-controlled fields (`customer_number` / CUS reference, verification flags, suspension state).
+- Customers cannot edit system-controlled fields (`customer_profiles.customer_number` / CUS reference, `users` verification flags, classification, or suspension state).
 - Profile updates must not alter historical invoice/order legal snapshots incorrectly (e.g., past order address remains as fulfilled).
 - Suspended customers cannot create new bookings, quotes, or orders.
 - Personal data access is strictly owner-scoped on customer APIs.
@@ -801,7 +805,7 @@ The Admin Panel is the operational control plane for Fayadhowr. It is **not** pa
 | **Quotations** | Review requests, issue/revise quotes, set validity and terms |
 | **Orders** | Fulfill store orders, update shipping/pickup status |
 | **Payments** | View transactions, initiate refunds, reconcile exceptions |
-| **Customers** | Search/filter customers; view profile, business summary, timeline, linked records; internal staff notes; Inactive/suspend per policy — never permanent delete |
+| **Customers** | Search/filter `customer_profiles` with joined `users` contact data; view profile, business summary, timeline, linked records; internal staff notes; Inactive/suspend per policy — never permanent delete |
 | **Notifications** | Templates, manual broadcast (optional), delivery diagnostics |
 | **Settings** | Business info, currency, payment provider config, roles/permissions |
 | **Audit / Logs** | Sensitive action history for accountability |
@@ -815,7 +819,7 @@ The Admin Panel is the operational control plane for Fayadhowr. It is **not** pa
 
 ### 14.4 Admin Security Requirements
 
-- Strong authentication for admin users via **one shared Admin Login**.
+- Strong authentication for admin users through the separate **`admins`** identity and one shared Admin Login.
 - RBAC with least privilege using only: **Admin**, **Sales**, **Accountant**.
 - Role-based **sidebar**, **dashboard statistics**, and **actions** after login.
 - Session timeout and access logging.
