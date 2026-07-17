@@ -2,6 +2,20 @@
 
 namespace App\Providers;
 
+use App\Contracts\Accounting\AccountingManagerInterface;
+use App\Contracts\Accounting\Repositories\AccountingPeriodRepositoryInterface;
+use App\Contracts\Accounting\Repositories\AccountRepositoryInterface;
+use App\Contracts\Accounting\Repositories\FinancialReportRepositoryInterface;
+use App\Contracts\Accounting\Repositories\JournalEntryRepositoryInterface;
+use App\Contracts\Accounting\Repositories\LedgerRepositoryInterface;
+use App\Contracts\Accounting\Repositories\TrialBalanceRepositoryInterface;
+use App\Contracts\Accounting\Services\AccountingPeriodServiceInterface;
+use App\Contracts\Accounting\Services\ChartOfAccountServiceInterface;
+use App\Contracts\Accounting\Services\FinancialReportServiceInterface;
+use App\Contracts\Accounting\Services\JournalEntryServiceInterface;
+use App\Contracts\Accounting\Services\JournalPostingServiceInterface;
+use App\Contracts\Accounting\Services\LedgerServiceInterface;
+use App\Contracts\Accounting\Services\TrialBalanceServiceInterface;
 use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Contracts\Dashboard\DashboardMetadataBuilderInterface;
 use App\Contracts\Dashboard\DashboardQueryServiceInterface;
@@ -14,6 +28,20 @@ use App\Contracts\Reports\Services\CustomerReportServiceInterface;
 use App\Contracts\Reports\Services\InventoryReportServiceInterface;
 use App\Contracts\Reports\Services\RevenueReportServiceInterface;
 use App\Contracts\Reports\Storage\ReportStorageInterface;
+use App\Repositories\Accounting\AccountingPeriodRepository;
+use App\Repositories\Accounting\AccountRepository;
+use App\Repositories\Accounting\FinancialReportRepository;
+use App\Repositories\Accounting\JournalEntryRepository;
+use App\Repositories\Accounting\LedgerRepository;
+use App\Repositories\Accounting\TrialBalanceRepository;
+use App\Services\Accounting\AccountingManager;
+use App\Services\Accounting\Services\AccountingPeriodService;
+use App\Services\Accounting\Services\ChartOfAccountService;
+use App\Services\Accounting\Services\FinancialReportService;
+use App\Services\Accounting\Services\JournalEntryService;
+use App\Services\Accounting\Services\JournalPostingService;
+use App\Services\Accounting\Services\LedgerService;
+use App\Services\Accounting\Services\TrialBalanceService;
 use App\Services\Dashboard\DashboardCacheInvalidator;
 use App\Services\Dashboard\DashboardManager;
 use App\Services\Dashboard\DashboardMetadataBuilder;
@@ -80,6 +108,34 @@ class AppServiceProvider extends ServiceProvider
 
             return $manager;
         });
+
+        $this->app->singleton(AccountRepositoryInterface::class, AccountRepository::class);
+
+        $this->app->singleton(JournalEntryRepositoryInterface::class, JournalEntryRepository::class);
+
+        $this->app->singleton(LedgerRepositoryInterface::class, LedgerRepository::class);
+
+        $this->app->singleton(AccountingPeriodRepositoryInterface::class, AccountingPeriodRepository::class);
+
+        $this->app->singleton(AccountingPeriodServiceInterface::class, AccountingPeriodService::class);
+
+        $this->app->singleton(TrialBalanceRepositoryInterface::class, TrialBalanceRepository::class);
+
+        $this->app->singleton(TrialBalanceServiceInterface::class, TrialBalanceService::class);
+
+        $this->app->singleton(ChartOfAccountServiceInterface::class, ChartOfAccountService::class);
+
+        $this->app->singleton(JournalPostingServiceInterface::class, JournalPostingService::class);
+
+        $this->app->singleton(JournalEntryServiceInterface::class, JournalEntryService::class);
+
+        $this->app->singleton(LedgerServiceInterface::class, LedgerService::class);
+
+        $this->app->singleton(FinancialReportRepositoryInterface::class, FinancialReportRepository::class);
+
+        $this->app->singleton(FinancialReportServiceInterface::class, FinancialReportService::class);
+
+        $this->app->singleton(AccountingManagerInterface::class, AccountingManager::class);
 
         $this->app->singleton(RevenueReportServiceInterface::class, RevenueReportService::class);
 

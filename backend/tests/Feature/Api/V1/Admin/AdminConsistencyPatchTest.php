@@ -233,6 +233,7 @@ class AdminConsistencyPatchTest extends TestCase
         sort($catalog);
 
         $this->assertSame([
+            'accounting.view',
             'admins.manage',
             'dashboard.view',
             'goods_receipts.manage',

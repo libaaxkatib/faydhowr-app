@@ -1,5 +1,12 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\Accounting\AccountingPeriodController;
+use App\Http\Controllers\Api\V1\Admin\Accounting\BalanceSheetController;
+use App\Http\Controllers\Api\V1\Admin\Accounting\ChartOfAccountController;
+use App\Http\Controllers\Api\V1\Admin\Accounting\IncomeStatementController;
+use App\Http\Controllers\Api\V1\Admin\Accounting\JournalEntryController;
+use App\Http\Controllers\Api\V1\Admin\Accounting\LedgerBalanceController;
+use App\Http\Controllers\Api\V1\Admin\Accounting\TrialBalanceController;
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminPermissionController;
 use App\Http\Controllers\Api\V1\Admin\ArchivedNotificationController;
@@ -220,6 +227,43 @@ Route::prefix('v1/admin/reports')
         Route::post('{report}/export', [ReportExportController::class, 'store'])
             ->whereNumber('report')
             ->name('api.v1.admin.reports.export.store');
+    });
+
+Route::prefix('v1/admin/accounting')
+    ->middleware(['auth:sanctum', 'admin', 'permission:accounting.view'])
+    ->group(function (): void {
+        Route::get('accounts', [ChartOfAccountController::class, 'index'])
+            ->name('api.v1.admin.accounting.accounts.index');
+
+        Route::get('accounts/{account}/balance', [LedgerBalanceController::class, 'show'])
+            ->whereNumber('account')
+            ->name('api.v1.admin.accounting.accounts.balance');
+
+        Route::get('journal-entries', [JournalEntryController::class, 'index'])
+            ->name('api.v1.admin.accounting.journal-entries.index');
+
+        Route::get('journal-entries/{journalEntry}', [JournalEntryController::class, 'show'])
+            ->whereNumber('journalEntry')
+            ->name('api.v1.admin.accounting.journal-entries.show');
+
+        Route::post('journal-entries/{journalEntry}/post', [JournalEntryController::class, 'post'])
+            ->whereNumber('journalEntry')
+            ->name('api.v1.admin.accounting.journal-entries.post');
+
+        Route::get('periods', [AccountingPeriodController::class, 'index'])
+            ->name('api.v1.admin.accounting.periods.index');
+
+        Route::post('periods', [AccountingPeriodController::class, 'store'])
+            ->name('api.v1.admin.accounting.periods.store');
+
+        Route::get('trial-balance', [TrialBalanceController::class, 'show'])
+            ->name('api.v1.admin.accounting.trial-balance.show');
+
+        Route::get('reports/income-statement', [IncomeStatementController::class, 'show'])
+            ->name('api.v1.admin.accounting.reports.income-statement.show');
+
+        Route::get('reports/balance-sheet', [BalanceSheetController::class, 'show'])
+            ->name('api.v1.admin.accounting.reports.balance-sheet.show');
     });
 
 Route::prefix('v1/admin/report-exports')

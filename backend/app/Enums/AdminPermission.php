@@ -20,6 +20,8 @@ enum AdminPermission: string
 
     case DashboardView = 'dashboard.view';
 
+    case AccountingView = 'accounting.view';
+
     public function label(): string
     {
         return match ($this) {
@@ -34,6 +36,7 @@ enum AdminPermission: string
             self::NotificationsManage => 'Manage Notifications',
             self::ReportsView => 'View Reports',
             self::DashboardView => 'View Dashboard',
+            self::AccountingView => 'View Accounting',
         };
     }
 
@@ -51,6 +54,7 @@ enum AdminPermission: string
             self::NotificationsManage => 'Admins',
             self::ReportsView => 'Reports',
             self::DashboardView => 'Dashboard',
+            self::AccountingView => 'Accounting',
         };
     }
 
