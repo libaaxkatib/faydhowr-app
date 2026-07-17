@@ -6,6 +6,13 @@ use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Contracts\Dashboard\DashboardMetadataBuilderInterface;
 use App\Contracts\Dashboard\DashboardQueryServiceInterface;
 use App\Contracts\Dashboard\DashboardWidgetRegistryInterface;
+use App\Contracts\Reports\Excel\ExcelReportGeneratorInterface;
+use App\Contracts\Reports\Pdf\PdfReportGeneratorInterface;
+use App\Contracts\Reports\ReportManagerInterface;
+use App\Contracts\Reports\Services\BookingReportServiceInterface;
+use App\Contracts\Reports\Services\CustomerReportServiceInterface;
+use App\Contracts\Reports\Services\InventoryReportServiceInterface;
+use App\Contracts\Reports\Services\RevenueReportServiceInterface;
 use App\Contracts\Reports\Storage\ReportStorageInterface;
 use App\Services\Dashboard\DashboardCacheInvalidator;
 use App\Services\Dashboard\DashboardManager;
@@ -25,6 +32,7 @@ use App\Services\Notification\Channels\SmsNotificationChannel;
 use App\Services\Notification\NotificationChannelManager;
 use App\Services\Payments\Gateways\ManualPaymentGateway;
 use App\Services\Payments\PaymentGatewayManager;
+use App\Services\Reports\Excel\ExcelReportGenerator;
 use App\Services\Reports\Generators\BookingReportGenerator;
 use App\Services\Reports\Generators\CustomerReportGenerator;
 use App\Services\Reports\Generators\GoodsReceiptReportGenerator;
@@ -35,7 +43,12 @@ use App\Services\Reports\Generators\PurchaseOrderReportGenerator;
 use App\Services\Reports\Generators\QuotationReportGenerator;
 use App\Services\Reports\Generators\StoreOrderReportGenerator;
 use App\Services\Reports\Generators\SupplierReportGenerator;
+use App\Services\Reports\Pdf\PdfReportGenerator;
 use App\Services\Reports\ReportManager;
+use App\Services\Reports\Services\BookingReportService;
+use App\Services\Reports\Services\CustomerReportService;
+use App\Services\Reports\Services\InventoryReportService;
+use App\Services\Reports\Services\RevenueReportService;
 use App\Services\Reports\Storage\LocalReportStorage;
 use App\Services\Reports\Storage\ReportStorageManager;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -68,20 +81,43 @@ class AppServiceProvider extends ServiceProvider
             return $manager;
         });
 
+        $this->app->singleton(RevenueReportServiceInterface::class, RevenueReportService::class);
+
+        $this->app->singleton(BookingReportServiceInterface::class, BookingReportService::class);
+
+        $this->app->singleton(CustomerReportServiceInterface::class, CustomerReportService::class);
+
+        $this->app->singleton(InventoryReportServiceInterface::class, InventoryReportService::class);
+
+        $this->app->singleton(PdfReportGeneratorInterface::class, PdfReportGenerator::class);
+
+        $this->app->singleton(ExcelReportGeneratorInterface::class, ExcelReportGenerator::class);
+
         $this->app->singleton(ReportManager::class, function (Application $app): ReportManager {
-            return new ReportManager([
-                $app->make(BookingReportGenerator::class),
-                $app->make(QuotationReportGenerator::class),
-                $app->make(OrderReportGenerator::class),
-                $app->make(PaymentReportGenerator::class),
-                $app->make(StoreOrderReportGenerator::class),
-                $app->make(InventoryReportGenerator::class),
-                $app->make(SupplierReportGenerator::class),
-                $app->make(PurchaseOrderReportGenerator::class),
-                $app->make(GoodsReceiptReportGenerator::class),
-                $app->make(CustomerReportGenerator::class),
-            ]);
+            return new ReportManager(
+                $app->make(RevenueReportServiceInterface::class),
+                $app->make(BookingReportServiceInterface::class),
+                $app->make(CustomerReportServiceInterface::class),
+                $app->make(InventoryReportServiceInterface::class),
+                [
+                    $app->make(BookingReportGenerator::class),
+                    $app->make(QuotationReportGenerator::class),
+                    $app->make(OrderReportGenerator::class),
+                    $app->make(PaymentReportGenerator::class),
+                    $app->make(StoreOrderReportGenerator::class),
+                    $app->make(InventoryReportGenerator::class),
+                    $app->make(SupplierReportGenerator::class),
+                    $app->make(PurchaseOrderReportGenerator::class),
+                    $app->make(GoodsReceiptReportGenerator::class),
+                    $app->make(CustomerReportGenerator::class),
+                ],
+            );
         });
+
+        $this->app->singleton(
+            ReportManagerInterface::class,
+            fn (Application $app): ReportManagerInterface => $app->make(ReportManager::class),
+        );
 
         $this->app->singleton(ReportStorageManager::class, function (Application $app): ReportStorageManager {
             $manager = new ReportStorageManager;

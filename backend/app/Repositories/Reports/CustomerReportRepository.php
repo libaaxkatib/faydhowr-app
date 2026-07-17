@@ -55,6 +55,10 @@ class CustomerReportRepository implements ReportRepositoryInterface
     }
 
     /**
+     * The generic status filter targets the customer classification column
+     * ('lead' or 'active_customer'), mirroring how the booking and payment
+     * repositories apply their status filters.
+     *
      * @return Builder<CustomerProfile>
      */
     private function query(NormalizedReportFilters $filters): Builder
@@ -62,6 +66,7 @@ class CustomerReportRepository implements ReportRepositoryInterface
         return CustomerProfile::query()
             ->when($filters->dateFrom() !== null, fn (Builder $query): Builder => $query->where('created_at', '>=', $filters->dateFrom()))
             ->when($filters->dateTo() !== null, fn (Builder $query): Builder => $query->where('created_at', '<=', $filters->dateTo()))
+            ->when($filters->status() !== null, fn (Builder $query): Builder => $query->whereIn('classification', (array) $filters->status()))
             ->when($filters->customerId() !== null, fn (Builder $query): Builder => $query->where('id', $filters->customerId()));
     }
 }

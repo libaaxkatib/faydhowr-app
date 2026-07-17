@@ -176,6 +176,8 @@ class ReportExportDownloadTest extends TestCase
 
             public function writePlaceholder(ReportExport $export, string $path): void {}
 
+            public function write(ReportExport $export, string $path, string $contents): void {}
+
             public function exists(string $path): bool
             {
                 return true;

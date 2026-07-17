@@ -10,15 +10,19 @@ use App\Http\Controllers\Api\V1\Admin\NotificationTemplateController;
 use App\Http\Controllers\Api\V1\Admin\NotificationTemplateTranslationController;
 use App\Http\Controllers\Api\V1\Admin\PermissionController;
 use App\Http\Controllers\Api\V1\Admin\Reports\BookingReportController;
+use App\Http\Controllers\Api\V1\Admin\Reports\BookingReportSummaryController;
 use App\Http\Controllers\Api\V1\Admin\Reports\CustomerReportController;
+use App\Http\Controllers\Api\V1\Admin\Reports\CustomerReportSummaryController;
 use App\Http\Controllers\Api\V1\Admin\Reports\GoodsReceiptReportController;
 use App\Http\Controllers\Api\V1\Admin\Reports\InventoryReportController;
+use App\Http\Controllers\Api\V1\Admin\Reports\InventoryReportSummaryController;
 use App\Http\Controllers\Api\V1\Admin\Reports\OrderReportController;
 use App\Http\Controllers\Api\V1\Admin\Reports\PaymentReportController;
 use App\Http\Controllers\Api\V1\Admin\Reports\PurchaseOrderReportController;
 use App\Http\Controllers\Api\V1\Admin\Reports\QuotationReportController;
 use App\Http\Controllers\Api\V1\Admin\Reports\ReportExportController;
 use App\Http\Controllers\Api\V1\Admin\Reports\ReportExportDownloadController;
+use App\Http\Controllers\Api\V1\Admin\Reports\RevenueReportSummaryController;
 use App\Http\Controllers\Api\V1\Admin\Reports\StoreOrderReportController;
 use App\Http\Controllers\Api\V1\Admin\Reports\SupplierReportController;
 use App\Http\Controllers\Api\V1\Auth\AuthenticatedUserController;
@@ -184,6 +188,34 @@ Route::prefix('v1/admin/reports')
             ->name('api.v1.admin.reports.goods-receipts.store');
         Route::post('customers', [CustomerReportController::class, 'store'])
             ->name('api.v1.admin.reports.customers.store');
+
+        Route::get('revenue', [RevenueReportSummaryController::class, 'show'])
+            ->name('api.v1.admin.reports.revenue.show');
+        Route::get('revenue/pdf', [RevenueReportSummaryController::class, 'pdf'])
+            ->name('api.v1.admin.reports.revenue.pdf');
+        Route::get('revenue/excel', [RevenueReportSummaryController::class, 'excel'])
+            ->name('api.v1.admin.reports.revenue.excel');
+
+        Route::get('bookings', [BookingReportSummaryController::class, 'show'])
+            ->name('api.v1.admin.reports.bookings.show');
+        Route::get('bookings/pdf', [BookingReportSummaryController::class, 'pdf'])
+            ->name('api.v1.admin.reports.bookings.pdf');
+        Route::get('bookings/excel', [BookingReportSummaryController::class, 'excel'])
+            ->name('api.v1.admin.reports.bookings.excel');
+
+        Route::get('customers', [CustomerReportSummaryController::class, 'show'])
+            ->name('api.v1.admin.reports.customers.show');
+        Route::get('customers/pdf', [CustomerReportSummaryController::class, 'pdf'])
+            ->name('api.v1.admin.reports.customers.pdf');
+        Route::get('customers/excel', [CustomerReportSummaryController::class, 'excel'])
+            ->name('api.v1.admin.reports.customers.excel');
+
+        Route::get('inventory', [InventoryReportSummaryController::class, 'show'])
+            ->name('api.v1.admin.reports.inventory.show');
+        Route::get('inventory/pdf', [InventoryReportSummaryController::class, 'pdf'])
+            ->name('api.v1.admin.reports.inventory.pdf');
+        Route::get('inventory/excel', [InventoryReportSummaryController::class, 'excel'])
+            ->name('api.v1.admin.reports.inventory.excel');
 
         Route::post('{report}/export', [ReportExportController::class, 'store'])
             ->whereNumber('report')

@@ -3,10 +3,18 @@
 namespace App\Services\Reports;
 
 use App\Contracts\Reports\Generators\ReportGeneratorInterface;
+use App\Contracts\Reports\ReportDataInterface;
+use App\Contracts\Reports\ReportManagerInterface;
+use App\Contracts\Reports\Services\BookingReportServiceInterface;
+use App\Contracts\Reports\Services\CustomerReportServiceInterface;
+use App\Contracts\Reports\Services\InventoryReportServiceInterface;
+use App\Contracts\Reports\Services\RevenueReportServiceInterface;
+use App\Enums\DashboardDateFilter;
 use App\Enums\ReportType;
 use App\Exceptions\Reports\UnsupportedReportTypeException;
+use Carbon\CarbonImmutable;
 
-class ReportManager
+class ReportManager implements ReportManagerInterface
 {
     /**
      * @var list<ReportGeneratorInterface>
@@ -16,8 +24,13 @@ class ReportManager
     /**
      * @param  iterable<ReportGeneratorInterface>  $generators
      */
-    public function __construct(iterable $generators = [])
-    {
+    public function __construct(
+        private RevenueReportServiceInterface $revenueReportService,
+        private BookingReportServiceInterface $bookingReportService,
+        private CustomerReportServiceInterface $customerReportService,
+        private InventoryReportServiceInterface $inventoryReportService,
+        iterable $generators = [],
+    ) {
         foreach ($generators as $generator) {
             $this->register($generator);
         }
@@ -80,6 +93,53 @@ class ReportManager
         }
 
         return $types;
+    }
+
+    public function revenueReports(): RevenueReportServiceInterface
+    {
+        return $this->revenueReportService;
+    }
+
+    public function bookingReports(): BookingReportServiceInterface
+    {
+        return $this->bookingReportService;
+    }
+
+    public function customerReports(): CustomerReportServiceInterface
+    {
+        return $this->customerReportService;
+    }
+
+    public function inventoryReports(): InventoryReportServiceInterface
+    {
+        return $this->inventoryReportService;
+    }
+
+    public function supportsSummary(ReportType|string $type): bool
+    {
+        $reportType = $type instanceof ReportType ? $type : ReportType::tryFrom($type);
+
+        return in_array($reportType, [
+            ReportType::Payments,
+            ReportType::Bookings,
+            ReportType::Customers,
+            ReportType::Inventory,
+        ], true);
+    }
+
+    public function summaryFor(
+        ReportType|string $type,
+        ?DashboardDateFilter $filter = null,
+        ?CarbonImmutable $startDate = null,
+        ?CarbonImmutable $endDate = null,
+    ): ReportDataInterface {
+        return match ($this->resolveType($type)) {
+            ReportType::Payments => $this->revenueReportService->generate($filter, $startDate, $endDate),
+            ReportType::Bookings => $this->bookingReportService->generate($filter, $startDate, $endDate),
+            ReportType::Customers => $this->customerReportService->generate($filter, $startDate, $endDate),
+            ReportType::Inventory => $this->inventoryReportService->generate($filter, $startDate, $endDate),
+            default => throw UnsupportedReportTypeException::forType($type),
+        };
     }
 
     private function resolveType(ReportType|string $type): ReportType

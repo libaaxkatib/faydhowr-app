@@ -13,8 +13,13 @@ interface ReportStorageInterface
     public function reservePath(ReportExport $export): string;
 
     /**
-     * Write the placeholder export file to the reserved path.
-     * Actual PDF/XLSX rendering is implemented in a later phase.
+     * Write the rendered export document to the reserved path.
+     */
+    public function write(ReportExport $export, string $path, string $contents): void;
+
+    /**
+     * Write a placeholder export file to the reserved path. Used for report
+     * types whose summary services do not exist yet.
      */
     public function writePlaceholder(ReportExport $export, string $path): void;
 

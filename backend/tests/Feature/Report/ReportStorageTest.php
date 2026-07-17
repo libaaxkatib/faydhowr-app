@@ -130,6 +130,11 @@ class ReportStorageTest extends TestCase
                 $this->writtenPath = $path;
             }
 
+            public function write(ReportExport $export, string $path, string $contents): void
+            {
+                $this->writtenPath = $path;
+            }
+
             public function exists(string $path): bool
             {
                 return $path === $this->writtenPath;

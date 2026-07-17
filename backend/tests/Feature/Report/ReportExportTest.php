@@ -2,6 +2,13 @@
 
 namespace Tests\Feature\Report;
 
+use App\Contracts\Reports\Excel\ExcelReportGeneratorInterface;
+use App\Contracts\Reports\Pdf\PdfReportGeneratorInterface;
+use App\Contracts\Reports\ReportDataInterface;
+use App\Contracts\Reports\ReportManagerInterface;
+use App\DataTransferObjects\Reports\CustomerReportData;
+use App\DataTransferObjects\Reports\RevenueReportData;
+use App\Enums\DashboardDateFilter;
 use App\Enums\ReportExportFormat;
 use App\Enums\ReportExportStatus;
 use App\Enums\ReportType;
@@ -15,6 +22,10 @@ use App\Models\ReportExport;
 use App\Models\User;
 use App\Services\Reports\ReportExportManager;
 use App\Services\Reports\ReportManager;
+use App\Services\Reports\Services\BookingReportService;
+use App\Services\Reports\Services\CustomerReportService;
+use App\Services\Reports\Services\InventoryReportService;
+use App\Services\Reports\Services\RevenueReportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
@@ -152,7 +163,15 @@ class ReportExportTest extends TestCase
     public function test_failed_export_records_reason_and_dispatches_failed_event(): void
     {
         Event::fake([ReportExportFailed::class]);
-        $this->app->instance(ReportManager::class, new ReportManager);
+
+        $emptyManager = new ReportManager(
+            $this->app->make(RevenueReportService::class),
+            $this->app->make(BookingReportService::class),
+            $this->app->make(CustomerReportService::class),
+            $this->app->make(InventoryReportService::class),
+        );
+        $this->app->instance(ReportManager::class, $emptyManager);
+        $this->app->instance(ReportManagerInterface::class, $emptyManager);
 
         $export = ReportExport::factory()->create();
 
@@ -184,6 +203,103 @@ class ReportExportTest extends TestCase
         $this->assertStringEndsWith('.xlsx', $processed->file_path);
 
         Storage::assertExists($processed->file_path);
+    }
+
+    public function test_service_backed_pdf_export_writes_a_real_pdf_document(): void
+    {
+        Storage::fake();
+
+        $export = ReportExport::factory()
+            ->type(ReportType::Payments)
+            ->format(ReportExportFormat::Pdf)
+            ->create();
+
+        $processed = $this->app->make(ReportExportManager::class)->process($export->id);
+
+        $this->assertSame(ReportExportStatus::Completed, $processed->status);
+        $this->assertStringStartsWith('%PDF-', (string) Storage::get((string) $processed->file_path));
+    }
+
+    public function test_service_backed_xlsx_export_writes_a_real_workbook(): void
+    {
+        Storage::fake();
+
+        $export = ReportExport::factory()
+            ->type(ReportType::Bookings)
+            ->format(ReportExportFormat::Xlsx)
+            ->create();
+
+        $processed = $this->app->make(ReportExportManager::class)->process($export->id);
+
+        $this->assertSame(ReportExportStatus::Completed, $processed->status);
+        $this->assertStringStartsWith('PK', (string) Storage::get((string) $processed->file_path));
+    }
+
+    public function test_export_pipeline_renders_through_the_pdf_generator_interface(): void
+    {
+        Storage::fake();
+
+        $this->mock(PdfReportGeneratorInterface::class, function ($mock): void {
+            $mock->shouldReceive('generate')
+                ->once()
+                ->withArgs(fn (ReportDataInterface $report): bool => $report instanceof RevenueReportData)
+                ->andReturn('RENDERED-PDF-BYTES');
+        });
+
+        $export = ReportExport::factory()
+            ->type(ReportType::Payments)
+            ->format(ReportExportFormat::Pdf)
+            ->create();
+
+        $processed = $this->app->make(ReportExportManager::class)->process($export->id);
+
+        $this->assertSame(ReportExportStatus::Completed, $processed->status);
+        $this->assertSame('RENDERED-PDF-BYTES', Storage::get((string) $processed->file_path));
+    }
+
+    public function test_export_passes_stored_date_filters_to_the_summary_report(): void
+    {
+        Storage::fake();
+
+        $export = ReportExport::factory()
+            ->type(ReportType::Customers)
+            ->format(ReportExportFormat::Xlsx)
+            ->create([
+                'filters' => [
+                    'date_from' => '2026-04-01T00:00:00+00:00',
+                    'date_to' => '2026-04-30T00:00:00+00:00',
+                ],
+            ]);
+
+        $this->mock(ExcelReportGeneratorInterface::class, function ($mock): void {
+            $mock->shouldReceive('generate')
+                ->once()
+                ->withArgs(fn (ReportDataInterface $report): bool => $report instanceof CustomerReportData
+                    && $report->filter === DashboardDateFilter::CustomDateRange->value
+                    && $report->startDate !== null
+                    && $report->endDate !== null)
+                ->andReturn('RENDERED-XLSX-BYTES');
+        });
+
+        $processed = $this->app->make(ReportExportManager::class)->process($export->id);
+
+        $this->assertSame(ReportExportStatus::Completed, $processed->status);
+        $this->assertSame('RENDERED-XLSX-BYTES', Storage::get((string) $processed->file_path));
+    }
+
+    public function test_legacy_report_types_keep_placeholder_exports(): void
+    {
+        Storage::fake();
+
+        $export = ReportExport::factory()
+            ->type(ReportType::Suppliers)
+            ->format(ReportExportFormat::Pdf)
+            ->create();
+
+        $processed = $this->app->make(ReportExportManager::class)->process($export->id);
+
+        $this->assertSame(ReportExportStatus::Completed, $processed->status);
+        $this->assertSame('', Storage::get((string) $processed->file_path));
     }
 
     public function test_full_export_flow_completes_on_sync_queue(): void

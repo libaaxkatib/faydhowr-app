@@ -29,6 +29,30 @@ class InventoryReportRepository implements ReportRepositoryInterface
         ];
     }
 
+    /**
+     * Additive stock-level breakdown used by the inventory report service.
+     * Buckets are mutually exclusive and always sum to the total product
+     * count: out of stock (no stock), low stock (at or below the product's
+     * low stock threshold), and in stock (above the threshold).
+     *
+     * @return array{in_stock: int, low_stock: int, out_of_stock: int}
+     */
+    public function stockLevelSummary(NormalizedReportFilters $filters): array
+    {
+        return [
+            'in_stock' => $this->query($filters)
+                ->whereColumn('current_stock', '>', 'low_stock_threshold')
+                ->count(),
+            'low_stock' => $this->query($filters)
+                ->where('current_stock', '>', 0)
+                ->whereColumn('current_stock', '<=', 'low_stock_threshold')
+                ->count(),
+            'out_of_stock' => $this->query($filters)
+                ->where('current_stock', '<=', 0)
+                ->count(),
+        ];
+    }
+
     public function rows(NormalizedReportFilters $filters, ReportCursorPagination $pagination): CursorPaginator
     {
         $paginator = $this->query($filters)

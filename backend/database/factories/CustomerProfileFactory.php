@@ -32,4 +32,9 @@ class CustomerProfileFactory extends Factory
             'classification' => 'lead',
         ];
     }
+
+    public function activeCustomer(): static
+    {
+        return $this->state(fn (): array => ['classification' => 'active_customer']);
+    }
 }

@@ -11,6 +11,10 @@ use App\Exceptions\Reports\UnsupportedReportTypeException;
 use App\Models\Admin;
 use App\Models\Report;
 use App\Services\Reports\ReportManager;
+use App\Services\Reports\Services\BookingReportService;
+use App\Services\Reports\Services\CustomerReportService;
+use App\Services\Reports\Services\InventoryReportService;
+use App\Services\Reports\Services\RevenueReportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -141,7 +145,7 @@ class ReportFoundationTest extends TestCase
 
     public function test_report_manager_registers_and_resolves_generators(): void
     {
-        $manager = new ReportManager;
+        $manager = $this->reportManagerWithoutGenerators();
 
         $this->assertFalse($manager->supports(ReportType::Bookings));
 
@@ -185,7 +189,7 @@ class ReportFoundationTest extends TestCase
 
     public function test_report_manager_rejects_unregistered_generators(): void
     {
-        $manager = new ReportManager;
+        $manager = $this->reportManagerWithoutGenerators();
 
         $this->expectException(UnsupportedReportTypeException::class);
         $this->expectExceptionMessage('Report type [customers] is not supported.');
@@ -204,5 +208,15 @@ class ReportFoundationTest extends TestCase
         }
 
         $this->assertDatabaseCount('reports', count(ReportType::cases()));
+    }
+
+    private function reportManagerWithoutGenerators(): ReportManager
+    {
+        return new ReportManager(
+            $this->app->make(RevenueReportService::class),
+            $this->app->make(BookingReportService::class),
+            $this->app->make(CustomerReportService::class),
+            $this->app->make(InventoryReportService::class),
+        );
     }
 }

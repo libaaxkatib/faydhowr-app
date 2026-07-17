@@ -2,17 +2,17 @@
 
 namespace App\Actions\Report;
 
+use App\Contracts\Reports\ReportManagerInterface;
 use App\Data\Reports\NormalizedReportFilters;
 use App\Data\Reports\ReportCursorPagination;
 use App\Enums\ReportFormat;
 use App\Enums\ReportType;
 use App\Models\Admin;
 use App\Models\Report;
-use App\Services\Reports\ReportManager;
 
 class GenerateReportAction
 {
-    public function __construct(private ReportManager $reportManager) {}
+    public function __construct(private ReportManagerInterface $reportManager) {}
 
     /**
      * Generate the report payload and persist the report metadata record.

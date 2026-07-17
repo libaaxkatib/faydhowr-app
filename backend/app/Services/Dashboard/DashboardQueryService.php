@@ -237,6 +237,9 @@ class DashboardQueryService implements DashboardQueryServiceInterface
     }
 
     /**
+     * Date-range resolution lives on the DashboardDateFilter enum so the
+     * reports module resolves identical ranges; a null filter means all-time.
+     *
      * @return array{0: ?CarbonImmutable, 1: ?CarbonImmutable}
      */
     private function resolveDateRange(
@@ -244,26 +247,6 @@ class DashboardQueryService implements DashboardQueryServiceInterface
         ?CarbonImmutable $startDate,
         ?CarbonImmutable $endDate,
     ): array {
-        $now = CarbonImmutable::now();
-
-        return match ($filter) {
-            null => [null, null],
-            DashboardDateFilter::Today => [$now->startOfDay(), $now->endOfDay()],
-            DashboardDateFilter::Yesterday => [
-                $now->subDay()->startOfDay(),
-                $now->subDay()->endOfDay(),
-            ],
-            DashboardDateFilter::Last7Days => [$now->subDays(6)->startOfDay(), $now->endOfDay()],
-            DashboardDateFilter::Last30Days => [$now->subDays(29)->startOfDay(), $now->endOfDay()],
-            DashboardDateFilter::ThisMonth => [$now->startOfMonth(), $now->endOfMonth()],
-            DashboardDateFilter::LastMonth => [
-                $now->subMonthNoOverflow()->startOfMonth(),
-                $now->subMonthNoOverflow()->endOfMonth(),
-            ],
-            DashboardDateFilter::CustomDateRange => [
-                $startDate?->startOfDay(),
-                $endDate?->endOfDay(),
-            ],
-        };
+        return $filter?->dateRange($startDate, $endDate) ?? [null, null];
     }
 }

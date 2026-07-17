@@ -23,6 +23,11 @@ class LocalReportStorage implements ReportStorageInterface
         );
     }
 
+    public function write(ReportExport $export, string $path, string $contents): void
+    {
+        $this->disk()->put($path, $contents);
+    }
+
     public function writePlaceholder(ReportExport $export, string $path): void
     {
         $this->disk()->put($path, '');
