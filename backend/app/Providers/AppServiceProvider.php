@@ -28,12 +28,22 @@ use App\Contracts\Reports\Services\CustomerReportServiceInterface;
 use App\Contracts\Reports\Services\InventoryReportServiceInterface;
 use App\Contracts\Reports\Services\RevenueReportServiceInterface;
 use App\Contracts\Reports\Storage\ReportStorageInterface;
+use App\Contracts\Settings\Repositories\BranchRepositoryInterface;
+use App\Contracts\Settings\Repositories\SettingsAuditRepositoryInterface;
+use App\Contracts\Settings\Repositories\SystemSettingRepositoryInterface;
+use App\Contracts\Settings\Services\AuditServiceInterface;
+use App\Contracts\Settings\Services\BackupServiceInterface;
+use App\Contracts\Settings\Services\BranchServiceInterface;
+use App\Contracts\Settings\Services\SettingsServiceInterface;
 use App\Repositories\Accounting\AccountingPeriodRepository;
 use App\Repositories\Accounting\AccountRepository;
 use App\Repositories\Accounting\FinancialReportRepository;
 use App\Repositories\Accounting\JournalEntryRepository;
 use App\Repositories\Accounting\LedgerRepository;
 use App\Repositories\Accounting\TrialBalanceRepository;
+use App\Repositories\Settings\BranchRepository;
+use App\Repositories\Settings\SettingsAuditRepository;
+use App\Repositories\Settings\SystemSettingRepository;
 use App\Services\Accounting\AccountingManager;
 use App\Services\Accounting\Services\AccountingPeriodService;
 use App\Services\Accounting\Services\ChartOfAccountService;
@@ -79,6 +89,10 @@ use App\Services\Reports\Services\InventoryReportService;
 use App\Services\Reports\Services\RevenueReportService;
 use App\Services\Reports\Storage\LocalReportStorage;
 use App\Services\Reports\Storage\ReportStorageManager;
+use App\Services\Settings\AuditService;
+use App\Services\Settings\BackupService;
+use App\Services\Settings\BranchService;
+use App\Services\Settings\SettingsService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\Request;
@@ -136,6 +150,20 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(FinancialReportServiceInterface::class, FinancialReportService::class);
 
         $this->app->singleton(AccountingManagerInterface::class, AccountingManager::class);
+
+        $this->app->bind(SystemSettingRepositoryInterface::class, SystemSettingRepository::class);
+
+        $this->app->bind(BranchRepositoryInterface::class, BranchRepository::class);
+
+        $this->app->bind(SettingsAuditRepositoryInterface::class, SettingsAuditRepository::class);
+
+        $this->app->singleton(AuditServiceInterface::class, AuditService::class);
+
+        $this->app->singleton(SettingsServiceInterface::class, SettingsService::class);
+
+        $this->app->singleton(BranchServiceInterface::class, BranchService::class);
+
+        $this->app->singleton(BackupServiceInterface::class, BackupService::class);
 
         $this->app->singleton(RevenueReportServiceInterface::class, RevenueReportService::class);
 

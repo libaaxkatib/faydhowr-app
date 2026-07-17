@@ -119,7 +119,7 @@ Most transactional tables include:
 | **Order Management** | Store orders and line items | `orders`, `order_items`, `order_status_histories` |
 | **Notification Management** | Templates, translations, preferences, lifecycle delivery, archive | `notification_templates`, `notification_template_translations`, `notification_preferences`, `notifications`, `archived_notifications` |
 | **Review Management** | Customer reviews after eligible completed activity | `reviews` |
-| **Settings** | System configuration and audit | `settings`, `audit_logs` |
+| **Settings** | System configuration and audit | `system_settings`, `branches`, `settings_audit_log`, `audit_logs` |
 
 ## 2.2 Module Notes
 
@@ -166,8 +166,9 @@ Most transactional tables include:
 
 ### Settings
 
-- Key/value operational configuration (currency, feature flags, provider config references).
-- Audit log for sensitive admin actions (SRS NFR-024).
+- Key/value operational configuration in `system_settings` (JSON values; see "Settings Module — Database Design").
+- Relational `branches` table for branch management (MGQ / HGA).
+- Settings change history in `settings_audit_log`; operational audit log for sensitive admin actions in `audit_logs` (SRS NFR-024).
 
 ### ADR-001 Identity Mapping
 
@@ -2054,31 +2055,14 @@ Preserves recipient, type, channel, status, title, message, data, lifecycle time
 
 ## 3.10 Settings
 
-### 3.10.1 `settings`
+### 3.10.1 `system_settings` (authoritative spec below)
 
-| Attribute | Detail |
-| --- | --- |
-| **Table Name** | `settings` |
-| **Purpose** | System-wide configuration (currency, business info, feature flags, provider keys references). |
-| **Primary Key** | `id` |
+The single source of truth for system configuration is the `system_settings` table, fully specified in **"Settings Module — Database Design"** later in this document. The previous standalone `settings` table specification is superseded and removed; no `settings` table exists in this design.
 
-#### Columns
+Notes retained from the superseded spec:
 
-| Column | Data Type | Required | Notes |
-| --- | --- | --- | --- |
-| `id` | BIGINT UNSIGNED | R | PK |
-| `key` | VARCHAR(100) | R | Unique |
-| `value` | TEXT | R | Serialized/string value |
-| `type` | VARCHAR(30) | R | `string`, `number`, `boolean`, `json` |
-| `is_sensitive` | BOOLEAN | R | Mask in admin UI/logs |
-| `updated_by_admin_id` | BIGINT UNSIGNED | O | FK logical |
-| `created_at` | TIMESTAMP | R | |
-| `updated_at` | TIMESTAMP | R | |
-
-#### Validation Rules
-
-- Sensitive values (API secrets) never returned to mobile clients.
-- Currency and tax/fee display rules centrally configurable (SRS NFR-070).
+- Sensitive values (API secrets, `smtp.password`) are never returned to mobile clients or read APIs (`is_sensitive = TRUE`).
+- Currency and tax/fee display rules are centrally configurable (SRS NFR-070) via the `currency.*` and `tax.*` keys.
 
 ---
 
@@ -2281,7 +2265,8 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | --- | --- | --- |
 | `reviews` | (`review_target_type`, `product_id`, `status`) | Product rating aggregate |
 | `reviews` | (`customer_profile_id`, `created_at`) | Customer history |
-| `settings` | UNIQUE(`key`) | Config lookup |
+| `system_settings` | UNIQUE(`category`, `key`); INDEX(`category`) | Config lookup |
+| `branches` | UNIQUE(`code`); INDEX(`status`); partial UNIQUE(`is_default`) WHERE `is_default = TRUE` | Branch lookup, single default |
 | `audit_logs` | (`entity_type`, `entity_id`, `created_at`) | Entity audit trail |
 | `audit_logs` | (`actor_type`, `actor_id`, `created_at`) | Actor activity |
 
@@ -2379,7 +2364,7 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | Customer/admin passwords | One-way password hash only (`password_hash`) |
 | Reset tokens | Hash only; short TTL |
 | Payment card PAN/CVV | **Never store** |
-| Provider secrets / API keys | `settings` with `is_sensitive=true`; encrypt at rest if supported; never send to mobile app |
+| Provider secrets / API keys | `system_settings` with `is_sensitive=true`; encrypt at rest if supported; never send to mobile app |
 | Admin notes | Internal-only; excluded from customer APIs |
 | Webhook payloads | Store minimized/sanitized JSON |
 | Device push tokens | Protect as personal device identifiers |
@@ -2554,20 +2539,74 @@ Two lightweight tables are introduced for user-specific report preferences. Thes
 
 ### `system_settings` Table
 
-A key-value store for all system configuration settings.
+A key-value store for all system configuration settings. This is the **only** settings table in the design. All values are stored as JSON (scalars are stored as JSON scalars, e.g. `"USD"`, `2`, `true`; complex values as JSON objects/arrays).
+
+**Key naming convention:** every setting is addressed by a fully-qualified dotted key `category.key` (e.g., `company.name`, `currency.default`, `tax.rate`, `smtp.host`, `storage.max_upload_size`, `backup.retention_days`). The `category` column stores the namespace; the `key` column stores the segment after the dot. APIs and documentation always use the fully-qualified form.
 
 | Column | Type | Constraints | Description |
 | --- | --- | --- | --- |
 | `id` | BIGINT | PK, auto-increment | Unique setting ID |
-| `category` | VARCHAR(50) | NOT NULL, indexed | Setting category (company, service, store, payment, notification, security, numbering, localization) |
-| `key` | VARCHAR(100) | NOT NULL, UNIQUE with category | Setting key (e.g., "company_name", "booking_start_time") |
-| `value` | TEXT | NULLABLE | Setting value (serialised as string; JSON for complex values) |
-| `default_value` | TEXT | NULLABLE | Factory default value for Restore Defaults feature |
-| `updated_by` | BIGINT | FK → `users.id`, NULLABLE | Last user who modified this setting |
+| `category` | VARCHAR(50) | NOT NULL, indexed | Setting category, in canonical order: company, branch, currency, tax, numbering, smtp, notifications, storage, localization, backup — plus service, store, payment, security |
+| `key` | VARCHAR(100) | NOT NULL, UNIQUE with category | Key segment (e.g., `name` for `company.name`, `rate` for `tax.rate`) |
+| `value` | JSON | NULLABLE | Setting value (JSON) |
+| `default_value` | JSON | NULLABLE | Factory default value for Restore Defaults feature |
+| `is_sensitive` | BOOLEAN | NOT NULL, default FALSE | Masked in UI, never returned by read APIs (e.g., `smtp.password`) |
+| `updated_by` | BIGINT | FK → `admins.id`, NULLABLE | Last admin who modified this setting |
 | `updated_at` | TIMESTAMP | NOT NULL | Last modification timestamp |
 | `created_at` | TIMESTAMP | NOT NULL | Initial creation timestamp |
 
 **Compound unique:** (`category`, `key`)
+
+**Indexes:**
+- UNIQUE (`category`, `key`) — primary lookup path
+- INDEX (`category`) — category page loads ("all keys of one category")
+
+### `branches` Table
+
+Company branches. Branch data is relational (not JSON settings) because branches are structured business entities with statuses and lifecycle rules.
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| `id` | BIGINT | PK, auto-increment | Branch ID |
+| `code` | VARCHAR(10) | NOT NULL, UNIQUE | Short branch code (e.g., "MGQ", "HGA") |
+| `name` | VARCHAR(100) | NOT NULL | Branch display name |
+| `city` | VARCHAR(100) | NOT NULL | City the branch operates in |
+| `status` | VARCHAR(20) | NOT NULL, CHECK IN (`ACTIVE`, `INACTIVE`, `COMING_SOON`) | Branch lifecycle status |
+| `is_default` | BOOLEAN | NOT NULL, default FALSE | Default branch flag |
+| `activated_at` | TIMESTAMP | NULLABLE | When the branch became `ACTIVE` |
+| `activated_by` | BIGINT | FK → `admins.id`, NULLABLE | Super Admin who activated the branch |
+| `created_at` | TIMESTAMP | NOT NULL | |
+| `updated_at` | TIMESTAMP | NOT NULL | |
+
+**Indexes:**
+- UNIQUE (`code`)
+- INDEX (`status`)
+- Partial UNIQUE (`is_default`) WHERE `is_default = TRUE` — enforces exactly one default branch (PostgreSQL partial unique index)
+
+**Constraints:**
+- CHECK: `status IN ('ACTIVE', 'INACTIVE', 'COMING_SOON')`
+- CHECK: `is_default = FALSE OR status = 'ACTIVE'` — a non-active branch can never be the default
+- FK `activated_by` → `admins.id` (ON DELETE SET NULL)
+
+**Relationships:**
+- `branches.activated_by` N — 1 `admins`.
+- No transactional tables reference `branches` in V1: all transactions belong to the Mogadishu branch by business rule, so no `branch_id` columns exist anywhere in this design.
+
+**Seed Data:**
+
+| code | name | city | status | is_default |
+| --- | --- | --- | --- | --- |
+| MGQ | Mogadishu | Mogadishu | ACTIVE | TRUE |
+| HGA | Hargeisa | Hargeisa | COMING_SOON | FALSE |
+
+**Business Rules (Current Version — V1):**
+- Mogadishu (MGQ) is the only operational branch.
+- All transactions belong to the Mogadishu branch.
+- Hargeisa (HGA) is displayed as `COMING_SOON`.
+- Hargeisa cannot participate in any transaction and cannot become the default branch.
+- Only Super Admin may change a branch status to `ACTIVE` (future release); the action is audit-logged.
+- Exactly one default branch exists at any time and must be `ACTIVE` (enforced by the partial unique index + CHECK constraint).
+- Multi-branch support may be introduced in a future version without redesigning the module.
 
 ### `settings_audit_log` Table
 
@@ -2578,11 +2617,15 @@ Tracks every settings change for compliance and traceability.
 | `id` | BIGINT | PK, auto-increment | Log entry ID |
 | `category` | VARCHAR(50) | NOT NULL | Setting category |
 | `key` | VARCHAR(100) | NOT NULL | Setting key |
-| `old_value` | TEXT | NULLABLE | Previous value |
-| `new_value` | TEXT | NULLABLE | New value |
-| `changed_by` | BIGINT | FK → `users.id`, NOT NULL | Admin who made the change |
+| `old_value` | JSON | NULLABLE | Previous value (masked for sensitive keys) |
+| `new_value` | JSON | NULLABLE | New value (masked for sensitive keys) |
+| `changed_by` | BIGINT | FK → `admins.id`, NOT NULL | Admin who made the change |
 | `changed_at` | TIMESTAMP | NOT NULL | When the change occurred |
 | `ip_address` | VARCHAR(45) | NULLABLE | IP address of the change request |
+
+**Indexes:** INDEX (`category`, `key`), INDEX (`changed_by`), INDEX (`changed_at`).
+
+Branch status changes (e.g., future Hargeisa activation) are also recorded here under category `branch`, in addition to the operational `audit_logs` table (§3.10.2).
 
 ### `holidays` Table
 
@@ -2603,26 +2646,40 @@ Authoritative schema is §3.8.1 (Sprint 12). Settings UI manages the same table 
 
 ### Settings Category → Key Mapping
 
-| Category | Sample Keys |
-| --- | --- |
-| company | company_name, email, phone, address, website, logo_url, business_hours_open, business_hours_close, facebook, instagram, whatsapp |
-| service | booking_start_time, booking_end_time, working_days (JSON array), booking_availability, default_lead_time |
-| store | default_delivery_fee, tax_percentage, inventory_warning_level |
-| payment | enabled_methods (JSON array), currency, payment_instructions |
-| notification | Managed via Notification Module tables/APIs (templates, translations, preferences, archive) — not legacy push/email/sms JSON keys |
-| security | min_password_length, password_complexity, password_expiry, session_timeout, login_audit_enabled |
-| numbering | prefix_customer, prefix_booking, prefix_quotation, prefix_order, prefix_payment |
-| localization | default_language, currency, timezone, date_format |
+Fully-qualified dotted keys (`category.key`), listed in the canonical category order:
+
+| # | Category | Keys |
+| --- | --- | --- |
+| 1 | company | company.name, company.logo, company.email, company.phone, company.website, company.address, company.tax_id, company.business_hours_open, company.business_hours_close, company.facebook, company.instagram, company.whatsapp |
+| 2 | branch | branch.default (default branch code, e.g. `"MGQ"`; mirrors `branches.is_default` — the `branches` table is authoritative) |
+| 3 | currency | currency.default, currency.symbol, currency.decimal_places, currency.thousand_separator |
+| 4 | tax | tax.default, tax.rate, tax.mode (`inclusive` / `exclusive`) |
+| 5 | numbering | numbering.customer_prefix, numbering.booking_prefix, numbering.quotation_prefix, numbering.invoice_prefix, numbering.receipt_prefix, numbering.order_prefix, numbering.payment_prefix, numbering.auto_numbering |
+| 6 | smtp | smtp.host, smtp.port, smtp.encryption (`none` / `ssl` / `tls`), smtp.username, smtp.password (`is_sensitive = TRUE`) |
+| 7 | notifications | notifications.email, notifications.browser, notifications.booking_alerts, notifications.quotation_alerts, notifications.payment_alerts; templates managed via Notification Module tables/APIs (templates, translations, preferences, archive) |
+| 8 | storage | storage.driver (`local` / `s3`), storage.max_upload_size, storage.allowed_file_types (JSON array) |
+| 9 | localization | localization.language, localization.timezone, localization.date_format, localization.time_format |
+| 10 | backup | backup.enabled, backup.retention_days, backup.last_run_at |
+| — | service | service.booking_start_time, service.booking_end_time, service.working_days (JSON array), service.booking_availability, service.default_lead_time |
+| — | store | store.default_delivery_fee, store.inventory_warning_level |
+| — | payment | payment.enabled_methods (JSON array), payment.instructions |
+| — | security | security.min_password_length, security.password_complexity, security.password_expiry, security.session_timeout, security.login_audit_enabled |
+
+Audit Logs (category 11 in the canonical order) are stored in the `settings_audit_log` table, not as settings keys. Branch records live in the relational `branches` table; only the `branch.default` pointer is kept in `system_settings`.
 
 ### Design Notes
 
 - **No historical impact:** Changing a setting value (e.g., tax percentage) does NOT retroactively modify existing orders or payments. Historical records retain their original values.
-- **Numbering:** Changing a prefix only affects the next generated number. The `next_number` counter is maintained in `system_settings` (e.g., key `next_customer_number`, value `1843`).
+- **Numbering:** Changing a prefix only affects the next generated number. The next-number counter is maintained in `system_settings` (e.g., key `numbering.customer_next`, value `1843`).
 - **Roles & Permissions and System Information** are not stored in `system_settings` — they are derived from application code (roles) and runtime environment (system info).
 - **Product categories** for Store Settings are stored in the existing `product_categories` table (if present) or as a JSON array in `system_settings`.
 - **Restore Defaults** uses the `default_value` column in `system_settings`. When Admin confirms a restore, the `value` column is set to `default_value` for all keys in the selected category, and each change is logged in `settings_audit_log`.
 - **Unsaved Changes Protection** is a UI-only feature (dirty state tracking in the browser). No database changes needed.
-- **Maintenance Mode** is a future feature with no database impact at this stage. When implemented, it may use a `maintenance_mode` key in `system_settings`.
+- **Maintenance Mode** is a future feature with no database impact at this stage. When implemented, it may use a `system.maintenance_mode` key in `system_settings`.
+- **JSON values:** All `system_settings.value` / `default_value` columns are JSON. Readers must not assume string scalars; booleans, numbers, arrays, and objects are stored natively.
+- **Sensitive keys** (`smtp.password`): stored encrypted at the application layer, `is_sensitive = TRUE`, masked in `settings_audit_log`, and never returned by read APIs.
+- **Currency/tax display rules:** `currency.*` and `tax.*` keys drive formatting and defaults for future documents only; stored monetary amounts and historical documents are never rewritten.
+- **Backups** are stored on disk/object storage, not in the database. `system_settings` only tracks backup metadata (e.g., `backup.last_run_at`).
 
 ---
 

@@ -2004,7 +2004,7 @@ The Settings Module provides system configuration management for Admin users onl
 
 **Route:** `/admin/settings`
 
-Displays 10 premium settings category cards in a 3-column grid. Each card shows:
+Displays the premium settings category cards in a 3-column grid. Each card shows:
 | Element | Description |
 | --- | --- |
 | Icon | Category-specific gradient icon |
@@ -2017,16 +2017,23 @@ Displays 10 premium settings category cards in a 3-column grid. Each card shows:
 
 | # | Category | Icon | Description |
 | --- | --- | --- | --- |
-| 1 | Company Settings | 🏢 | Company name, logo, contact, address, business hours, social media |
-| 2 | Service Settings | 🛠 | Booking hours, working days, holidays, availability, lead time |
-| 3 | Store Settings | 🛒 | Product categories, delivery fee, tax, inventory warning |
-| 4 | Payment Settings | 💳 | Payment methods enable/disable, currency, instructions |
-| 5 | Notification Settings | 🔔 | Push/email/SMS toggles, editable templates |
-| 6 | Security Settings | 🔒 | Password policy, session timeout, login audit, 2FA (future) |
-| 7 | Numbering Settings | # | Editable prefixes, next-number preview |
-| 8 | Language & Localization | 🌐 | Default language, currency, time zone, date format |
-| 9 | Roles & Permissions | 👥 | Read-only role matrix |
-| 10 | System Information | ℹ | App version, database, backup, privacy, terms, status |
+| 1 | Company | 🏢 | Company name, logo, contact, website, address, Tax ID, business hours, social media |
+| 2 | Branches | 🏬 | Branches list, statuses, default branch (Hargeisa: `COMING_SOON`) |
+| 3 | Currency | 💱 | Default currency, symbol, decimal places, thousand separator |
+| 4 | Tax | 🧾 | Default tax, rate, inclusive/exclusive |
+| 5 | Numbering | # | Editable prefixes, auto numbering, next-number preview |
+| 6 | SMTP | ✉ | Mail host, port, encryption, credentials, test email |
+| 7 | Notifications | 🔔 | Email/browser channel toggles, booking/quotation/payment alerts, templates |
+| 8 | Storage | 🗄 | Upload limits, allowed file types, storage driver |
+| 9 | Localization | 🌐 | Default language, time zone, date format, time format |
+| 10 | Backup | 💾 | Manual backup, restore, download backup |
+| 11 | Audit Logs | 📜 | Settings change history (user, date, old/new value) |
+| 12 | Service Settings | 🛠 | Booking hours, working days, holidays, availability, lead time |
+| 13 | Store Settings | 🛒 | Product categories, delivery fee, inventory warning |
+| 14 | Payment Settings | 💳 | Payment methods enable/disable, instructions |
+| 15 | Security Settings | 🔒 | Password policy, session timeout, login audit, 2FA (future) |
+| 16 | Roles & Permissions | 👥 | Read-only role matrix |
+| 17 | System Information | ℹ | App version, database, backup, privacy, terms, status |
 
 ### 24.4 Company Settings
 
@@ -2039,15 +2046,192 @@ Displays 10 premium settings category cards in a 3-column grid. Each card shows:
 | Logo | File upload (PNG/SVG, max 2 MB, 512×512 px recommended) | FD logo |
 | Email | Email input | info@fayadhowr.com |
 | Phone | Text input | +252 61 234 5678 |
+| Website | URL input | https://fayadhowr.com |
 | Address | Textarea | Mogadishu, Somalia — Hodan District, KM-4 |
+| Tax ID | Text input | SO-TIN-0012345 |
 | Business Hours (Opening) | Time input | 08:00 AM |
 | Business Hours (Closing) | Time input | 06:00 PM |
-| Website | URL input | https://fayadhowr.com |
 | Facebook | URL input | https://facebook.com/fayadhowr |
 | Instagram | URL input | https://instagram.com/fayadhowr |
 | WhatsApp | Text input | +252 61 234 5678 |
 
-### 24.5 Service Settings
+Tax ID is the company's tax identification number only — tax configuration lives in Tax Settings (§24.7).
+
+### 24.5 Branch Management
+
+**Route:** `/admin/settings/branches`
+
+Branch list table:
+
+| Column | Description |
+| --- | --- |
+| Code | Branch code badge (MGQ, HGA) |
+| Name | Branch name |
+| City | Operating city |
+| Status | Status chip: `ACTIVE` (green) / `INACTIVE` (grey) / `COMING_SOON` (purple) |
+| Default | ★ Default badge on the default branch |
+
+**V1 display:**
+
+| Code | Name | Status | Default |
+| --- | --- | --- | --- |
+| MGQ | Mogadishu | `ACTIVE` (green chip) | ★ Default |
+| HGA | Hargeisa | `COMING_SOON` (purple chip) | — |
+
+**Rules & UX (Current Version — V1):**
+- Mogadishu is the only operational branch; all transactions belong to the Mogadishu branch.
+- Hargeisa renders with a `COMING_SOON` chip; its row actions (Set Default, Activate) are disabled/greyed out with tooltip "Coming in a future release".
+- Hargeisa cannot participate in any transaction.
+- "Set as Default" is available only on `ACTIVE` branches.
+- Branch activation is not shown in V1; only Super Admin will see an "Activate" action in a future release. Activation is audit-logged.
+- No branch create/delete UI in V1 — the two branches are seeded.
+- Multi-branch support may be introduced in a future version without redesigning the module.
+
+### 24.6 Currency Settings
+
+**Route:** `/admin/settings/currency`
+
+Currency configuration exists only on this screen.
+
+| Field | Type | Example |
+| --- | --- | --- |
+| Default Currency | Dropdown (USD / SOS) | USD |
+| Currency Symbol | Text input (auto-suggested from currency) | $ |
+| Decimal Places | Dropdown (0 / 2) | 2 |
+| Thousand Separator | Dropdown (comma / period / space / none) | comma |
+
+A live preview shows a formatted sample amount (e.g., `$1,234.50`) that updates as options change. Info banner: "Formatting applies to displays and future documents only. Historical records are never modified."
+
+### 24.7 Tax Settings
+
+**Route:** `/admin/settings/tax`
+
+Tax configuration exists only on this screen.
+
+| Field | Type | Example |
+| --- | --- | --- |
+| Default Tax | Toggle (enabled/disabled) | Enabled |
+| Tax Rate | Percentage input (0–100, 2 decimals) | 5% |
+| Tax Mode | Radio: Inclusive / Exclusive | Exclusive |
+
+Inline helper text explains the difference: Inclusive — tax is contained in the listed price; Exclusive — tax is added on top at document total. Info banner: "Tax changes apply to future documents only."
+
+### 24.8 Numbering Settings
+
+**Route:** `/admin/settings/numbering`
+
+| Entity | Prefix | Next Number Preview |
+| --- | --- | --- |
+| Customers | CUS- | CUS-2026-001843 |
+| Bookings | BK- | BK-2026-00348 |
+| Quotations | QT- | QT-2026-00257 |
+| Invoices | INV- | INV-2026-000914 |
+| Receipts | RCT- | RCT-2026-002181 |
+| Orders | ORD- | ORD-2026-001352 |
+| Payments | PAY- | PAY-2026-002181 |
+
+- Prefix is editable via text input.
+- Auto Numbering: master toggle (enabled by default). When enabled, document numbers are generated automatically and manual number entry is hidden.
+- Next number preview updates in real-time.
+- Info banner: "Changing a prefix only affects future records. Existing records retain their original numbers."
+
+### 24.9 SMTP Settings
+
+**Route:** `/admin/settings/smtp`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| Host | Text input | e.g., smtp.mailgun.org |
+| Port | Number input | 25 / 465 / 587 / 2525 |
+| Encryption | Dropdown: None / SSL / TLS | TLS default |
+| Username | Text input | |
+| Password | Password input | Write-only: shows ●●●●●●●● once saved, never redisplayed |
+| Test Email | Email input + "Send Test Email" button | Sends a test message; result shown as success/error banner |
+
+The Send Test Email action uses the currently saved SMTP configuration and reports delivery success or the provider error message.
+
+### 24.10 Notification Settings
+
+**Route:** `/admin/settings/notifications`  
+**API permission:** `notifications.manage`
+
+#### Delivery Channels (Sprint 12)
+| Channel | Queue | Notes |
+| --- | --- | --- |
+| In-App | `notifications-in-app` | Auto `sent` → `delivered` in V1 |
+| Email | `notifications-email` | Remains `sent` until provider callback |
+| SMS | `notifications-sms` | Default preference off; provider later |
+
+#### Channel & Alert Toggles
+| Toggle | Type | Default |
+| --- | --- | --- |
+| Email Notifications | Channel toggle | Enabled |
+| Browser Notifications | Channel toggle | Disabled |
+| Booking Alerts | Event toggle | Enabled |
+| Quotation Alerts | Event toggle | Enabled |
+| Payment Alerts | Event toggle | Enabled |
+
+#### Templates & Translations
+Admin CRUD for `notification_templates` and nested translations (`so` / `en` / `ar`) with `{{placeholders}}`. Inactive templates are not dispatched.
+
+#### Archive
+Admin list of `archived_notifications` for terminal `read` / `failed` rows (no restore/delete in V1 foundation).
+
+### 24.11 Storage Settings
+
+**Route:** `/admin/settings/storage`
+
+| Field | Type | Example |
+| --- | --- | --- |
+| Upload Limit | Number input (MB per file) | 10 MB |
+| Allowed File Types | Tag chips with "+ Add Type" | jpg, jpeg, png, webp, mp4, pdf |
+| Storage Driver | Dropdown: Local / S3-compatible | Local |
+
+Info banner: "Changing the storage driver affects future uploads only. Existing files remain on their original storage."
+
+### 24.12 Language & Localization
+
+**Route:** `/admin/settings/localization`
+
+| Setting | Options |
+| --- | --- |
+| Default Language | English / Somali (Af Soomaali) / Arabic (العربية) |
+| Time Zone | East Africa Time (UTC+3) / GMT (UTC+0) |
+| Date Format | DD MMM YYYY / MM/DD/YYYY / YYYY-MM-DD |
+| Time Format | 12-hour (hh:mm AM/PM) / 24-hour (HH:mm) |
+
+Currency configuration is managed exclusively by the Currency Settings screen (§24.6).
+
+### 24.13 Backup & Restore
+
+**Route:** `/admin/settings/backup`
+
+| Element | Description |
+| --- | --- |
+| Create Backup Now | Primary button — triggers a manual backup; progress indicator while running |
+| Backups table | Columns: Date/Time, Size, Created By, Actions |
+| Download | Per-row action — downloads the backup archive |
+| Restore | Per-row action (Super Admin only) — opens a destructive-action confirmation dialog (type-to-confirm) |
+
+Restore confirmation dialog: red warning icon, heading "Restore from backup?", description of data loss implications, requires typing `RESTORE` to enable the confirm button.
+
+### 24.14 Settings Audit Logs
+
+**Route:** `/admin/settings/audit-logs`
+
+Read-only table of all settings changes (backed by `settings_audit_log`):
+
+| Column | Description |
+| --- | --- |
+| User | Staff name and role |
+| Date | Change date and time |
+| Category / Key | Which setting was changed |
+| Old Value | Previous value (struck through, red); masked for sensitive keys |
+| New Value | New value (green); masked for sensitive keys |
+
+Filters: category, user, date range. No edit or delete actions exist.
+
+### 24.15 Service Settings
 
 **Route:** `/admin/settings/services`
 
@@ -2059,7 +2243,7 @@ Displays 10 premium settings category cards in a 3-column grid. Each card shows:
 | Booking Availability | Dropdown: Open / Closed |
 | Default Booking Lead Time | Dropdown: 12h / 24h / 48h / 72h |
 
-### 24.6 Store Settings
+### 24.16 Store Settings
 
 **Route:** `/admin/settings/store`
 
@@ -2067,10 +2251,11 @@ Displays 10 premium settings category cards in a 3-column grid. Each card shows:
 | --- | --- | --- |
 | Product Categories | Tag chips with "+ Add Category" | Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, Air Fresheners |
 | Default Delivery Fee | Currency input | $5.00 |
-| Tax Percentage | Percentage input | 5% |
 | Inventory Warning Level | Number input | Low Stock Threshold / dashboard alerts; Email/SMS outside V1 |
 
-### 24.7 Payment Settings
+Tax configuration is managed exclusively by the Tax Settings screen (§24.7).
+
+### 24.17 Payment Settings
 
 **Route:** `/admin/settings/payments`
 
@@ -2087,30 +2272,13 @@ Displays 10 premium settings category cards in a 3-column grid. Each card shows:
 #### Additional Fields
 | Field | Type |
 | --- | --- |
-| Currency | Dropdown (USD / SOS) |
 | Payment Instructions | Textarea |
+
+Currency configuration is managed exclusively by the Currency Settings screen (§24.6).
 
 Note: No payment gateway integration yet. Payment methods are listed for customer reference only.
 
-### 24.8 Notification Settings
-
-**Route:** `/admin/settings/notifications`  
-**API permission:** `notifications.manage`
-
-#### Delivery Channels (Sprint 12)
-| Channel | Queue | Notes |
-| --- | --- | --- |
-| In-App | `notifications-in-app` | Auto `sent` → `delivered` in V1 |
-| Email | `notifications-email` | Remains `sent` until provider callback |
-| SMS | `notifications-sms` | Default preference off; provider later |
-
-#### Templates & Translations
-Admin CRUD for `notification_templates` and nested translations (`so` / `en` / `ar`) with `{{placeholders}}`. Inactive templates are not dispatched.
-
-#### Archive
-Admin list of `archived_notifications` for terminal `read` / `failed` rows (no restore/delete in V1 foundation).
-
-### 24.9 Security Settings
+### 24.18 Security Settings
 
 **Route:** `/admin/settings/security`
 
@@ -2133,34 +2301,7 @@ Admin list of `archived_notifications` for terminal `read` / `failed` rows (no r
 - Enforce 2FA for All Staff — disabled, greyed out.
 - Description: "Coming in a future release."
 
-### 24.10 Numbering Settings
-
-**Route:** `/admin/settings/numbering`
-
-| Entity | Prefix | Next Number Preview |
-| --- | --- | --- |
-| Customers | CUS- | CUS-2026-001843 |
-| Bookings | BK- | BK-2026-00348 |
-| Quotations | QT- | QT-2026-00257 |
-| Orders | ORD- | ORD-2026-001352 |
-| Payments | PAY- | PAY-2026-002181 |
-
-- Prefix is editable via text input.
-- Next number preview updates in real-time.
-- Info banner: "Changing a prefix only affects future records. Existing records retain their original numbers."
-
-### 24.11 Language & Localization
-
-**Route:** `/admin/settings/localization`
-
-| Setting | Options |
-| --- | --- |
-| Default Language | English / Somali (Af Soomaali) / Arabic (العربية) |
-| Currency | USD ($) / SOS (Sh) |
-| Time Zone | East Africa Time (UTC+3) / GMT (UTC+0) |
-| Date Format | DD MMM YYYY / MM/DD/YYYY / YYYY-MM-DD |
-
-### 24.12 Roles & Permissions
+### 24.19 Roles & Permissions
 
 **Route:** `/admin/settings/roles`
 
@@ -2184,7 +2325,7 @@ Read-only role matrix showing module access for Admin, Sales, and Accountant rol
 
 Info banner: "This matrix is read-only. Role definitions are managed at the system level."
 
-### 24.13 System Information
+### 24.20 System Information
 
 **Route:** `/admin/settings/system`
 
@@ -2199,7 +2340,7 @@ Read-only display.
 | Privacy Policy | View link |
 | Terms & Conditions | View link |
 
-### 24.14 Global Settings UX
+### 24.21 Global Settings UX
 
 Every settings detail page includes:
 | Element | Description |
@@ -2208,30 +2349,18 @@ Every settings detail page includes:
 | Discard Changes | Danger/ghost button — reverts to last saved state |
 | Last Updated By | Shows: staff name (role) + date + time |
 
-### 24.15 Business Rules
-
-| # | Rule |
-| --- | --- |
-| BR-S01 | Settings are available to Admin role only. Sales and Accountant must not have access. |
-| BR-S02 | Settings change system configuration only. Settings never modify historical business records. |
-| BR-S03 | All settings changes are logged (who, what, when). |
-| BR-S04 | Future features (e.g., 2FA) are clearly labelled and non-interactive. |
-| BR-S05 | Read-only sections (Roles & Permissions, System Info) do not have Save/Discard buttons. |
-| BR-S06 | Numbering prefix changes only affect future records. |
-| BR-S07 | No new business features are introduced by this module. |
-
-### 24.16 Global Settings Search
+### 24.22 Global Settings Search
 
 A search bar is placed at the top of the Settings Dashboard allowing Admin to search across all settings.
 
-**Searchable dimensions:** Company, Booking, Payment, Currency, Language, Notification, Security, Prefix, Roles, Backup.
+**Searchable dimensions:** Company, Branch, Currency, Tax, Prefix, SMTP, Notification, Storage, Language, Backup, Audit, Booking, Payment, Security, Roles.
 
 **Behaviour:**
 - As the user types, a dropdown shows matching suggestions with a category badge.
 - Selecting a result navigates to the corresponding settings page.
 - Search is read-only.
 
-### 24.17 Unsaved Changes Protection
+### 24.23 Unsaved Changes Protection
 
 If the user attempts to leave a settings page with unsaved modifications, a confirmation dialog is displayed.
 
@@ -2245,7 +2374,7 @@ If the user attempts to leave a settings page with unsaved modifications, a conf
 | Action 2 | **Discard Changes** — danger button, discards and navigates away |
 | Action 3 | **Continue Editing** — ghost button, closes the dialog and returns to editing |
 
-### 24.18 Restore Defaults
+### 24.24 Restore Defaults
 
 Every editable settings category includes a "Restore Defaults" button in the footer bar.
 
@@ -2255,9 +2384,9 @@ Every editable settings category includes a "Restore Defaults" button in the foo
 - Confirmation is required before applying default values.
 - Restore only affects the current category and does not modify historical records.
 
-### 24.19 Settings History
+### 24.25 Settings History
 
-Every editable settings page includes a "View Change History" section displaying the audit log for that category.
+Every editable settings page includes a "View Change History" section displaying the audit log entries for that category (sourced from the Settings Audit Logs, §24.14).
 
 **Display per entry:**
 | Field | Description |
@@ -2274,7 +2403,7 @@ Every editable settings page includes a "View Change History" section displaying
 - Read-only — no user interaction can modify the audit log.
 - This is a UI for the existing `settings_audit_log` table.
 
-### 24.20 Maintenance Mode
+### 24.26 Maintenance Mode
 
 Under System Information, a Maintenance Mode section is displayed.
 
@@ -2284,7 +2413,7 @@ Under System Information, a Maintenance Mode section is displayed.
 - Description: "Coming in a future release."
 - Info banner describing future capabilities: schedule downtime windows, display custom maintenance messages, automatic service restoration.
 
-### 24.21 Responsive Behaviour
+### 24.27 Responsive Behaviour
 
 | Breakpoint | Layout Changes |
 | --- | --- |
@@ -2292,23 +2421,49 @@ Under System Information, a Maintenance Mode section is displayed.
 | 768–1200 px | 2-column settings grid, 2-column form grids |
 | < 768 px | Single-column settings grid, single-column form grids |
 
-### 24.22 Design Preview Reference
+### 24.28 Design Preview Reference
 
-`design-previews/admin-settings-v1.html` — contains 13 visual flows:
-1. Settings Dashboard (10 category cards + Global Search)
+`design-previews/admin-settings-v1.html` — visual flows (canonical category order):
+1. Settings Dashboard (category cards + Global Search)
 2. Company Settings (forms + Change History + Restore Defaults confirmation)
-3. Service Settings (hours, days, holidays, availability, lead time + Restore Defaults)
-4. Store Settings (categories, delivery fee, tax, inventory warning + Restore Defaults)
-5. Payment Settings (6 methods with toggles, currency, instructions + Restore Defaults)
-6. Notification Settings (channel toggles, 4 editable templates + Restore Defaults)
-7. Security Settings (password policy, session, audit, 2FA future + Restore Defaults)
-8. Numbering Settings (5 entity prefixes with next-number preview + Restore Defaults)
-9. Language & Localization (language, currency, timezone, date format + Restore Defaults)
-10. Roles & Permissions (read-only role matrix)
-11. System Information (version, database, backup, status, legal + Maintenance Mode future)
-12. Unsaved Changes Protection (confirmation dialog)
-13. Settings Change History (full audit log view)
-11. System Information (version, database, backup, status, legal)
+3. Branch Management (branch list, MGQ `ACTIVE` default, HGA `COMING_SOON`)
+4. Currency Settings (default, symbol, decimal places, separator + live preview)
+5. Tax Settings (default tax, rate, inclusive/exclusive)
+6. Numbering Settings (entity prefixes with next-number preview + Auto Numbering)
+7. SMTP Settings (host, port, encryption, credentials, test email)
+8. Notification Settings (channel toggles, alert toggles, editable templates + Restore Defaults)
+9. Storage Settings (upload limit, allowed types, driver)
+10. Language & Localization (language, timezone, date format, time format + Restore Defaults)
+11. Backup & Restore (manual backup, download, restore confirmation)
+12. Settings Audit Logs (full change-log view)
+13. Service Settings (hours, days, holidays, availability, lead time + Restore Defaults)
+14. Store Settings (categories, delivery fee, inventory warning + Restore Defaults)
+15. Payment Settings (6 methods with toggles, instructions + Restore Defaults)
+16. Security Settings (password policy, session, audit, 2FA future + Restore Defaults)
+17. Roles & Permissions (read-only role matrix)
+18. System Information (version, database, backup, status, legal + Maintenance Mode future)
+19. Unsaved Changes Protection (confirmation dialog)
+
+### 24.29 Business Rules
+
+| # | Rule |
+| --- | --- |
+| BR-S01 | Settings are available to Admin role only. Sales and Accountant must not have access. |
+| BR-S02 | Settings change system configuration only. Settings never modify historical business records. |
+| BR-S03 | All settings changes are logged (who, what, when). |
+| BR-S04 | Future features (e.g., 2FA) are clearly labelled and non-interactive. |
+| BR-S05 | Read-only sections (Roles & Permissions, System Info) do not have Save/Discard buttons. |
+| BR-S06 | Numbering prefix changes only affect future records. |
+| BR-S07 | No new business features are introduced by this module. |
+| BR-S08 | Restore Defaults requires confirmation and does not affect historical records. |
+| BR-S09 | Mogadishu (MGQ) is the only operational branch: `ACTIVE` and default. All transactions belong to the Mogadishu branch. |
+| BR-S10 | Hargeisa (HGA) is displayed as `COMING_SOON`: it cannot participate in any transaction and cannot become the default branch. |
+| BR-S11 | Only Super Admin may activate Hargeisa in a future release. |
+| BR-S12 | Exactly one default branch exists at any time and it must be `ACTIVE`. |
+| BR-S13 | Currency, tax, and numbering changes affect future records only; historical documents are immutable. |
+| BR-S14 | SMTP password is write-only: masked in the UI and never displayed after saving. |
+| BR-S15 | Restore from backup requires Super Admin authority and explicit confirmation. |
+| BR-S16 | Multi-branch support may be introduced in a future version without redesigning the module. |
 
 ---
 

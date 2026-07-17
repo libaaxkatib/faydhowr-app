@@ -32,6 +32,12 @@ use App\Http\Controllers\Api\V1\Admin\Reports\ReportExportDownloadController;
 use App\Http\Controllers\Api\V1\Admin\Reports\RevenueReportSummaryController;
 use App\Http\Controllers\Api\V1\Admin\Reports\StoreOrderReportController;
 use App\Http\Controllers\Api\V1\Admin\Reports\SupplierReportController;
+use App\Http\Controllers\Api\V1\Admin\Settings\BackupController;
+use App\Http\Controllers\Api\V1\Admin\Settings\BranchController;
+use App\Http\Controllers\Api\V1\Admin\Settings\CompanyLogoController;
+use App\Http\Controllers\Api\V1\Admin\Settings\SettingsAuditLogController;
+use App\Http\Controllers\Api\V1\Admin\Settings\SettingsController;
+use App\Http\Controllers\Api\V1\Admin\Settings\SmtpTestController;
 use App\Http\Controllers\Api\V1\Auth\AuthenticatedUserController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
@@ -264,6 +270,81 @@ Route::prefix('v1/admin/accounting')
 
         Route::get('reports/balance-sheet', [BalanceSheetController::class, 'show'])
             ->name('api.v1.admin.accounting.reports.balance-sheet.show');
+    });
+
+Route::prefix('v1/admin/settings')
+    ->middleware(['auth:sanctum', 'admin'])
+    ->group(function (): void {
+        Route::get('', [SettingsController::class, 'index'])
+            ->middleware('permission:settings.view')
+            ->name('api.v1.admin.settings.index');
+
+        Route::get('audit-logs', [SettingsAuditLogController::class, 'index'])
+            ->middleware('permission:settings.view')
+            ->name('api.v1.admin.settings.audit-logs.index');
+
+        Route::post('company/logo', [CompanyLogoController::class, 'store'])
+            ->middleware('permission:settings.manage')
+            ->name('api.v1.admin.settings.company.logo.store');
+
+        Route::post('smtp/test', [SmtpTestController::class, 'store'])
+            ->middleware('permission:settings.manage')
+            ->name('api.v1.admin.settings.smtp.test.store');
+
+        Route::get('{category}', [SettingsController::class, 'show'])
+            ->middleware('permission:settings.view')
+            ->name('api.v1.admin.settings.show');
+
+        Route::put('{category}', [SettingsController::class, 'update'])
+            ->middleware('permission:settings.manage')
+            ->name('api.v1.admin.settings.update');
+
+        Route::post('{category}/restore-defaults', [SettingsController::class, 'restoreDefaults'])
+            ->middleware('permission:settings.manage')
+            ->name('api.v1.admin.settings.restore-defaults');
+    });
+
+Route::prefix('v1/admin/branches')
+    ->middleware(['auth:sanctum', 'admin'])
+    ->group(function (): void {
+        Route::get('', [BranchController::class, 'index'])
+            ->middleware('permission:settings.view')
+            ->name('api.v1.admin.branches.index');
+
+        Route::get('{branch}', [BranchController::class, 'show'])
+            ->whereNumber('branch')
+            ->middleware('permission:settings.view')
+            ->name('api.v1.admin.branches.show');
+
+        Route::patch('{branch}/activate', [BranchController::class, 'activate'])
+            ->whereNumber('branch')
+            ->middleware('permission:settings.manage')
+            ->name('api.v1.admin.branches.activate');
+
+        Route::patch('{branch}/default', [BranchController::class, 'makeDefault'])
+            ->whereNumber('branch')
+            ->middleware('permission:settings.manage')
+            ->name('api.v1.admin.branches.default');
+    });
+
+Route::prefix('v1/admin/backups')
+    ->middleware(['auth:sanctum', 'admin'])
+    ->group(function (): void {
+        Route::get('', [BackupController::class, 'index'])
+            ->middleware('permission:settings.view')
+            ->name('api.v1.admin.backups.index');
+
+        Route::post('', [BackupController::class, 'store'])
+            ->middleware('permission:settings.manage')
+            ->name('api.v1.admin.backups.store');
+
+        Route::get('{backup}/download', [BackupController::class, 'download'])
+            ->middleware('permission:settings.manage')
+            ->name('api.v1.admin.backups.download');
+
+        Route::post('{backup}/restore', [BackupController::class, 'restore'])
+            ->middleware('permission:settings.manage')
+            ->name('api.v1.admin.backups.restore');
     });
 
 Route::prefix('v1/admin/report-exports')

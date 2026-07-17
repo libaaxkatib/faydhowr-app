@@ -1322,6 +1322,190 @@ Permission catalog (route-aligned): `products.create`, `products.update`, `produ
 | --- | --- | --- |
 | GET | `/api/v1/admin/audit-logs` | `admins.manage`; event-sourced rows |
 
+## 18.6 Settings & System Configuration (Documentation Only — Not Implemented)
+
+All endpoints require `auth:sanctum` + `admin` middleware. Permissions:
+
+| Permission | Grants |
+| --- | --- |
+| `settings.view` | Read settings, branches, settings audit logs |
+| `settings.manage` | Update settings, upload logo, send SMTP test, create/download backups |
+| Super Admin only | Branch activation / set default branch (future), restore from backup |
+
+Sensitive keys (e.g., `smtp.password`) are write-only: accepted on update, never returned by any read endpoint, and masked in audit logs.
+
+Setting keys use the fully-qualified dotted convention `category.key` (e.g., `company.name`, `currency.default`, `tax.rate`, `smtp.host`, `storage.max_upload_size`, `backup.retention_days`), matching the Database Design. Categories follow the canonical order: `company`, `branch`, `currency`, `tax`, `numbering`, `smtp`, `notifications`, `storage`, `localization`, `backup` — with audit logs exposed via the Audit Logs endpoint.
+
+### 18.6.1 Settings
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/settings` | `settings.view` | All categories, grouped in canonical order |
+| GET | `/api/v1/admin/settings/{category}` | `settings.view` | One category: `company`, `currency`, `tax`, `numbering`, `smtp`, `notifications`, `storage`, `localization`, `backup` |
+| PUT | `/api/v1/admin/settings/{category}` | `settings.manage` | Partial update of keys in the category; every change is audit-logged |
+| POST | `/api/v1/admin/settings/{category}/restore-defaults` | `settings.manage` | Resets category values to `default_value` |
+
+**Validation (PUT `/settings/{category}`):**
+- `{category}` must be a known category; unknown keys in the payload → 422.
+- Per-key type validation against JSON value types (e.g., `tax.rate`: numeric 0–100, max 2 decimals; `currency.decimal_places`: integer in {0, 2}; `storage.allowed_file_types`: array of known extensions; `numbering.*_prefix`: string, max 10, uppercase letters/digits/hyphen; `numbering.auto_numbering`: boolean).
+- Sensitive keys are accepted but never echoed back.
+
+**Example — GET `/api/v1/admin/settings/currency`:**
+
+```json
+{
+  "success": true,
+  "message": "Settings retrieved successfully.",
+  "data": {
+    "category": "currency",
+    "settings": {
+      "currency.default": "USD",
+      "currency.symbol": "$",
+      "currency.decimal_places": 2,
+      "currency.thousand_separator": ","
+    },
+    "last_updated_by": { "name": "Ayaan Ali", "role": "admin" },
+    "updated_at": "2026-07-17T14:05:00Z"
+  }
+}
+```
+
+**Example — PUT `/api/v1/admin/settings/tax`:**
+
+Request:
+
+```json
+{ "tax.default": true, "tax.rate": 5, "tax.mode": "exclusive" }
+```
+
+Response `200`:
+
+```json
+{
+  "success": true,
+  "message": "Tax settings updated successfully.",
+  "data": {
+    "category": "tax",
+    "settings": { "tax.default": true, "tax.rate": 5, "tax.mode": "exclusive" }
+  }
+}
+```
+
+### 18.6.2 Logo Upload (Company)
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| POST | `/api/v1/admin/settings/company/logo` | `settings.manage` | Multipart upload; replaces `company.logo` |
+
+**Validation:** `logo` — required file, mime PNG/SVG, max 2 MB, recommended 512×512 px.
+
+Response `200`:
+
+```json
+{ "success": true, "message": "Logo uploaded successfully.", "data": { "company.logo": "https://cdn.fayadhowr.com/settings/logo.png" } }
+```
+
+### 18.6.3 Branches
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/branches` | `settings.view` | All branches with status and default flag |
+| GET | `/api/v1/admin/branches/{branch}` | `settings.view` | Branch detail |
+| PATCH | `/api/v1/admin/branches/{branch}/activate` | Super Admin only | Future release; audit-logged; 403 for all other roles |
+| PATCH | `/api/v1/admin/branches/{branch}/default` | Super Admin only | Target must be `ACTIVE`, else 422 `BRANCH_NOT_ACTIVE` |
+
+**Business rules (Current Version — V1):**
+- Mogadishu (MGQ) is the only operational branch; all transactions belong to the Mogadishu branch. No transaction endpoint accepts a branch parameter in V1.
+- Hargeisa (HGA) is displayed as `COMING_SOON` and cannot participate in any transaction.
+- Setting a non-`ACTIVE` branch as default → 422 `BRANCH_NOT_ACTIVE`.
+- No create/delete endpoints in V1; MGQ and HGA are seeded.
+- Multi-branch support may be introduced in a future version without redesigning the module.
+
+**Example — GET `/api/v1/admin/branches`:**
+
+```json
+{
+  "success": true,
+  "message": "Branches retrieved successfully.",
+  "data": [
+    { "id": 1, "code": "MGQ", "name": "Mogadishu", "city": "Mogadishu", "status": "ACTIVE", "is_default": true },
+    { "id": 2, "code": "HGA", "name": "Hargeisa", "city": "Hargeisa", "status": "COMING_SOON", "is_default": false }
+  ]
+}
+```
+
+### 18.6.4 SMTP Test
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| POST | `/api/v1/admin/settings/smtp/test` | `settings.manage` | Sends a test email using the saved SMTP configuration |
+
+**Validation:** `to_email` — required, valid email.
+
+Response `200`:
+
+```json
+{ "success": true, "message": "Test email sent successfully.", "data": { "to": "admin@fayadhowr.com" } }
+```
+
+Response `502` (provider failure):
+
+```json
+{ "success": false, "message": "SMTP connection failed: connection refused.", "error_code": "SMTP_TEST_FAILED" }
+```
+
+### 18.6.5 Backup
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/backups` | `settings.view` | List backups (date, size, created by) |
+| POST | `/api/v1/admin/backups` | `settings.manage` | Trigger manual backup (async job) |
+| GET | `/api/v1/admin/backups/{backup}/download` | `settings.manage` | Signed, time-limited download of the archive |
+| POST | `/api/v1/admin/backups/{backup}/restore` | Super Admin only | Destructive; requires `confirmation: "RESTORE"` in the body, else 422 |
+
+**Example — POST `/api/v1/admin/backups`:**
+
+```json
+{ "success": true, "message": "Backup started.", "data": { "id": 12, "status": "in_progress", "started_at": "2026-07-17T02:00:00Z" } }
+```
+
+### 18.6.6 Settings Audit Logs
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/settings/audit-logs` | `settings.view` | Settings change history; filters: `category`, `changed_by`, `from`, `to` |
+
+**Example — GET `/api/v1/admin/settings/audit-logs`:**
+
+```json
+{
+  "success": true,
+  "message": "Settings audit logs retrieved successfully.",
+  "data": [
+    {
+      "id": 88,
+      "category": "tax",
+      "key": "tax.rate",
+      "old_value": 0,
+      "new_value": 5,
+      "changed_by": { "name": "Ayaan Ali", "role": "admin" },
+      "changed_at": "2026-07-17T14:05:00Z"
+    }
+  ]
+}
+```
+
+### 18.6.7 Error Codes
+
+| Code | HTTP | Meaning |
+| --- | --- | --- |
+| `SETTINGS_CATEGORY_NOT_FOUND` | 404 | Unknown settings category |
+| `VALIDATION_ERROR` | 422 | Invalid keys or value types |
+| `BRANCH_NOT_ACTIVE` | 422 | Non-active branch cannot be set as default |
+| `SMTP_TEST_FAILED` | 502 | SMTP provider rejected the test message |
+| `BACKUP_RESTORE_NOT_CONFIRMED` | 422 | Missing/incorrect restore confirmation phrase |
+| 403 Forbidden | 403 | Missing `settings.*` permission or non–Super Admin on restricted actions |
+
 ---
 
 ## Document Control

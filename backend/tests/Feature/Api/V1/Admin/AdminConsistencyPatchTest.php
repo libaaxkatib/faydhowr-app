@@ -244,6 +244,8 @@ class AdminConsistencyPatchTest extends TestCase
             'purchase_orders.manage',
             'reports.view',
             'roles.manage',
+            'settings.manage',
+            'settings.view',
             'suppliers.manage',
         ], $catalog);
 
