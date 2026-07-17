@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1\Booking;
 
-use App\Actions\Booking\CreateBookingAction;
 use App\Actions\Booking\CancelBookingAction;
+use App\Actions\Booking\CreateBookingAction;
 use App\Actions\Booking\GetCustomerBookingAction;
 use App\Actions\Booking\ListCustomerBookingsAction;
 use App\Actions\Customer\GetCustomerProfileAction;
@@ -15,9 +15,9 @@ use App\Http\Resources\Api\V1\Booking\BookingResource;
 use App\Models\User;
 use App\Support\ApiResponse;
 use DomainException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Throwable;
 
 class BookingController extends Controller
@@ -254,5 +254,4 @@ class BookingController extends Controller
             ? false
             : (int) $serviceId;
     }
-
 }

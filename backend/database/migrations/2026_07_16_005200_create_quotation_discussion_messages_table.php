@@ -28,8 +28,8 @@ return new class extends Migration
 
         if (DB::getDriverName() === 'pgsql') {
             DB::statement(
-                "ALTER TABLE quotation_discussion_messages "
-                ."ADD CONSTRAINT quotation_discussion_messages_sender_type_check "
+                'ALTER TABLE quotation_discussion_messages '
+                .'ADD CONSTRAINT quotation_discussion_messages_sender_type_check '
                 ."CHECK (sender_type IN ('user', 'admin', 'system'))",
             );
         }

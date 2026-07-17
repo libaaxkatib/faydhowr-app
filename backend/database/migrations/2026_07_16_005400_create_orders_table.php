@@ -37,11 +37,11 @@ return new class extends Migration
 
         if (DB::getDriverName() === 'pgsql') {
             DB::statement(
-                "ALTER TABLE orders ADD CONSTRAINT orders_status_check "
+                'ALTER TABLE orders ADD CONSTRAINT orders_status_check '
                 ."CHECK (status IN ('pending_payment', 'confirmed', 'processing', 'completed', 'cancelled'))",
             );
             DB::statement(
-                "ALTER TABLE orders ADD CONSTRAINT orders_number_format_check "
+                'ALTER TABLE orders ADD CONSTRAINT orders_number_format_check '
                 ."CHECK (order_number ~ '^ORD-[0-9]{4}-[0-9]{6}$')",
             );
             DB::statement(

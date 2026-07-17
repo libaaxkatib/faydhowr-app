@@ -32,20 +32,20 @@ return new class extends Migration
 
         if (DB::getDriverName() === 'pgsql') {
             DB::statement(
-                "ALTER TABLE booking_media ADD CONSTRAINT booking_media_type_check "
+                'ALTER TABLE booking_media ADD CONSTRAINT booking_media_type_check '
                 ."CHECK (media_type IN ('image', 'video'))",
             );
             DB::statement(
-                "ALTER TABLE booking_media ADD CONSTRAINT booking_media_file_size_check "
+                'ALTER TABLE booking_media ADD CONSTRAINT booking_media_file_size_check '
                 .'CHECK (file_size > 0)',
             );
             DB::statement(
-                "ALTER TABLE booking_media ADD CONSTRAINT booking_media_mime_type_check "
+                'ALTER TABLE booking_media ADD CONSTRAINT booking_media_mime_type_check '
                 ."CHECK ((media_type = 'image' AND mime_type IN ('image/jpeg', 'image/png', 'image/webp')) "
                 ."OR (media_type = 'video' AND mime_type IN ('video/mp4', 'video/quicktime', 'video/webm')))",
             );
             DB::statement(
-                "ALTER TABLE booking_media ADD CONSTRAINT booking_media_extension_check "
+                'ALTER TABLE booking_media ADD CONSTRAINT booking_media_extension_check '
                 ."CHECK ((media_type = 'image' AND lower(original_name) ~ '\\.(jpg|jpeg|png|webp)$') "
                 ."OR (media_type = 'video' AND lower(original_name) ~ '\\.(mp4|mov|webm)$'))",
             );

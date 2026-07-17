@@ -31,11 +31,11 @@ return new class extends Migration
 
         if (DB::getDriverName() === 'pgsql') {
             DB::statement(
-                "ALTER TABLE customer_profiles ADD CONSTRAINT customer_profiles_preferred_language_check "
+                'ALTER TABLE customer_profiles ADD CONSTRAINT customer_profiles_preferred_language_check '
                 ."CHECK (preferred_language IN ('so', 'en', 'ar'))",
             );
             DB::statement(
-                "ALTER TABLE customer_profiles ADD CONSTRAINT customer_profiles_classification_check "
+                'ALTER TABLE customer_profiles ADD CONSTRAINT customer_profiles_classification_check '
                 ."CHECK (classification IN ('lead', 'active_customer'))",
             );
         }

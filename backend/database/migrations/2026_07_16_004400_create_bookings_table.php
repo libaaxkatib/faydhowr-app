@@ -36,13 +36,13 @@ return new class extends Migration
 
         if (DB::getDriverName() === 'pgsql') {
             DB::statement(
-                "ALTER TABLE bookings ADD CONSTRAINT bookings_status_check "
+                'ALTER TABLE bookings ADD CONSTRAINT bookings_status_check '
                 ."CHECK (status IN ('submitted', 'pending_review', 'quotation_ready', "
                 ."'under_discussion', 'accepted', 'scheduled', 'in_progress', "
                 ."'completed', 'cancelled'))",
             );
             DB::statement(
-                "ALTER TABLE bookings ADD CONSTRAINT bookings_number_format_check "
+                'ALTER TABLE bookings ADD CONSTRAINT bookings_number_format_check '
                 ."CHECK (booking_number ~ '^BK-[0-9]{4}-[0-9]{6}$')",
             );
             DB::statement(

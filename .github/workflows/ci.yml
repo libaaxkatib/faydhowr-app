@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Lint & Test (PHP 8.4)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, dom, xml, ctype, curl, fileinfo, sqlite3, pdo_sqlite, gd, zip, intl, bcmath
+          ini-values: memory_limit=1G
+          coverage: none
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
+
+      - name: Prepare environment file
+        run: php -r "file_exists('.env') || copy('.env.example', '.env');"
+
+      - name: Clear configuration cache
+        run: php artisan config:clear
+
+      - name: Generate application key
+        run: php artisan key:generate
+
+      - name: Run database migrations (smoke check)
+        run: |
+          touch database/database.sqlite
+          php artisan migrate --force
+
+      - name: Check code style (Pint)
+        run: vendor/bin/pint --test
+
+      - name: Run test suite (SQLite in-memory)
+        run: php artisan test

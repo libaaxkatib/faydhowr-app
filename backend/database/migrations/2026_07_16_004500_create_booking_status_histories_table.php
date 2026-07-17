@@ -28,13 +28,13 @@ return new class extends Migration
 
         if (DB::getDriverName() === 'pgsql') {
             DB::statement(
-                "ALTER TABLE booking_status_histories ADD CONSTRAINT booking_status_histories_status_check "
+                'ALTER TABLE booking_status_histories ADD CONSTRAINT booking_status_histories_status_check '
                 ."CHECK (status IN ('submitted', 'pending_review', 'quotation_ready', "
                 ."'under_discussion', 'accepted', 'scheduled', 'in_progress', "
                 ."'completed', 'cancelled'))",
             );
             DB::statement(
-                "ALTER TABLE booking_status_histories ADD CONSTRAINT booking_status_histories_actor_type_check "
+                'ALTER TABLE booking_status_histories ADD CONSTRAINT booking_status_histories_actor_type_check '
                 ."CHECK (changed_by_type IN ('user', 'admin', 'system'))",
             );
         }

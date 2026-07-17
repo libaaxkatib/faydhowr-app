@@ -276,9 +276,6 @@ class CreateBookingTest extends TestCase
         return [$service, $mode];
     }
 
-    /**
-     * @return CustomerAddress
-     */
     private function createAddress(CustomerProfile $profile): CustomerAddress
     {
         return CustomerAddress::factory()->create([
@@ -300,8 +297,7 @@ class CreateBookingTest extends TestCase
         Service|int $service,
         ServiceModeOption $mode,
         CustomerAddress $address,
-    ): array
-    {
+    ): array {
         return [
             'service_id' => $service instanceof Service ? $service->id : $service,
             'service_mode_id' => $mode->id,

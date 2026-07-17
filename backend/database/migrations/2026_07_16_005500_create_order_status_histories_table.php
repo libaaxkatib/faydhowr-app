@@ -28,11 +28,11 @@ return new class extends Migration
 
         if (DB::getDriverName() === 'pgsql') {
             DB::statement(
-                "ALTER TABLE order_status_histories ADD CONSTRAINT order_status_histories_status_check "
+                'ALTER TABLE order_status_histories ADD CONSTRAINT order_status_histories_status_check '
                 ."CHECK (status IN ('pending_payment', 'confirmed', 'processing', 'completed', 'cancelled'))",
             );
             DB::statement(
-                "ALTER TABLE order_status_histories ADD CONSTRAINT order_status_histories_actor_type_check "
+                'ALTER TABLE order_status_histories ADD CONSTRAINT order_status_histories_actor_type_check '
                 ."CHECK (changed_by_type IN ('user', 'admin', 'system'))",
             );
         }
