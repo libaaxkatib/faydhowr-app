@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
+    'service_id',
     'mode',
     'subtype',
     'is_active',
@@ -17,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ServiceModeOption extends Model
 {
     use HasFactory;
+
+    protected $table = 'service_modes';
 
     /**
      * @return BelongsTo<Service, $this>

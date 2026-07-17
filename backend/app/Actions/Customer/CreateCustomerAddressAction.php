@@ -28,7 +28,7 @@ class CreateCustomerAddressAction
                 $profile->addresses()->where('is_default', true)->update(['is_default' => false]);
             }
 
-            return $profile->addresses()->create($attributes);
+            return $profile->addresses()->create($attributes)->refresh();
         });
     }
 }
