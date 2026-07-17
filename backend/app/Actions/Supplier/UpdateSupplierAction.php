@@ -2,12 +2,15 @@
 
 namespace App\Actions\Supplier;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\SupplierStatus;
 use App\Models\Supplier;
 use Illuminate\Support\Facades\DB;
 
 class UpdateSupplierAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     /**
      * @param  array{
      *     name?: string,
@@ -20,7 +23,7 @@ class UpdateSupplierAction
      */
     public function handle(Supplier $supplier, array $data): Supplier
     {
-        return DB::transaction(function () use ($supplier, $data): Supplier {
+        $supplier = DB::transaction(function () use ($supplier, $data): Supplier {
             $supplier = Supplier::query()
                 ->whereKey($supplier)
                 ->lockForUpdate()
@@ -31,5 +34,9 @@ class UpdateSupplierAction
 
             return $supplier->refresh();
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $supplier;
     }
 }

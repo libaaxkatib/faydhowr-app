@@ -2,6 +2,7 @@
 
 namespace App\Actions\Booking;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\CustomerProfile;
@@ -10,12 +11,14 @@ use Illuminate\Support\Facades\DB;
 
 class CancelBookingAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     public function handle(
         CustomerProfile $profile,
         int $bookingId,
         ?string $cancellationReason,
     ): ?Booking {
-        return DB::transaction(function () use ($profile, $bookingId, $cancellationReason): ?Booking {
+        $booking = DB::transaction(function () use ($profile, $bookingId, $cancellationReason): ?Booking {
             $profile = CustomerProfile::query()
                 ->whereKey($profile)
                 ->lockForUpdate()
@@ -49,6 +52,12 @@ class CancelBookingAction
 
             return $booking->load(['service', 'serviceMode']);
         });
+
+        if ($booking !== null) {
+            $this->dashboardCache->invalidate();
+        }
+
+        return $booking;
     }
 
     private function canBeCancelled(BookingStatus $status): bool

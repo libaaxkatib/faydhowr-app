@@ -2,12 +2,15 @@
 
 namespace App\Actions\Product;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\ProductStatus;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 
 class CreateProductAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     /**
      * @param  array{
      *     category_id: int,
@@ -26,7 +29,7 @@ class CreateProductAction
      */
     public function handle(array $data): Product
     {
-        return DB::transaction(function () use ($data): Product {
+        $product = DB::transaction(function () use ($data): Product {
             $product = Product::query()->create([
                 'category_id' => $data['category_id'],
                 'sku' => $data['sku'],
@@ -44,5 +47,9 @@ class CreateProductAction
 
             return $product->load(['category', 'images']);
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $product;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Booking;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\CustomerAddress;
@@ -12,12 +13,14 @@ use Illuminate\Support\Facades\DB;
 
 class CreateBookingAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     /**
      * @param  array<string, mixed>  $attributes
      */
     public function handle(CustomerProfile $profile, array $attributes): Booking
     {
-        return DB::transaction(function () use ($profile, $attributes): Booking {
+        $booking = DB::transaction(function () use ($profile, $attributes): Booking {
             $profile = CustomerProfile::query()
                 ->whereKey($profile)
                 ->lockForUpdate()
@@ -68,6 +71,10 @@ class CreateBookingAction
 
             return $booking->load(['service', 'serviceMode']);
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $booking;
     }
 
     private function nextBookingNumber(): string

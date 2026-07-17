@@ -54,9 +54,6 @@ class UpdateAdminAction
             ],
         ));
 
-        GetDashboardStatisticsAction::forgetFor($actor);
-        GetDashboardStatisticsAction::forgetFor($updatedAdmin);
-
         return $updatedAdmin;
     }
 }

@@ -2,8 +2,16 @@
 
 namespace App\Providers;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
+use App\Contracts\Dashboard\DashboardMetadataBuilderInterface;
+use App\Contracts\Dashboard\DashboardQueryServiceInterface;
+use App\Contracts\Dashboard\DashboardWidgetRegistryInterface;
 use App\Contracts\Reports\Storage\ReportStorageInterface;
+use App\Services\Dashboard\DashboardCacheInvalidator;
 use App\Services\Dashboard\DashboardManager;
+use App\Services\Dashboard\DashboardMetadataBuilder;
+use App\Services\Dashboard\DashboardQueryService;
+use App\Services\Dashboard\DashboardWidgetRegistry;
 use App\Services\Dashboard\Widgets\BookingSummaryWidget;
 use App\Services\Dashboard\Widgets\CustomerSummaryWidget;
 use App\Services\Dashboard\Widgets\InventorySummaryWidget;
@@ -87,17 +95,28 @@ class AppServiceProvider extends ServiceProvider
             fn (Application $app): ReportStorageInterface => $app->make(ReportStorageManager::class)->driver(),
         );
 
-        $this->app->singleton(DashboardManager::class, function (Application $app): DashboardManager {
-            return new DashboardManager([
-                $app->make(BookingSummaryWidget::class),
-                $app->make(QuotationSummaryWidget::class),
-                $app->make(OrderSummaryWidget::class),
-                $app->make(PaymentSummaryWidget::class),
-                $app->make(RevenueSummaryWidget::class),
-                $app->make(InventorySummaryWidget::class),
-                $app->make(CustomerSummaryWidget::class),
-            ]);
-        });
+        $this->app->singleton(DashboardCacheInvalidatorInterface::class, DashboardCacheInvalidator::class);
+
+        $this->app->singleton(DashboardQueryServiceInterface::class, DashboardQueryService::class);
+
+        $this->app->singleton(DashboardMetadataBuilderInterface::class, DashboardMetadataBuilder::class);
+
+        $this->app->singleton(
+            DashboardWidgetRegistryInterface::class,
+            function (Application $app): DashboardWidgetRegistryInterface {
+                return new DashboardWidgetRegistry([
+                    $app->make(BookingSummaryWidget::class),
+                    $app->make(QuotationSummaryWidget::class),
+                    $app->make(OrderSummaryWidget::class),
+                    $app->make(PaymentSummaryWidget::class),
+                    $app->make(RevenueSummaryWidget::class),
+                    $app->make(InventorySummaryWidget::class),
+                    $app->make(CustomerSummaryWidget::class),
+                ]);
+            },
+        );
+
+        $this->app->singleton(DashboardManager::class);
     }
 
     /**

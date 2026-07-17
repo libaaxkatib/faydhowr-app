@@ -74,8 +74,6 @@ class UpdateRolePermissionsAction
             ],
         ));
 
-        GetDashboardStatisticsAction::forgetFor($actor);
-
         return $permissions;
     }
 }

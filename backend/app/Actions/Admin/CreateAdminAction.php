@@ -52,8 +52,6 @@ class CreateAdminAction
             ],
         ));
 
-        GetDashboardStatisticsAction::forgetFor($actor);
-
         return $admin;
     }
 }

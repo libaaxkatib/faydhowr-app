@@ -74,9 +74,6 @@ class UpdateAdminPermissionsAction
             ],
         ));
 
-        GetDashboardStatisticsAction::forgetFor($actor);
-        GetDashboardStatisticsAction::forgetFor($targetAdmin);
-
         return $permissions;
     }
 }

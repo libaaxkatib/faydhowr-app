@@ -2,6 +2,7 @@
 
 namespace App\Actions\Payment;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Models\CustomerProfile;
@@ -13,12 +14,14 @@ use Illuminate\Support\Facades\DB;
 
 class InitializePaymentAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     /**
      * @param  array{order_id: int, gateway: string, gateway_reference?: string|null}  $attributes
      */
     public function handle(CustomerProfile $profile, array $attributes): Payment
     {
-        return DB::transaction(function () use ($profile, $attributes): Payment {
+        $payment = DB::transaction(function () use ($profile, $attributes): Payment {
             $profile = CustomerProfile::query()
                 ->whereKey($profile)
                 ->lockForUpdate()
@@ -75,6 +78,10 @@ class InitializePaymentAction
 
             return $payment->load(['payable', 'transactions', 'statusHistories']);
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $payment;
     }
 
     private function nextPaymentNumber(): string

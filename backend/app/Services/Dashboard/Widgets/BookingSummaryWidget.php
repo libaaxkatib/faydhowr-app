@@ -2,24 +2,24 @@
 
 namespace App\Services\Dashboard\Widgets;
 
+use App\Contracts\Dashboard\DashboardQueryServiceInterface;
 use App\Contracts\Dashboard\DashboardWidgetInterface;
+use App\DataTransferObjects\Dashboard\DashboardKpiData;
 
 class BookingSummaryWidget implements DashboardWidgetInterface
 {
+    public function __construct(private DashboardQueryServiceInterface $dashboardQueries) {}
+
     public function key(): string
     {
         return 'bookings';
     }
 
     /**
-     * Placeholder payload only; analytics queries arrive in a later phase.
-     *
-     * @return array<string, mixed>
+     * All data retrieval is delegated to the centralized query service.
      */
-    public function resolve(): array
+    public function resolve(): DashboardKpiData
     {
-        return [
-            'total' => 0,
-        ];
+        return $this->dashboardQueries->bookingSummary();
     }
 }

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Api\V1\Admin;
 
-use App\Actions\Admin\GetDashboardStatisticsAction;
+use App\Contracts\Dashboard\DashboardQueryServiceInterface;
 use App\Enums\AdminPermission;
 use App\Enums\AdminRole;
 use App\Enums\AdminStatus;
@@ -11,6 +11,7 @@ use App\Models\Admin;
 use App\Models\AuditLog;
 use App\Models\Permission;
 use App\Models\Product;
+use App\Services\Dashboard\DashboardQueryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -124,7 +125,7 @@ class AdminConsistencyPatchTest extends TestCase
         ]);
     }
 
-    public function test_admin_mutations_invalidate_dashboard_statistics_cache(): void
+    public function test_dashboard_statistics_use_the_unified_dashboard_cache(): void
     {
         $actor = Admin::factory()->superAdmin()->create();
         Product::factory()->count(2)->create();
@@ -135,65 +136,70 @@ class AdminConsistencyPatchTest extends TestCase
             ->withToken($token)
             ->getJson('/api/v1/admin/dashboard')
             ->assertOk()
-            ->assertJsonPath('data.statistics.total_products', 2);
+            ->assertJsonPath('data.statistics.total_products', 2)
+            ->assertJsonPath('data.widgets.inventory.total', 2);
 
-        $this->assertTrue(Cache::has(GetDashboardStatisticsAction::cacheKey($actor)));
+        /** @var DashboardQueryService $queryService */
+        $queryService = $this->app->make(DashboardQueryServiceInterface::class);
+        $this->assertTrue(Cache::has($queryService->cacheKey('inventory')));
 
         Product::factory()->create();
 
         $this
             ->withToken($token)
-            ->postJson('/api/v1/admin/admins', [
-                'full_name' => 'Cached Admin',
-                'email' => 'cached.admin@example.com',
-                'phone' => '+252610000777',
-                'password' => 'password123',
-                'role' => AdminRole::Sales->value,
-                'status' => AdminStatus::Active->value,
-            ])
-            ->assertCreated();
+            ->getJson('/api/v1/admin/dashboard')
+            ->assertOk()
+            ->assertJsonPath('data.statistics.total_products', 2)
+            ->assertJsonPath('data.widgets.inventory.total', 2);
 
-        $this->assertFalse(Cache::has(GetDashboardStatisticsAction::cacheKey($actor)));
+        $this->travel(6)->minutes();
 
         $this
             ->withToken($token)
             ->getJson('/api/v1/admin/dashboard')
             ->assertOk()
-            ->assertJsonPath('data.statistics.total_products', 3);
+            ->assertJsonPath('data.statistics.total_products', 3)
+            ->assertJsonPath('data.widgets.inventory.total', 3);
     }
 
-    public function test_role_and_direct_permission_updates_invalidate_dashboard_cache(): void
+    public function test_permission_updates_change_statistics_visibility_immediately(): void
     {
         $actor = Admin::factory()->superAdmin()->create();
         $target = Admin::factory()->create([
             'role' => AdminRole::Inventory,
         ]);
-        $token = $actor->createToken('admin-panel')->plainTextToken;
+        $actorToken = $actor->createToken('admin-panel')->plainTextToken;
+        $targetToken = $target->createToken('admin-panel')->plainTextToken;
 
-        $this->withToken($token)->getJson('/api/v1/admin/dashboard')->assertOk();
-        $this->assertTrue(Cache::has(GetDashboardStatisticsAction::cacheKey($actor)));
+        $statistics = $this
+            ->withToken($targetToken)
+            ->getJson('/api/v1/admin/dashboard')
+            ->assertOk()
+            ->json('data.statistics');
+
+        $this->assertArrayNotHasKey('total_suppliers', $statistics);
+
+        // Sanctum caches the resolved user per guard within a single test,
+        // so switching bearer tokens requires flushing the guards first.
+        $this->app['auth']->forgetGuards();
 
         $this
-            ->withToken($token)
+            ->withToken($actorToken)
             ->putJson('/api/v1/admin/roles/inventory/permissions', [
-                'permissions' => [AdminPermission::SuppliersManage->value],
+                'permissions' => [
+                    AdminPermission::DashboardView->value,
+                    AdminPermission::SuppliersManage->value,
+                ],
             ])
             ->assertOk();
 
-        $this->assertFalse(Cache::has(GetDashboardStatisticsAction::cacheKey($actor)));
-
-        $this->withToken($token)->getJson('/api/v1/admin/dashboard')->assertOk();
-        $this->assertTrue(Cache::has(GetDashboardStatisticsAction::cacheKey($actor)));
+        $this->app['auth']->forgetGuards();
 
         $this
-            ->withToken($token)
-            ->putJson("/api/v1/admin/admins/{$target->id}/permissions", [
-                'permissions' => [AdminPermission::GoodsReceiptsManage->value],
-            ])
-            ->assertOk();
-
-        $this->assertFalse(Cache::has(GetDashboardStatisticsAction::cacheKey($actor)));
-        $this->assertFalse(Cache::has(GetDashboardStatisticsAction::cacheKey($target)));
+            ->withToken($targetToken)
+            ->getJson('/api/v1/admin/dashboard')
+            ->assertOk()
+            ->assertJsonPath('data.statistics.total_suppliers', 0);
     }
 
     public function test_admin_password_is_hashed_once_via_model_cast(): void

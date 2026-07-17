@@ -2,6 +2,7 @@
 
 namespace App\Actions\Order;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\OrderStatus;
 use App\Models\CustomerProfile;
 use App\Models\Order;
@@ -10,12 +11,14 @@ use Illuminate\Support\Facades\DB;
 
 class CancelOrderAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     public function handle(
         CustomerProfile $profile,
         int $orderId,
         ?string $cancellationReason,
     ): ?Order {
-        return DB::transaction(function () use ($profile, $orderId, $cancellationReason): ?Order {
+        $order = DB::transaction(function () use ($profile, $orderId, $cancellationReason): ?Order {
             $profile = CustomerProfile::query()
                 ->whereKey($profile)
                 ->lockForUpdate()
@@ -49,5 +52,11 @@ class CancelOrderAction
 
             return $order->load('quotation');
         });
+
+        if ($order !== null) {
+            $this->dashboardCache->invalidate();
+        }
+
+        return $order;
     }
 }

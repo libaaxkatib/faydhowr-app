@@ -2,6 +2,7 @@
 
 namespace App\Actions\StoreOrder;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\StoreOrderStatus;
 use App\Models\CustomerProfile;
 use App\Models\StoreOrder;
@@ -10,12 +11,14 @@ use Illuminate\Support\Facades\DB;
 
 class CancelStoreOrderAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     public function handle(
         CustomerProfile $profile,
         int $storeOrderId,
         ?string $cancellationReason,
     ): ?StoreOrder {
-        return DB::transaction(function () use ($profile, $storeOrderId, $cancellationReason): ?StoreOrder {
+        $storeOrder = DB::transaction(function () use ($profile, $storeOrderId, $cancellationReason): ?StoreOrder {
             $profile = CustomerProfile::query()
                 ->whereKey($profile)
                 ->lockForUpdate()
@@ -49,5 +52,11 @@ class CancelStoreOrderAction
 
             return $storeOrder->load(['items', 'statusHistories']);
         });
+
+        if ($storeOrder !== null) {
+            $this->dashboardCache->invalidate();
+        }
+
+        return $storeOrder;
     }
 }

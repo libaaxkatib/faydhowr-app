@@ -42,8 +42,5 @@ class DeleteAdminAction
                 'deleted_admin_id' => $deletedAdminId,
             ],
         ));
-
-        GetDashboardStatisticsAction::forgetFor($actor);
-        GetDashboardStatisticsAction::forgetFor($deletedAdminId);
     }
 }

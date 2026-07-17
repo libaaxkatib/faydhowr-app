@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Api\V1\Admin;
 
-use App\Actions\Admin\GetDashboardStatisticsAction;
+use App\Contracts\Dashboard\DashboardQueryServiceInterface;
 use App\Enums\AdminPermission;
 use App\Enums\AdminRole;
 use App\Enums\BookingStatus;
@@ -25,6 +25,7 @@ use App\Models\ServiceCategory;
 use App\Models\StoreOrder;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\Dashboard\DashboardQueryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -206,7 +207,9 @@ class DashboardStatisticsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.statistics.total_products', 2);
 
-        $this->assertTrue(Cache::has(GetDashboardStatisticsAction::cacheKey($admin)));
+        /** @var DashboardQueryService $queryService */
+        $queryService = $this->app->make(DashboardQueryServiceInterface::class);
+        $this->assertTrue(Cache::has($queryService->cacheKey('inventory')));
 
         Product::factory()->create();
 
@@ -216,13 +219,39 @@ class DashboardStatisticsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.statistics.total_products', 2);
 
-        GetDashboardStatisticsAction::forgetFor($admin);
+        $this->travel(6)->minutes();
 
         $this
             ->withToken($token)
             ->getJson('/api/v1/admin/dashboard')
             ->assertOk()
             ->assertJsonPath('data.statistics.total_products', 3);
+    }
+
+    public function test_statistics_and_widgets_serve_identical_cached_totals(): void
+    {
+        $admin = Admin::factory()->superAdmin()->create();
+        Product::factory()->count(2)->create();
+
+        $token = $admin->createToken('admin-panel')->plainTextToken;
+
+        $first = $this
+            ->withToken($token)
+            ->getJson('/api/v1/admin/dashboard')
+            ->assertOk();
+
+        $this->assertSame(2, $first->json('data.statistics.total_products'));
+        $this->assertSame(2, $first->json('data.widgets.inventory.total'));
+
+        Product::factory()->create();
+
+        $second = $this
+            ->withToken($token)
+            ->getJson('/api/v1/admin/dashboard')
+            ->assertOk();
+
+        $this->assertSame(2, $second->json('data.statistics.total_products'));
+        $this->assertSame(2, $second->json('data.widgets.inventory.total'));
     }
 
     public function test_customer_token_cannot_access_dashboard_statistics(): void

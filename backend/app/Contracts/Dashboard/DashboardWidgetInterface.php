@@ -2,6 +2,8 @@
 
 namespace App\Contracts\Dashboard;
 
+use App\DataTransferObjects\Dashboard\DashboardKpiData;
+
 interface DashboardWidgetInterface
 {
     /**
@@ -10,10 +12,8 @@ interface DashboardWidgetInterface
     public function key(): string;
 
     /**
-     * Resolve the widget payload. Widgets are fully independent and must
-     * never communicate with other widgets.
-     *
-     * @return array<string, mixed>
+     * Resolve the widget's KPI payload. Widgets are fully independent and
+     * must never communicate with other widgets.
      */
-    public function resolve(): array;
+    public function resolve(): DashboardKpiData;
 }

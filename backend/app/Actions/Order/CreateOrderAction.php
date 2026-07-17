@@ -2,6 +2,7 @@
 
 namespace App\Actions\Order;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\OrderStatus;
 use App\Enums\QuotationStatus;
 use App\Models\CustomerProfile;
@@ -12,9 +13,11 @@ use Illuminate\Support\Facades\DB;
 
 class CreateOrderAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     public function handle(CustomerProfile $profile, int $quotationId): Order
     {
-        return DB::transaction(function () use ($profile, $quotationId): Order {
+        $order = DB::transaction(function () use ($profile, $quotationId): Order {
             $profile = CustomerProfile::query()
                 ->whereKey($profile)
                 ->lockForUpdate()
@@ -56,6 +59,10 @@ class CreateOrderAction
 
             return $order->load('quotation');
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $order;
     }
 
     private function nextOrderNumber(): string

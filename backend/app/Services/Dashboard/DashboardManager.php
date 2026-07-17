@@ -3,48 +3,32 @@
 namespace App\Services\Dashboard;
 
 use App\Contracts\Dashboard\DashboardWidgetInterface;
+use App\Contracts\Dashboard\DashboardWidgetRegistryInterface;
+use App\DataTransferObjects\Dashboard\DashboardKpiData;
 
 class DashboardManager
 {
-    /**
-     * @var list<DashboardWidgetInterface>
-     */
-    private array $widgets = [];
-
-    /**
-     * @param  iterable<DashboardWidgetInterface>  $widgets
-     */
-    public function __construct(iterable $widgets = [])
-    {
-        foreach ($widgets as $widget) {
-            $this->register($widget);
-        }
-    }
-
-    public function register(DashboardWidgetInterface $widget): void
-    {
-        $this->widgets[] = $widget;
-    }
+    public function __construct(private DashboardWidgetRegistryInterface $registry) {}
 
     /**
      * @return list<DashboardWidgetInterface>
      */
     public function widgets(): array
     {
-        return $this->widgets;
+        return $this->registry->enabled();
     }
 
     /**
-     * Execute every registered widget and aggregate the payloads keyed by
-     * widget key, preserving registration order.
+     * Execute every enabled widget and aggregate the KPI payloads keyed by
+     * widget key, preserving the registry's execution order.
      *
-     * @return array<string, array<string, mixed>>
+     * @return array<string, DashboardKpiData>
      */
     public function aggregate(): array
     {
         $dashboard = [];
 
-        foreach ($this->widgets as $widget) {
+        foreach ($this->registry->enabled() as $widget) {
             $dashboard[$widget->key()] = $widget->resolve();
         }
 

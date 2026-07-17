@@ -2,53 +2,23 @@
 
 namespace App\Actions\Admin;
 
-use App\Models\Admin;
-use App\Models\Booking;
-use App\Models\CustomerProfile;
-use App\Models\GoodsReceipt;
-use App\Models\Order;
-use App\Models\Payment;
-use App\Models\Product;
-use App\Models\PurchaseOrder;
-use App\Models\Quotation;
-use App\Models\StoreOrder;
-use App\Models\Supplier;
-use Illuminate\Support\Facades\Cache;
+use App\Contracts\Dashboard\DashboardQueryServiceInterface;
+use App\DataTransferObjects\Dashboard\DashboardKpiData;
 
 class GetDashboardStatisticsAction
 {
-    public const CACHE_TTL_SECONDS = 300;
+    public function __construct(private DashboardQueryServiceInterface $dashboardQueries) {}
 
     /**
+     * Legacy statistics block, unified onto the centralized dashboard query
+     * service so statistics and widgets always share the same filter context,
+     * repositories, and cache entries. Only module-visibility filtering
+     * remains here; no counting or caching happens in this action.
+     *
      * @param  list<string>  $visibleModules
      * @return array<string, int>
      */
-    public function handle(Admin $admin, string $dashboardType, array $visibleModules): array
-    {
-        return Cache::remember(
-            self::cacheKey($admin),
-            self::CACHE_TTL_SECONDS,
-            fn (): array => $this->compute($dashboardType, $visibleModules),
-        );
-    }
-
-    public static function cacheKey(Admin|int $admin): string
-    {
-        $adminId = $admin instanceof Admin ? $admin->id : $admin;
-
-        return "dashboard:{$adminId}";
-    }
-
-    public static function forgetFor(Admin|int $admin): void
-    {
-        Cache::forget(self::cacheKey($admin));
-    }
-
-    /**
-     * @param  list<string>  $visibleModules
-     * @return array<string, int>
-     */
-    private function compute(string $dashboardType, array $visibleModules): array
+    public function handle(string $dashboardType, array $visibleModules): array
     {
         $includeAll = $dashboardType === 'super_admin';
         $statistics = [];
@@ -58,7 +28,7 @@ class GetDashboardStatisticsAction
                 continue;
             }
 
-            $statistics[$key] = ($definition['count'])();
+            $statistics[$key] = (int) ($definition['summary'])()->total;
         }
 
         return $statistics;
@@ -80,54 +50,54 @@ class GetDashboardStatisticsAction
     }
 
     /**
-     * @return array<string, array{modules: list<string>, count: callable(): int}>
+     * @return array<string, array{modules: list<string>, summary: callable(): DashboardKpiData}>
      */
     private function definitions(): array
     {
         return [
             'total_admins' => [
                 'modules' => ['admin_management'],
-                'count' => fn (): int => Admin::query()->count(),
+                'summary' => fn (): DashboardKpiData => $this->dashboardQueries->adminSummary(),
             ],
             'total_customers' => [
                 'modules' => ['customers'],
-                'count' => fn (): int => CustomerProfile::query()->count(),
+                'summary' => fn (): DashboardKpiData => $this->dashboardQueries->customerSummary(),
             ],
             'total_bookings' => [
                 'modules' => ['bookings'],
-                'count' => fn (): int => Booking::query()->count(),
+                'summary' => fn (): DashboardKpiData => $this->dashboardQueries->bookingSummary(),
             ],
             'total_quotations' => [
                 'modules' => ['quotations'],
-                'count' => fn (): int => Quotation::query()->count(),
+                'summary' => fn (): DashboardKpiData => $this->dashboardQueries->quotationSummary(),
             ],
             'total_orders' => [
                 'modules' => ['orders'],
-                'count' => fn (): int => Order::query()->count(),
+                'summary' => fn (): DashboardKpiData => $this->dashboardQueries->orderSummary(),
             ],
             'total_store_orders' => [
                 'modules' => ['store'],
-                'count' => fn (): int => StoreOrder::query()->count(),
+                'summary' => fn (): DashboardKpiData => $this->dashboardQueries->storeOrderSummary(),
             ],
             'total_products' => [
                 'modules' => ['store'],
-                'count' => fn (): int => Product::query()->count(),
+                'summary' => fn (): DashboardKpiData => $this->dashboardQueries->inventorySummary(),
             ],
             'total_suppliers' => [
                 'modules' => ['inventory'],
-                'count' => fn (): int => Supplier::query()->count(),
+                'summary' => fn (): DashboardKpiData => $this->dashboardQueries->supplierSummary(),
             ],
             'total_purchase_orders' => [
                 'modules' => ['inventory'],
-                'count' => fn (): int => PurchaseOrder::query()->count(),
+                'summary' => fn (): DashboardKpiData => $this->dashboardQueries->purchaseOrderSummary(),
             ],
             'total_goods_receipts' => [
                 'modules' => ['inventory'],
-                'count' => fn (): int => GoodsReceipt::query()->count(),
+                'summary' => fn (): DashboardKpiData => $this->dashboardQueries->goodsReceiptSummary(),
             ],
             'total_payments' => [
                 'modules' => ['payments'],
-                'count' => fn (): int => Payment::query()->count(),
+                'summary' => fn (): DashboardKpiData => $this->dashboardQueries->paymentSummary(),
             ],
         ];
     }

@@ -2,6 +2,7 @@
 
 namespace App\Actions\PurchaseOrder;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\PurchaseOrderStatus;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
@@ -12,6 +13,8 @@ use Illuminate\Support\Facades\DB;
 
 class UpdatePurchaseOrderAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     /**
      * @param  array{
      *     supplier_id?: int,
@@ -22,7 +25,7 @@ class UpdatePurchaseOrderAction
      */
     public function handle(PurchaseOrder $purchaseOrder, array $data): PurchaseOrder
     {
-        return DB::transaction(function () use ($purchaseOrder, $data): PurchaseOrder {
+        $purchaseOrder = DB::transaction(function () use ($purchaseOrder, $data): PurchaseOrder {
             $purchaseOrder = PurchaseOrder::query()
                 ->whereKey($purchaseOrder)
                 ->lockForUpdate()
@@ -69,6 +72,10 @@ class UpdatePurchaseOrderAction
 
             return $purchaseOrder->load(['supplier', 'items.product']);
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $purchaseOrder;
     }
 
     /**

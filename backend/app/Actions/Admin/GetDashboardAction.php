@@ -24,16 +24,13 @@ class GetDashboardAction
      *     statistics: array<string, int>
      * }
      */
-    public function handle(Admin $admin, ?Request $request = null): array
+    public function handle(Admin $admin, Request $request): array
     {
-        $request ??= request();
-
         $dashboard = $admin->role === AdminRole::SuperAdmin
             ? $this->superAdminDashboard($admin)
             : $this->operationsDashboard($admin, $request);
 
         $dashboard['statistics'] = $this->getDashboardStatistics->handle(
-            $admin,
             $dashboard['dashboard_type'],
             $dashboard['visible_modules'],
         );

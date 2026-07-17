@@ -2,6 +2,7 @@
 
 namespace App\Actions\Payment;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\PaymentStatus;
 use App\Models\CustomerProfile;
 use App\Models\Payment;
@@ -11,9 +12,11 @@ use Illuminate\Support\Facades\DB;
 
 class ProcessPaymentAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     public function handle(CustomerProfile $profile, int $paymentId): Payment
     {
-        return DB::transaction(function () use ($profile, $paymentId): Payment {
+        $payment = DB::transaction(function () use ($profile, $paymentId): Payment {
             $profile = CustomerProfile::query()
                 ->whereKey($profile)
                 ->lockForUpdate()
@@ -54,5 +57,9 @@ class ProcessPaymentAction
 
             return $payment->load(['payable', 'transactions', 'statusHistories']);
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $payment;
     }
 }

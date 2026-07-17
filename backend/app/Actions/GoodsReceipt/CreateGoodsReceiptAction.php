@@ -3,6 +3,7 @@
 namespace App\Actions\GoodsReceipt;
 
 use App\Actions\Inventory\ProcessGoodsReceiptStockAction;
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\PurchaseOrderStatus;
 use App\Models\GoodsReceipt;
 use App\Models\GoodsReceiptItem;
@@ -16,6 +17,7 @@ class CreateGoodsReceiptAction
 {
     public function __construct(
         private ProcessGoodsReceiptStockAction $processGoodsReceiptStock,
+        private DashboardCacheInvalidatorInterface $dashboardCache,
     ) {}
 
     /**
@@ -32,7 +34,7 @@ class CreateGoodsReceiptAction
      */
     public function handle(array $data): GoodsReceipt
     {
-        return DB::transaction(function () use ($data): GoodsReceipt {
+        $goodsReceipt = DB::transaction(function () use ($data): GoodsReceipt {
             $purchaseOrder = PurchaseOrder::query()
                 ->whereKey($data['purchase_order_id'])
                 ->lockForUpdate()
@@ -92,6 +94,10 @@ class CreateGoodsReceiptAction
 
             return $goodsReceipt->load(['supplier', 'purchaseOrder', 'items']);
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $goodsReceipt;
     }
 
     /**

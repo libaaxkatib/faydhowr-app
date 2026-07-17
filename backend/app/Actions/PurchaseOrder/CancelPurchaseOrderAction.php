@@ -2,6 +2,7 @@
 
 namespace App\Actions\PurchaseOrder;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\PurchaseOrderStatus;
 use App\Models\PurchaseOrder;
 use DomainException;
@@ -9,9 +10,11 @@ use Illuminate\Support\Facades\DB;
 
 class CancelPurchaseOrderAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     public function handle(PurchaseOrder $purchaseOrder): PurchaseOrder
     {
-        return DB::transaction(function () use ($purchaseOrder): PurchaseOrder {
+        $purchaseOrder = DB::transaction(function () use ($purchaseOrder): PurchaseOrder {
             $purchaseOrder = PurchaseOrder::query()
                 ->whereKey($purchaseOrder)
                 ->lockForUpdate()
@@ -31,5 +34,9 @@ class CancelPurchaseOrderAction
 
             return $purchaseOrder->load(['supplier', 'items']);
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $purchaseOrder;
     }
 }

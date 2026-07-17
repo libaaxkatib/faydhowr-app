@@ -2,6 +2,7 @@
 
 namespace App\Actions\PurchaseOrder;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\PurchaseOrderStatus;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
@@ -12,6 +13,8 @@ use Illuminate\Support\Facades\DB;
 
 class CreatePurchaseOrderAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     /**
      * @param  array{
      *     supplier_id: int,
@@ -22,7 +25,7 @@ class CreatePurchaseOrderAction
      */
     public function handle(array $data): PurchaseOrder
     {
-        return DB::transaction(function () use ($data): PurchaseOrder {
+        $purchaseOrder = DB::transaction(function () use ($data): PurchaseOrder {
             $supplier = Supplier::query()
                 ->whereKey($data['supplier_id'])
                 ->lockForUpdate()
@@ -49,6 +52,10 @@ class CreatePurchaseOrderAction
 
             return $purchaseOrder->load(['supplier', 'items.product']);
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $purchaseOrder;
     }
 
     /**

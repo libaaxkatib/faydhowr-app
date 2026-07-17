@@ -2,12 +2,15 @@
 
 namespace App\Actions\Product;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\ProductStatus;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 
 class UpdateProductAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     /**
      * @param  array{
      *     category_id?: int,
@@ -25,7 +28,7 @@ class UpdateProductAction
      */
     public function handle(Product $product, array $data): Product
     {
-        return DB::transaction(function () use ($product, $data): Product {
+        $product = DB::transaction(function () use ($product, $data): Product {
             $product = Product::query()
                 ->whereKey($product)
                 ->lockForUpdate()
@@ -36,5 +39,9 @@ class UpdateProductAction
 
             return $product->load(['category', 'images']);
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $product;
     }
 }

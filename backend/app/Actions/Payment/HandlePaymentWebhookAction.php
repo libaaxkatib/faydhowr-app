@@ -3,6 +3,7 @@
 namespace App\Actions\Payment;
 
 use App\Actions\Inventory\ProcessStoreOrderPaidStockAction;
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Events\Payment\PaymentFailed;
@@ -22,6 +23,7 @@ class HandlePaymentWebhookAction
     public function __construct(
         private PaymentGatewayManager $gatewayManager,
         private ProcessStoreOrderPaidStockAction $processStoreOrderPaidStock,
+        private DashboardCacheInvalidatorInterface $dashboardCache,
     ) {}
 
     /**
@@ -35,7 +37,7 @@ class HandlePaymentWebhookAction
             throw new InvalidArgumentException('Invalid webhook signature.');
         }
 
-        return DB::transaction(function () use ($attributes): Payment {
+        $payment = DB::transaction(function () use ($attributes): Payment {
             $transaction = PaymentTransaction::query()
                 ->where('gateway', $attributes['gateway'])
                 ->where('transaction_reference', $attributes['transaction_reference'])
@@ -73,6 +75,10 @@ class HandlePaymentWebhookAction
 
             return $payment->fresh(['payable', 'transactions', 'statusHistories']);
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $payment;
     }
 
     private function targetStatus(string $status): PaymentStatus

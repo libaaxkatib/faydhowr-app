@@ -2,6 +2,7 @@
 
 namespace App\Actions\StoreOrder;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\ProductStatus;
 use App\Enums\StoreOrderStatus;
 use App\Models\Cart;
@@ -13,9 +14,11 @@ use Illuminate\Support\Facades\DB;
 
 class CreateStoreOrderAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     public function handle(CustomerProfile $profile, int $addressId, ?string $notes = null): StoreOrder
     {
-        return DB::transaction(function () use ($profile, $addressId, $notes): StoreOrder {
+        $storeOrder = DB::transaction(function () use ($profile, $addressId, $notes): StoreOrder {
             $profile = CustomerProfile::query()
                 ->whereKey($profile)
                 ->lockForUpdate()
@@ -126,6 +129,10 @@ class CreateStoreOrderAction
 
             return $storeOrder->load(['items', 'statusHistories']);
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $storeOrder;
     }
 
     private function nextStoreOrderNumber(): string

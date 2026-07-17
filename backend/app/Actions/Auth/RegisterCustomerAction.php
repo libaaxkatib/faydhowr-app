@@ -2,6 +2,7 @@
 
 namespace App\Actions\Auth;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Models\CustomerProfile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -10,13 +11,15 @@ use Illuminate\Support\Str;
 
 class RegisterCustomerAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     /**
      * @param  array{name: string, email: string, password: string}  $attributes
      * @return array{user: User, access_token: string, token_type: string}
      */
     public function handle(array $attributes): array
     {
-        return DB::transaction(function () use ($attributes): array {
+        $registration = DB::transaction(function () use ($attributes): array {
             $user = User::query()->create([
                 'name' => $attributes['name'],
                 'email' => Str::lower($attributes['email']),
@@ -38,5 +41,9 @@ class RegisterCustomerAction
                 'token_type' => 'Bearer',
             ];
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $registration;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Quotation;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\QuotationStatus;
 use App\Models\Booking;
 use App\Models\CustomerProfile;
@@ -11,12 +12,14 @@ use Illuminate\Support\Facades\DB;
 
 class CreateQuotationAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     /**
      * @param  array<string, mixed>  $attributes
      */
     public function handle(CustomerProfile $profile, array $attributes): Quotation
     {
-        return DB::transaction(function () use ($profile, $attributes): Quotation {
+        $quotation = DB::transaction(function () use ($profile, $attributes): Quotation {
             $profile = CustomerProfile::query()
                 ->whereKey($profile)
                 ->lockForUpdate()
@@ -51,6 +54,10 @@ class CreateQuotationAction
 
             return $quotation->load('booking');
         });
+
+        $this->dashboardCache->invalidate();
+
+        return $quotation;
     }
 
     private function bookingForProfile(CustomerProfile $profile, ?int $bookingId): ?Booking

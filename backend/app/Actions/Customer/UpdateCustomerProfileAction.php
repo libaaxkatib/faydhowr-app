@@ -2,11 +2,14 @@
 
 namespace App\Actions\Customer;
 
+use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Models\CustomerProfile;
 use App\Models\User;
 
 class UpdateCustomerProfileAction
 {
+    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+
     /**
      * @param  array<string, mixed>  $attributes
      */
@@ -22,6 +25,7 @@ class UpdateCustomerProfileAction
 
         if ($profile->isDirty()) {
             $profile->save();
+            $this->dashboardCache->invalidate();
         }
 
         return $profile->refresh();
