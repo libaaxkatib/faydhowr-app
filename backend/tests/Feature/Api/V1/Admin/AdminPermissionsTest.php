@@ -113,7 +113,7 @@ class AdminPermissionsTest extends TestCase
                 'error_code' => 'SUPER_ADMIN_PERMISSIONS_IMMUTABLE',
             ]);
 
-        $this->assertDatabaseCount('admin_role_permissions', 0);
+        $this->assertOnlySeededRolePermissionsExist();
     }
 
     public function test_update_role_permissions_validates_payload(): void
@@ -163,7 +163,7 @@ class AdminPermissionsTest extends TestCase
                 'error_code' => 'FORBIDDEN',
             ]);
 
-        $this->assertDatabaseCount('admin_role_permissions', 0);
+        $this->assertOnlySeededRolePermissionsExist();
     }
 
     public function test_unauthenticated_access_to_permissions_endpoints_is_rejected(): void
@@ -197,6 +197,24 @@ class AdminPermissionsTest extends TestCase
             ])
             ->assertUnauthorized()
             ->assertJsonPath('error_code', 'UNAUTHENTICATED');
+    }
+
+    /**
+     * The dashboard.view migration seeds a role grant for every operations
+     * role, so a "nothing was persisted" assertion must tolerate that baseline.
+     */
+    private function assertOnlySeededRolePermissionsExist(): void
+    {
+        $dashboardViewId = Permission::query()
+            ->where('key', AdminPermission::DashboardView->value)
+            ->value('id');
+
+        $this->assertSame(
+            0,
+            DB::table('admin_role_permissions')
+                ->where('permission_id', '!=', $dashboardViewId)
+                ->count(),
+        );
     }
 
     /**

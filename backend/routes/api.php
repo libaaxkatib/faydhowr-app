@@ -9,6 +9,18 @@ use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\NotificationTemplateController;
 use App\Http\Controllers\Api\V1\Admin\NotificationTemplateTranslationController;
 use App\Http\Controllers\Api\V1\Admin\PermissionController;
+use App\Http\Controllers\Api\V1\Admin\Reports\BookingReportController;
+use App\Http\Controllers\Api\V1\Admin\Reports\CustomerReportController;
+use App\Http\Controllers\Api\V1\Admin\Reports\GoodsReceiptReportController;
+use App\Http\Controllers\Api\V1\Admin\Reports\InventoryReportController;
+use App\Http\Controllers\Api\V1\Admin\Reports\OrderReportController;
+use App\Http\Controllers\Api\V1\Admin\Reports\PaymentReportController;
+use App\Http\Controllers\Api\V1\Admin\Reports\PurchaseOrderReportController;
+use App\Http\Controllers\Api\V1\Admin\Reports\QuotationReportController;
+use App\Http\Controllers\Api\V1\Admin\Reports\ReportExportController;
+use App\Http\Controllers\Api\V1\Admin\Reports\ReportExportDownloadController;
+use App\Http\Controllers\Api\V1\Admin\Reports\StoreOrderReportController;
+use App\Http\Controllers\Api\V1\Admin\Reports\SupplierReportController;
 use App\Http\Controllers\Api\V1\Auth\AuthenticatedUserController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
@@ -72,6 +84,7 @@ Route::prefix('v1/admin')
     ->middleware(['auth:sanctum', 'admin'])
     ->group(function (): void {
         Route::get('dashboard', [DashboardController::class, 'show'])
+            ->middleware('permission:dashboard.view')
             ->name('api.v1.admin.dashboard.show');
 
         Route::get('audit-logs', [AuditLogController::class, 'index'])
@@ -146,6 +159,46 @@ Route::prefix('v1/admin')
         Route::get('archived-notifications', [ArchivedNotificationController::class, 'index'])
             ->middleware('permission:notifications.manage')
             ->name('api.v1.admin.archived-notifications.index');
+    });
+
+Route::prefix('v1/admin/reports')
+    ->middleware(['auth:sanctum', 'admin', 'permission:reports.view'])
+    ->group(function (): void {
+        Route::post('bookings', [BookingReportController::class, 'store'])
+            ->name('api.v1.admin.reports.bookings.store');
+        Route::post('quotations', [QuotationReportController::class, 'store'])
+            ->name('api.v1.admin.reports.quotations.store');
+        Route::post('orders', [OrderReportController::class, 'store'])
+            ->name('api.v1.admin.reports.orders.store');
+        Route::post('payments', [PaymentReportController::class, 'store'])
+            ->name('api.v1.admin.reports.payments.store');
+        Route::post('store-orders', [StoreOrderReportController::class, 'store'])
+            ->name('api.v1.admin.reports.store-orders.store');
+        Route::post('inventory', [InventoryReportController::class, 'store'])
+            ->name('api.v1.admin.reports.inventory.store');
+        Route::post('suppliers', [SupplierReportController::class, 'store'])
+            ->name('api.v1.admin.reports.suppliers.store');
+        Route::post('purchase-orders', [PurchaseOrderReportController::class, 'store'])
+            ->name('api.v1.admin.reports.purchase-orders.store');
+        Route::post('goods-receipts', [GoodsReceiptReportController::class, 'store'])
+            ->name('api.v1.admin.reports.goods-receipts.store');
+        Route::post('customers', [CustomerReportController::class, 'store'])
+            ->name('api.v1.admin.reports.customers.store');
+
+        Route::post('{report}/export', [ReportExportController::class, 'store'])
+            ->whereNumber('report')
+            ->name('api.v1.admin.reports.export.store');
+    });
+
+Route::prefix('v1/admin/report-exports')
+    ->middleware(['auth:sanctum', 'admin', 'permission:reports.view'])
+    ->group(function (): void {
+        Route::get('', [ReportExportController::class, 'index'])
+            ->name('api.v1.admin.report-exports.index');
+
+        Route::get('{export}/download', [ReportExportDownloadController::class, 'show'])
+            ->whereNumber('export')
+            ->name('api.v1.admin.report-exports.download');
     });
 
 Route::get('v1/customer/profile', [CustomerProfileController::class, 'show'])

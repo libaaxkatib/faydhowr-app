@@ -44,12 +44,13 @@ class DirectAdminPermissionsTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('message', 'Admin permissions retrieved successfully.')
             ->assertJsonPath('data.role', AdminRole::Manager->value)
-            ->assertJsonCount(2, 'data.role_permissions')
+            ->assertJsonCount(3, 'data.role_permissions')
             ->assertJsonCount(2, 'data.direct_permissions')
-            ->assertJsonCount(3, 'data.effective_permissions');
+            ->assertJsonCount(4, 'data.effective_permissions');
 
         $this->assertSame(
             [
+                AdminPermission::DashboardView->value,
                 AdminPermission::ProductsCreate->value,
                 AdminPermission::SuppliersManage->value,
             ],
@@ -66,6 +67,7 @@ class DirectAdminPermissionsTest extends TestCase
 
         $this->assertSame(
             [
+                AdminPermission::DashboardView->value,
                 AdminPermission::GoodsReceiptsManage->value,
                 AdminPermission::ProductsCreate->value,
                 AdminPermission::SuppliersManage->value,
@@ -99,9 +101,9 @@ class DirectAdminPermissionsTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('message', 'Admin permissions updated successfully.')
             ->assertJsonPath('data.role', AdminRole::Sales->value)
-            ->assertJsonCount(1, 'data.role_permissions')
+            ->assertJsonCount(2, 'data.role_permissions')
             ->assertJsonCount(2, 'data.direct_permissions')
-            ->assertJsonCount(3, 'data.effective_permissions');
+            ->assertJsonCount(4, 'data.effective_permissions');
 
         $this->assertSame(
             2,
@@ -123,7 +125,7 @@ class DirectAdminPermissionsTest extends TestCase
         );
 
         $this->assertSame(
-            1,
+            2,
             DB::table('admin_role_permissions')->where('role', AdminRole::Sales->value)->count(),
         );
     }
@@ -148,9 +150,9 @@ class DirectAdminPermissionsTest extends TestCase
 
         $response
             ->assertOk()
-            ->assertJsonCount(2, 'data.role_permissions')
+            ->assertJsonCount(3, 'data.role_permissions')
             ->assertJsonCount(1, 'data.direct_permissions')
-            ->assertJsonCount(3, 'data.effective_permissions');
+            ->assertJsonCount(4, 'data.effective_permissions');
 
         $effectiveKeys = collect($response->json('data.effective_permissions'))->pluck('key')->all();
 

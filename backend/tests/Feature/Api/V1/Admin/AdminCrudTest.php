@@ -184,7 +184,7 @@ class AdminCrudTest extends TestCase
             ->assertJsonPath('message', 'Admin retrieved successfully.')
             ->assertJsonPath('data.id', $target->id)
             ->assertJsonPath('data.email', $target->email)
-            ->assertJsonCount(2, 'data.effective_permissions')
+            ->assertJsonCount(3, 'data.effective_permissions')
             ->assertJsonMissingPath('data.password')
             ->assertJsonMissingPath('data.remember_token');
 
@@ -192,6 +192,7 @@ class AdminCrudTest extends TestCase
 
         $this->assertSame(
             [
+                AdminPermission::DashboardView->value,
                 AdminPermission::ProductsCreate->value,
                 AdminPermission::SuppliersManage->value,
             ],
