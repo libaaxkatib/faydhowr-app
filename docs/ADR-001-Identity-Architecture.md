@@ -92,7 +92,7 @@ users
 ├── customer_devices
 ├── carts
 ├── bookings
-├── quotation_requests
+├── quotations
 ├── orders
 ├── payments
 ├── notifications

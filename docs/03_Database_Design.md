@@ -114,7 +114,7 @@ Most transactional tables include:
 | **Store Management** | Product catalog, categories, images, cart, store orders | `product_categories`, `products`, `product_images`, `product_price_tiers`, `carts`, `cart_items`, `store_orders`, `store_order_items`, `store_order_status_histories` |
 | **Inventory Management** | Suppliers, purchase orders, goods receipts, stock ledger, adjustments, low-stock | `suppliers`, `purchase_orders`, `purchase_order_items`, `purchase_order_status_histories`, `goods_receipts`, `goods_receipt_items`, `stock_ledgers`, `stock_adjustments` |
 | **Booking Management** | Customer-profile-owned service bookings and status history | `bookings`, `booking_status_histories` |
-| **Quotation Management** | Quote requests, issued quote revisions, discussion messages, attachments, line items, timeline | `quotation_requests`, `quotation_request_attachments`, `quotations`, `quotation_items`, `quotation_messages`, `quotation_message_attachments`, `quotation_status_histories` |
+| **Quotation Management** | Quotation heads (request + lifecycle + reviewer + latest revision pointer), immutable revisions, discussion messages, attachments, line items, timeline | `quotations`, `quotation_attachments`, `quotation_revisions`, `quotation_items`, `quotation_messages`, `quotation_message_attachments`, `quotation_status_histories`, `quotation_notes` |
 | **File Upload Service** | Unified customer file upload staging (Sprint 23): reusable, UUID-identified, owner-scoped file records uploaded before attachment to business records | `uploads` |
 | **Payment Management** | Unified payment lifecycle, gateway transactions, and receipts | `payments`, `payment_transactions`, `receipts` |
 | **Order Management** | Store orders and line items | `orders`, `order_items`, `order_status_histories` |
@@ -217,7 +217,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | **Purpose** | Registered mobile customers (identity, profile, account status). |
 | **Primary Key** | `id` |
 | **Foreign Keys** | None |
-| **Relationships** | 1:N → addresses, payment_methods, devices, carts, bookings, quotation_requests, orders, payments, notifications, reviews |
+| **Relationships** | 1:N → addresses, payment_methods, devices, carts, bookings, quotations, orders, payments, notifications, reviews |
 
 #### Columns
 
@@ -701,6 +701,8 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 #### Notes
 
 - Catalog is seeded from `AdminPermission` enum. Keys without implemented protected routes must not be invented.
+- Sprint 27 (Admin Operations) adds six keys to the catalog: `payments.view`, `payments.confirm`, `bookings.view`, `bookings.manage`, `store_orders.view`, `store_orders.manage`.
+- Sprint 28 (Quotation Request Workflow) adds four keys: `quotations.view` (queue/detail/attachments), `quotations.review` (assign/reassign reviewer, reply in discussion, close discussion), `quotations.issue` (issue Version 1 and revisions), `quotations.manage` (expire, cancel, accept on customer's behalf).
 
 ---
 
@@ -998,7 +1000,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | **Purpose** | Single sellable product entity shared by Store (catalog/commerce) and Inventory (stock quantity). |
 | **Primary Key** | `id` |
 | **Foreign Keys** | `category_id` → `product_categories.id` |
-| **Relationships** | 1:N product_images, cart_items, store_order_items, stock_ledgers; optional quotation_requests |
+| **Relationships** | 1:N product_images, cart_items, store_order_items, stock_ledgers; optional quotations (product origin) |
 
 #### Columns
 
@@ -1319,7 +1321,7 @@ Inventory is a separate domain from Store. Store owns catalog commerce; Inventor
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
 | `product_id` | BIGINT UNSIGNED | R | FK |
-| `movement_type` | VARCHAR(40) | R | `purchase_receipt`, `customer_sale`, `adjustment`, `correction`, `damage`, `loss` |
+| `movement_type` | VARCHAR(40) | R | `purchase_receipt`, `customer_sale`, `sale_reversal`, `adjustment`, `correction`, `damage`, `loss` |
 | `quantity` | INT | R | Signed delta applied to stock (positive = increase, negative = decrease); nonzero |
 | `reference_type` | VARCHAR(40) | O | Polymorphic source (e.g. GoodsReceipt, StoreOrder) |
 | `reference_id` | BIGINT UNSIGNED | O | Polymorphic reference to source record |
@@ -1327,7 +1329,8 @@ Inventory is a separate domain from Store. Store owns catalog commerce; Inventor
 
 #### Notes
 
-- Customer Sale ledger entries are created only when Payment becomes `paid` (not at Store Order creation).
+- Customer Sale ledger entries are created only when Payment becomes `paid` (not at Store Order creation). Exception: Cash on Delivery store orders deduct stock at order confirmation (Sprint 26), also as `customer_sale` entries.
+- **`sale_reversal` (Sprint 27):** used **exclusively** for automatic inventory restoration after an admin rejects a COD payment. In the same transaction that fails the payment and cancels the store order, every order line writes a **positive** `sale_reversal` entry (`reference_type = StoreOrder`, `reference_id` = the cancelled order) mirroring the original `customer_sale` deduction, and `products.current_stock` is restored. Never created manually and never used by Inventory Adjustments.
 - Purchase Receipt entries are created on Goods Receipt.
 - Adjustment / Correction / Damage / Loss entries are created from Inventory Adjustments (future).
 - Table name in implementation is `stock_ledgers` (not `stock_ledger_entries`).
@@ -1407,10 +1410,13 @@ Inventory is a separate domain from Store. Store owns catalog commerce; Inventor
 
 - Unique `booking_number`
 - `customer_profile_id` NOT NULL
-- Status in: `pending_review`, `quotation_ready`, `under_discussion`, `accepted`, `scheduled`, `in_progress`, `completed`, `closed`, `cancelled`
-  (Admin display labels: Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Closed · Cancelled)
+- Status in: `submitted`, `pending_review`, `quotation_ready`, `under_discussion`, `accepted`, `scheduled`, `in_progress`, `completed`, `closed`, `cancelled`
+  (Admin display labels: Submitted · Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Closed · Cancelled)
+- `submitted` is the system-set initial status at booking creation; it is never admin-selectable in the controlled dropdown.
 - **Payment gates (Sprint 26):** a booking may move to `scheduled` only after the payment required by the quotation's snapshotted `payment_type` is confirmed (`full_before_service`: full payment; `deposit`: deposit payment; `pay_after_service`: no gate). `closed` = service completed **and** all required payments confirmed (`balance` for deposit policy, `full` for pay-after-service); an admin confirming the final payment moves `completed` → `closed`.
   **Never** `rejected`. No custom status values. Status updates use a controlled dropdown only.
+- **Automatic acceptance (Sprint 27):** customer acceptance of the linked quotation moves the booking to `accepted` in the **same transaction** (status-history actor `changed_by_type = user`). There is no admin acceptance transition.
+- **Cancellation payment rules (Sprint 27):** cancelling a booking never reverses `paid` payments (refunds are V2). Any payment on the booking's order(s) still in `initialized` / `pending` / `processing` is set to `failed` **inside the same cancellation transaction**, each with a payment status-history row — no active payment may remain attached to a cancelled booking.
 - Priority in: `high`, `medium`, `low` (Admin badges: High · Medium · Low).
 
 #### Validation Rules
@@ -1487,86 +1493,105 @@ Supports:
 1. **Service quotations** initiated from a booking; this is available for every active service and complements Book Now.
 2. **Optional product quotations** for bulk/custom/special requests; these do not replace fixed-price purchase.
 
-### 3.5.1 `quotation_requests`
+### 3.5.1 `quotations`
 
 | Attribute | Detail |
 | --- | --- |
-| **Table Name** | `quotation_requests` |
-| **Purpose** | Customer-submitted request for a formal quote. |
+| **Table Name** | `quotations` |
+| **Purpose** | Head record for one quotation: the customer request, permanent Quotation Number, lifecycle status, reviewer assignment, and pointer to the latest immutable revision (Sprint 28 model). |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id`; optional `service_id` / `product_id` |
-| **Relationships** | 1:N attachments, quotations |
+| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id`; optional `booking_id` → `bookings.id`; optional `service_id` / `product_id`; `assigned_admin_id` → `admins.id`; `latest_revision_id` → `quotation_revisions.id` |
+| **Relationships** | 1:N `quotation_attachments`, `quotation_revisions`, `quotation_messages`, `quotation_status_histories`, `quotation_notes` |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `request_number` | VARCHAR(40) | R | Unique public reference; may match or link to canonical `QT-YYYY-######` once quotation family is created |
+| `quotation_number` | VARCHAR(40) | R | Unique, permanent public reference `QT-YYYY-######` (example `QT-2026-000123`), assigned at Draft creation. **Never changes**; revisions do not receive new numbers |
 | `customer_profile_id` | BIGINT UNSIGNED | R | FK — business owner; authenticated through linked user |
 | `request_target_type` | VARCHAR(20) | R | Quotation **origin** for Admin: `booking` (service booking path) or `product` (product request). Display: Booking / Product. Standalone quotes forbidden. |
 | `booking_id` | BIGINT UNSIGNED | O | Required when origin is Booking — permanent FK to `bookings.id` |
 | `service_id` | BIGINT UNSIGNED | O | Service context (often via booking) |
 | `product_id` | BIGINT UNSIGNED | O | Required if target=product |
-| `status` | VARCHAR(30) | R | Aligns to V1 quotation lifecycle: `pending_review`, `quotation_ready`, `under_discussion`, `accepted`, `expired`, `cancelled` (never `rejected` / `declined`) |
+| `status` | VARCHAR(30) | R | V1 lifecycle (Sprint 28 — final): `draft`, `submitted`, `under_review`, `quotation_ready`, `under_discussion`, `accepted`, `expired`, `cancelled` (never `rejected` / `declined`) |
+| `assigned_admin_id` | BIGINT UNSIGNED | O | FK → `admins.id`. **Single reviewer only** (Sprint 28 V1); NULL until first assignment; reassignment allowed (audited); no pools / multiple reviewers |
+| `latest_revision_id` | BIGINT UNSIGNED | O | FK → `quotation_revisions.id`; NULL until Version 1 is issued; always points at the highest `version_number` |
+| `currency` | CHAR(3) | R | Commercial currency; set at creation and immutable; revisions inherit it |
 | `title` | VARCHAR(200) | O | |
-| `requirements` | TEXT | R | Customer requirements summary |
+| `requirements` | TEXT | R | Customer requirements summary — **no pricing fields**; the customer never submits subtotal, discount, tax, total, payment type, deposit, or remaining balance |
 | `description` | TEXT | O | Optional customer notes in their own words (cleaning requirements detail, uploaded-file explanation, special instructions) |
 | `preferred_timing` | VARCHAR(255) | O | |
 | `quantity_hint` | INT | O | Useful for product bulk requests |
 | `location_snapshot` | JSON/TEXT | O | |
+| `payment_type` | VARCHAR(30) | O | **Snapshot at acceptance** of the service payment policy: `full_before_service`, `deposit`, `pay_after_service`; NULL until accepted |
+| `deposit_percentage` | TINYINT UNSIGNED | O | **Snapshot at acceptance**; only when `payment_type = deposit`; range 1–99; NULL otherwise |
+| `deposit_amount` | DECIMAL(12,2) | O | **Snapshot at acceptance**: accepted revision `total_amount × deposit_percentage` |
+| `remaining_amount` | DECIMAL(12,2) | O | **Snapshot at acceptance**: `total_amount − deposit_amount` (deposit) or `total_amount` (pay_after_service); NULL for `full_before_service` |
+| `submitted_at` | TIMESTAMP | O | Set at Submit; request + attachments immutable from this moment |
+| `accepted_at` | TIMESTAMP | O | |
 | `admin_notes` | TEXT | O | Internal |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
 
 #### Constraints
 
+- Unique `quotation_number`
 - Exactly one origin populated: `booking_id` when `request_target_type=booking`, or `product_id` when `request_target_type=product`
 - For `product` target: product should allow optional quotation (`allow_optional_quotation=true`)
 - For `booking` origin: linked booking must exist and remain permanently referenced
 - Origin link is permanent — never null after create; Admin/Sales/Accountant cannot create a quotation without an origin
-- Status never `rejected` / `declined`
+- `status` CHECK constraint limited to the eight Sprint 28 values; never `rejected` / `declined`
+- **`UNIQUE (quotation_number)`** — the quotation number is immutable: generated once at Draft creation, never changed, never regenerated; all revisions reference the same number
+- `latest_revision_id` must reference a revision of the same quotation **and always the one with the highest `version_number`**; the pointer is updated in the same row-locked transaction that inserts a new revision, so database and application layers jointly prevent out-of-sync revisions
+- Index on (`status`, `assigned_admin_id`) for the admin review queue; index on (`customer_profile_id`, `status`) for customer lists
 
 #### Validation Rules
 
 - Authenticated active customer required.
-- Incomplete requirements rejected.
-- `description` is optional; when provided, store as free-text customer notes.
+- Customer edits and attachment changes are allowed **only while `status = draft`**; Submit (`draft → submitted`) freezes the request permanently.
+- Incomplete requirements rejected at Submit.
+- Customer cancellation allowed only in `draft` / `submitted` (pre-pricing); afterwards cancellation is admin-only.
+- First reviewer assignment transitions `submitted → under_review`; reassignment does not change status.
 - Product quotation is optional and parallel to normal priced purchase workflow.
 
 #### Notes
 
 - `description` allows customers to describe the quotation request in their own words—for example explain cleaning requirements, explain uploaded files, or add special instructions.
+- Allowed status transitions: `draft → submitted | cancelled` · `submitted → under_review | cancelled` · `under_review → quotation_ready | cancelled` · `quotation_ready → under_discussion | accepted | expired | cancelled` · `under_discussion → quotation_ready | accepted | expired | cancelled` · `expired → quotation_ready (admin revision only) | cancelled`. Terminal: `accepted`, `cancelled`.
+- **Legacy migration (Sprint 28):** pre-existing quotations keep their rows and numbers; `pending_review` maps to `submitted`; current pricing columns are copied into an automatic **Revision 1** (`quotation_revisions.source = system_migration`) and `latest_revision_id` is set. No history is lost; no manual steps.
 - Closing via **Cancelled** (company policy) notifies customer per notification module. Never use Rejected/Declined.
 
 ---
 
-### 3.5.2 `quotation_request_attachments`
+### 3.5.2 `quotation_attachments`
 
 | Attribute | Detail |
 | --- | --- |
-| **Table Name** | `quotation_request_attachments` |
-| **Purpose** | Optional files supporting a quote request. Links a quotation request to staged files in the Unified File Upload Service (`uploads`, §3.11.1). |
+| **Table Name** | `quotation_attachments` |
+| **Purpose** | Optional files supporting a quotation request. Links a quotation to staged files in the Unified File Upload Service (`uploads`, §3.11.1). |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `quotation_request_id` → `quotation_requests.id`; `upload_id` → `uploads.id` |
+| **Foreign Keys** | `quotation_id` → `quotations.id`; `upload_id` → `uploads.id` |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `quotation_request_id` | BIGINT UNSIGNED | R | FK |
-| `upload_id` | BIGINT UNSIGNED | R | FK → `uploads.id`; UNIQUE (an upload is attached to at most one request) |
+| `quotation_id` | BIGINT UNSIGNED | R | FK |
+| `upload_id` | BIGINT UNSIGNED | R | FK → `uploads.id`; UNIQUE (an upload is attached to at most one record) |
 | `created_at` | TIMESTAMP | R | |
 
 #### Validation Rules
 
-- **Approved (Sprint 23):** attachments reference the `uploads` table via FK; upload metadata (name, mime type, size, path) is **not duplicated** here — it is read from the referenced `uploads` row.
-- The referenced upload must be owned by the requesting customer, unattached, and non-expired at attach time; attaching sets `uploads.attached_at`.
+- **Approved (Sprint 23):** attachments reference the `uploads` table via FK; upload metadata (name, mime type, size, path) is **not duplicated** here — it is read from the referenced `uploads` row. The public identifier is the upload **UUID**.
+- **Ownership:** the referenced upload must be owned by the requesting customer (`uploads.customer_profile_id`), unattached, and non-expired at attach time; attaching sets `uploads.attached_at`.
+- **Draft-only mutability (Sprint 28 — final):** attach and detach are allowed only while the quotation is in `draft`. On Submit, the attachment set becomes **permanently immutable** — no additions, replacements, or deletions in any later status. Additional files travel only through Discussion messages (§3.5.3B).
 - Allowed mime types and per-type size caps are enforced at upload time by the Unified File Upload Service (§3.11.1):
   - **Images:** JPG, JPEG, PNG, WebP
   - **Videos:** MP4, MOV, WebM
   - **Documents:** PDF
+- Storage rules follow the Upload Service: private disk, owner-scoped streaming only, per-customer staged-storage quota, 7-day staging expiry for unattached uploads.
 - Customers may upload one or more files when requesting quotations.
 
 #### Notes
@@ -1602,71 +1627,66 @@ Supports:
 - **Product Quotation** — Customers may upload PDF product lists/catalogs and optional images.
 - **Mixed Quotation** — Customers may upload any combination of images, videos, and PDF documents.
 
-These files help administrators accurately assess the requested work and prepare quotations. The `quotation_request_attachments` table must remain generic so it can store all supported attachment types.
+These files help administrators accurately assess the requested work and prepare quotations. The `quotation_attachments` table must remain generic so it can store all supported attachment types.
 
 ---
 
-### 3.5.3 `quotations`
+### 3.5.3 `quotation_revisions`
 
 | Attribute | Detail |
 | --- | --- |
-| **Table Name** | `quotations` |
-| **Purpose** | Formal priced proposal issued by admin against a request. |
+| **Table Name** | `quotation_revisions` |
+| **Purpose** | **Immutable**, sequentially versioned pricing proposals issued by admins against one quotation (Sprint 28 revision system). All pricing lives here — never on the quotation head and never supplied by the customer. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `quotation_request_id` → `quotation_requests.id`, `issued_by_admin_id` → `admins.id` |
-| **Relationships** | 1:N `quotation_items`; payable via `payments`; may unlock booking/order fulfillment |
+| **Foreign Keys** | `quotation_id` → `quotations.id`, `issued_by_admin_id` → `admins.id` (nullable) |
+| **Relationships** | 1:N `quotation_items`; the head's `latest_revision_id` points at the newest row; payable via `payments` after acceptance |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `quotation_number` | VARCHAR(40) | R | Unique; format `QT-YYYY-######` (example `QT-2026-000123`). Same number across all revisions of one quotation family |
-| `quotation_request_id` | BIGINT UNSIGNED | R | FK |
-| `version_no` | INT | R | Starts at 1; each update creates v2, v3… |
-| `is_latest` | BOOLEAN | R | True only for the current accept-eligible revision |
-| `status` | VARCHAR(30) | R | Customer-facing lifecycle (shared): `pending_review`, `quotation_ready`, `under_discussion`, `accepted`, `expired`, `cancelled` — **never** `rejected` |
-| `currency` | CHAR(3) | R | |
-| `subtotal_amount` | DECIMAL(12,2) | R | |
-| `tax_amount` | DECIMAL(12,2) | R | Default 0 |
-| `total_amount` | DECIMAL(12,2) | R | |
-| `payment_type` | VARCHAR(30) | O | **Snapshot at acceptance** of the service payment policy: `full_before_service`, `deposit`, `pay_after_service`; NULL until accepted |
-| `deposit_percentage` | TINYINT UNSIGNED | O | **Snapshot at acceptance**; only when `payment_type = deposit`; range 1–99; NULL otherwise |
-| `deposit_amount` | DECIMAL(12,2) | O | **Snapshot at acceptance**: `total_amount × deposit_percentage`; only when `payment_type = deposit` |
-| `remaining_amount` | DECIMAL(12,2) | O | **Snapshot at acceptance**: `total_amount − deposit_amount` (deposit) or `total_amount` (pay_after_service); NULL for `full_before_service` |
-| `valid_until` | TIMESTAMP | R | Acceptance window |
+| `quotation_id` | BIGINT UNSIGNED | R | FK → `quotations.id`. The quotation's `quotation_number` (`QT-YYYY-######`) never changes; revisions are referenced as “QT-2026-000001 · Version N” |
+| `version_number` | INT | R | Starts at 1; strictly sequential per quotation (Version 1, 2, 3…); assigned under row lock |
+| `source` | VARCHAR(30) | R | `admin_issue` (normal issue/revise) or `system_migration` (automatic Revision 1 backfilled from legacy pricing) |
+| `subtotal_amount` | DECIMAL(12,2) | R | Admin-only input |
+| `discount_amount` | DECIMAL(12,2) | R | Default 0; admin-only input |
+| `tax_amount` | DECIMAL(12,2) | R | Default 0; admin-only input |
+| `total_amount` | DECIMAL(12,2) | R | Must equal `subtotal − discount + tax`; admin-only input |
+| `valid_until` | TIMESTAMP | R | **Mandatory on every revision** (Sprint 28 — final); acceptance window |
 | `terms` | TEXT | O | |
-| `issued_by_admin_id` | BIGINT UNSIGNED | O | FK |
-| `accepted_at` | TIMESTAMP | O | |
-| `created_at` | TIMESTAMP | R | |
-| `updated_at` | TIMESTAMP | R | |
+| `notes` | TEXT | O | Revision note shown in history/comparison |
+| `issued_by_admin_id` | BIGINT UNSIGNED | O | FK; NULL only when `source = system_migration` |
+| `created_at` | TIMESTAMP | R | Issue timestamp; revisions have no `updated_at` semantics — rows are never updated |
 
 #### Constraints
 
-- Unique (`quotation_number`, `version_no`); display number `QT-YYYY-######` unique per quotation family
-- At most one row with `is_latest=true` per `quotation_number`
-- Acceptance blocked when `now > valid_until`, status is `expired`/`cancelled`, or `is_latest=false`
+- **`UNIQUE (quotation_id, version_number)`** — version numbers are **strictly increasing** per quotation (Version 1 → 2 → 3 → 4 …), assigned under the quotation row lock; they are **never reused** and **never reset**, and even future archive/delete operations must not free a version number for reuse
+- `total_amount = subtotal_amount − discount_amount + tax_amount`; `discount_amount ≤ subtotal_amount`
+- `issued_by_admin_id` required unless `source = system_migration`
+- Rows are **immutable**: no UPDATE, no DELETE (application-enforced; revisions are never edited or removed)
+- Inserting a revision must, in the same transaction, advance `quotations.latest_revision_id` to the new row — the pointer always references the highest `version_number` (see §6.5)
+- Index on (`quotation_id`, `version_number` DESC) for latest-revision resolution and history
 
 #### Validation Rules
 
-- **Accept Quotation** and **Discuss Quotation** only by owning customer (never Reject).
-- Only the **latest** revision may be accepted; older revisions read-only.
-- Accepted quotation unlocks payment / fulfillment path.
-- **Snapshot rule (Sprint 26):** on acceptance, the system copies the service's `payment_type` and `deposit_percentage` onto the quotation and computes `deposit_amount` / `remaining_amount`. Future changes to the service payment policy **must not** change already-accepted quotations; payment gates read the quotation snapshot, never the live service row.
-- Discuss / team updates create a new `version_no` on the **same** `quotation_number` (do not create a new quotation).
-- Status becomes `under_discussion` while discussion is active.
+- Only administrators with `quotations.issue` may create revisions; customers never create, edit, or see draft pricing.
+- Issuing **Version 1** transitions the quotation `under_review → quotation_ready`; each later revision from `quotation_ready` / `under_discussion` returns the status to `quotation_ready`.
+- **Expired revival (Sprint 28 — final):** issuing a new revision on an `expired` quotation automatically transitions it `expired → quotation_ready`; the customer never creates a new request.
+- **Latest-revision acceptance:** acceptance must reference the latest revision (`latest_revision_id`); accepting an older `version_number` returns **`409 Conflict`**. Acceptance is allowed from `quotation_ready` **or** `under_discussion`, blocked when `now > valid_until` of the latest revision or status is `expired` / `cancelled`.
+- **Snapshot rule (Sprint 26, unchanged):** on acceptance, the system copies the service's `payment_type` and `deposit_percentage` onto the quotation head and computes `deposit_amount` / `remaining_amount` from the accepted revision's `total_amount`. Payment gates read the snapshot, never the live service row.
 
 #### Notes
 
-- Payment targets the accepted latest quotation revision.
-- `currency` is the quotation's commercial currency. It is set when the quotation is created and is immutable thereafter; quotation-derived orders copy this value.
+- Payment targets the accepted (latest) revision's totals via the quotation head snapshot.
+- Currency lives on the quotation head and is immutable; all revisions of one quotation share it.
 - Remove any `rejected_at` column / `rejected` status from V1 implementations.
-- Quotation records are never permanently deleted.
-- Admin timeline events must record actor (admin name + role, customer, or System).
+- Quotation and revision records are never permanently deleted.
+- Admin timeline events must record actor (admin name + role, customer, or **System** for `system_migration`).
 - Discussion messages and attachments are append-only (cannot be deleted).
-- Each revision permanently retains **Created By** via `issued_by_admin_id` (+ role at read time) and `created_at` for audit.
-- Admin **Compare Revisions** is a read-only derived view between any two `version_no` rows (line items / qty / unit price / totals / notes).
-- Admin UI shows Valid Until countdown derived from `valid_until` vs now.
+- Each revision permanently retains **Created By** via `issued_by_admin_id` (+ role at read time) and `created_at` for audit; migrated Revision 1 rows display **System (migration)**.
+- Admin **Compare Revisions** is a read-only derived view between any two `version_number` rows (line items / qty / unit price / totals / notes).
+- Admin UI shows Valid Until countdown derived from the latest revision's `valid_until` vs now.
 
 ---
 
@@ -1677,14 +1697,14 @@ These files help administrators accurately assess the requested work and prepare
 | **Table Name** | `quotation_notes` |
 | **Purpose** | Internal staff notes on a quotation. Never visible to customers. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `quotation_number` family or `quotation_id` → latest/`quotations.id`; `admin_id` → `admins.id` |
+| **Foreign Keys** | `quotation_id` → `quotations.id`; `admin_id` → `admins.id` |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `quotation_id` | BIGINT UNSIGNED | R | FK — typically points at latest revision row or stable family key |
+| `quotation_id` | BIGINT UNSIGNED | R | FK → `quotations.id` (stable head; notes are never tied to a single revision) |
 | `admin_id` | BIGINT UNSIGNED | R | Author |
 | `body` | TEXT | R | |
 | `created_at` | TIMESTAMP | R | |
@@ -1699,27 +1719,28 @@ These files help administrators accurately assess the requested work and prepare
 | **Table Name** | `quotation_messages` |
 | **Purpose** | Discussion thread attached to a quotation (same Quotation Number). |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `quotation_number` / `quotation_request_id`; optional `user_id` or `admin_id` as author |
+| **Foreign Keys** | `quotation_id` → `quotations.id`; optional `user_id` or `admin_id` as author |
 
 #### Columns (logical)
 
 | Column | Notes |
 | --- | --- |
 | `id` | PK |
-| `quotation_request_id` | FK — discussion parent |
-| `quotation_number` | Canonical public reference |
+| `quotation_id` | FK — discussion parent (head record; `quotation_number` resolved from it) |
 | `author_type` | `customer` or `admin` |
 | `author_id` | Customer or admin id |
 | `body` | Message text |
 | `created_at` | Timestamp |
 
+Discussion is open only while the quotation is `quotation_ready` or `under_discussion`. A customer message from `quotation_ready` auto-transitions the quotation to `under_discussion`. Messages are append-only.
+
 ### 3.5.3B `quotation_message_attachments`
 
-Additional images/videos/PDFs uploaded during Discuss Quotation (same allowed mime types as request attachments). Linked to `quotation_messages.id` and, following the same approved pattern as §3.5.2, referencing staged files via FK to `uploads.id` without duplicating upload metadata.
+Additional images/videos/PDFs uploaded during Discuss Quotation (same allowed mime types as request attachments). Linked to `quotation_messages.id` and, following the same approved pattern as §3.5.2, referencing staged files via FK to `uploads.id` (public identifier: upload **UUID**; ownership validated against the author; attaching sets `uploads.attached_at`) without duplicating upload metadata. **This is the only channel for additional customer files after Submit** (Sprint 28 — final): request attachments are immutable once submitted.
 
 ### 3.5.3C `quotation_status_histories`
 
-Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation Updated, Customer Acceptance, Payment, Service Completion. Supports admin linked-record navigation and customer read-only timeline.
+Timeline events keyed by Quotation Number + Version: Request Created (Draft), Submitted, Reviewer Assigned/Reassigned, Quotation Issued (Version 1), Customer Discussion, Team Replies, Quotation Revised (Version N), Discussion Closed, Expired, Revived (new revision), Customer Acceptance, Cancelled, Payment, Service Completion. Supports admin linked-record navigation and customer read-only timeline. Every status transition records actor (`changed_by_type` / `changed_by_id`: customer, admin, or System).
 
 ---
 
@@ -1728,16 +1749,16 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `quotation_items` |
-| **Purpose** | Line items on an issued quotation. |
+| **Purpose** | Line items on an issued quotation revision. Immutable together with their parent revision. |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `quotation_id` → `quotations.id` |
+| **Foreign Keys** | `quotation_revision_id` → `quotation_revisions.id` |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
-| `quotation_id` | BIGINT UNSIGNED | R | FK |
+| `quotation_revision_id` | BIGINT UNSIGNED | R | FK — items belong to one immutable revision; revising re-issues the full item set on the new version |
 | `description` | VARCHAR(500) | R | |
 | `quantity` | DECIMAL(12,2) | R | |
 | `unit_price` | DECIMAL(12,2) | R | |
@@ -1749,7 +1770,8 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 #### Validation Rules
 
 - `line_total` must equal `quantity * unit_price` (within rounding rules).
-- Sum of line totals must reconcile to quotation subtotal.
+- Sum of line totals must reconcile to the parent revision's `subtotal_amount`.
+- Items are immutable once the revision is created (no edits or deletions), matching revision immutability.
 
 ---
 
@@ -2248,6 +2270,7 @@ Notes retained from the superseded spec:
 
 - Append-oriented; no customer update of audit rows.
 - Required for money/status/catalog-critical admin actions (SRS NFR-024) and Admin Module mutations (create/update/delete admin, role permission update, direct permission update, login/logout).
+- Sprint 27 (Admin Operations): every payment confirm/reject, booking schedule/start/complete/close/cancel, and store-order status change emits an AuditEvent recording actor, entity, prior → new status, and reason/metadata.
 
 ---
 
@@ -2264,7 +2287,7 @@ Unified File Upload Service (Sprint 23, approved). Customer-uploaded files are s
 | **Primary Key** | `id` (internal only) |
 | **Public Identifier** | `uuid` (the only identifier exposed in routes and payloads) |
 | **Owner** | `customer_profile_id`, resolved server-side from the authenticated customer (ADR-001); never client-supplied |
-| **Relationships** | N:1 → `customer_profiles`; referenced via FK (`upload_id`) by attachment tables (`quotation_request_attachments`, `quotation_message_attachments`) which never duplicate upload metadata |
+| **Relationships** | N:1 → `customer_profiles`; referenced via FK (`upload_id`) by attachment tables (`quotation_attachments`, `quotation_message_attachments`) which never duplicate upload metadata |
 
 #### Columns
 
@@ -2341,7 +2364,7 @@ Unified File Upload Service (Sprint 23, approved). Customer-uploaded files are s
 | Parent | Child | Description |
 | --- | --- | --- |
 | `users` | `customer_profiles` | Exactly one business/profile record per authenticated mobile customer (`customer_profiles.user_id` UNIQUE) |
-| `quotation_requests` | Current accept-eligible `quotations` row | Logical 1:1 “active quote” via status/version rules (multiple historical versions may exist) |
+| `quotations` | Latest `quotation_revisions` row | Physical pointer `quotations.latest_revision_id`, kept in sync with the **highest `version_number`** in the same transaction that inserts a revision; only the latest revision is accept-eligible (historical versions remain immutable). Key constraints: `UNIQUE (quotation_number)` on `quotations`; `UNIQUE (quotation_id, version_number)` on `quotation_revisions` |
 | `carts` | Converted `orders` | A cart may convert to at most one order (`status=converted`) |
 
 > Strict physical 1:1 tables are minimized; commercial “current” relationships are enforced by status rules.
@@ -2351,19 +2374,20 @@ Unified File Upload Service (Sprint 23, approved). Customer-uploaded files are s
 | Parent | Children | Description |
 | --- | --- | --- |
 | `users` | `customer_profiles`, `customer_devices`, `carts`, `notifications` | Sole customer authentication principal; authentication-adjacent children remain user-scoped |
-| `customer_profiles` | `customer_addresses`, `customer_notes`, `uploads`, `bookings`, `quotation_requests`, `orders`, `payments`, `reviews`, `favorites` | Customer business/profile data and approved business-module ownership (saved payment methods removed from V1 — §3.1.4) |
+| `customer_profiles` | `customer_addresses`, `customer_notes`, `uploads`, `bookings`, `quotations`, `orders`, `payments`, `reviews`, `favorites` | Customer business/profile data and approved business-module ownership (saved payment methods removed from V1 — §3.1.4) |
 | `service_categories` | `services` | Category catalog |
-| `services` | `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates`, `bookings`, `quotation_requests`, `reviews` (denormalized `service_id`), `favorites` (auto-removed on deactivation/deletion) | Service definition, availability, usage, published review aggregates, and favorites |
+| `services` | `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates`, `bookings`, `quotations`, `reviews` (denormalized `service_id`), `favorites` (auto-removed on deactivation/deletion) | Service definition, availability, usage, published review aggregates, and favorites |
 | `product_categories` | `products` | Store taxonomy (V1: Chemicals, Tools, Accessories, PPE, Air Fresheners) |
-| `products` | `product_images`, `cart_items`, `store_order_items`, `quotation_requests`, `stock_ledgers`, `purchase_order_items`, `stock_adjustments` | Product definition, commerce, and on-hand stock |
+| `products` | `product_images`, `cart_items`, `store_order_items`, `quotations`, `stock_ledgers`, `purchase_order_items`, `stock_adjustments` | Product definition, commerce, and on-hand stock |
 | `suppliers` | `purchase_orders` | Inventory procurement |
 | `purchase_orders` | `purchase_order_items`, `goods_receipts` | PO lifecycle; never changes stock alone |
 | `goods_receipts` | `goods_receipt_items`, `stock_ledgers` | Stock increase source |
 | `carts` | `cart_items` | Cart composition |
 | `bookings` | `booking_status_histories`, `reviews` (max one per booking) | Status audit; post-completion review |
-| `quotation_requests` | `quotation_request_attachments`, `quotations` | Request lifecycle |
-| `uploads` | `quotation_request_attachments`, `quotation_message_attachments` | Staged file references via `upload_id` FK (no metadata duplication) |
-| `quotations` | `quotation_items` | Quote breakdown |
+| `quotations` | `quotation_attachments`, `quotation_revisions`, `quotation_messages`, `quotation_status_histories`, `quotation_notes` | Quotation head: request, attachments, immutable revisions, discussion, timeline |
+| `uploads` | `quotation_attachments`, `quotation_message_attachments` | Staged file references via `upload_id` FK (no metadata duplication) |
+| `quotation_revisions` | `quotation_items` | Immutable priced breakdown per version |
+| `admins` (reviewer) | `quotations` | Single reviewer per quotation via `quotations.assigned_admin_id` (Sprint 28 V1; reassignment allowed) |
 | `orders` | `order_items`, `order_status_histories` | Order composition and audit |
 | `payments` | `payment_transactions`, `receipts` | Gateway transaction history and one successful-payment receipt |
 | `admins` | `admin_permissions`, `audit_logs`; also appear as actors on histories/refunds | Admin operations |
@@ -2381,7 +2405,7 @@ Unified File Upload Service (Sprint 23, approved). Customer-uploaded files are s
 | Source | Discriminator | Targets | Purpose |
 | --- | --- | --- | --- |
 | `payments` | `payable_type` + `payable_id` | Service Orders and Store Orders | Unified payment ledger |
-| `quotation_requests` | `request_target_type` | `bookings` or `products` | Booking-origin service and optional product quotes |
+| `quotations` | `request_target_type` | `bookings` or `products` | Booking-origin service and optional product quotes |
 | `notifications` | `reference_type` + `reference_id` | booking/order/quote/payment/etc. | Deep links |
 
 > `reviews` is **not** polymorphic in V1: it references `bookings` directly (completed booking reviews only). Polymorphic review targets (product/order/service) may return in a future version.
@@ -2394,8 +2418,10 @@ users ──┬── customer_profiles (1:1) ──┬── customer_addresses
         │                              ├── bookings ──── booking_status_histories
         │                              │       └── services ──┬── service_modes
         │                              │                       └── service_coverage_cities
-        │                              ├── quotation_requests ──┬── quotation_request_attachments
-        │                              │                        └── quotations ──── quotation_items
+        │                              ├── quotations ──┬── quotation_attachments ──── uploads
+        │                              │                ├── quotation_revisions ──── quotation_items
+        │                              │                ├── quotation_messages ──── quotation_message_attachments ──── uploads
+        │                              │                └── quotation_status_histories
         │                              ├── orders ──── order_items
         │                              ├── payments ──── payment_transactions / receipts
         │                              └── reviews
@@ -2482,14 +2508,17 @@ Indexes below are recommendations for common access paths. Exact index types dep
 
 | Table | Index | Purpose |
 | --- | --- | --- |
-| `quotation_requests` | UNIQUE(`request_number`) | Reference |
-| `quotation_requests` | (`customer_profile_id`, `created_at`) | Customer history |
-| `quotation_requests` | (`status`, `created_at`) | Admin queue |
-| `quotation_requests` | (`request_target_type`, `booking_id`) | Booking-origin service request lookup |
-| `quotation_requests` | (`request_target_type`, `product_id`) | Product request lookup |
-| `quotations` | UNIQUE(`quotation_number`) | Reference |
-| `quotations` | (`quotation_request_id`, `version_no`) | Version chain |
-| `quotations` | (`status`, `valid_until`) | Expiry jobs |
+| `quotations` | UNIQUE(`quotation_number`) | Permanent reference (never changes across revisions) |
+| `quotations` | (`customer_profile_id`, `created_at`) | Customer history |
+| `quotations` | (`status`, `created_at`) | Admin queue |
+| `quotations` | (`status`, `assigned_admin_id`) | Reviewer queue (single reviewer, Sprint 28) |
+| `quotations` | (`request_target_type`, `booking_id`) | Booking-origin service request lookup |
+| `quotations` | (`request_target_type`, `product_id`) | Product request lookup |
+| `quotation_revisions` | UNIQUE(`quotation_id`, `version_number`) | Immutable version chain |
+| `quotation_revisions` | (`quotation_id`, `version_number` DESC) | Latest-revision resolution / history |
+| `quotation_revisions` | (`valid_until`) | Expiry jobs (with head `status` in `quotation_ready` / `under_discussion`) |
+| `quotation_attachments` | UNIQUE(`upload_id`) | One attachment per staged upload |
+| `quotation_attachments` | (`quotation_id`) | Request attachment list |
 | `payments` | UNIQUE(`payment_number`) | Reference |
 | `payments` | UNIQUE(`idempotency_key`) | Safe retries |
 | `payments` | (`payable_type`, `payable_id`) | Entity payment history |
@@ -2577,9 +2606,11 @@ Indexes below are recommendations for common access paths. Exact index types dep
 1. `request_target_type` must match populated origin FK (`booking_id` or `product_id`).
 2. Product quote requests allowed only when product opts in.
 3. Every active service supports a quotation request through its booking-origin path; no service pricing classification gates this action.
-4. Only one accept-eligible quotation active per request.
-5. Acceptance locked after `valid_until` or status outside `quotation_ready` / `under_discussion`.
-6. Accepted **latest** quotation required before quotation-targeted payment. Never use Rejected status.
+4. **`UNIQUE (quotation_number)`** on `quotations`: the quotation number is **immutable** — generated exactly once at Draft creation, it never changes, and every revision references the same quotation number. No operation may regenerate or reassign it.
+5. **`UNIQUE (quotation_id, version_number)`** on `quotation_revisions`: version numbers are **strictly increasing** per quotation (Version 1 → 2 → 3 → 4 …), assigned under the quotation row lock. Version numbers are **never reused** and **never reset** — even future archive or delete operations must not free a version number for reuse.
+6. **Revision pointer integrity:** `quotations.latest_revision_id` must always reference the revision with the **highest `version_number`** for that quotation. Both layers enforce this: the application updates the pointer in the same row-locked transaction that inserts the revision, and the database FK plus the unique version chain prevent out-of-sync or cross-quotation pointers. Only the revision referenced by `latest_revision_id` is accept-eligible.
+7. Acceptance locked after the latest revision's `valid_until` or status outside `quotation_ready` / `under_discussion`; acceptance must reference the latest revision (stale → `409 Conflict`).
+8. Accepted **latest** revision required before quotation-targeted payment. Never use Rejected status.
 
 ## 6.6 Payment Integrity
 
@@ -2744,7 +2775,7 @@ The Reports & Analytics Module is a **read-only aggregation layer**. All report 
 | --- | --- | --- |
 | Customer Reports | `users` + `customer_profiles` | Growth from `users.created_at`; customer profile metrics through the one-to-one join |
 | Booking Reports | `bookings` | `COUNT(*)` by status, `AVG(completed_at - created_at)` for avg completion time |
-| Quotation Reports | `quotation_requests` | `COUNT(*)` by status, `COUNT(accepted) / COUNT(total)` for conversion rate |
+| Quotation Reports | `quotations` | `COUNT(*)` by status, `COUNT(accepted) / COUNT(total)` for conversion rate |
 | Order Reports | `orders` | `COUNT(*)` by status, `AVG(total_amount)` for avg order value |
 | Payment Reports | `payments` | `COUNT(*)` by status |
 | Revenue Reports | `payments` (status = 'Confirmed') | `SUM(amount)` grouped by time period; `JOIN` with `order_items` and `services`/`products` for revenue by category |

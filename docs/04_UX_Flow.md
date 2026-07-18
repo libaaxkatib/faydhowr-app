@@ -375,19 +375,24 @@ Quotations cover **services** (often required by pricing model) and **products**
 
 | Principle | UX behavior |
 | --- | --- |
-| Auth required | Soft gate before submit |
+| Auth required | Soft gate before creating the request |
+| No customer pricing | The request form contains **no pricing fields** — no subtotal, discount, tax, total, payment type, or deposit. Pricing appears only after the team issues a quotation |
 | Clarity of target | Customer always knows whether quoting a service or a product |
-| Unique Quotation Number | e.g. `QT-2026-000123` shown on details, PDF, notifications, history |
-| Files before submit | Images, videos, and/or PDFs per upload rules to help assessment |
-| After submit | Clear Quotation Number + “we will respond” expectation; status **Pending Review** |
-| After team issues quote | Notification → status **Quotation Ready** → review latest revision |
+| Unique Quotation Number | e.g. `QT-2026-000123` assigned at Draft creation; shown on details, PDF, notifications, history; **never changes** across revisions |
+| Draft first | Request is created as a **Draft**: editable details, attachments can be added/removed freely |
+| Files during Draft | Images, videos, and/or PDFs per upload rules to help assessment; attach/remove **only while Draft** |
+| After Submit | Status **Submitted**; request and attachments become **permanently locked** (read-only); clear “we will respond” expectation. Additional files later go through **Discuss Quotation** only |
+| Under Review | A reviewer is assigned; customer sees status **Under Review** |
+| After team issues quote | Notification → status **Quotation Ready** → review latest revision (Version 1) |
 | Primary customer actions | **Accept Quotation** or **Discuss Quotation** (never Reject) |
-| Discuss Quotation | Messaging + extra images/videos/PDFs on the **same** quotation; status **Under Discussion**; does not close the quote |
-| Revisions | Updates create v1, v2, v3…; **Latest Version** clearly marked; only latest may be accepted |
+| Discuss Quotation | Messaging + extra images/videos/PDFs on the **same** quotation; status **Under Discussion**; does not close the quote; **Accept remains available** |
+| Revisions | Team updates create strictly increasing Version 1 → 2 → 3… (numbers never reused or reset); **Latest Version** clearly marked; revisions are immutable; only latest may be accepted — accepting a stale version shows a “quotation was updated, please review the latest version” recovery prompt (`409`) |
+| Action visibility | The app shows/hides **Accept** and **Discuss** strictly from the server-returned `can_accept` / `can_discuss` flags — the client never computes eligibility itself |
+| Expired | Acceptance and discussion are blocked, but the quotation is **not dead**: the team may issue a new revision, which returns it to **Quotation Ready** with a fresh validity — the customer never re-creates the request |
 | After accept | Status **Accepted** → payment/fulfillment unlocks per the **snapshotted service payment policy**: `full_before_service` — pay full amount before scheduling; `deposit` — pay the configured deposit before scheduling, balance after completion; `pay_after_service` — no pre-payment, pay after completion |
-| Notifications | Every quotation update and every new discussion message notifies the other party |
+| Notifications | Every quotation revision and every new discussion message notifies the other party |
 
-**Statuses (only):** Pending Review · Quotation Ready · Under Discussion · Accepted · Expired · Cancelled
+**Statuses (only):** Draft · Submitted · Under Review · Quotation Ready · Under Discussion · Accepted · Expired · Cancelled
 
 ## 6.2 Service Quotation Flow
 
@@ -398,31 +403,38 @@ Request Quotation
         ↓
 Login (if required)
         ↓
+Create Draft  (QT-YYYY-###### assigned; no pricing fields)
+        ↓
 Enter requirements + timing/location
         ↓
-Upload files (images / videos / PDFs as enabled)
+Upload Images → Upload Videos → Upload PDFs  (attach/remove freely while Draft)
         ↓
-Review & Submit  →  Pending Review  (QT-YYYY-######)
+Review & Submit  →  Submitted  (request + attachments locked)
         ↓
 Request Confirmation
         ↓
-(Team issues quotation revision v1)
+Admin Review  →  Under Review  (reviewer assigned)
+        ↓
+(Team issues quotation — Version 1)
         ↓
 Notification → Quotation Ready → View Quotation (Latest Version)
         ↓
 Accept Quotation  ——or——  Discuss Quotation
         ↓
-If Discuss → Under Discussion (messages + files + optional revised v2…)
+If Discuss → Under Discussion (messages + files + optional revised Version 2…)
         ↓
-If Accept (latest revision only) → Payment / next fulfillment step
+If Accept (latest revision only; allowed from Quotation Ready or Under Discussion) → Payment / next fulfillment step
 ```
 
 **Notes:**
 
-- Requirements text is mandatory on initial request.
-- Files are strongly encouraged; allow one or more.
+- Requirements text is mandatory at Submit.
+- Files are strongly encouraged; allow one or more; attachments are editable **only while Draft** — after Submit, extra files go through Discuss Quotation.
+- The customer never enters pricing; the first price the customer sees is the team-issued Version 1.
 - Discuss never creates a new quotation number.
 - Customer can track status, timeline, and revision history from Quotation Details / History.
+- Customer may cancel the request while Draft or Submitted (before pricing); afterwards only the team can cancel.
+- **Sprint 27:** accepting a service quotation also moves the linked booking to **Accepted** automatically — the customer sees the booking status update immediately, with no waiting on staff.
 
 ## 6.3 Product Quotation Flow
 
@@ -435,23 +447,27 @@ Request Quotation (secondary CTA; price remains visible)
         ↓
 Login (if required)
         ↓
+Create Draft  (source = Product, QT-YYYY-######; no pricing fields)
+        ↓
 Enter requirements + quantity/special needs
         ↓
-Upload files (images / videos / PDFs as enabled)
+Upload Images → Upload Videos → Upload PDFs  (attach/remove freely while Draft)
         ↓
-Review & Submit  →  Pending Review  (source = Product, QT-YYYY-######)
+Review & Submit  →  Submitted  (request + attachments locked)
         ↓
 Request Confirmation
         ↓
-(Team issues quotation revision v1)
+Admin Review  →  Under Review  (reviewer assigned)
+        ↓
+(Team issues quotation — Version 1)
         ↓
 Notification → Quotation Ready → View Quotation (Latest Version)
         ↓
 Accept Quotation  ——or——  Discuss Quotation
         ↓
-If Discuss → Under Discussion (messages + files + optional revised v2…)
+If Discuss → Under Discussion (messages + files + optional revised Version 2…)
         ↓
-If Accept (latest revision only) → Payment / order fulfillment path as applicable
+If Accept (latest revision only; allowed from Quotation Ready or Under Discussion) → Payment / order fulfillment path as applicable
 ```
 
 **Notes:**
@@ -464,9 +480,9 @@ If Accept (latest revision only) → Payment / order fulfillment path as applica
 
 ## 6.4 File Upload UX Rules (Quotation)
 
-1. Customer may add **one or more** files (up to 10 per upload request) before submission and during Discuss Quotation.
+1. Customer may add **one or more** files (up to 10 per upload request) **while the request is a Draft** and, later, inside Discuss Quotation messages.
 2. Show clear format guidance (images: JPG/JPEG/PNG/WebP; video: MP4/MOV/WebM; PDF as enabled) and size limits (images 10 MB, PDF 20 MB, video 100 MB).
-3. Allow remove/replace before submit (staged uploads can be deleted until attached); allow additional uploads in discussion.
+3. Allow remove/replace **only while Draft** (staged uploads can be deleted until attached). **After Submit the attachment set is locked** — the UI hides add/remove controls and directs the customer to Discuss Quotation for additional files.
 4. Block unsupported or oversized files with actionable error copy.
 5. Submission remains possible per product policy if files are optional; when files materially help assessment, prompt without dead-ending unless business marks them required for that offering.
 6. Staged files not attached to a request expire after 7 days; the app should not rely on staged uploads persisting beyond that window.
@@ -477,19 +493,20 @@ When the customer selects **Discuss Quotation**:
 
 | Party | Can |
 | --- | --- |
-| **Customer** | Send messages; reply; upload additional images, videos, PDFs; Accept the **latest** quotation |
-| **Fayadhowr team** | Reply; request more info/files; update quotation (new revision); upload revised quotation document |
+| **Customer** | Send messages; reply; upload additional images, videos, PDFs; **Accept the latest quotation directly from the discussion** |
+| **Fayadhowr team** | Reply; request more info/files; revise quotation (new immutable Version); close discussion (returns to Quotation Ready) |
 
 - Discussion remains attached to the **same** Quotation Number.
 - Do **not** create another quotation.
-- Status becomes **Under Discussion** while discussion is active.
+- Status becomes **Under Discussion** while discussion is active; acceptance stays available — no need to wait for the discussion to be closed.
+- Discussion is the **only** channel for additional customer files after Submit (the original request is locked).
 - Example update notification: “Your quotation has been updated. Please review the latest version.”
 
 ## 6.6 Quotation Timeline & Revision History
 
-Maintain complete history, including: Quotation Created · Customer Discussion · Team Replies · Quotation Updated · Customer Acceptance · Payment · Service Completion.
+Maintain complete history keyed by Quotation Number + Version, including: Request Created (Draft) · Submitted · Reviewer Assigned · Quotation Issued (Version 1) · Customer Discussion · Team Replies · Quotation Revised (Version N) · Discussion Closed · Expired · Revived · Customer Acceptance · Payment · Service Completion.
 
-Customers may open **View Revision History** (read-only). Older revisions cannot be accepted.
+Customers may open **View Revision History** (read-only, immutable versions). Older revisions cannot be accepted — attempting to accept a stale version surfaces a friendly “quotation was updated” prompt and refreshes to the Latest Version.
 
 ---
 
@@ -525,7 +542,7 @@ Describes every customer-facing booking step for eligible bookable services.
 | Review | Confirm before commit | Show service name, schedule, location, pricing/payment timing |
 | Submit | Create booking | Disable double-submit; show progress |
 | Confirmation | Trust closure | Booking number, status, what happens next |
-| Cancel (policy permitting) | Exit booking | Confirm intent; explain refund/payment implications if any |
+| Cancel (policy permitting) | Exit booking | Confirm intent; explain payment implications — already-paid amounts are **not refunded in V1** (refunds are V2) and any unpaid/in-progress payment is automatically voided |
 
 ## 7.3 Booking Failure Points (Customer-Visible)
 
@@ -691,6 +708,8 @@ Mark as read / Mark all as read (delivered → read; no delete)
 
 Booking · Quotation · Order · Payment · Store Order · Inventory · System
 
+**Mandatory V1 notifications (Sprint 27):** the customer always receives — Payment Confirmed · Payment Rejected · Booking Scheduled · Booking Completed · Booking Cancelled. These are dispatched after the business change is committed; a notification failure never blocks or reverses the business change.
+
 ## 9.5 UX Rules
 
 - Notifications never expose secrets (full payment credentials, etc.).
@@ -803,7 +822,7 @@ Success states close the loop: what happened, the reference ID, and what to do n
 | Success state | Customer should see |
 | --- | --- |
 | **Booking Confirmation** | Success message, booking number, schedule summary, status, payment next-step if any, link to Booking History |
-| **Quotation Request Confirmation** | Success message, Quotation Number, Pending Review expectation, file count if uploaded, link to quote history |
+| **Quotation Request Confirmation** | Success message, Quotation Number, Submitted status with “we will respond” expectation (attachments now locked), file count if uploaded, link to quote history |
 | **Quotation Accepted** | Acceptance confirmation, Quotation Number, locked commercial terms summary, **Pay** CTA if payable |
 | **Discuss Quotation** | Thread on same quotation; messages; additional file uploads; Accept latest revision; never closes via Reject |
 | **Order Confirmation** | Success message, order number, item summary, total paid/payable, fulfillment expectations |
@@ -906,7 +925,7 @@ Operations staff review and manage all service bookings without permanently dele
 3. Scans **Priority** badges and **booking age** (Created … / Waiting …) for aging work.
 4. Opens **View Booking** on a row.
 5. Reviews customer, service, property, media (**Images (n)**, **Videos (n)**, **Documents (n)**), customer notes.
-6. Updates status only via the **controlled status dropdown** (approved statuses only).
+6. Updates status only via the **controlled status dropdown** (approved statuses only). Sprint 27: each dropdown choice maps to an operational action — **Schedule** (requires confirmed schedule window; enabled only when the payment gate is satisfied), **Start**, **Complete**, **Close** (enabled only when all required payments are confirmed), **Cancel** (requires a cancellation reason). Disabled choices show the blocking reason (e.g. "Deposit not confirmed yet").
 7. Uses **Linked Records** for Customer Profile, Quotations, Orders, Payments, Notifications.
 8. Reads **Booking Timeline** (audit only — each event shows actor, e.g. By Sara (Sales) or System).
 9. Optionally adds an **Internal Note** (Admin / Sales / Accountant) — never customer-visible.
@@ -916,7 +935,11 @@ Operations staff review and manage all service bookings without permanently dele
 
 - Booking Number (`BK-…`) is read-only.
 - Priority is read-only: High · Medium · Low.
-- Statuses: Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Closed · Cancelled (never Rejected; no custom values). A booking becomes **Scheduled** only after any required pre-payment (full or deposit, per the snapshotted service payment policy) is confirmed; **Closed** = service completed and all required payments confirmed.
+- Statuses: Submitted (system-set at creation) · Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Closed · Cancelled (never Rejected; no custom values). A booking becomes **Scheduled** only after any required pre-payment (full or deposit, per the snapshotted service payment policy) is confirmed; **Closed** = service completed and all required payments confirmed.
+- **Accepted is automatic (Sprint 27):** the booking becomes Accepted the moment the customer accepts the quotation — there is **no admin acceptance action** in this screen.
+- Admin transitions (Sprint 27): Accepted → Scheduled (payment-gated) → In Progress → Completed → Closed; Cancel available from any state before Completed with a **required reason**. No status reversions.
+- **Cancellation payment behavior:** paid amounts stay paid (refunds are V2); any still-active payment is voided automatically — the admin never touches payments from this screen.
+- Access requires `bookings.view`; transitions require `bookings.manage`.
 - No permanent delete; booking always remains linked to its customer.
 - No Booking Value / Estimated Value on this module.
 
@@ -928,27 +951,34 @@ Operations staff review and manage all service bookings without permanently dele
 
 Operations staff manage all quotations that originate from a Booking or Product Request — never as standalone creates.
 
-## 15.2 Primary Path
+## 15.2 Primary Path (Sprint 28)
 
-1. Admin / Sales opens **Quotations** from the sidebar.
-2. Searches / applies advanced filters (status, source, valid until).
+1. Admin / Sales opens **Quotations** from the sidebar (request queue: Submitted first, then by age).
+2. Searches / applies advanced filters (status, assigned reviewer, source, valid until).
 3. Opens **View Quotation** on a row (sees Valid Until + countdown e.g. 4 days remaining / Expired · 2 days ago).
 4. Confirms **Source** (Booking / Product) and permanent linked record.
-5. Reviews customer, price breakdown, total, validity countdown, current revision.
-6. Updates status only via the **controlled status dropdown** (approved statuses only).
-7. Issues a new revision when required (each revision shows **Created By**, Staff Role, Date, Time permanently).
-8. Optionally opens **Compare Revisions** (any two revisions, e.g. v2 ↔ v3) — read-only diff of items, quantities, prices, total, notes.
-9. Participates in **Discussion** (search by keyword; attachment counters Images/Videos/PDF Files; messages + files); history never deleted.
-10. Reads **Timeline** (audit only — each event shows actor + role or Customer/System).
-11. Uses **Linked Records** for Customer Profile, Booking, Orders, Payments, Notifications.
-12. Optionally adds an **Internal Note** (Admin / Sales / Accountant) — never customer-visible.
+5. **Assigns a reviewer** (self or another admin) — single reviewer via `assigned_admin_id`; first assignment moves Submitted → Under Review; reassignment allowed anytime (audited).
+6. **Reviews the request attachments** (images / videos / PDFs, streamed read-only — the customer's request is immutable after Submit).
+7. **Issues the quotation (Version 1)**: line items, subtotal, discount, tax, total, mandatory Valid Until, terms → status Quotation Ready. Pricing is admin-only; the customer never submitted any price.
+8. **Revises** when required — each revision creates the next immutable Version on the same QT number (each shows **Created By**, Staff Role, Date, Time permanently). Revising an **Expired** quotation automatically returns it to Quotation Ready.
+9. Optionally opens **Compare Revisions** (any two versions, e.g. Version 2 ↔ Version 3) — read-only diff of items, quantities, prices, total, notes.
+10. Participates in **Discussion** (search by keyword; attachment counters Images/Videos/PDF Files; messages + files); may **Close Discussion** (returns to Quotation Ready); history never deleted.
+11. May **Expire**, **Cancel** (reason required), or **Accept on the customer's behalf** (latest version only; reason required) per permissions.
+12. Reads **Timeline** (audit only — each event shows Quotation Number + Version and actor + role or Customer/System).
+13. Uses **Linked Records** for Customer Profile, Booking, Orders, Payments, Notifications.
+14. Optionally adds an **Internal Note** (Admin / Sales / Accountant) — never customer-visible.
 
 ## 15.3 Rules
 
-- Quotation Number (`QT-…`) is read-only.
+- Quotation Number (`QT-…`) is read-only, assigned at Draft creation, and **never changes** — revisions are Version 1, 2, 3… on the same number.
 - Origin: **Booking** or **Product Request** only; link never removed.
-- Statuses: Pending Review · Under Discussion · Quotation Ready · Accepted · Expired · Cancelled (never Rejected; no custom values).
-- Only the **latest** revision can be accepted.
+- Statuses: Draft · Submitted · Under Review · Quotation Ready · Under Discussion · Accepted · Expired · Cancelled (never Rejected; no custom values).
+- Status changes happen only through workflow actions (assign, issue, revise, close discussion, expire, cancel, accept) — no free status dropdown.
+- Revisions are **immutable**: no editing or deleting an issued version; corrections are a new version.
+- Only the **latest** version can be accepted (customer or admin-on-behalf); stale accepts return `409`.
+- Expired is not terminal — a new revision (mandatory Valid Until) revives it to Quotation Ready.
+- Single reviewer per quotation (`assigned_admin_id`); no reviewer pools in V1.
+- Permissions: `quotations.view` (read), `quotations.review` (assign, discussion, close discussion), `quotations.issue` (issue/revise), `quotations.manage` (expire, cancel, accept-on-behalf) — actions are hidden without the matching key.
 - No permanent delete; discussion history cannot be deleted.
 
 ---
@@ -1002,6 +1032,35 @@ Every order is created automatically via: Booking → Quotation → Accepted →
 
 ---
 
+# 16A. Admin Store Orders Fulfilment (Panel — Sprint 27)
+
+## 16A.1 Objective
+
+Operations staff move store orders (`STO-…`) through fulfilment — from confirmation to delivery and cash collection — with server-enforced transitions only.
+
+## 16A.2 Primary Path
+
+1. Admin opens **Store Orders** from the sidebar.
+2. Searches / filters (status, customer, payment status, order date, STO number).
+3. Opens **View Store Order**: line items, shipping snapshot, payments, status history.
+4. Advances the order via the **controlled status control** — only the next valid transition(s) are enabled:
+   - Confirmed → Preparing (COD) / Processing (prepaid)
+   - Preparing → Out for Delivery → Delivered
+   - Delivered → Payment Pending (COD)
+   - Processing / Delivered → Completed (only when no active payment exists)
+5. For a COD order at **Payment Pending**, the "Complete" choice is disabled with the hint "Complete via payment confirmation" — completion happens from the Payments screen (§17) when the cash collection is confirmed.
+
+## 16A.3 Rules
+
+- Store Order Number (`STO-…`) is read-only.
+- Transitions are server-enforced; invalid targets are disabled with the blocking reason.
+- A COD order never completes from this screen; only payment confirmation completes it.
+- If a COD payment is rejected (§17), the order shows **Cancelled** with the restock recorded on its history — no action needed here.
+- Access requires `store_orders.view`; status changes require `store_orders.manage`.
+- No permanent delete.
+
+---
+
 # 17. Admin Payments Management (Panel)
 
 ## 17.1 Objective
@@ -1028,7 +1087,7 @@ Every payment must originate from an existing Order via: Booking / Product Reque
 12. Uses the **Copy** button next to Transaction Reference — sees "Copied" confirmation.
 13. Reviews **Customer Information** (Name, Phone, Email, CUS).
 14. Confirms **Source Chain** (Order → Quotation → Booking or Product Request) — permanent and always traceable.
-15. Updates payment status only via the **controlled status dropdown** (approved statuses only).
+15. Updates payment status only via the **controlled status dropdown** (approved statuses only). Sprint 27: the two operational actions are **Confirm Payment** (optional notes, e.g. bank reference) and **Reject Payment** (reason **required**). Both prompt a confirmation dialog; rejecting a Cash on Delivery payment warns that the store order will be cancelled and stock restored automatically.
 16. Checks **Payment Documents** — each shows availability: ✅ Available (clickable) or ⏳ Pending (disabled). Cannot open documents not yet generated.
 17. Reads **Payment Timeline** (audit only — each event shows Performed By, Staff Role or Customer/System, Date, Time): Payment Requested, Payment Received, Payment Confirmed, Refund Initiated, Refund Completed.
 18. Uses **Linked Records** for Customer Profile, Booking, Quotation, Order, Notifications.
@@ -1052,6 +1111,7 @@ Every payment must originate from an existing Order via: Booking / Product Reque
 - Transaction Reference Copy button shows "Copied" confirmation — UI-only interaction.
 - Payment Method icons are displayed consistently across list and details.
 - Financial Audit Summary is read-only — derived from timeline events.
+- **Sprint 27 operational rules:** only active payments (Pending / Initialized / Processing) can be confirmed or rejected; terminal payments (Failed / Cancelled) are never resurrected — the customer starts a new payment. Confirming an already-confirmed payment is a safe no-op (idempotent). Rejecting a **COD** payment automatically cancels the store order and restocks inventory (`sale_reversal`) in the same operation. Confirming a final service payment automatically closes the completed booking. Access requires `payments.view`; Confirm/Reject require `payments.confirm`.
 
 ---
 
@@ -1094,7 +1154,8 @@ Staff moderate customer booking reviews — approving genuine feedback for publi
 | Booking / Payment / Notification / Profile | SRS §§9–13 |
 | Errors & success | SRS reliability and customer clarity NFRs |
 | Simple bottom navigation | Customer-first, minimal cognitive load |
-| Unified references | `CUS` / `BK` / `QT` / `ORD` / `PAY` / `INV` / `REF` |
+| Unified references | `CUS` / `BK` / `QT` / `ORD` / `PAY` / `INV` / `REF` / `STO` |
+| Admin operational flows (§§14, 16A, 17) | SRS §24 (Admin Operations — Sprint 27) |
 
 ---
 

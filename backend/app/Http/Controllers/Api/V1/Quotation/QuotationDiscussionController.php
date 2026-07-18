@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Quotation;
 use App\Actions\Customer\GetCustomerProfileAction;
 use App\Actions\Quotation\CreateQuotationDiscussionMessageAction;
 use App\Actions\Quotation\ListQuotationDiscussionAction;
+use App\Exceptions\Quotation\QuotationInvalidStateException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Quotation\StoreQuotationDiscussionMessageRequest;
 use App\Http\Resources\Api\V1\Quotation\QuotationDiscussionMessageResource;
@@ -74,10 +75,13 @@ class QuotationDiscussionController extends Controller
             $message = $createQuotationDiscussionMessage->handle(
                 $profile,
                 $quotation,
-                $request->validated(),
+                (string) $request->string('message'),
+                $request->uploadUuids(),
             );
         } catch (ModelNotFoundException) {
             return $this->quotationNotFound();
+        } catch (QuotationInvalidStateException $exception) {
+            return ApiResponse::error($exception->getMessage(), 'QUOTATION_INVALID_STATE', 409);
         } catch (DomainException $exception) {
             return ApiResponse::error($exception->getMessage(), 'VALIDATION_ERROR', 422);
         } catch (Throwable $exception) {

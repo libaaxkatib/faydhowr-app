@@ -421,5 +421,12 @@ class AppServiceProvider extends ServiceProvider
                 'favorites|'.($request->user()?->getAuthIdentifier() ?? $request->ip()),
             );
         });
+
+        // Admin operational mutations per API Design §16.6: 60 requests/minute/admin.
+        RateLimiter::for('admin-operations', function (Request $request): Limit {
+            return Limit::perMinute(60)->by(
+                'admin-operations|'.($request->user()?->getAuthIdentifier() ?? $request->ip()),
+            );
+        });
     }
 }

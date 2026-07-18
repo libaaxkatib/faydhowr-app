@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminPermissionController;
 use App\Http\Controllers\Api\V1\Admin\ArchivedNotificationController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\Auth\AdminAuthController;
+use App\Http\Controllers\Api\V1\Admin\Bookings\BookingController as AdminBookingController;
 use App\Http\Controllers\Api\V1\Admin\Customers\CustomerActivityController as AdminCustomerActivityController;
 use App\Http\Controllers\Api\V1\Admin\Customers\CustomerAddressController as AdminCustomerAddressController;
 use App\Http\Controllers\Api\V1\Admin\Customers\CustomerAttachmentController as AdminCustomerAttachmentController;
@@ -20,7 +21,9 @@ use App\Http\Controllers\Api\V1\Admin\Customers\CustomerNoteController as AdminC
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\NotificationTemplateController;
 use App\Http\Controllers\Api\V1\Admin\NotificationTemplateTranslationController;
+use App\Http\Controllers\Api\V1\Admin\Payments\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Api\V1\Admin\PermissionController;
+use App\Http\Controllers\Api\V1\Admin\Quotations\QuotationController as AdminQuotationController;
 use App\Http\Controllers\Api\V1\Admin\Reports\BookingReportController;
 use App\Http\Controllers\Api\V1\Admin\Reports\BookingReportSummaryController;
 use App\Http\Controllers\Api\V1\Admin\Reports\CustomerReportController;
@@ -44,6 +47,7 @@ use App\Http\Controllers\Api\V1\Admin\Settings\CompanyLogoController;
 use App\Http\Controllers\Api\V1\Admin\Settings\SettingsAuditLogController;
 use App\Http\Controllers\Api\V1\Admin\Settings\SettingsController;
 use App\Http\Controllers\Api\V1\Admin\Settings\SmtpTestController;
+use App\Http\Controllers\Api\V1\Admin\StoreOrders\StoreOrderController as AdminStoreOrderController;
 use App\Http\Controllers\Api\V1\Auth\AuthenticatedUserController;
 use App\Http\Controllers\Api\V1\Auth\GoogleAuthController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
@@ -72,8 +76,11 @@ use App\Http\Controllers\Api\V1\Product\ProductController;
 use App\Http\Controllers\Api\V1\Product\ProductImageController;
 use App\Http\Controllers\Api\V1\PurchaseOrder\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationAcceptanceController;
+use App\Http\Controllers\Api\V1\Quotation\QuotationAttachmentController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationDiscussionController;
+use App\Http\Controllers\Api\V1\Quotation\QuotationRevisionController;
+use App\Http\Controllers\Api\V1\Quotation\QuotationTimelineController;
 use App\Http\Controllers\Api\V1\Reviews\ReviewController;
 use App\Http\Controllers\Api\V1\StoreOrder\StoreOrderController;
 use App\Http\Controllers\Api\V1\Supplier\SupplierController;
@@ -185,6 +192,85 @@ Route::prefix('v1/admin/reviews')
             ->whereNumber('review')
             ->middleware('permission:reviews.moderate')
             ->name('api.v1.admin.reviews.hide');
+    });
+
+Route::prefix('v1/admin/payments')
+    ->middleware(['auth:sanctum', 'admin'])
+    ->group(function (): void {
+        Route::get('', [AdminPaymentController::class, 'index'])
+            ->middleware('permission:payments.view')
+            ->name('api.v1.admin.payments.index');
+
+        Route::get('{payment}', [AdminPaymentController::class, 'show'])
+            ->whereNumber('payment')
+            ->middleware('permission:payments.view')
+            ->name('api.v1.admin.payments.show');
+
+        Route::patch('{payment}/confirm', [AdminPaymentController::class, 'confirm'])
+            ->whereNumber('payment')
+            ->middleware(['permission:payments.confirm', 'throttle:admin-operations'])
+            ->name('api.v1.admin.payments.confirm');
+
+        Route::patch('{payment}/reject', [AdminPaymentController::class, 'reject'])
+            ->whereNumber('payment')
+            ->middleware(['permission:payments.confirm', 'throttle:admin-operations'])
+            ->name('api.v1.admin.payments.reject');
+    });
+
+Route::prefix('v1/admin/bookings')
+    ->middleware(['auth:sanctum', 'admin'])
+    ->group(function (): void {
+        Route::get('', [AdminBookingController::class, 'index'])
+            ->middleware('permission:bookings.view')
+            ->name('api.v1.admin.bookings.index');
+
+        Route::get('{booking}', [AdminBookingController::class, 'show'])
+            ->whereNumber('booking')
+            ->middleware('permission:bookings.view')
+            ->name('api.v1.admin.bookings.show');
+
+        Route::patch('{booking}/schedule', [AdminBookingController::class, 'schedule'])
+            ->whereNumber('booking')
+            ->middleware(['permission:bookings.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.bookings.schedule');
+
+        Route::patch('{booking}/start', [AdminBookingController::class, 'start'])
+            ->whereNumber('booking')
+            ->middleware(['permission:bookings.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.bookings.start');
+
+        Route::patch('{booking}/complete', [AdminBookingController::class, 'complete'])
+            ->whereNumber('booking')
+            ->middleware(['permission:bookings.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.bookings.complete');
+
+        Route::patch('{booking}/close', [AdminBookingController::class, 'close'])
+            ->whereNumber('booking')
+            ->middleware(['permission:bookings.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.bookings.close');
+
+        Route::patch('{booking}/cancel', [AdminBookingController::class, 'cancel'])
+            ->whereNumber('booking')
+            ->middleware(['permission:bookings.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.bookings.cancel');
+    });
+
+Route::prefix('v1/admin/store-orders')
+    ->middleware(['auth:sanctum', 'admin'])
+    ->group(function (): void {
+        Route::get('', [AdminStoreOrderController::class, 'index'])
+            ->middleware('permission:store_orders.view')
+            ->name('api.v1.admin.store-orders.index');
+
+        Route::get('{storeOrder}', [AdminStoreOrderController::class, 'show'])
+            ->whereNumber('storeOrder')
+            ->middleware('permission:store_orders.view')
+            ->name('api.v1.admin.store-orders.show');
+
+        Route::patch('{storeOrder}/status', [AdminStoreOrderController::class, 'updateStatus'])
+            ->whereNumber('storeOrder')
+            ->middleware(['permission:store_orders.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.store-orders.status');
     });
 
 Route::prefix('v1/admin/auth')->group(function (): void {
@@ -672,14 +758,103 @@ Route::prefix('v1/quotations')
             ->name('api.v1.quotations.index');
         Route::post('/', [QuotationController::class, 'store'])
             ->name('api.v1.quotations.store');
+        Route::patch('{quotation}', [QuotationController::class, 'update'])
+            ->whereNumber('quotation')
+            ->name('api.v1.quotations.update');
+        Route::post('{quotation}/submit', [QuotationController::class, 'submit'])
+            ->whereNumber('quotation')
+            ->name('api.v1.quotations.submit');
+        Route::post('{quotation}/cancel', [QuotationController::class, 'cancel'])
+            ->whereNumber('quotation')
+            ->name('api.v1.quotations.cancel');
+        Route::post('{quotation}/attachments', [QuotationAttachmentController::class, 'store'])
+            ->whereNumber('quotation')
+            ->name('api.v1.quotations.attachments.store');
+        Route::get('{quotation}/attachments/{attachment}', [QuotationAttachmentController::class, 'show'])
+            ->whereNumber('quotation')
+            ->whereNumber('attachment')
+            ->name('api.v1.quotations.attachments.show');
+        Route::delete('{quotation}/attachments/{attachment}', [QuotationAttachmentController::class, 'destroy'])
+            ->whereNumber('quotation')
+            ->whereNumber('attachment')
+            ->name('api.v1.quotations.attachments.destroy');
+        Route::get('{quotation}/revisions', [QuotationRevisionController::class, 'index'])
+            ->whereNumber('quotation')
+            ->name('api.v1.quotations.revisions.index');
+        Route::get('{quotation}/timeline', [QuotationTimelineController::class, 'index'])
+            ->whereNumber('quotation')
+            ->name('api.v1.quotations.timeline.index');
         Route::get('{quotation}/discussion', [QuotationDiscussionController::class, 'index'])
+            ->whereNumber('quotation')
             ->name('api.v1.quotations.discussion.index');
         Route::post('{quotation}/discussion', [QuotationDiscussionController::class, 'store'])
+            ->whereNumber('quotation')
             ->name('api.v1.quotations.discussion.store');
         Route::post('{quotation}/accept', [QuotationAcceptanceController::class, 'store'])
+            ->whereNumber('quotation')
             ->name('api.v1.quotations.accept');
         Route::get('{quotation}', [QuotationController::class, 'show'])
+            ->whereNumber('quotation')
             ->name('api.v1.quotations.show');
+    });
+
+Route::prefix('v1/admin/quotations')
+    ->middleware(['auth:sanctum', 'admin'])
+    ->group(function (): void {
+        Route::get('', [AdminQuotationController::class, 'index'])
+            ->middleware('permission:quotations.view')
+            ->name('api.v1.admin.quotations.index');
+
+        Route::get('{quotation}', [AdminQuotationController::class, 'show'])
+            ->whereNumber('quotation')
+            ->middleware('permission:quotations.view')
+            ->name('api.v1.admin.quotations.show');
+
+        Route::get('{quotation}/attachments/{attachment}/download', [AdminQuotationController::class, 'downloadAttachment'])
+            ->whereNumber('quotation')
+            ->whereNumber('attachment')
+            ->middleware('permission:quotations.view')
+            ->name('api.v1.admin.quotations.attachments.download');
+
+        Route::patch('{quotation}/assign', [AdminQuotationController::class, 'assign'])
+            ->whereNumber('quotation')
+            ->middleware(['permission:quotations.review', 'throttle:admin-operations'])
+            ->name('api.v1.admin.quotations.assign');
+
+        Route::post('{quotation}/issue', [AdminQuotationController::class, 'issue'])
+            ->whereNumber('quotation')
+            ->middleware(['permission:quotations.issue', 'throttle:admin-operations'])
+            ->name('api.v1.admin.quotations.issue');
+
+        Route::post('{quotation}/revisions', [AdminQuotationController::class, 'storeRevision'])
+            ->whereNumber('quotation')
+            ->middleware(['permission:quotations.issue', 'throttle:admin-operations'])
+            ->name('api.v1.admin.quotations.revisions.store');
+
+        Route::post('{quotation}/discussion', [AdminQuotationController::class, 'storeDiscussionMessage'])
+            ->whereNumber('quotation')
+            ->middleware(['permission:quotations.review', 'throttle:admin-operations'])
+            ->name('api.v1.admin.quotations.discussion.store');
+
+        Route::patch('{quotation}/close-discussion', [AdminQuotationController::class, 'closeDiscussion'])
+            ->whereNumber('quotation')
+            ->middleware(['permission:quotations.review', 'throttle:admin-operations'])
+            ->name('api.v1.admin.quotations.close-discussion');
+
+        Route::patch('{quotation}/expire', [AdminQuotationController::class, 'expire'])
+            ->whereNumber('quotation')
+            ->middleware(['permission:quotations.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.quotations.expire');
+
+        Route::patch('{quotation}/cancel', [AdminQuotationController::class, 'cancel'])
+            ->whereNumber('quotation')
+            ->middleware(['permission:quotations.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.quotations.cancel');
+
+        Route::patch('{quotation}/accept', [AdminQuotationController::class, 'accept'])
+            ->whereNumber('quotation')
+            ->middleware(['permission:quotations.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.quotations.accept');
     });
 
 Route::prefix('v1/orders')

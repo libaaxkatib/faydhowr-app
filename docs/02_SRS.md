@@ -289,7 +289,7 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | FR-030I | Inventory shall manage Suppliers, Purchase Orders, Goods Receipts, Stock Ledger, Stock Adjustments, Stock Quantity, and Low Stock Alerts as a domain separate from Store commerce. | Must |
 | FR-031I | Purchase Order lifecycle shall be: Draft → Submitted → Approved → Partially Received → Completed / Cancelled. Purchase Order alone shall never change stock. Goods Receipts are allowed only when the Purchase Order is `approved` or `partially_received` (never while only `submitted`). | Must |
 | FR-032I | Goods Receipt shall increase stock and create Stock Ledger entries. Goods Receipt requires a Purchase Order in `approved` or `partially_received` status. | Must |
-| FR-033I | Every stock movement shall be recorded in Stock Ledger with quantity, movement type, reference, user, and timestamp. Movement types include Purchase Receipt, Customer Sale, Stock Adjustment, Correction, Damage, and Loss. | Must |
+| FR-033I | Every stock movement shall be recorded in Stock Ledger with quantity, movement type, reference, user, and timestamp. Movement types include Purchase Receipt, Customer Sale, Sale Reversal (automatic restock after COD payment rejection — §24.4), Stock Adjustment, Correction, Damage, and Loss. | Must |
 | FR-034I | Manual stock adjustments shall require quantity and reason (`Damaged`, `Lost`, `Correction`, `Physical Count`) and shall create Stock Ledger entries. | Must |
 | FR-035I | Dashboard shall display Low Stock alerts from Current Stock vs Low Stock Threshold. Email/SMS low-stock notifications are outside V1. | Must |
 
@@ -307,16 +307,20 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-040 | The customer shall be able to submit a quotation request with requirements, attachments (if supported), and contact context. | Must |
+| FR-040 | The customer shall be able to create a quotation request as a **Draft** (requirements description, optional booking/product-request origin, contact context), attach staged uploads, and then **Submit** it for review. The request shall contain **no pricing fields of any kind**: the customer never submits subtotal, discount, tax, total, payment type, deposit percentage, or remaining balance. Pricing is **admin-only** (Sprint 28 — final). | Must |
+| FR-040C | Quotation request attachments (images/videos/PDFs via the Unified Upload Service) may be attached or detached **only while the request is in `Draft`**. Upon **Submit**, the request and its attachment set become **permanently immutable**. Additional files after submission shall be provided **only through the Discussion workflow** (discussion messages referencing upload UUIDs). The original quotation request is never modified. | Must |
 | FR-040A | The system shall provide a Unified File Upload Service for **authenticated customers only** (admin uploads remain module-specific). Customers stage files via `POST /api/v1/uploads` before attaching them to business records (first consumer: quotation requests). The public identifier for an upload is a **UUID**; numeric IDs remain internal. The owner is resolved server-side from the authenticated customer and is never client-supplied. File content is read only via owner-scoped backend streaming (`GET /api/v1/uploads/{uuid}`); storage paths are never exposed. The owner may list their **unattached, non-expired** staged uploads via `GET /api/v1/uploads` (paginated: default 20, maximum 100). Allowed types: images (JPG/JPEG/PNG/WebP), videos (MP4/MOV/WebM), PDF. Limits: image 10 MB, PDF 20 MB, video 100 MB per file; maximum 10 files per request; 20 uploads/minute/customer; total unattached staged storage capped at **500 MB per customer** (exceeding it → `409` `UPLOAD_STORAGE_LIMIT_EXCEEDED`). Limits are configuration-driven with **no Settings UI in V1**. | Must |
 | FR-040B | Unattached staged uploads shall expire **7 days** after upload; a scheduled job removes expired uploads (file content and record). The owner may delete an **unattached** upload via `DELETE /api/v1/uploads/{uuid}`; deleting an attached upload shall return `409 Conflict`. Storage is local/private in V1 with S3-compatible object storage later via configuration only. Virus scanning and EXIF stripping are **deferred** beyond V1. Attachment tables (e.g. quotation request attachments) reference uploads via **FK** without duplicating upload metadata. Legacy upload implementations (customer attachments, product images, company logo) remain unchanged; their migration is **deferred until after Backend V1**. | Must |
-| FR-041 | The system shall allow admins to issue a formal quotation against a request. | Must |
+| FR-041 | The system shall allow admins to issue a formal quotation against a submitted request. A single reviewer is assigned per quotation via `assigned_admin_id` (Sprint 28 V1: one reviewer only, no pools, no multiple reviewers; reassignment is allowed and audited). First assignment moves the request `Submitted` → `Under Review`. Only administrators may create or revise pricing (subtotal, discount, tax, total, payment type, deposit, validity). | Must |
 | FR-042 | The customer shall be able to view quotation details (line items, totals, validity period, terms, quotation number, and latest revision indicator). | Must |
 | FR-043 | After a quotation is issued, the customer shall have two primary actions: **Accept Quotation** and **Discuss Quotation**. The application shall never offer **Reject Quotation**. | Must |
 | FR-044 | Accepted quotations shall unlock the corresponding payment / fulfillment path. | Must |
 | FR-045 | **Discuss Quotation** shall keep the workflow open on the **same quotation** (no new quotation created). Customer and team may message, upload additional images/videos/PDFs, and the team may update/revise the quotation. | Must |
-| FR-046 | Quotation statuses shall be limited to: `Pending Review`, `Quotation Ready`, `Under Discussion`, `Accepted`, `Expired`, `Cancelled`. Status `Rejected` shall never be used. | Must |
-| FR-047 | Every quotation update shall create a new revision (v1, v2, v3…). Only the latest revision may be accepted; older revisions remain read-only for audit. | Must |
+| FR-046 | Quotation statuses shall be limited to: `Draft`, `Submitted`, `Under Review`, `Quotation Ready`, `Under Discussion`, `Accepted`, `Expired`, `Cancelled` (Sprint 28 — final). Status `Rejected` shall never be used. | Must |
+| FR-047 | Every quotation issue/update shall create a new **immutable revision** (Version 1, Version 2, Version 3…). Revisions are never edited or deleted. Only the **latest revision** may be accepted; acceptance requests must reference the latest revision, and an attempt to accept an older revision shall return **`409 Conflict`**. Older revisions remain read-only for comparison and audit. | Must |
+| FR-047A | The customer may accept from **`Quotation Ready` or `Under Discussion`** — there is no requirement to first return the quotation to `Quotation Ready` (Sprint 28 — final). | Must |
+| FR-047B | `Expired` is **not terminal**: an admin may issue a new revision on an expired quotation, which automatically transitions it `Expired` → `Quotation Ready`. The customer never creates a replacement request. Every new revision **must include `valid_until`**. | Must |
+| FR-047C | Legacy migration: every quotation existing before Sprint 28 shall automatically receive **Revision 1** created from its current pricing (source: `system_migration`). No quotation history is lost; no manual migration steps. | Must |
 | FR-048 | Every quotation shall have a unique Quotation Number (e.g. `QT-2026-000123`) displayed on details, PDF, notifications, revision history, admin panel, payments, support views, and receipts. | Must |
 | FR-049 | The system shall maintain a full quotation timeline (created, discussion, team replies, updates, acceptance, payment, service completion) and allow customers to view read-only revision history. | Must |
 | FR-049A | Quotation updates and new discussion messages shall generate notifications for the other party (customer or team, as applicable). | Must |
@@ -365,7 +369,7 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | --- | --- | --- |
 | FR-080 | Admins shall manage products, services, categories, pricing, and availability (subject to role — **Admin**). | Must |
 | FR-081 | Admins shall manage bookings (list/search/filter; view details with media counters, timeline with actor audit, linked records; status updates via controlled dropdown of approved statuses only; read-only Priority High/Medium/Low; booking age; informational manual Assigned To; internal staff notes with name/role/date/time). Booking Number is read-only. Bookings are never permanently deleted. No Booking Value / Estimated Value on this module. | Must |
-| FR-082 | Admins shall manage quotations (list/search/filter; view details with price breakdown, revision history with Created By/role/date/time, read-only Compare Revisions between any two versions, discussion with keyword search and attachment counters, timeline with actor audit, linked records; status updates via controlled dropdown; validity countdown on list and details; issue revisions; internal staff notes). Every quotation must originate from a **Booking** or **Product Request** only — Admin / Sales / Accountant shall never create a standalone quotation. QT Number is read-only. Quotations are never permanently deleted. Only the latest revision may be accepted. Discussion history cannot be deleted. | Must |
+| FR-082 | Admins shall manage quotations (list/search/filter; view details with price breakdown, revision history with Created By/role/date/time, read-only Compare Revisions between any two versions, discussion with keyword search and attachment counters, timeline with actor audit, linked records; **single reviewer assignment/reassignment via `assigned_admin_id` (Sprint 28 V1 — one reviewer, no pools)**; status transitions via server-enforced workflow actions only; validity countdown on list and details; issue Version 1 and revisions (pricing is admin-only); internal staff notes). Every quotation must originate from a **Booking** or **Product Request** only — Admin / Sales / Accountant shall never create a standalone quotation. QT Number is read-only and never changes across revisions. Quotations and revisions are never edited or permanently deleted. Only the latest revision may be accepted (older → `409 Conflict`). Discussion history cannot be deleted. Expired quotations are revived only by issuing a new revision (mandatory `valid_until`). | Must |
 | FR-083 | Admins shall manage orders (list/search/filter; view details with ordered items, price breakdown with discounts/delivery/tax, business summary cards, timeline with actor audit, order documents with availability status, linked records incl. **Order Documents** shortcut; status updates via controlled dropdown of approved order statuses only; **Current Stage Indicator** compact read-only label above progress tracker showing current workflow stage; **Order Progress Tracker** visual stepper Pending Payment → Confirmed → Processing → Completed highlighting current step; **Order Age** displayed in list and details; **Payment Timeline** with expanded payment events Payment Requested/Received/Confirmed/Refund Processed each with Performed By, Staff Role, Date, Time; **Documents Status** each document shows ✅ Available or ⏳ Not Available Yet; **Financial Summary** compact read-only breakdown Subtotal/Discount/Delivery Fee/Tax/Grand Total/Amount Paid/Remaining Balance; **Latest Note indicator** read-only timestamp of most recent internal note). Every order is created **automatically** from an accepted quotation — no manual Create Order. Order Number is read-only. Orders are never permanently deleted. Every order remains permanently linked to its originating Booking or Product Request and its accepted Quotation. **Payment Status color system** standardized across Admin Panel: Paid (green), Partially Paid (orange), Unpaid (red), Refunded (blue). Order statuses: Pending Payment, Confirmed, Processing, Completed, Cancelled. Internal staff notes with name/role/date/time. | Must |
 | FR-084 | Admins shall manage customer profiles (list/search/filter with default **Active Customers**; view profile joined to `users` contact data, Member Since, business summary including **Total Spent**, timeline with icons, linked records; internal staff notes with name/role/date/time audit; manage Customer Status per the canonical set `ACTIVE` / `INACTIVE` / `BLOCKED` / `DELETED` — see FR-092). Customer Code is auto-generated and read-only on `customer_profiles`. Classification is **Lead** vs **Active Customer** (no VIP). Customer identities and profiles are never permanently deleted (soft delete only). Full Customer Management requirements are specified in FR-092. | Must |
 | FR-085 | Admins shall configure notification templates and operational settings (**Admin**). | Should |
@@ -691,12 +695,13 @@ Every stock movement is recorded. Movement types include:
 
 - Purchase Receipt
 - Customer Sale
+- Sale Reversal (Sprint 27 — used **only** for automatic inventory restoration after a COD payment rejection, §24.4)
 - Stock Adjustment
 - Correction
 - Damage
 - Loss
 
-Ledger stores quantity, movement type, reference, user, and timestamp.
+Ledger stores quantity, movement type, reference, user, and timestamp. A Sale Reversal entry records a **positive** quantity referencing the cancelled store order, mirroring the original Customer Sale deduction line for line.
 
 ### 8A.7 Inventory Adjustment
 
@@ -740,7 +745,7 @@ Allow a customer to use **Book Now** for any active service, track the resulting
 2. Customer reviews the standard service details and pricing information.
 3. Customer provides a **Requested Schedule**: `requested_date` and `requested_time_window`, then enters required location and notes.
 4. System validates eligibility, lead time, and capacity.
-5. System creates a **Booking** owned by `customer_profile_id`, assigns a unique `BK-YYYY-######` public booking number, snapshots the selected address/service context, and sets initial status **Pending Review** (see §9.6).
+5. System creates a **Booking** owned by `customer_profile_id`, assigns a unique `BK-YYYY-######` public booking number, snapshots the selected address/service context, and sets initial status **Submitted** (see §9.6).
 6. System notifies customer and operations of the new booking.
 7. Operations reviews/fulfills as needed, sets the **Confirmed Schedule** (`scheduled_start_at`, `scheduled_end_at`), and updates status.
 8. Customer pays when the booking becomes payable (immediately, on confirmation, or on completion — per service policy).
@@ -753,7 +758,7 @@ Allow a customer to use **Book Now** for any active service, track the resulting
 | --- | --- |
 | Requested time window unavailable | Reject creation; prompt customer to choose another requested time window |
 | Service deactivated mid-flow | Prevent submission; show unavailable message |
-| Customer cancelation allowed | Transition to cancelled; apply refund rules if paid |
+| Customer cancelation allowed | Transition to cancelled. Paid payments remain `paid` (refunds are out of V1 scope — V2); active payments (`initialized` / `pending` / `processing`) are automatically failed in the same transaction (§24.3) |
 | Customer cancelation not allowed | Block cancel; show policy message |
 | Payment failure | Keep booking in payable state; allow retry |
 | No-show / operational cancel | Admin updates status; notify customer; apply policy |
@@ -762,6 +767,7 @@ Allow a customer to use **Book Now** for any active service, track the resulting
 
 Approved Admin Panel booking statuses (display labels):
 
+- `Submitted` (system-set initial status at booking creation — never admin-selectable)
 - `Pending Review`
 - `Quotation Ready`
 - `Under Discussion`
@@ -778,6 +784,9 @@ Notes:
 
 - `Draft` remains client-side only and is not persisted as a server booking.
 - **`Rejected` is never used.**
+- **`Accepted` is automatic (Sprint 27 — final):** customer acceptance of the quotation automatically moves the booking to `Accepted` in the same transaction. There is **no separate admin acceptance step**. Flow: Submitted → Quotation Issued → Customer Accepts Quotation → **Booking Accepted (automatic)** → Payment (if required) → Scheduled.
+- `Scheduled`, `In Progress`, `Completed`, `Closed`, and admin `Cancelled` transitions are performed through the Admin Operations APIs (§24).
+- **Cancellation payment rules (Sprint 27 — final):** cancelling a booking never reverses a `paid` payment (deposit stays `paid`, booking becomes `Cancelled`; refunds belong to V2). Any still-active payment (`initialized` / `pending` / `processing`) is automatically set to `failed` inside the same cancellation transaction — no active payment may remain attached to a cancelled booking.
 - Payment events appear on the booking timeline and in linked Payments/Orders; they are not separate booking status values.
 - Booking media in V1 supports **Images** and **Videos** only. Documents are not Booking Media V1.
 
@@ -811,16 +820,16 @@ Support assessment/review pricing for every service by allowing customers to cho
 ### 10.4 Main Flow
 
 1. Customer selects **Request Quotation** from any active service (or an approved product request entry point).
-2. Customer submits requirements: description, preferred timing, location, attachments (images/videos/PDFs as enabled).
-3. System creates the quotation record with a unique Quotation Number (e.g. `QT-2026-000123`) in status **Pending Review**.
-4. System notifies operations.
-5. Fayadhowr team reviews the request; discussion/clarification occurs **on the same quotation** when needed (in-app, v1).
-6. Team issues a formal **Quotation** (revision v1) with line items, total, taxes/fees (if any), validity period, and terms.
+2. System creates the quotation record as a **Draft** with a permanent, unique Quotation Number (e.g. `QT-2026-000123`). The request carries **no pricing fields** — requirements description, preferred timing, location, and origin only.
+3. Customer stages files through the Unified Upload Service (images/videos/PDFs) and attaches them to the Draft by upload UUID. Attach/detach is allowed **only while in Draft**.
+4. Customer **Submits** the request: status becomes **Submitted**; the request and its attachment set become **permanently immutable**. System notifies operations.
+5. An admin is assigned as the single reviewer (`assigned_admin_id`): status becomes **Under Review**. Reassignment is allowed; clarification occurs **on the same quotation** via Discussion (in-app, v1).
+6. Team issues a formal **Quotation** (**Version 1**) with line items, total, taxes/fees (if any), **mandatory validity period (`valid_until`)**, and terms. Pricing is admin-only.
 7. Status becomes **Quotation Ready**. System notifies the customer (includes Quotation Number).
 8. Customer reviews the latest quotation (Latest Version / current revision clearly indicated).
 9. Customer primary actions: **Accept Quotation** or **Discuss Quotation**.
-10. If **Discuss Quotation**: status becomes **Under Discussion**. Customer and team may exchange messages and additional files; team may update the quotation creating **v2, v3…** on the **same** quotation (never a separate quotation). Each update notifies the customer. Discussion **never closes** the quotation.
-11. If **Accept Quotation** (latest revision only, while not Expired/Cancelled): status becomes **Accepted**; the system snapshots the service payment policy onto the quotation (`payment_type`, `deposit_percentage`, `deposit_amount`, `remaining_amount`) and unlocks **Payment** according to that policy.
+10. If **Discuss Quotation**: status becomes **Under Discussion**. Customer and team may exchange messages and additional files (via discussion-message upload UUIDs); team may revise the quotation creating **Version 2, Version 3…** on the **same** quotation (never a separate quotation; the Quotation Number never changes). Each revision notifies the customer. Discussion **never closes** the quotation.
+11. If **Accept Quotation** (allowed from **Quotation Ready or Under Discussion**; must reference the **latest revision**, otherwise `409 Conflict`; blocked while Expired/Cancelled): status becomes **Accepted**; the system snapshots the service payment policy onto the quotation (`payment_type`, `deposit_percentage`, `deposit_amount`, `remaining_amount`), **automatically moves the linked booking to `Accepted` in the same transaction (Sprint 27 — no admin acceptance step)**, and unlocks **Payment** according to that policy.
 12. Customer pays according to the snapshotted service payment policy (§23.4):
     - `full_before_service` — the full quotation total is payable; the booking becomes **Scheduled** only after full payment is confirmed.
     - `deposit` — the customer pays `quotation_total × deposit_percentage`; the booking becomes **Scheduled** only after the deposit payment is confirmed. After service completion, the remaining balance becomes payable; the booking becomes **Closed** after an admin confirms the final payment.
@@ -831,11 +840,14 @@ Support assessment/review pricing for every service by allowing customers to cho
 
 | Scenario | Behavior |
 | --- | --- |
-| Incomplete request | Validation errors; record not created |
-| Quote expired | Acceptance blocked; status **Expired**; Discuss may still follow company policy for revival via revision if allowed |
-| Cancelled | Status **Cancelled** per company policy; acceptance blocked |
+| Incomplete request | Validation errors; Draft not submitted |
+| Customer edits after Submit | Blocked (`409 Conflict`); request and attachments are immutable after Submit |
+| Customer cancels own request | Allowed only in **Draft** or **Submitted** (pre-pricing); status **Cancelled** |
+| Quote expired | Customer acceptance and discussion blocked; status **Expired**. **Not terminal**: an admin revision (with mandatory `valid_until`) automatically transitions **Expired → Quotation Ready**; the customer never creates a new request |
+| Cancelled | Status **Cancelled** per company policy (admin-only after pricing); acceptance blocked; terminal |
 | Customer chooses Discuss | Status **Under Discussion**; workflow remains open on same Quotation Number |
-| Quotation updated / revised | New revision (vN); prior revisions read-only; customer notified (“Your quotation has been updated…”) |
+| Quotation updated / revised | New immutable revision (Version N); prior revisions read-only; customer notified (“Your quotation has been updated…”) |
+| Customer accepts an older revision | **`409 Conflict`**; only the latest revision is acceptable; client refetches and re-confirms |
 | New discussion message | Notification to the other party |
 | Payment after accept fails | Acceptance retained; payment remains retryable until cancelled by policy |
 
@@ -845,12 +857,18 @@ Use **only** these statuses:
 
 | Status | Meaning |
 | --- | --- |
-| **Pending Review** | Submitted; awaiting team review / first issue |
-| **Quotation Ready** | Latest formal quotation available for customer review |
-| **Under Discussion** | Discuss Quotation is active; messaging and/or revisions in progress |
-| **Accepted** | Customer accepted the **latest** revision; payment path unlocked |
-| **Expired** | Validity ended; cannot be accepted |
-| **Cancelled** | Closed per company policy; cannot be accepted |
+| **Draft** | Request being composed; editable; attachments mutable |
+| **Submitted** | Request sent for review; request and attachments permanently immutable |
+| **Under Review** | Single reviewer assigned (`assigned_admin_id`); evaluation in progress |
+| **Quotation Ready** | Latest formal quotation (revision) available for customer review |
+| **Under Discussion** | Discuss Quotation is active; messaging and/or revisions in progress; **acceptance remains allowed** |
+| **Accepted** | Customer accepted the **latest** revision; payment path unlocked; terminal |
+| **Expired** | Validity ended; customer acceptance/discussion blocked; **revivable by admin revision → Quotation Ready** |
+| **Cancelled** | Closed per company policy; cannot be accepted; terminal |
+
+Allowed transitions: `Draft → Submitted | Cancelled` · `Submitted → Under Review | Cancelled` · `Under Review → Quotation Ready | Cancelled` · `Quotation Ready → Under Discussion | Accepted | Expired | Cancelled` · `Under Discussion → Quotation Ready | Accepted | Expired | Cancelled` · `Expired → Quotation Ready (admin revision only) | Cancelled`. Terminal states: `Accepted`, `Cancelled`.
+
+Legacy migration (Sprint 28): existing `Pending Review` quotations map to **Submitted**; every existing quotation automatically receives **Revision 1** from its current pricing (source `system_migration`) so no history is lost.
 
 **Never use** status or action labels: `Rejected`, `Reject Quotation`, or equivalent.
 
@@ -859,20 +877,24 @@ Use **only** these statuses:
 | Rule | Behavior |
 | --- | --- |
 | Discuss vs Reject | **Discuss Quotation** replaces Reject everywhere |
-| Same quotation | Discussion and revisions stay on the same Quotation Number |
-| Version control | Each update creates Quotation v1, v2, v3…; only latest may be accepted |
-| Latest indicator | UI must show **Latest Version** or **Revision N (Current)** |
-| Revision history | Customers may open **View Revision History** (read-only) |
-| Timeline | Maintain history: Quotation Created, Customer Discussion, Team Replies, Quotation Updated, Customer Acceptance, Payment, Service Completion |
-| Notifications | Every quotation update and every new discussion message notifies the other party |
+| Same quotation | Discussion and revisions stay on the same Quotation Number; the Quotation Number is **immutable** — generated once, it never changes (`QT-2026-000001` → Version 1, Version 2, Version 3…) |
+| Version control | Each issue/revise creates an **immutable** revision with a **strictly increasing** version number (Version 1 → 2 → 3 → 4 …); version numbers are **never reused and never reset** (even future archive/delete operations must not reuse them); revisions are never edited or deleted; only the latest may be accepted (older → `409 Conflict`) |
+| Latest indicator | UI must show **Latest Version** or **Revision N (Current)**; the quotation tracks its latest revision (`latest_revision_id`), which must always reference the **highest version number** — database and application layers prevent out-of-sync revisions |
+| Action flags | The API returns server-calculated `can_accept` / `can_discuss` flags on every quotation payload; these flags are **authoritative** — clients (Flutter, Web, future) never recreate the business logic and only display what the server returns |
+| Revision history | Customers may open **View Revision History** (read-only); admins may compare any two versions |
+| Timeline | Maintain history keyed by Quotation Number + Version: Request Created, Submitted, Reviewer Assigned, Quotation Issued (Version N), Customer Discussion, Team Replies, Quotation Revised (Version N), Customer Acceptance, Payment, Service Completion |
+| Notifications | Every quotation revision and every new discussion message notifies the other party |
+| Attachments | Request attachments freeze at Submit; post-submit files travel only via Discussion messages (upload UUIDs) |
 
 ### 10.8 Commercial Rules
 
-- Only the **latest** revision of a quotation may be accepted.
+- Customers **never** submit pricing: no subtotal, discount, tax, total, payment type, deposit percentage, or remaining balance. Pricing is created and revised **only by administrators**.
+- Only the **latest** revision of a quotation may be accepted; accepting an older revision returns **`409 Conflict`**.
+- Acceptance is allowed from **Quotation Ready** or **Under Discussion**.
 - Older revisions remain available read-only for transparency and auditing.
 - Acceptance creates a binding customer intent subject to terms and moves the customer to **Payment**.
 - Discussion never closes a quotation.
-- Expired and Cancelled quotations cannot be accepted.
+- Expired and Cancelled quotations cannot be accepted. Expired quotations may be revived only by an admin revision (mandatory `valid_until`), returning them to **Quotation Ready**.
 
 ### 10.9 Unified Reference Numbers & Linked Records
 
@@ -1072,7 +1094,7 @@ The Admin Panel is the operational control plane for Fayadhowr. It is **not** pa
 | **Bookings** | List/filter bookings, assign, update status, add internal notes |
 | **Quotations** | Review requests, issue/revise quotes, set validity and terms |
 | **Orders** | Fulfill Store Orders, update processing/completion status |
-| **Payments** | View transactions, confirm offline payments (bank transfer / cash — V1 admin verification), reconcile exceptions (refunds outside V1) |
+| **Payments** | View transactions, confirm offline payments (bank transfer / cash — V1 admin verification), reject payments with reason (COD rejection cancels the order and restocks — §24.4), reconcile exceptions (refunds outside V1) |
 | **Customers** | Search/filter `customer_profiles` with joined `users` contact data; view profile, business summary, timeline, linked records; internal staff notes; Inactive/suspend per policy — never permanent delete |
 | **Notifications** | Templates, manual broadcast (optional), delivery diagnostics |
 | **Settings** | Business info, currency, payment provider config, roles/permissions |
@@ -1828,6 +1850,98 @@ The system shall register customer devices to support **future** push notificati
 - BR-P05: Accepted quotations are immutable with respect to later service payment-policy changes (snapshot rule).
 - BR-P06: A booking is `Closed` only when the service is completed and all required payments are confirmed.
 - BR-P07: Devices are user-owned, minimal-field records for future push delivery only.
+
+---
+
+## 24. Admin Operations Module (Sprint 27)
+
+### 24.1 Objective
+
+Expose the operational payment, booking, and store-order lifecycles through secure Admin APIs so administrators can confirm/reject offline payments, run bookings from scheduling to closure, and advance store-order fulfilment — with RBAC, auditing, and mandatory customer notifications.
+
+### 24.2 Payment Administration
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| FR-096.1 | Admins shall list and view payments in any status with filters (status, method, stage, payable type, customer, date range, payment/receipt number search), paginated. | Must |
+| FR-096.2 | Admins shall confirm offline payments (`pending`/`initialized`/`processing` → `paid`) with full audit (confirming admin, timestamp) and a once-generated receipt number. Confirming an already-`paid` payment is idempotent. Terminal payments (`failed`/`cancelled`) can never be confirmed. | Must |
+| FR-096.3 | Admins shall reject active payments with a required reason (→ `failed`). Rejecting a **prepaid** payment leaves the payable unchanged; the customer may retry with a new payment. | Must |
+| FR-096.4 | Confirming a payment shall apply the payable side effects atomically: prepaid store order → stock deduction + `confirmed`; COD store order at `payment_pending` → `completed`; service order → `confirmed`; final service payment → booking `Completed` → `Closed`. | Must |
+
+### 24.3 Booking Administration
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| FR-096.5 | Admins shall list and view bookings in any status with filters (status, service, customer, date range, booking number search), paginated, including computed payment-gate indicators (`can_schedule`, `can_close`). | Must |
+| FR-096.6 | Booking acceptance is **automatic** on customer quotation acceptance. There shall be **no admin acceptance endpoint**. | Must |
+| FR-096.7 | Admins shall schedule an `Accepted` booking (confirmed schedule window required) only when the snapshotted payment policy's gate is satisfied (deposit paid / full paid / no payment for `pay_after_service`). | Must |
+| FR-096.8 | Admins shall transition `Scheduled` → `In Progress` → `Completed`; completing a booking makes the remaining balance payable per the snapshotted policy. | Must |
+| FR-096.9 | Admins shall close a `Completed` booking only when **all** required payments are `paid`; closure also happens automatically when the final payment is confirmed. | Must |
+| FR-096.10 | Admins shall cancel a booking from any state before `Completed` with a required reason. Paid payments stay `paid` (refunds are V2); active payments are automatically failed in the same transaction — no active payment remains attached to a cancelled booking. Status reversions are not supported. | Must |
+
+### 24.4 Store Order Administration
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| FR-096.11 | Admins shall list and view store orders in any status with filters (status, customer, payment status, date range, STO number search), paginated. | Must |
+| FR-096.12 | Admins shall advance store-order fulfilment through server-enforced transitions only: `confirmed` → `preparing` (COD) / `processing` (prepaid); `preparing` → `out_for_delivery` → `delivered` → `payment_pending`; `processing`/`delivered` → `completed` only when no active payment exists. A COD order completes **only** via payment confirmation. | Must |
+| FR-096.13 | **COD payment rejection cascade (official V1 rule):** rejecting a COD payment shall, in one database transaction, set the payment `failed`, the store order `cancelled`, and automatically restock inventory — each order line writes a positive `sale_reversal` Stock Ledger entry restoring product stock. The cascade applies only while the order is not already `completed`/`cancelled`. | Must |
+
+### 24.5 Mandatory Customer Notifications (V1)
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| FR-096.14 | The system shall notify the customer on: **Payment Confirmed**, **Payment Rejected**, **Booking Scheduled**, **Booking Completed**, **Booking Cancelled**. | Must |
+| FR-096.15 | Notifications shall be dispatched **after successful database commit**. Notification failures shall **never** roll back or block business transactions. | Must |
+
+### 24.6 Security
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| FR-096.16 | Admin Operations permissions: `payments.view`, `payments.confirm`, `bookings.view`, `bookings.manage`, `store_orders.view`, `store_orders.manage` — enforced per route via permission middleware within Hybrid RBAC. | Must |
+| FR-096.17 | Every mutation shall run in a database transaction with row-level locking on the aggregate, write the domain status history with the acting admin, and emit an Audit Event (admin, action, entity, prior → new status, reason, IP, user agent) queryable in Audit Logs. | Must |
+| FR-096.18 | Admin Operations mutation endpoints shall be rate-limited (60 requests per minute per admin). Confirmation shall be safe under concurrent double-submission (idempotent). | Must |
+
+### 24.7 Business Rules
+
+- BR-O01: Booking acceptance is a customer-driven automatic transition; admins never accept bookings.
+- BR-O02: Cancelling a booking never reverses money: `paid` stays `paid`; refunds belong to V2.
+- BR-O03: No active payment may remain attached to a cancelled booking (auto-fail in the same transaction).
+- BR-O04: COD rejection always cancels the order and restocks inventory via `sale_reversal` ledger entries.
+- BR-O05: `sale_reversal` is used exclusively for automatic COD-rejection restock — never for manual adjustments.
+- BR-O06: A store order never reaches `completed` while an active payment exists.
+- BR-O07: The five V1 notifications are mandatory and dispatched after commit only.
+
+---
+
+## 25. Quotation Request Workflow Administration (Sprint 28)
+
+### 25.1 Permissions
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| FR-097.1 | Quotation permissions: `quotations.view` (queue, detail, attachments), `quotations.review` (assign/reassign reviewer, discussion reply, close discussion), `quotations.issue` (issue Version 1 and revisions), `quotations.manage` (expire, cancel, accept on customer's behalf) — enforced per route via permission middleware within Hybrid RBAC. | Must |
+
+### 25.2 Audit Events
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| FR-097.2 | Audit Events shall be emitted for: Assign Reviewer, Issue Quotation, Revision, Close Discussion, Expire, Cancel, and Admin Accept. Every audit payload shall include `quotation_number`, `version_number` (where applicable), `admin_id`, `previous_status`, `new_status`, `timestamp`, and `reason` (where applicable). | Must |
+
+### 25.3 Notifications
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| FR-097.3 | The system shall notify the relevant party on: **Quotation Submitted** (to operations), **Quotation Issued**, **Quotation Revised**, **Discussion Reply**, **Quotation Expired**, **Quotation Cancelled**. | Must |
+| FR-097.4 | Quotation notifications shall be dispatched **after successful database commit** (`DB::afterCommit()` pattern); notification failures shall never roll back or block business transactions. | Must |
+
+### 25.4 Security
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| FR-097.5 | Every quotation mutation shall run in a database transaction with row-level locking on the quotation aggregate; revision `version_number` values shall be assigned under the row lock (revision concurrency protection). | Must |
+| FR-097.6 | Customer acceptance shall validate the referenced revision is the **latest** inside the locked transaction; stale references return `409 Conflict` (latest-revision validation). | Must |
+| FR-097.7 | Customer quotation endpoints enforce ownership scoping (non-owned records resolve as `404`); admin mutation endpoints are rate-limited per the Admin Operations limiter. | Must |
 
 ---
 

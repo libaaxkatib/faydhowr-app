@@ -71,6 +71,14 @@ class Booking extends Model
     }
 
     /**
+     * @return HasMany<Quotation, $this>
+     */
+    public function quotations(): HasMany
+    {
+        return $this->hasMany(Quotation::class);
+    }
+
+    /**
      * @return HasOne<Review, $this>
      */
     public function review(): HasOne

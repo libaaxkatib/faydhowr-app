@@ -4,7 +4,9 @@ namespace App\Actions\Booking;
 
 use App\Contracts\Booking\Services\BookingPaymentGateInterface;
 use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
+use App\Enums\AuditAction;
 use App\Enums\BookingStatus;
+use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\Booking;
 use DomainException;
@@ -51,6 +53,18 @@ class CloseBookingAction
 
             return $booking;
         });
+
+        event(AuditEvent::record(
+            action: AuditAction::BookingClose,
+            admin: $admin,
+            description: 'Booking closed.',
+            entityType: Booking::class,
+            entityId: $booking->id,
+            metadata: [
+                'previous_status' => BookingStatus::Completed->value,
+                'new_status' => BookingStatus::Closed->value,
+            ],
+        ));
 
         $this->dashboardCache->invalidate();
 

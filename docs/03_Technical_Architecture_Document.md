@@ -169,7 +169,13 @@ payments
 
 The approved Payment V1 lifecycle is: Pending → Initialized → Processing → Paid, Failed, or Cancelled. Refunds are outside V1.
 
-Orders begin in `pending_payment`. When a payment becomes Paid, the originating Order becomes `confirmed`. For Store Orders, Payment = Paid is also the sole trigger that decreases product stock and writes a Stock Ledger customer-sale entry; Failed or Cancelled payments do not change stock and do not automatically cancel an Order. Payment status transitions must be transactional and leave the originating domain responsible for its own allowed transitions.
+Orders begin in `pending_payment`. When a payment becomes Paid, the originating Order becomes `confirmed`. For prepaid Store Orders, Payment = Paid triggers the stock decrease and writes a Stock Ledger customer-sale entry; Cash on Delivery Store Orders (Sprint 26) confirm and deduct stock at order creation, with the COD payment remaining `pending` until admin confirmation. Failed or Cancelled prepaid payments do not change stock and do not automatically cancel an Order. Payment status transitions must be transactional and leave the originating domain responsible for its own allowed transitions.
+
+**Sprint 27 — Admin verification and rejection:**
+
+- Admin **confirmation** (`pending`/`initialized`/`processing` → `paid`) and **rejection** (→ `failed`, required reason) are exposed through the Admin Operations APIs, each executed in one database transaction with row-level locking and idempotent confirm behavior.
+- **COD rejection cascade (official V1 rule):** rejecting a COD payment atomically sets the payment `failed`, cancels the store order, and restocks inventory via positive `sale_reversal` Stock Ledger entries (§10B.4).
+- **Booking cancellation:** paid payments are never reversed (refunds are V2); payments still `initialized`/`pending`/`processing` for a cancelled booking's order(s) are automatically set to `failed` inside the same cancellation transaction.
 
 ### 10.3 Payment Persistence and Receipts
 
@@ -200,7 +206,7 @@ Products remain a single business entity shared across Store and Inventory. Prod
 
 ### 10A.3 Store Order and Stock Rules
 
-Store Orders reuse the Unified Payment Module and follow `pending_payment` → `confirmed` → `processing` → `completed` / `cancelled`. Creating a Store Order never decreases stock. Stock decreases only after Payment = Paid. Failed or cancelled payments leave stock unchanged. Negative stock and overselling are not allowed.
+Store Orders reuse the Unified Payment Module. Prepaid orders follow `pending_payment` → `confirmed` → `processing` → `completed` / `cancelled`; stock decreases only after Payment = Paid. Cash on Delivery orders (Sprint 26) confirm and deduct stock at creation, then follow `confirmed` → `preparing` → `out_for_delivery` → `delivered` → `payment_pending` → `completed` (completion only via admin payment confirmation). Admin fulfilment transitions are server-enforced through the Admin Operations status endpoint (Sprint 27); an order never reaches `completed` while an active payment exists. If an admin rejects a COD payment, the order is cancelled and stock is restored via `sale_reversal` ledger entries in the same transaction. Negative stock and overselling are not allowed.
 
 ## 10B. Inventory Domain Architecture
 
@@ -225,11 +231,69 @@ Submitted Purchase Orders must not receive inventory. Approval is required befor
 
 ### 10B.4 Stock Ledger
 
-Every stock movement is recorded in `stock_ledgers` with quantity, movement type, polymorphic reference, and timestamp. Movement types include Purchase Receipt, Customer Sale, Adjustment, Correction, Damage, and Loss.
+Every stock movement is recorded in `stock_ledgers` with quantity, movement type, polymorphic reference, and timestamp. Movement types include Purchase Receipt, Customer Sale, Sale Reversal, Adjustment, Correction, Damage, and Loss.
+
+**Sale Reversal (Sprint 27):** `sale_reversal` is a dedicated movement type used **only** for automatic inventory restoration after an admin rejects a Cash on Delivery payment. It writes positive entries referencing the cancelled Store Order, mirroring the original customer-sale deduction line for line, inside the same transaction as the payment rejection and order cancellation. It is never created manually and is not available to Inventory Adjustments.
 
 ### 10B.5 Low Stock
 
 Each product defines Current Stock and Low Stock Threshold. Dashboard displays Low Stock alerts. Email/SMS low-stock notifications are outside V1.
+
+## 10C. Admin Operations Architecture (Sprint 27)
+
+### 10C.1 Module Boundary
+
+Admin Operations exposes the existing payment, booking, and store-order domain actions through secure Admin APIs: payment confirm/reject, booking schedule/start/complete/close/cancel, and store-order fulfilment transitions. Controllers stay thin; every mutation delegates to a single-responsibility domain action (e.g. offline payment confirmation, payment rejection, booking scheduling/closure, store-order status advancement) executed inside a database transaction.
+
+### 10C.2 Booking Acceptance
+
+Booking acceptance is **automatic**: when a customer accepts a quotation, the same transaction that accepts the quotation and applies the payment-policy snapshot also moves the linked booking `submitted` → `accepted`. There is no admin acceptance action or endpoint. Admin booking transitions begin at scheduling and are gated by the snapshotted payment policy (deposit/full paid before `scheduled`; all required payments paid before `closed`).
+
+### 10C.3 Transactions, Concurrency, and Audit
+
+- Every mutation runs in one database transaction with row-level locking (`lockForUpdate`) on the aggregate row; receipt-number generation uses the yearly-sequence advisory lock.
+- Payment confirmation is idempotent under concurrent double-submission; terminal payment states are never resurrected.
+- Every mutation writes the domain status history with the acting admin and dispatches an `AuditEvent` (actor, action, entity, prior → new status, reason/metadata, IP, user agent) persisted by the audit listener.
+- Routes enforce Hybrid RBAC via permission middleware with the Sprint 27 keys: `payments.view`, `payments.confirm`, `bookings.view`, `bookings.manage`, `store_orders.view`, `store_orders.manage`. Mutation endpoints are rate-limited (60 requests/minute/admin).
+
+### 10C.4 Mandatory V1 Notifications
+
+Five customer notifications are mandatory in V1 — Payment Confirmed, Payment Rejected, Booking Scheduled, Booking Completed, Booking Cancelled. They are published as domain events consumed by the Notification Module (§11) and dispatched **after the business transaction commits**; notification failures never roll back or block business transactions.
+
+## 10D. Quotation Request Workflow Architecture (Sprint 28)
+
+### 10D.1 Module Boundary
+
+The Quotation module separates the **customer request** (quotation head: requirements, attachments, lifecycle status, reviewer assignment, latest-revision pointer) from **admin-issued pricing** (immutable `quotation_revisions`). Customers never submit pricing — no pricing field exists on any customer-facing request, DTO, or Form Request. All pricing enters the system exclusively through admin issue/revise actions.
+
+### 10D.2 Layering (existing patterns)
+
+- **Repositories** — quotation and revision repositories behind contracts; the revision repository is append-only (create + read; no update/delete methods).
+- **Service Layer / Domain Actions** — single-responsibility actions per workflow step: create draft, update draft, submit, customer cancel, attach/detach draft attachments, assign reviewer, issue revision (Version 1 and n+1, including expired revival), admin discussion reply, close discussion, expire, admin cancel, accept (customer and admin-on-behalf). Controllers stay thin.
+- **readonly DTOs** — request payloads and admin list filters (status, assignee, customer, origin, dates) travel as readonly DTOs.
+- **Form Requests / API Resources** — validation at the HTTP boundary; resources expose the head + latest revision + revision history + timeline; storage paths never leave the backend.
+- **Server-calculated business flags** — every quotation resource includes `can_accept` and `can_discuss`, computed server-side from status, latest revision, and validity. These flags are **authoritative**: Flutter, Web, and any future client must never recreate the business logic and only display the values returned by the API; the server independently re-validates every action.
+
+### 10D.3 Revision System
+
+- Revisions are immutable rows versioned per quotation (`version_number` starting at 1, **strictly increasing**, enforced by `UNIQUE (quotation_id, version_number)`); version numbers are **never reused and never reset** — even future archive/delete operations must not free them. Revisions are created only by admin actions.
+- The head's `latest_revision_id` must always reference the revision with the **highest `version_number`**; the pointer is advanced in the same transaction that inserts the revision, so the database constraints and the application layer jointly prevent out-of-sync revisions.
+- `version_number` is assigned **inside the row-locked transaction** on the quotation head, preventing duplicate versions under concurrent revising.
+- Acceptance validates the referenced revision is the latest inside the same lock; stale references return `409 Conflict`. Acceptance is allowed from `quotation_ready` or `under_discussion`.
+- Issuing a revision on an `expired` quotation automatically revives it to `quotation_ready`; every revision requires `valid_until`.
+- The permanent quotation number is generated once at draft creation (existing yearly-sequence advisory lock); revisions never receive numbers.
+- **Legacy migration:** a data migration creates Revision 1 (`source = system_migration`, null issuer) from each existing quotation's pricing columns and maps `pending_review` to `submitted`; no history is lost.
+
+### 10D.4 Attachments (Upload Service integration)
+
+Request attachments reference staged uploads by FK/UUID via the Unified Upload Service; attaching sets `uploads.attached_at`. Ownership, media-type allow-list, and size caps are enforced at staging. Attach/detach is restricted to `draft`; on submit the set becomes immutable — post-submit files flow only through discussion-message attachments using the same upload references.
+
+### 10D.5 Transactions, Concurrency, Audit, Events
+
+- Every mutation runs in one database transaction with `lockForUpdate` on the quotation head and writes `quotation_status_histories` with the acting party.
+- Audit Events are emitted for Assign Reviewer, Issue, Revision, Close Discussion, Expire, Cancel, and Admin Accept, carrying `quotation_number`, `version_number` (where applicable), `admin_id`, `previous_status`, `new_status`, `timestamp`, and `reason` (where applicable).
+- Domain events (Quotation Submitted, Issued, Revised, Discussion Reply, Expired, Cancelled) are consumed by notification listeners and dispatched via `DB::afterCommit()`; listener failures are logged and never roll back business transactions.
+- Routes enforce Hybrid RBAC with the Sprint 28 keys — `quotations.view`, `quotations.review`, `quotations.issue`, `quotations.manage` — plus customer ownership scoping; admin mutations share the admin-operations rate limiter.
 
 ## 11. Notification Architecture
 
@@ -242,6 +306,7 @@ Sprint 12 Notification Architecture (Option B):
 5. **Enterprise lifecycle:** `pending` → `processing` → `sent` → `delivered` → `read`, with `processing` → `failed`. V1 in-app auto-marks `delivered` after successful send; email/SMS await provider callbacks for `delivered`.
 6. **Archive:** Terminal `read`/`failed` rows move atomically to `archived_notifications` (admin browse with `notifications.manage`).
 7. **Idempotency:** Unique (`recipient_type`, `recipient_id`, `channel`, `event_id`).
+8. **After-commit dispatch (Sprint 27, extended by Sprint 28):** transactional business events (payment confirmed/rejected, booking scheduled/completed/cancelled, quotation submitted/issued/revised/discussion reply/expired/cancelled) publish their notification events only **after the database transaction commits** (`DB::afterCommit()`). A notification failure is recorded through the notification lifecycle (`failed`) and never rolls back or blocks the business transaction.
 
 ## 12. Logging & Error Handling
 

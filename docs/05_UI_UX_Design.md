@@ -460,15 +460,15 @@ Store is a separate product-commerce module. Its Categories, Product List, Produ
 
 | Field | Specification |
 | --- | --- |
-| **Purpose** | Submit service or product quote request with optional files |
-| **Components** | Target summary (service/product); requirements; **Description** multiline text area; timing/location/qty; file uploader; format hint |
-| **Buttons** | Add files; Remove file; Submit Request |
-| **Inputs** | Requirements (required); **Description (Optional)** multiline text area; preferred timing; location; quantity hint; files |
-| **Navigation** | Soft auth; Confirmation; History |
+| **Purpose** | Compose a service or product quote request as a **Draft** with optional files, then Submit — **no pricing inputs of any kind** (pricing is issued by the team) |
+| **Components** | Target summary (service/product); requirements; **Description** multiline text area; timing/location/qty; file uploader (Draft only); format hint; Draft indicator with permanent `QT-YYYY-######` number |
+| **Buttons** | Add files / Remove file (Draft only); Save Draft; Submit Request; Cancel Request (Draft/Submitted only) |
+| **Inputs** | Requirements (required at Submit); **Description (Optional)** multiline text area; preferred timing; location; quantity hint; files. **Never:** subtotal, discount, tax, total, payment type, deposit, or any price field |
+| **Navigation** | Soft auth; Draft → Submit → Confirmation; History |
 | **Empty** | No files yet — prompt that uploads help assessment |
 | **Loading** | Upload progress; submit loading button |
-| **Error** | Unsupported file type; size limit; validation; network retry |
-| **Success** | Request confirmation with request number |
+| **Error** | Unsupported file type; size limit; validation; network retry; edit attempt after Submit → “request is locked” message |
+| **Success** | Request confirmation with Quotation Number; status **Submitted**; attachments locked (additional files via Discussion) |
 
 **Description field (Optional):**
 
@@ -489,22 +489,22 @@ Store is a separate product-commerce module. Its Categories, Product List, Produ
 | Field | Specification |
 | --- | --- |
 | **Purpose** | Track quotations; Accept or Discuss; review timeline and revisions |
-| **Components** | List with status chips; Quotation Number; Latest Version / Revision N (Current); line items; totals; validity; terms; timeline; **View Revision History** |
-| **Buttons** | **Accept Quotation** / **Discuss Quotation** (when Quotation Ready or Under Discussion & valid); **Pay** after Accept; View Revision History |
-| **Inputs** | Discuss screen: messages + additional image/video/PDF uploads; Accept confirmation dialog |
+| **Components** | List with status chips; Quotation Number (permanent, never changes); Latest Version / Version N (Current); line items; totals; validity; terms; timeline; **View Revision History** |
+| **Buttons** | **Accept Quotation** / **Discuss Quotation** — shown **only** when the API returns `can_accept` / `can_discuss` as true (server-calculated flags; the app never derives eligibility itself); **Pay** after Accept; View Revision History; Cancel Request (Draft/Submitted only) |
+| **Inputs** | Discuss screen: messages + additional image/video/PDF uploads; Accept confirmation dialog (confirms the **Latest Version** being accepted) |
 | **Navigation** | Account → Quotation History → Details → Discuss or Accept → Payment |
 | **Empty** | No quotations yet + browse Services/Store |
 | **Loading** | List/detail skeletons |
-| **Error** | Expired/Cancelled blocking accept; retry load |
+| **Error** | Expired/Cancelled blocking accept; stale-version accept (`409`) → “quotation was updated” prompt + refresh to Latest Version; retry load |
 | **Success** | Acceptance confirmation → Pay CTA |
 
-**Statuses (chips — only):** Pending Review · Quotation Ready · Under Discussion · Accepted · Expired · Cancelled  
+**Statuses (chips — only):** Draft · Submitted · Under Review · Quotation Ready · Under Discussion · Accepted · Expired · Cancelled  
 
 **Never show:** Reject Quotation · Rejected
 
-**Discuss Quotation (S-066):** Thread attached to the same Quotation Number; customer and team messaging; additional uploads; Accept latest revision; does not close the quotation.
+**Discuss Quotation (S-066):** Thread attached to the same Quotation Number; customer and team messaging; additional uploads (the only file channel after Submit); **Accept latest version directly from the discussion**; does not close the quotation.
 
-**Revision History (S-067):** Read-only list of Quotation v1, v2, v3…; only latest may be accepted from Details.
+**Revision History (S-067):** Read-only list of immutable Version 1, 2, 3… on the same Quotation Number; only the latest may be accepted from Details. An Expired quotation revived by a new team revision reappears as Quotation Ready with fresh validity.
 
 ---
 
@@ -803,12 +803,12 @@ White surface, `#E5E7EB` border, 12–16 px radius, 12–16 px padding, Level 0�
 | Status family | Color language |
 | --- | --- |
 | Success / Paid / Completed / Accepted | `#22C55E` soft surface + text |
-| Warning / Pending Review / Quotation Ready / Expiring | `#F59E0B` soft surface + text |
+| Warning / Submitted / Under Review / Quotation Ready / Expiring | `#F59E0B` soft surface + text |
 | Error / Failed / Cancelled / Expired | `#EF4444` soft surface + text |
-| Neutral / Processing / Under Discussion | Border `#E5E7EB` + secondary text (or soft secondary tint) |
+| Neutral / Draft / Processing / Under Discussion | Border `#E5E7EB` + secondary text (or soft secondary tint) |
 | Brand / Confirmed | Soft primary tint + `#0E339D` text |
 
-Quotation chips must use **only** the six V1 statuses (never Rejected).
+Quotation chips must use **only** the eight V1 statuses (Draft · Submitted · Under Review · Quotation Ready · Under Discussion · Accepted · Expired · Cancelled — never Rejected).
 
 Always pair chip color with text label.
 
@@ -1433,11 +1433,13 @@ Desktop-first. Primary access: **Admin**. Linked modules for Sales/Accountant vi
 
 ### Booking statuses (Admin display — only; controlled dropdown)
 
-Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Closed · Cancelled  
+Submitted (system-set at creation; never admin-selectable) · Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Closed · Cancelled  
 
 (`Rejected` is never used. No custom status values.)
 
 **Payment gates (Sprint 26):** a booking moves to **Scheduled** only after any required pre-payment (full or deposit, per the snapshotted service payment policy) is confirmed. **Closed** = service completed **and** all required payments confirmed; the admin confirming the final payment moves Completed → Closed.
+
+**Operational actions (Sprint 27):** the dropdown maps to server actions — **Schedule** (opens a dialog requiring `scheduled_start_at` / `scheduled_end_at`; disabled with hint until the payment gate is met), **Start**, **Complete**, **Close** (disabled until all required payments are confirmed), **Cancel** (dialog with **required** cancellation reason). **Accepted is never selectable** — it is automatic on customer quotation acceptance. No status reversions.
 
 ### Priority (read-only)
 
@@ -1448,7 +1450,7 @@ High · Medium · Low — Fayadhowr color badges on list and details.
 | Block | Content |
 | --- | --- |
 | **Header** | Booking Number (read-only), service title, selected mode/subtype, status, **Priority** badge, **booking age**, customer/CUS, requested date/time window, confirmed start/end when available, **Assigned To** (manual informational name) |
-| **Status update** | Controlled dropdown limited to the nine approved statuses (no free-text) |
+| **Status update** | Controlled dropdown limited to the approved statuses (no free-text); Submitted and Accepted are system-set and never selectable |
 | **Customer Information** | Name, phone, email, CUS |
 | **Service Details** | Service, selected mode/subtype, optional Starting From price, duration, coverage city, linked quotation when applicable |
 | **Property Details** | Address / property snapshot |
@@ -1465,6 +1467,9 @@ High · Medium · Low — Fayadhowr color badges on list and details.
 - Every booking remains linked to its customer.
 - Timeline is read-only audit history (includes actor).
 - Status changes use the approved enum only.
+- **Acceptance is automatic (Sprint 27):** the booking becomes Accepted when the customer accepts the quotation; the panel offers no Accept action.
+- **Cancellation (Sprint 27):** requires a reason; already-paid amounts remain paid (refunds are V2) and still-active payments are voided automatically. The UI shows this in the cancel confirmation dialog.
+- **Permissions (Sprint 27):** viewing requires `bookings.view`; Schedule / Start / Complete / Close / Cancel require `bookings.manage` — actions are hidden without it.
 - Priority is read-only display (High / Medium / Low).
 - Manual assignment (`Assigned To`) is informational only — no Staff Management module in v1.
 - No Booking Value / Estimated Value on this module.
@@ -1491,40 +1496,47 @@ Every quotation **must** originate from exactly one approved source:
 | Element | Specification |
 | --- | --- |
 | **Search** | QT number, customer, service or product |
-| **Advanced filters** | Status, source, valid until, etc. |
-| **Columns** | Quotation Number (`QT-…`), Source (Booking / Product), Customer, Service or Product, Current Revision, Amount, **Valid Until** (date + countdown e.g. 4 days remaining / Expired · 2 days ago), Status, Last Updated |
+| **Advanced filters** | Status, **assigned reviewer**, source, valid until, etc. |
+| **Columns** | Quotation Number (`QT-…`), Source (Booking / Product), Customer, Service or Product, **Assigned Reviewer**, Current Version, Amount (latest version), **Valid Until** (date + countdown e.g. 4 days remaining / Expired · 2 days ago), Status, Last Updated |
 | **Row action** | **View Quotation** only |
-| **Forbidden** | Permanent delete; Create Quotation (standalone) |
+| **Forbidden** | Permanent delete; Create Quotation (standalone); editing customer request content; editing issued versions |
 
-### Approved statuses (only)
+### Approved statuses (only — Sprint 28)
 
-Pending Review · Under Discussion · Quotation Ready · Accepted · Expired · Cancelled  
+Draft · Submitted · Under Review · Quotation Ready · Under Discussion · Accepted · Expired · Cancelled  
 
-(`Rejected` is never used. Status updates use a controlled dropdown.)
+(`Rejected` is never used. Status changes happen only through workflow actions — Assign, Issue, Revise, Close Discussion, Expire, Cancel, Accept — never a free status dropdown.)
 
 ## 20.3 Quotation Details
 
 | Block | Content |
 | --- | --- |
-| **Header** | QT Number (read-only), Source, Status, Current Revision, **Valid Until** + countdown, linked Booking or Product, Total Amount |
+| **Header** | QT Number (read-only, permanent — never changes across versions), Source, Status, **Assigned Reviewer** (+ Assign/Reassign action, `quotations.review`), Current Version, **Valid Until** + countdown, linked Booking or Product, Total Amount |
 | **Customer Information** | Name, phone, email, CUS |
 | **Source & Linkage** | Booking or Product origin; permanent link |
-| **Price Breakdown** | Line items + Total Amount (latest revision) |
-| **Revision History** | Revision Number, Summary of Changes, **Created By**, Staff Role, Date, Time (permanent audit). Only **latest** accept-eligible; older revisions read-only |
-| **Compare Revisions** | Action to compare any two revisions (e.g. v2 ↔ v3). Read-only side-by-side: Added Items, Removed Items, Quantity Changes, Unit Price Changes, Total Amount Difference, Notes Changes |
-| **Discussion** | Keyword **search** across messages; attachment counters **Images (n)**, **Videos (n)**, **PDF Files (n)** above attachments; full thread with Sender, Role, Date, Time. History never deleted |
-| **Timeline** | Read-only audit with Performed By, Staff Role (or Customer/System), Date, Time |
+| **Request & Attachments** | Customer requirements + description (read-only after Submit) and attached images/videos/PDFs with preview/download — the request is immutable; admins never edit or delete customer evidence |
+| **Price Breakdown** | Line items + Total Amount (latest version) |
+| **Issue / Revise** | (`quotations.issue`) Issue Version 1 from Under Review; Revise creates the next immutable Version — line items, subtotal, discount, tax, total, **mandatory Valid Until**, terms, note. Revising an Expired quotation revives it to Quotation Ready |
+| **Revision History** | Version Number, Summary of Changes, **Created By** (System (migration) for backfilled Version 1), Staff Role, Date, Time (permanent audit). Only **latest** accept-eligible; older versions read-only |
+| **Compare Revisions** | Action to compare any two versions (e.g. Version 2 ↔ Version 3). Read-only side-by-side: Added Items, Removed Items, Quantity Changes, Unit Price Changes, Total Amount Difference, Notes Changes |
+| **Discussion** | Keyword **search** across messages; attachment counters **Images (n)**, **Videos (n)**, **PDF Files (n)** above attachments; full thread with Sender, Role, Date, Time; Reply and **Close Discussion** (`quotations.review`). History never deleted |
+| **Lifecycle Actions** | (`quotations.manage`) Expire; Cancel (reason required); Accept on customer's behalf (latest version only; reason required) |
+| **Timeline** | Read-only audit keyed by QT Number + Version with Performed By, Staff Role (or Customer/System), Date, Time |
 | **Linked Records** | Customer Profile, Booking, Orders, Payments, Notifications |
 | **Internal Notes** | Staff notes with Name, Role, Date, Time — Admin / Sales / Accountant; never customer-visible |
 
 ## 20.4 Business Rules
 
-- Quotation Number is read-only and auto-generated.
-- Quotations are never permanently deleted.
+- Quotation Number is read-only, auto-generated at Draft creation, and never changes — revisions are Version 1, 2, 3… on the same number.
+- Customers never submit pricing; every price on this screen was entered by staff (`quotations.issue`).
+- Quotations and issued versions are never edited or permanently deleted; corrections are a new version.
+- One reviewer per quotation (`assigned_admin_id`); reassignment allowed and audited; no reviewer pools.
 - Every quotation remains permanently linked to its source (Booking or Product Request).
 - Timeline is read-only audit history.
 - Discussion history cannot be deleted.
-- Only the latest revision can be accepted.
+- Only the latest version can be accepted; stale accepts return `409`.
+- Expired is revivable only by issuing a new version with a fresh Valid Until.
+- Permissions: viewing requires `quotations.view`; Assign/Discussion require `quotations.review`; Issue/Revise require `quotations.issue`; Expire/Cancel/Accept require `quotations.manage` — actions are hidden without the matching key.
 
 ---
 
@@ -1665,6 +1677,28 @@ Icons displayed consistently in both list and details. Jeeb and Salaam Somali Ba
 - Timeline is read-only audit history.
 - Receipt history is permanent.
 - Payment status colors standardized: Confirmed (green), Received (teal), Pending (orange), Failed (red), Refunded (blue).
+
+## 22.5 Operational Actions (Sprint 27)
+
+| Action | Behavior |
+| --- | --- |
+| **Confirm Payment** | Primary button on active payments. Confirmation dialog with optional notes (e.g. bank reference). On success the status becomes Confirmed, the receipt number appears, and payable side effects apply automatically (order confirmation, COD completion, booking closure on final payment). Re-confirming an already-confirmed payment is a safe no-op. |
+| **Reject Payment** | Destructive-styled button on active payments. Dialog with a **required** reason (max 500). For a **COD** payment the dialog carries an explicit warning: "The store order will be cancelled and stock will be restored automatically." |
+
+Rules:
+
+- Actions appear only on active payments (Pending / Initialized / Processing); terminal payments (Failed / Cancelled) show no actions — they are never resurrected.
+- Viewing requires `payments.view`; Confirm / Reject require `payments.confirm` — buttons are hidden without it.
+- Every action lands on the Payment Timeline and in Audit Logs with the acting admin.
+
+## 22.6 Store Orders Fulfilment (Sprint 27)
+
+Store orders (`STO-…`) get a fulfilment status control on the Store Order details view:
+
+- Only the next valid transition(s) are enabled: Confirmed → Preparing (COD) / Processing (prepaid); Preparing → Out for Delivery → Delivered; Delivered → Payment Pending (COD); Processing / Delivered → Completed (only when no active payment exists).
+- For a COD order at **Payment Pending**, "Complete" is disabled with the hint "Complete via payment confirmation" — completion happens by confirming the payment (§22.5).
+- If a COD payment is rejected, the order displays **Cancelled** with the automatic restock recorded in its history.
+- Viewing requires `store_orders.view`; status changes require `store_orders.manage`.
 
 ---
 

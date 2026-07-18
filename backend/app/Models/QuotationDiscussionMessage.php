@@ -6,13 +6,13 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'quotation_id',
     'sender_type',
     'sender_id',
     'message',
-    'attachments',
 ])]
 class QuotationDiscussionMessage extends Model
 {
@@ -27,12 +27,10 @@ class QuotationDiscussionMessage extends Model
     }
 
     /**
-     * @return array<string, string>
+     * @return HasMany<QuotationMessageAttachment, $this>
      */
-    protected function casts(): array
+    public function attachments(): HasMany
     {
-        return [
-            'attachments' => 'array',
-        ];
+        return $this->hasMany(QuotationMessageAttachment::class, 'quotation_discussion_message_id');
     }
 }

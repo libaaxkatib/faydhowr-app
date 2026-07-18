@@ -134,14 +134,15 @@ Flutter submits requests and renders API responses. The REST API routes requests
 6. The customer chooses Book Now or Request Quotation. For the quotation path, the booking becomes the permanent service-quotation origin.
 7. Authorized staff review/process the booking; workflow changes may produce notifications and become available to reporting.
 
-## 7. Quotation Flow
+## 7. Quotation Flow (Sprint 28)
 
-1. An authorized customer creates a quotation from an approved booking or product request.
-2. Laravel validates required details, pricing rules, and permitted state transitions.
-3. The quotation request is saved with `customer_profile_id` business ownership and its permanent booking/product source context.
-4. Authorized participants conduct discussions through the approved quotation workflow.
-5. Acceptance is recorded only by an authorized action and approved business rule.
-6. An accepted quotation becomes eligible to create an order according to the approved process.
+1. An authorized customer creates a quotation request as a **Draft** from an approved booking or product request. The draft receives its permanent Quotation Number (`QT-YYYY-######`) and contains **no pricing fields** — pricing is admin-only.
+2. The customer stages files through the Unified Upload Service (images, videos, PDFs) and attaches them to the draft; attach/detach is allowed only while in Draft.
+3. On **Submit**, Laravel validates required details and locks the request and its attachments permanently (`draft` → `submitted`). The quotation is saved with `customer_profile_id` business ownership and its permanent booking/product source context.
+4. An admin reviewer is assigned (single reviewer via `assigned_admin_id`; `submitted` → `under_review`), reviews the request and attachments, and **issues Version 1** — an immutable revision with line items, totals, and mandatory validity (`under_review` → `quotation_ready`).
+5. Authorized participants conduct discussions through the approved quotation workflow (`quotation_ready` ↔ `under_discussion`); admins may revise the quotation, creating immutable Version 2, 3… on the same Quotation Number, and may revive an `expired` quotation with a new revision.
+6. Acceptance is recorded only by an authorized action and approved business rule: allowed from `quotation_ready` or `under_discussion`, valid only for the **latest revision** (stale references return `409 Conflict`), and executed in a row-locked transaction that snapshots the payment policy and auto-accepts the linked booking.
+7. An accepted quotation becomes eligible to create an order according to the approved process.
 
 ## 8. Order Flow
 
@@ -243,9 +244,9 @@ REST API → Flutter: Authenticated JSON response
 ### Quotation to Order
 
 ```text
-Flutter → REST API: Accept quotation
+Flutter → REST API: Accept quotation (references latest revision)
 REST API → Laravel: Validate request and authorization
-Laravel → Database: Verify quotation state
+Laravel → Database: Verify quotation state and latest revision (stale → 409 Conflict)
 Laravel → Database: Record acceptance and create eligible order
 Laravel → Notifications: Dispatch approved event
 Laravel → REST API: Return quotation and order state

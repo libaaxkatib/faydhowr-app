@@ -7,12 +7,20 @@ use App\Enums\QuotationStatus;
 use App\Models\Booking;
 use App\Models\CustomerProfile;
 use App\Models\Quotation;
+use App\Models\Upload;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Creates a quotation request in Draft (Sprint 28). Customers never submit
+ * pricing; the permanent quotation number is assigned here and never changes.
+ */
 class CreateQuotationAction
 {
-    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+    public function __construct(
+        private DashboardCacheInvalidatorInterface $dashboardCache,
+        private ResolveQuotationUploadsAction $resolveUploads,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $attributes
@@ -27,32 +35,36 @@ class CreateQuotationAction
 
             $booking = $this->bookingForProfile($profile, $attributes['booking_id'] ?? null);
 
-            if (! $this->hasValidTotal($attributes)) {
-                throw new DomainException('The total amount must equal subtotal minus discount plus tax.');
-            }
-
             $quotation = Quotation::query()->create([
                 'quotation_number' => $this->nextQuotationNumber(),
                 'customer_profile_id' => $profile->id,
                 'booking_id' => $booking?->id,
-                'status' => QuotationStatus::PendingReview,
-                'currency' => $attributes['currency'],
-                'subtotal' => $attributes['subtotal'],
-                'discount_amount' => $attributes['discount_amount'] ?? 0,
-                'tax_amount' => $attributes['tax_amount'] ?? 0,
-                'total_amount' => $attributes['total_amount'],
-                'valid_until' => $attributes['valid_until'] ?? null,
-                'notes' => $attributes['notes'] ?? null,
+                'requirements' => $attributes['requirements'],
+                'description' => $attributes['description'] ?? null,
+                'preferred_timing' => $attributes['preferred_timing'] ?? null,
+                'quantity_hint' => $attributes['quantity_hint'] ?? null,
+                'status' => QuotationStatus::Draft,
+                'subtotal' => '0.00',
+                'discount_amount' => '0.00',
+                'tax_amount' => '0.00',
+                'total_amount' => '0.00',
             ]);
 
+            $this->resolveUploads
+                ->handle($profile, $attributes['attachment_ids'] ?? [])
+                ->each(function (Upload $upload) use ($quotation): void {
+                    $quotation->attachments()->create(['upload_id' => $upload->id]);
+                    $upload->update(['attached_at' => now()]);
+                });
+
             $quotation->statusHistories()->create([
-                'status' => QuotationStatus::PendingReview,
+                'status' => QuotationStatus::Draft,
                 'changed_by_type' => 'user',
                 'changed_by_id' => $profile->user_id,
                 'notes' => null,
             ]);
 
-            return $quotation->load('booking');
+            return $quotation->load(['booking', 'attachments.upload']);
         });
 
         $this->dashboardCache->invalidate();
@@ -71,20 +83,6 @@ class CreateQuotationAction
             ->whereKey($bookingId)
             ->lockForUpdate()
             ->firstOrFail();
-    }
-
-    /**
-     * @param  array<string, mixed>  $attributes
-     */
-    private function hasValidTotal(array $attributes): bool
-    {
-        $subtotal = $this->toCents($attributes['subtotal']);
-        $discountAmount = $this->toCents($attributes['discount_amount'] ?? 0);
-        $taxAmount = $this->toCents($attributes['tax_amount'] ?? 0);
-        $totalAmount = $this->toCents($attributes['total_amount']);
-
-        return $discountAmount <= $subtotal
-            && $totalAmount === $subtotal - $discountAmount + $taxAmount;
     }
 
     private function nextQuotationNumber(): string
@@ -110,12 +108,5 @@ class CreateQuotationAction
         }
 
         return sprintf('QT-%s-%06d', $year, $nextSequence);
-    }
-
-    private function toCents(mixed $amount): int
-    {
-        [$whole, $fraction] = array_pad(explode('.', (string) $amount, 2), 2, '0');
-
-        return ((int) $whole * 100) + (int) str_pad($fraction, 2, '0');
     }
 }

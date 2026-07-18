@@ -424,10 +424,9 @@ See §12.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/v1/quotation-requests` | Customer quotation requests |
-| `GET` | `/api/v1/quotations` | Issued quotations visible to customer (optional alternate) |
-| `GET` | `/api/v1/quotation-requests/{id}` | Request detail (+ related quotes) |
-| `GET` | `/api/v1/quotations/{id}` | Quotation detail |
+| `GET` | `/api/v1/quotations` | Customer quotations (request + latest revision), filterable by status, paginated |
+| `GET` | `/api/v1/quotations/{quotation}` | Quotation detail (request, attachments, latest revision, timeline summary) |
+| `GET` | `/api/v1/quotations/{quotation}/revisions` | Read-only immutable revision history |
 
 ## 4.7 Order History
 
@@ -568,22 +567,19 @@ Or `POST /api/v1/bookings` with `service_id`.
 
 ## 6.6 Request Service Quotation
 
-| Method | Path | Auth |
-| --- | --- | --- |
-| `POST` | `/api/v1/bookings/{id}/quotation-requests` | Required |
+Service quotation requests use the unified Quotation APIs (§9.1) with `request_target_type = booking` and the owned `booking_id`. The request is created as a `draft` with **no pricing fields**, then submitted (§9.2).
 
-**Body:** `requirements` (required), `description` (optional but highly recommended), preferred timing/location, optional attachment ids  
 **Rules:** the booking must be owned by the authenticated customer's `customer_profile_id`. Every active service supports Request Quotation; no pricing-model classification gates this action.
 
 ## 6.7 Upload Service Images (Quotation)
 
 | Method | Path | Auth |
 | --- | --- | --- |
-| `POST` | `/api/v1/quotation-requests/{id}/attachments` | Required |
+| `POST` | `/api/v1/quotations/{quotation}/attachments` | Required |
 
-Or pre-upload: `POST /api/v1/uploads` then reference the returned upload UUIDs on create (§14).  
+Pre-upload via `POST /api/v1/uploads`, then attach the returned upload UUIDs (§9.3) — allowed only while the quotation is in `draft`; the attachment set is immutable after Submit.
 
-See §14 for formats and limits. Ownership of quotation request required.
+See §14 for formats and limits. Ownership of the quotation required.
 
 ---
 
@@ -659,18 +655,17 @@ Includes `selling_price`, `currency`, `unit`, `sku`, `current_stock` / `availabi
 | `PATCH` | `/api/v1/store-orders/{id}/cancel` | Required (owner) |
 
 **Create behavior:** Creates a `store_orders` record with public number `STO-YYYY-######`, line snapshots, and clears cart items. Prepaid methods: the order starts `pending_payment` and does **not** decrease stock. **Cash on Delivery:** the order is created `confirmed` immediately, a `payments` record is created `pending` (`payment_method = cash_on_delivery`, `payment_stage = full`), and stock decreases at confirmation.  
-**COD lifecycle:** `confirmed` → `preparing` → `out_for_delivery` → `delivered` → `payment_pending` → (admin confirms cash collection) → `completed`. A COD order never completes before admin payment confirmation.  
+**COD lifecycle:** `confirmed` → `preparing` → `out_for_delivery` → `delivered` → `payment_pending` → (admin confirms cash collection) → `completed`. A COD order never completes before admin payment confirmation. Admin fulfilment transitions use §18.9.3.  
+**COD payment rejection (Sprint 27 — official V1 rule):** if an admin **rejects** a COD payment (§18.9.1), the following execute in **one database transaction**: the payment becomes `failed`, the store order becomes `cancelled`, and inventory is **automatically restocked** — every order line writes a positive `sale_reversal` stock-ledger entry and product stock is restored. See §18.9.1 for the endpoint contract.  
 **Cancel:** Allowed only while `pending_payment` (prepaid orders).
 
 Service Orders remain under `/api/v1/orders` with `ORD-YYYY-######` and are commercially separate from Store Orders.
 
 ## 7.7 Product Quotation
 
-| Method | Path | Auth |
-| --- | --- | --- |
-| `POST` | `/api/v1/products/{id}/quotation-requests` | Required |
+Product quotation requests use the unified Quotation APIs (§9.1) with `request_target_type = product` and the target `product_id`.
 
-**Rules:** `allow_optional_quotation = true`; does not remove fixed-price cart path; uses **shared** Quotation Module with `source = product` (Accept / Discuss — never Reject).
+**Rules:** `allow_optional_quotation = true`; does not remove fixed-price cart path; uses **shared** Quotation Module with `source = product` (Accept / Discuss — never Reject). No pricing fields on the customer request.
 
 ## 7.8 Upload Product Images (Quotation)
 
@@ -732,6 +727,12 @@ Supports `status` filter + pagination.
 
 **Body:** optional `cancellation_reason`  
 **Errors:** `403`/`409` when policy disallows cancel.
+
+**Cancellation payment rules (Sprint 27 — final, apply to customer and admin cancellation alike):**
+
+- A booking may be cancelled from any state **before** `completed`. Admin cancellation uses §18.9.2 and requires a `cancellation_reason`.
+- **Paid payments are never reversed.** If a deposit (or any payment) is already `paid` when the booking is cancelled, the payment stays `paid` and the booking becomes `cancelled`. Refunds are **out of V1 scope** and belong to V2 — no automatic refund, no payment reversal.
+- **Active payments are auto-failed.** Any payment still `pending`, `initialized`, or `processing` for the cancelled booking's order(s) is automatically set to `failed` **inside the same database transaction** as the cancellation, with a status-history entry. No active payment may remain attached to a cancelled booking.
 
 ## 8.5 Booking Media
 
@@ -815,15 +816,19 @@ Admin moderation (approve → `published`, hide → `hidden`) is specified in §
 
 # 9. Quotation APIs
 
-Covers **service** and **product** quotation requests and issued quotations.
+Covers **service** and **product** quotation requests and issued quotations (Sprint 28 — Quotation Request Workflow, final).
 
-## 9.1 Create Quotation Request
+**Status model (only):** `draft` · `submitted` · `under_review` · `quotation_ready` · `under_discussion` · `accepted` · `expired` · `cancelled`. Never `rejected`.
+
+**Pricing authority (final):** customers **never** submit pricing — no `subtotal`, `discount`, `tax`, `total`, `payment_type`, `deposit_percentage`, or remaining-balance fields exist on any customer endpoint. Pricing is created and revised **only** by administrators as immutable revisions (§18.10).
+
+## 9.1 Create Quotation Request (Draft)
 
 | Method | Path | Auth |
 | --- | --- | --- |
-| `POST` | `/api/v1/quotation-requests` | Required |
+| `POST` | `/api/v1/quotations` | Required |
 
-**Body:**
+**Body (no pricing fields):**
 
 - `request_target_type`: `booking` | `product`
 - `booking_id` (service quotation origin) or `product_id`
@@ -832,73 +837,126 @@ Covers **service** and **product** quotation requests and issued quotations.
 - `preferred_timing`, `location`, `quantity_hint`
 - `attachment_ids` (optional — upload UUIDs returned by §14 staging)
 
-**Result:** Request with public reference aligning to Quotation Number family (`QT-YYYY-######`), status `pending_review`.
+**Result `201`:** Quotation in status `draft` with its **permanent** Quotation Number (`QT-YYYY-######`) assigned at creation. The number never changes; revisions never receive new numbers.
 
-> Note: Customers create a **quotation request**. Formal **quotations** are issued by the Fayadhowr team (admin API out of scope for full write). Customers consume them via details, **Accept Quotation**, and **Discuss Quotation** (never Reject).
+**Errors:** `422` `VALIDATION_ERROR`; `401`.
 
-## 9.2 Upload Files (Request)
+> Note: Customers create a **quotation request**. Formal priced **revisions** are issued by the Fayadhowr team (§18.10). Customers consume them via details, **Accept Quotation**, and **Discuss Quotation** (never Reject).
 
-| Method | Path | Auth |
-| --- | --- | --- |
-| `POST` | `/api/v1/quotation-requests/{id}/attachments` | Required |
-| `DELETE` | `/api/v1/quotation-requests/{id}/attachments/{attachment_id}` | Required |
+## 9.2 Update / Submit / Cancel Request
 
-Multipart upload (images / videos / PDFs per §14). These are quotation attachments, not Booking Media.
+| Method | Path | Auth | Rules |
+| --- | --- | --- | --- |
+| `PATCH` | `/api/v1/quotations/{quotation}` | Required (owner) | Allowed only while `draft`; otherwise `409` `QUOTATION_NOT_EDITABLE` |
+| `POST` | `/api/v1/quotations/{quotation}/submit` | Required (owner) | `draft` → `submitted`; request + attachments become **permanently immutable**; incomplete requirements → `422` |
+| `POST` | `/api/v1/quotations/{quotation}/cancel` | Required (owner) | Allowed only in `draft` / `submitted` (pre-pricing); afterwards cancellation is admin-only → `409` |
 
-## 9.3 Quotation Details
-
-| Method | Path | Auth |
-| --- | --- | --- |
-| `GET` | `/api/v1/quotations/{id}` | Required (owner of parent request) |
-
-Includes `quotation_number` (`QT-YYYY-######`), `version_no`, `is_latest` / Latest Version indicator, line items, totals, `valid_until`, terms, status (`pending_review` | `quotation_ready` | `under_discussion` | `accepted` | `expired` | `cancelled`), timeline summary.
-
-## 9.4 Quotation History
+## 9.3 Request Attachments (Draft only)
 
 | Method | Path | Auth |
 | --- | --- | --- |
-| `GET` | `/api/v1/quotation-requests` | Required |
-| `GET` | `/api/v1/quotation-requests/{id}` | Required |
-| `GET` | `/api/v1/quotations/{id}/revisions` | Required |
+| `POST` | `/api/v1/quotations/{quotation}/attachments` | Required (owner) |
+| `DELETE` | `/api/v1/quotations/{quotation}/attachments/{attachment}` | Required (owner) |
+| `GET` | `/api/v1/quotations/{quotation}/attachments/{attachment}/download` | Required (owner) |
 
-Request/detail embeds revision chain (v1, v2, v3…) read-only. Only latest may be accepted.
+**Behavior:**
+
+- Attach body: `upload_ids` (upload **UUIDs** staged via §14). The referenced uploads must be owned by the customer, unattached, and non-expired; attaching sets `uploads.attached_at`.
+- Attach/detach allowed **only while `draft`**; after Submit the set is immutable → `409` `QUOTATION_ATTACHMENTS_LOCKED`. Additional files after Submit travel only through Discussion (§9.6).
+- Media validation (images JPG/JPEG/PNG/WebP, videos MP4/MOV/WebM, PDF; per-type size caps) is enforced at staging time by the Upload Service (§14).
+- Download streams the file owner-scoped; storage paths are never exposed.
+
+## 9.4 Quotation List, Details & Revisions
+
+| Method | Path | Auth |
+| --- | --- | --- |
+| `GET` | `/api/v1/quotations` | Required (own records; filters: `status`, date range; paginated §3.4) |
+| `GET` | `/api/v1/quotations/{quotation}` | Required (owner) |
+| `GET` | `/api/v1/quotations/{quotation}/revisions` | Required (owner) |
+
+Detail includes `quotation_number` (`QT-YYYY-######`), status, the **latest revision** (`version_number`, line items, totals, `valid_until`, terms, Latest Version indicator), attachments, and timeline summary. `GET …/revisions` returns the full immutable chain (Version 1, 2, 3…) read-only. Only the latest revision may be accepted.
+
+### 9.4A Standard Quotation Response Payload
+
+Every quotation payload (list item and detail) carries this standard core:
+
+```json
+{
+    "quotation_number": "QT-2026-000001",
+    "latest_version": 3,
+    "status": "quotation_ready",
+    "can_accept": true,
+    "can_discuss": true
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `quotation_number` | **Permanent quotation identifier.** Generated once at Draft creation, immutable, never regenerated; every revision references the same number |
+| `latest_version` | **Current immutable revision.** The highest `version_number` issued for this quotation; matches `latest_revision_id` server-side |
+| `status` | One of the eight lifecycle statuses (§9, status model) |
+| `can_accept` | **Server-calculated business flag.** True only when acceptance is currently permitted (status `quotation_ready` / `under_discussion`, latest revision within `valid_until`, ownership verified) |
+| `can_discuss` | **Server-calculated business flag.** True only when discussion is currently open (status `quotation_ready` / `under_discussion`) |
+
+**Authoritative flags (implementation note):** `can_accept` and `can_discuss` are computed **only** by the server. Flutter, Web, and any future client **must rely on these flags** and must **never** recreate or re-derive the underlying business logic (status checks, validity windows, latest-revision rules). Clients only display and act on the values returned by the API; the server re-validates every action regardless of what the client shows.
 
 ## 9.5 Accept Quotation
 
 | Method | Path | Auth |
 | --- | --- | --- |
-| `POST` | `/api/v1/quotations/{id}/accept` | Required |
+| `POST` | `/api/v1/quotations/{quotation}/accept` | Required (owner) |
 
-**Rules:** Target must be **latest** revision (`is_latest=true`); status `quotation_ready` or `under_discussion`; within `valid_until`; not `expired`/`cancelled`. Unlocks payment path.  
-**Result:** Status `accepted` + payable payment hint + Quotation Number.
+**Body:** `revision_id` (or `version_number`) — the revision the customer is accepting. **Required.**
+
+**Rules (Sprint 28 — final):**
+
+- Allowed from **`quotation_ready` or `under_discussion`** — no need to first return to `quotation_ready`.
+- The referenced revision must be the **latest**; accepting an older revision returns **`409 Conflict`** (`QUOTATION_REVISION_STALE`) — client refetches and re-confirms.
+- Must be within the latest revision's `valid_until`; `expired` / `cancelled` quotations cannot be accepted (`409`).
+- Validation runs inside the row-locked transaction (concurrency-safe against a simultaneous admin revision).
+
+**Result `200`:** Status `accepted` + payable payment hint + Quotation Number. The accepted revision is frozen as the contractual snapshot.
+
+**Booking auto-acceptance (Sprint 27 — final):** customer acceptance of a quotation **automatically** moves the linked booking `submitted` → `accepted` in the **same database transaction** that accepts the quotation and applies the payment policy snapshot (§11.1). A booking status-history entry is written (`changed_by_type = user`). There is **no separate admin booking-acceptance step or endpoint**. The booking flow is: Submitted → Quotation Issued → Customer Accepts Quotation → **Booking Accepted (automatic)** → Payment (if required by the snapshotted policy) → Scheduled (§18.9.2).
 
 ## 9.6 Discuss Quotation
 
 | Method | Path | Auth |
 | --- | --- | --- |
-| `POST` | `/api/v1/quotations/{id}/discuss` | Required |
-| `GET` | `/api/v1/quotations/{id}/messages` | Required |
-| `POST` | `/api/v1/quotations/{id}/messages` | Required |
-| `POST` | `/api/v1/quotations/{id}/messages/{message_id}/attachments` | Required |
+| `GET` | `/api/v1/quotations/{quotation}/discussion` | Required (owner) |
+| `POST` | `/api/v1/quotations/{quotation}/discussion` | Required (owner) |
 
 **Behavior:**
 
+- Message body: `message` (required), `upload_ids` (optional — upload UUIDs per §14; same ownership and media validation as request attachments). **This is the only channel for additional customer files after Submit.**
+- Discussion is open only in `quotation_ready` / `under_discussion` (`409` otherwise). A customer message from `quotation_ready` sets status to `under_discussion`.
 - Starts or continues discussion on the **same** Quotation Number (never creates a new quotation).
-- Sets status to `under_discussion` while discussion is active.
-- Customer may send messages and upload additional images, videos, and PDFs.
-- Team replies and quotation revisions are visible on the same thread/timeline (team write via admin API).
-- Customer may still **Accept** the latest revision from this context.
+- Team replies and quotation revisions are visible on the same thread/timeline (team write via §18.10).
+- Customer may still **Accept** the latest revision while `under_discussion` (§9.5).
 - Discussion **never** closes the quotation; there is **no** `/reject` endpoint in V1.
+- Messages and their attachments are append-only (never deleted).
 
-**Notifications:** New messages notify the other party; quotation updates notify the customer (e.g. “Your quotation has been updated. Please review the latest version.”).
+**Notifications:** New messages notify the other party; each new revision notifies the customer (e.g. “Your quotation has been updated. Please review the latest version.”).
 
 ## 9.7 Quotation Timeline
 
 | Method | Path | Auth |
 | --- | --- | --- |
-| `GET` | `/api/v1/quotations/{id}/timeline` | Required |
+| `GET` | `/api/v1/quotations/{quotation}/timeline` | Required (owner) |
 
-Returns ordered events: Quotation Created, Customer Discussion, Team Replies, Quotation Updated, Customer Acceptance, Payment, Service Completion.
+Returns ordered events keyed by Quotation Number + Version: Request Created (Draft), Submitted, Reviewer Assigned, Quotation Issued (Version 1), Customer Discussion, Team Replies, Quotation Revised (Version N), Discussion Closed, Expired, Revived, Customer Acceptance, Cancelled, Payment, Service Completion.
+
+## 9.8 Customer Response Codes (Summary)
+
+| Code | Meaning |
+| --- | --- |
+| `200` / `201` | Success / created |
+| `404` `NOT_FOUND` | Not owned or nonexistent (ownership scoping never returns `403`) |
+| `409` `QUOTATION_NOT_EDITABLE` | Edit/attach attempted outside `draft` |
+| `409` `QUOTATION_ATTACHMENTS_LOCKED` | Attachment change after Submit |
+| `409` `QUOTATION_REVISION_STALE` | Acceptance referenced an older revision — refetch latest |
+| `409` `QUOTATION_INVALID_STATE` | Accept/discuss/cancel not allowed in current status |
+| `422` `VALIDATION_ERROR` | Body validation failed |
 
 ---
 
@@ -972,6 +1030,8 @@ Payment V1 is a unified, customer-profile-owned module for Service Orders and St
 | `GET`/`POST` | `/api/v1/payments/callback` | Provider return URL pattern |
 
 > **V1 note (Sprint 26):** V1 ships **without online gateway integration**, so webhook/callback endpoints are dormant contracts reserved for future providers. All V1 confirmations are **admin-verified**: an admin confirms receipt/collection for `bank_transfer`, `cash_on_delivery`, `cash_on_service`, and admin-verified `evc_plus` / `edahab` payments, moving the payment `pending` → `paid` with full audit (confirming admin, timestamp).
+>
+> **Sprint 27:** admin verification is exposed through the Admin Operations APIs — `PATCH /api/v1/admin/payments/{payment}/confirm` and `PATCH /api/v1/admin/payments/{payment}/reject` (§18.9.1).
 
 **Behavior (future gateways):** Before any business state changes, webhook/callback handling verifies in this order: gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment status, and duplicate-callback status. The resulting Payment update, `payment_transactions` update, `payment_status_histories` insert, and Order confirmation (only on success) execute in one database transaction. A successful callback changes Payment `processing -> paid` and then Order `pending_payment -> confirmed`; failed callbacks leave the Order unchanged. Repeated callbacks for the same successful transaction are idempotent and must not create duplicate state transitions. Payment publishes domain events (`PaymentPaid`, `PaymentFailed`) rather than sending notifications directly.
 
@@ -1121,6 +1181,35 @@ Require `auth:sanctum` + `admin` + `permission:notifications.manage`.
 | `GET/POST/PUT` | `/api/v1/admin/notification-templates/{id}/translations` | Translation CRUD |
 | `GET` | `/api/v1/admin/archived-notifications` | Browse archived terminal notifications |
 
+## 13.7 Mandatory Transactional Notifications (Sprint 27 — V1)
+
+The following customer notifications are **mandatory in V1** and are dispatched from the Admin Operations transitions (§18.9):
+
+| Notification | Trigger | Type |
+| --- | --- | --- |
+| Payment Confirmed | Admin confirms an offline payment (`pending` → `paid`) | `payment` |
+| Payment Rejected | Admin rejects a payment (`pending`/`initialized`/`processing` → `failed`) | `payment` |
+| Booking Scheduled | Booking `accepted` → `scheduled` | `booking` |
+| Booking Completed | Booking `in_progress` → `completed` | `booking` |
+| Booking Cancelled | Booking cancelled (customer or admin) | `booking` |
+
+Sprint 28 adds the quotation workflow notifications (§18.10), following the same dispatch rules:
+
+| Notification | Trigger | Type |
+| --- | --- | --- |
+| Quotation Submitted | Customer submits a quotation request (`draft` → `submitted`) — to operations | `quotation` |
+| Quotation Issued | Admin issues Version 1 (`under_review` → `quotation_ready`) | `quotation` |
+| Quotation Revised | Admin issues Version n+1 (incl. expired revival) | `quotation` |
+| Discussion Reply | New discussion message — notifies the other party | `quotation` |
+| Quotation Expired | Quotation reaches `expired` (scheduled or manual) | `quotation` |
+| Quotation Cancelled | Quotation cancelled (customer pre-pricing or admin) | `quotation` |
+
+**Dispatch rules:**
+
+- Notifications are dispatched **after the business database transaction commits successfully** (after-commit dispatch).
+- Notification failures must **never** roll back or block the business transaction; a failed notification is recorded via the notification lifecycle (`failed`) and never alters payment/booking/store-order state.
+- Delivery in V1 is in-app (per §13.1 channels and customer preferences §13.5); push delivery remains out of V1 scope (§4.2C).
+
 ---
 
 # 14. File Upload APIs
@@ -1233,7 +1322,7 @@ Limits are **configuration-driven** (environment/config). There is **no Settings
 | --- | --- |
 | Storage (V1) | **Local/private disk** — never inside the public web root; S3-compatible object storage later via configuration only |
 | Staging | Uploaded files retained as reusable file records identified by returned UUIDs |
-| Attachment | File UUIDs referenced when creating quotation requests; persisted as **FK references** (`upload_id`) on `quotation_request_attachments` — upload metadata is never duplicated |
+| Attachment | File UUIDs referenced when attaching to a quotation draft (§9.3) or a discussion message (§9.6); persisted as **FK references** (`upload_id`) on `quotation_attachments` / `quotation_message_attachments` — upload metadata is never duplicated; attaching sets `attached_at` |
 | Access | Owner-only backend streaming (`GET /api/v1/uploads/{uuid}`); storage paths never exposed |
 | CDN | Optional for public catalog media (not required for private quotation uploads) |
 
@@ -1363,7 +1452,7 @@ Unexpected failures → `500` `SERVER_ERROR` with safe message; detailed diagnos
 
 ## 16.6 Rate Limiting
 
-HTTP `429` `RATE_LIMITED` with `Retry-After` when possible. Stricter limits on auth, payment initialize, and uploads. Public guest catalog endpoints (services, categories, search) require a per-IP throttle even though no authentication is required: **public tier = 60 requests per minute per IP**. Unified upload endpoint: **20 uploads per minute per customer** (§14.5). Review submission (`POST /api/v1/reviews`): **5 submissions per minute per customer** (§8A.1). Favorites endpoints (§12): **30 requests per minute per customer**.
+HTTP `429` `RATE_LIMITED` with `Retry-After` when possible. Stricter limits on auth, payment initialize, and uploads. Public guest catalog endpoints (services, categories, search) require a per-IP throttle even though no authentication is required: **public tier = 60 requests per minute per IP**. Unified upload endpoint: **20 uploads per minute per customer** (§14.5). Review submission (`POST /api/v1/reviews`): **5 submissions per minute per customer** (§8A.1). Favorites endpoints (§12): **30 requests per minute per customer**. Admin Operations mutation endpoints (§18.9): **60 requests per minute per admin**.
 
 ---
 
@@ -1460,8 +1549,8 @@ Enable HTTP response compression (e.g., gzip/brotli) for JSON responses at the r
 | Rule | Example |
 | --- | --- |
 | Plural nouns | `/services`, `/orders` |
-| Kebab-case paths | `/quotation-requests`, `/before-after` |
-| Nested actions as sub-resources | `/quotations/{id}/accept`, `/quotations/{id}/discuss`, `/quotations/{id}/messages` |
+| Kebab-case paths | `/close-discussion`, `/before-after` |
+| Nested actions as sub-resources | `/quotations/{quotation}/accept`, `/quotations/{quotation}/submit`, `/quotations/{quotation}/discussion` |
 | snake_case JSON keys | `booking_number`, `payable_type` |
 
 ## 19.2 HTTP Methods
@@ -1503,7 +1592,7 @@ Use §3.5 consistently. Creating resources → `201`. Validation → `422`. Auth
 | Products | `/api/v1/products`, `/api/v1/product-categories` |
 | Cart / Checkout | `/api/v1/cart`, `/api/v1/checkout` |
 | Bookings | `/api/v1/bookings` |
-| Quotations | `/api/v1/quotation-requests`, `/api/v1/quotations` |
+| Quotations | `/api/v1/quotations` (customer), `/api/v1/admin/quotations` (admin, §18.10) |
 | Orders | `/api/v1/orders` |
 | Payments | `/api/v1/payments/*` |
 | Favorites | `/api/v1/favorites` |
@@ -1585,7 +1674,7 @@ Admin APIs use Sanctum tokens issued to `admins`, middleware `auth:sanctum` + `a
 
 Effective permissions = role permissions ∪ direct permissions. Super Admin permissions are implicit and not persisted.
 
-Permission catalog (route-aligned): `products.create`, `products.update`, `products.delete`, `suppliers.manage`, `purchase_orders.manage`, `goods_receipts.manage`, `admins.manage`, `roles.manage`.
+Permission catalog (route-aligned): `products.create`, `products.update`, `products.delete`, `suppliers.manage`, `purchase_orders.manage`, `goods_receipts.manage`, `admins.manage`, `roles.manage`. Sprint 27 adds the Admin Operations keys (§18.9): `payments.view`, `payments.confirm`, `bookings.view`, `bookings.manage`, `store_orders.view`, `store_orders.manage`. Sprint 28 adds the Quotation keys (§18.10): `quotations.view`, `quotations.review`, `quotations.issue`, `quotations.manage`.
 
 ## 18.3 Admin CRUD
 
@@ -1961,6 +2050,159 @@ Permissions:
 - Every approve/hide recalculates the affected service's cached aggregates from `published` reviews only.
 - If a completed booking is reverted to a non-completed status, its review is **automatically hidden** (never automatically deleted); aggregates recalculate.
 - Moderation outcome notifications to customers are **deferred until a future version**.
+
+## 18.9 Admin Operations APIs (Sprint 27 — Documentation Only)
+
+Operational endpoints that drive the payment, booking, and store-order lifecycles. All endpoints require `auth:sanctum` + `admin` middleware plus the listed permission. All mutating endpoints execute inside a **database transaction** with row-level locking (`lockForUpdate`) on the aggregate row, write the domain **status history** with the acting admin, emit an **AuditEvent** (admin id, action, entity type/id, prior status → new status, reason/metadata, IP, user agent — §18.5), and dispatch the mandatory customer notifications (§13.7) **after commit**. Mutation endpoints share the admin operations throttle (**60 requests per minute per admin**, §16.6).
+
+All list endpoints are paginated (`per_page` default 20, max 100), newest first, and return the standard pagination envelope (§3.4).
+
+### 18.9.1 Payment Administration
+
+Permissions:
+
+| Permission | Grants |
+| --- | --- |
+| `payments.view` | List and view payments in any status |
+| `payments.confirm` | Confirm and reject offline payments |
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/payments` | `payments.view` | Filters: `status`, `payment_method`, `payment_stage`, `payable_type` (`order` / `store_order`), `customer` (profile id), `date_from` / `date_to`, `search` (payment or receipt number) |
+| GET | `/api/v1/admin/payments/{payment}` | `payments.view` | Full detail: payable summary, customer summary, transactions, status history with actor |
+| PATCH | `/api/v1/admin/payments/{payment}/confirm` | `payments.confirm` | Body: optional `notes` (max 500, e.g. bank reference). `pending` / `initialized` / `processing` → `paid` |
+| PATCH | `/api/v1/admin/payments/{payment}/reject` | `payments.confirm` | Body: **required** `reason` (max 500). `pending` / `initialized` / `processing` → `failed` |
+
+**Confirm rules (wraps the Sprint 26 admin-verified confirmation, §11.2):**
+
+- Only active payments (`pending`, `initialized`, `processing`) can be confirmed. Confirming an already-`paid` payment is **idempotent** and returns `200` with the current state. Confirming a `failed` / `cancelled` payment → `422` (terminal state; no resurrection — the customer initializes a new payment, §11.4).
+- Confirmation sets `paid_at`, generates the receipt number (`RCPT-YYYY-######`) once, and applies the payable side effects atomically: prepaid store order → stock deduction + `confirmed`; COD store order at `payment_pending` → `completed`; service order `pending_payment` → `confirmed`; confirming the **final** service payment (deposit-policy `balance`, or pay-after-service `full`) moves a `completed` booking → `closed` automatically.
+
+**Reject rules:**
+
+- Only active payments can be rejected; rejecting a terminal payment → `422`.
+- Rejecting a **prepaid** payment leaves the payable unchanged (a prepaid store order stays `pending_payment`; the customer may retry with a new initialization). Stock was never deducted, so no inventory effect.
+- Rejecting a **COD** payment triggers the official V1 cascade in **one transaction** (§7.6A): payment → `failed`, store order → `cancelled` (status history, reason recorded), and **automatic restock** — every order line writes a positive `sale_reversal` stock-ledger entry and product stock is restored. The cascade applies only when the order is not already `completed` / `cancelled`.
+
+**Status codes:** `200` success; `404` `PAYMENT_NOT_FOUND`; `422` `VALIDATION_ERROR` (terminal state, missing `reason`); `401` / `403` standard.
+
+### 18.9.2 Booking Administration
+
+Permissions:
+
+| Permission | Grants |
+| --- | --- |
+| `bookings.view` | List and view bookings in any status |
+| `bookings.manage` | Schedule, start, complete, close, and cancel bookings |
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/bookings` | `bookings.view` | Filters: `status`, `service_id`, `customer`, `date_from` / `date_to` (requested or scheduled), `search` (booking number) |
+| GET | `/api/v1/admin/bookings/{booking}` | `bookings.view` | Detail: customer, service, quotation chain, payments, status history, computed gate flags `can_schedule` / `can_close` |
+| PATCH | `/api/v1/admin/bookings/{booking}/schedule` | `bookings.manage` | Body: `scheduled_start_at`, `scheduled_end_at` (required, future, end after start). `accepted` → `scheduled`; payment-gated |
+| PATCH | `/api/v1/admin/bookings/{booking}/start` | `bookings.manage` | `scheduled` → `in_progress` |
+| PATCH | `/api/v1/admin/bookings/{booking}/complete` | `bookings.manage` | `in_progress` → `completed`; remaining balance (if any) becomes payable (§11.1) |
+| PATCH | `/api/v1/admin/bookings/{booking}/close` | `bookings.manage` | `completed` → `closed`; allowed only when **all** required payments are `paid` |
+| PATCH | `/api/v1/admin/bookings/{booking}/cancel` | `bookings.manage` | Body: **required** `cancellation_reason` (max 500). Any state before `completed` → `cancelled`; payment rules per §8.4 |
+
+**There is no admin booking-acceptance endpoint.** Booking acceptance is automatic on customer quotation acceptance (§9.5).
+
+**Allowed state transitions (admin):**
+
+| From | To | Guard |
+| --- | --- | --- |
+| `accepted` | `scheduled` | Payment gate per the accepted quotation's snapshotted policy: deposit-policy → `deposit` paid; `full_before_service` → `full` paid; `pay_after_service` → no payment required |
+| `scheduled` | `in_progress` | State only |
+| `in_progress` | `completed` | State only |
+| `completed` | `closed` | All required payments `paid` (deposit policy: `deposit` + `balance`; otherwise `full`); also reachable automatically via §18.9.1 confirm |
+| any state before `completed` | `cancelled` | Reason required; paid payments stay `paid`, active payments auto-fail (§8.4) |
+
+Booking status reversions (e.g. `completed` → `in_progress`) are **not** supported by these endpoints.
+
+**Status codes:** `200` success; `404` `BOOKING_NOT_FOUND`; `422` `VALIDATION_ERROR` (invalid transition, unmet payment gate, missing fields); `401` / `403` standard.
+
+### 18.9.3 Store Order Administration
+
+Permissions:
+
+| Permission | Grants |
+| --- | --- |
+| `store_orders.view` | List and view store orders in any status |
+| `store_orders.manage` | Advance store-order fulfilment status |
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/store-orders` | `store_orders.view` | Filters: `status`, `customer`, `payment_status`, `date_from` / `date_to`, `search` (`STO-` number) |
+| GET | `/api/v1/admin/store-orders/{storeOrder}` | `store_orders.view` | Detail: line items, shipping snapshot, payments, status history |
+| PATCH | `/api/v1/admin/store-orders/{storeOrder}/status` | `store_orders.manage` | Body: `status` (target status). Single transition endpoint |
+
+**Allowed transitions (server-enforced):**
+
+| From | To |
+| --- | --- |
+| `confirmed` | `preparing` (COD) or `processing` (prepaid) |
+| `preparing` | `out_for_delivery` |
+| `out_for_delivery` | `delivered` |
+| `delivered` | `payment_pending` (COD — requires an active payment) or `completed` (only when no active payment exists) |
+| `processing` | `completed` (only when no active payment exists) |
+
+**Guards:**
+
+- `payment_pending` requires an active (pending) payment on the order.
+- `completed` is **never** reachable through this endpoint while an active payment exists — a COD order completes **only** via payment confirmation (§18.9.1). 
+- Store-order cancellation via admin is **out of Sprint 27 scope** except the automatic COD-rejection cascade (§18.9.1); customer cancellation remains per §7.6A.
+
+**Status codes:** `200` success; `404` `STORE_ORDER_NOT_FOUND`; `422` `VALIDATION_ERROR` (disallowed transition, payment guard); `401` / `403` standard.
+
+### 18.9.4 Security Summary
+
+- **RBAC:** every route enforces `permission:<key>` middleware; effective permissions per §18.2. Six new keys (§18.9.1–18.9.3) join the permission catalog and role grants.
+- **Audit:** every mutation emits an AuditEvent queryable via `/api/v1/admin/audit-logs` (§18.5), in addition to the domain status-history rows.
+- **Transactions & concurrency:** every mutation runs in one database transaction; the aggregate row is locked (`lockForUpdate`); receipt-number generation uses the yearly-sequence advisory lock; confirm is idempotent under concurrent double-submit.
+- **Rate limiting:** mutation endpoints throttle at 60 requests per minute per admin (§16.6).
+- **Realm separation:** customer tokens can never reach `/api/v1/admin/*`; admin tokens act on any record (no ownership dimension) subject to permissions.
+
+## 18.10 Admin Quotation APIs (Sprint 28 — Documentation Only)
+
+Admin workflow for the Quotation Request lifecycle (§9). All endpoints require `auth:sanctum` + `admin` middleware plus the listed permission. Mutating endpoints run inside a **database transaction** with row-level locking on the quotation row, write `quotation_status_histories` with the acting admin, emit an **AuditEvent**, dispatch notifications **after commit**, and share the admin operations throttle (60 requests/minute/admin, §16.6). Revision `version_number` values are assigned **under the row lock** (revision concurrency protection).
+
+Permissions:
+
+| Permission | Grants |
+| --- | --- |
+| `quotations.view` | List/queue, detail, attachments download |
+| `quotations.review` | Assign/reassign reviewer, discussion reply, close discussion |
+| `quotations.issue` | Issue Version 1 and revisions (pricing authority) |
+| `quotations.manage` | Expire, cancel, accept on customer's behalf |
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/quotations` | `quotations.view` | Filters: `status`, `assigned_admin_id`, `customer`, `request_target_type`, `date_from` / `date_to`, `search` (`QT-` number); paginated (§3.4) |
+| GET | `/api/v1/admin/quotations/{quotation}` | `quotations.view` | Full detail: request, attachments, revision chain, discussion, timeline, linked booking/product, reviewer |
+| GET | `/api/v1/admin/quotations/{quotation}/attachments/{attachment}/download` | `quotations.view` | Streams customer evidence for review |
+| PATCH | `/api/v1/admin/quotations/{quotation}/assign` | `quotations.review` | Body: `assigned_admin_id` (required). First assignment: `submitted` → `under_review`; **reassignment allowed** (audited, no status change). Single reviewer only — no pools |
+| POST | `/api/v1/admin/quotations/{quotation}/issue` | `quotations.issue` | Body: line items, `subtotal`, `discount`, `tax`, `total`, **required `valid_until`**, `terms`, `notes`. Creates **Version 1**; `under_review` → `quotation_ready` |
+| POST | `/api/v1/admin/quotations/{quotation}/revisions` | `quotations.issue` | Same body; creates **Version n+1** (immutable). From `quotation_ready` / `under_discussion` → `quotation_ready`; from **`expired` → `quotation_ready` (automatic revival)** |
+| POST | `/api/v1/admin/quotations/{quotation}/discussion` | `quotations.review` | Body: `message` (required), `upload_ids` (optional). Team reply on the same thread |
+| PATCH | `/api/v1/admin/quotations/{quotation}/close-discussion` | `quotations.review` | `under_discussion` → `quotation_ready` (optional signal; acceptance never requires it) |
+| PATCH | `/api/v1/admin/quotations/{quotation}/expire` | `quotations.manage` | `quotation_ready` / `under_discussion` → `expired` (manual; scheduled expiry uses `valid_until`) |
+| PATCH | `/api/v1/admin/quotations/{quotation}/cancel` | `quotations.manage` | Body: **required** `reason` (max 500). Any non-terminal state → `cancelled` (terminal) |
+| PATCH | `/api/v1/admin/quotations/{quotation}/accept` | `quotations.manage` | Body: `revision_id` (latest only, `409` otherwise), **required** `reason` (offline agreement context). `quotation_ready` / `under_discussion` → `accepted`; same side effects as customer acceptance (§9.5) |
+
+**Revision rules (final):**
+
+- All pricing is admin-only; total-consistency validation (`total = subtotal − discount + tax`, `discount ≤ subtotal`) enforced on issue/revise → `422` on violation.
+- Revisions are **immutable**: no update or delete endpoints exist; correcting pricing means issuing the next version.
+- Version numbers are **strictly increasing** (Version 1 → 2 → 3 → 4 …), assigned under the quotation row lock. They are **never reused** and **never reset** — even future archive/delete operations must not reuse a version number.
+- `latest_revision_id` on the quotation always references the **highest `version_number`**; the pointer advances in the same transaction that inserts the revision (database + application both guard against out-of-sync revisions).
+- The Quotation Number is **immutable**: generated once at Draft creation, it never changes; every revision references the same `quotation_number`. Audit, timeline, and notifications reference `quotation_number` + `version_number` (e.g. `QT-2026-000001` · Version 2).
+- Every revision **must** carry `valid_until` (bounds revived offers).
+
+**Audit events:** Assign Reviewer, Issue Quotation, Revision, Close Discussion, Expire, Cancel, Admin Accept — payload includes `quotation_number`, `version_number` (where applicable), `admin_id`, `previous_status`, `new_status`, `timestamp`, `reason` (where applicable).
+
+**Notifications (after commit, §13.7 pattern):** Quotation Submitted (to operations), Quotation Issued, Quotation Revised, Discussion Reply, Quotation Expired, Quotation Cancelled.
+
+**Status codes:** `200` / `201` success; `404` `QUOTATION_NOT_FOUND`; `409` `QUOTATION_INVALID_STATE` (disallowed transition) / `QUOTATION_REVISION_STALE` (accept on older revision); `422` `VALIDATION_ERROR` (pricing consistency, missing `valid_until` / `reason`); `401` / `403` standard.
 
 ---
 

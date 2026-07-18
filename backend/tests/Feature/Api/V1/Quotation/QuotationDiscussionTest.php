@@ -5,6 +5,7 @@ namespace Tests\Feature\Api\V1\Quotation;
 use App\Enums\QuotationStatus;
 use App\Models\CustomerProfile;
 use App\Models\Quotation;
+use App\Models\Upload;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -49,18 +50,16 @@ class QuotationDiscussionTest extends TestCase
         $user = User::factory()->create();
         $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
         $quotation = $this->createQuotation($profile, QuotationStatus::QuotationReady);
+        $upload = Upload::factory()->create([
+            'customer_profile_id' => $profile->id,
+            'original_name' => 'reference.jpg',
+        ]);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
             ->postJson("/api/v1/quotations/{$quotation->id}/discussion", [
                 'message' => 'Please revise the scope.',
-                'attachments' => [
-                    [
-                        'original_name' => 'reference.jpg',
-                        'mime_type' => 'image/jpeg',
-                        'file_size' => 1024,
-                    ],
-                ],
+                'upload_ids' => [$upload->uuid],
             ]);
 
         $response
@@ -69,6 +68,7 @@ class QuotationDiscussionTest extends TestCase
             ->assertJsonPath('message', 'Quotation discussion message created successfully.')
             ->assertJsonPath('data.sender_type', 'user')
             ->assertJsonPath('data.message', 'Please revise the scope.')
+            ->assertJsonPath('data.attachments.0.uuid', $upload->uuid)
             ->assertJsonPath('data.attachments.0.original_name', 'reference.jpg');
 
         $this->assertDatabaseHas('quotation_discussion_messages', [
@@ -77,6 +77,10 @@ class QuotationDiscussionTest extends TestCase
             'sender_id' => $user->id,
             'message' => 'Please revise the scope.',
         ]);
+        $this->assertDatabaseHas('quotation_message_attachments', [
+            'upload_id' => $upload->id,
+        ]);
+        self::assertNotNull($upload->refresh()->attached_at);
         $this->assertDatabaseHas('quotations', [
             'id' => $quotation->id,
             'status' => 'under_discussion',
@@ -118,7 +122,7 @@ class QuotationDiscussionTest extends TestCase
     {
         $user = User::factory()->create();
         $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
-        $quotation = $this->createQuotation($profile, QuotationStatus::PendingReview);
+        $quotation = $this->createQuotation($profile, QuotationStatus::Submitted);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
@@ -127,8 +131,8 @@ class QuotationDiscussionTest extends TestCase
             ]);
 
         $response
-            ->assertUnprocessable()
-            ->assertJsonPath('error_code', 'VALIDATION_ERROR')
+            ->assertConflict()
+            ->assertJsonPath('error_code', 'QUOTATION_INVALID_STATE')
             ->assertJsonPath('message', 'Discussion is not available for this quotation.');
     }
 

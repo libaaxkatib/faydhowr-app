@@ -2,8 +2,10 @@
 
 namespace App\Actions\Booking;
 
+use App\Actions\Payment\FailActiveBookingPaymentsAction;
 use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Enums\BookingStatus;
+use App\Events\Booking\BookingCancelled;
 use App\Models\Booking;
 use App\Models\CustomerProfile;
 use DomainException;
@@ -11,7 +13,10 @@ use Illuminate\Support\Facades\DB;
 
 class CancelBookingAction
 {
-    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+    public function __construct(
+        private FailActiveBookingPaymentsAction $failActiveBookingPayments,
+        private DashboardCacheInvalidatorInterface $dashboardCache,
+    ) {}
 
     public function handle(
         CustomerProfile $profile,
@@ -50,6 +55,12 @@ class CancelBookingAction
                 'notes' => $cancellationReason,
             ]);
 
+            // Sprint 27 cancellation rule: paid payments remain paid (refunds
+            // are V2); active payments fail inside the same transaction.
+            $this->failActiveBookingPayments->handle($booking, 'user', $profile->user_id);
+
+            DB::afterCommit(fn (): mixed => BookingCancelled::dispatch($booking));
+
             return $booking->load(['service', 'serviceMode']);
         });
 
@@ -64,6 +75,7 @@ class CancelBookingAction
     {
         return ! in_array($status, [
             BookingStatus::Completed,
+            BookingStatus::Closed,
             BookingStatus::Cancelled,
         ], true);
     }

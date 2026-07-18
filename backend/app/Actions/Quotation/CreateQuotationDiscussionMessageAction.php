@@ -3,23 +3,34 @@
 namespace App\Actions\Quotation;
 
 use App\Enums\QuotationStatus;
+use App\Events\Quotation\QuotationDiscussionReplyCreated;
+use App\Exceptions\Quotation\QuotationInvalidStateException;
 use App\Models\CustomerProfile;
 use App\Models\QuotationDiscussionMessage;
-use DomainException;
+use App\Models\Upload;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Customer discussion message (Sprint 28). Attachments reference staged
+ * uploads by UUID — never JSON blobs — and this is the only channel for
+ * additional customer files after Submit. A message from `quotation_ready`
+ * transitions the quotation to `under_discussion`.
+ */
 class CreateQuotationDiscussionMessageAction
 {
+    public function __construct(private ResolveQuotationUploadsAction $resolveUploads) {}
+
     /**
-     * @param  array<string, mixed>  $attributes
+     * @param  list<string>  $uploadUuids
      */
     public function handle(
         CustomerProfile $profile,
         int $quotationId,
-        array $attributes,
+        string $message,
+        array $uploadUuids = [],
     ): QuotationDiscussionMessage {
-        return DB::transaction(function () use ($profile, $quotationId, $attributes): QuotationDiscussionMessage {
+        return DB::transaction(function () use ($profile, $quotationId, $message, $uploadUuids): QuotationDiscussionMessage {
             $profile = CustomerProfile::query()
                 ->whereKey($profile)
                 ->lockForUpdate()
@@ -39,15 +50,21 @@ class CreateQuotationDiscussionMessageAction
                 QuotationStatus::QuotationReady,
                 QuotationStatus::UnderDiscussion,
             ], true)) {
-                throw new DomainException('Discussion is not available for this quotation.');
+                throw QuotationInvalidStateException::forAction('Discussion is not available for this quotation.');
             }
 
-            $message = $quotation->discussionMessages()->create([
+            $discussionMessage = $quotation->discussionMessages()->create([
                 'sender_type' => 'user',
                 'sender_id' => $profile->user_id,
-                'message' => $attributes['message'],
-                'attachments' => $attributes['attachments'] ?? null,
+                'message' => $message,
             ]);
+
+            $this->resolveUploads
+                ->handle($profile, $uploadUuids)
+                ->each(function (Upload $upload) use ($discussionMessage): void {
+                    $discussionMessage->attachments()->create(['upload_id' => $upload->id]);
+                    $upload->update(['attached_at' => now()]);
+                });
 
             if ($quotation->status === QuotationStatus::QuotationReady) {
                 $quotation->status = QuotationStatus::UnderDiscussion;
@@ -61,7 +78,9 @@ class CreateQuotationDiscussionMessageAction
                 ]);
             }
 
-            return $message;
+            DB::afterCommit(fn (): mixed => QuotationDiscussionReplyCreated::dispatch($quotation, $discussionMessage));
+
+            return $discussionMessage->load('attachments.upload');
         });
     }
 }

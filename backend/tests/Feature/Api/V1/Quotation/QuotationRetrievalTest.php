@@ -27,7 +27,7 @@ class QuotationRetrievalTest extends TestCase
     {
         $user = User::factory()->create();
         $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
-        $olderQuotation = $this->createQuotation($profile, null, QuotationStatus::PendingReview, now()->subDay());
+        $olderQuotation = $this->createQuotation($profile, null, QuotationStatus::Submitted, now()->subDay());
         $newerQuotation = $this->createQuotation($profile, null, QuotationStatus::QuotationReady, now());
         $this->createQuotation(CustomerProfile::factory()->create());
 
@@ -71,7 +71,7 @@ class QuotationRetrievalTest extends TestCase
     {
         $user = User::factory()->create();
         $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
-        $this->createQuotation($profile, null, QuotationStatus::PendingReview);
+        $this->createQuotation($profile, null, QuotationStatus::Submitted);
         $issuedQuotation = $this->createQuotation($profile, null, QuotationStatus::QuotationReady);
 
         $response = $this
@@ -201,7 +201,7 @@ class QuotationRetrievalTest extends TestCase
     private function createQuotation(
         CustomerProfile $profile,
         ?Booking $booking = null,
-        QuotationStatus $status = QuotationStatus::PendingReview,
+        QuotationStatus $status = QuotationStatus::Submitted,
         mixed $createdAt = null,
     ): Quotation {
         $quotation = Quotation::query()->create([

@@ -15,6 +15,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'quotation_number',
     'customer_profile_id',
     'booking_id',
+    'requirements',
+    'description',
+    'preferred_timing',
+    'quantity_hint',
+    'assigned_admin_id',
+    'latest_revision_id',
     'status',
     'currency',
     'subtotal',
@@ -26,6 +32,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'deposit_amount',
     'remaining_amount',
     'valid_until',
+    'submitted_at',
     'accepted_at',
     'notes',
 ])]
@@ -50,6 +57,38 @@ class Quotation extends Model
     }
 
     /**
+     * @return BelongsTo<Admin, $this>
+     */
+    public function assignedAdmin(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'assigned_admin_id');
+    }
+
+    /**
+     * @return BelongsTo<QuotationRevision, $this>
+     */
+    public function latestRevision(): BelongsTo
+    {
+        return $this->belongsTo(QuotationRevision::class, 'latest_revision_id');
+    }
+
+    /**
+     * @return HasMany<QuotationRevision, $this>
+     */
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(QuotationRevision::class);
+    }
+
+    /**
+     * @return HasMany<QuotationAttachment, $this>
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(QuotationAttachment::class);
+    }
+
+    /**
      * @return HasMany<QuotationStatusHistory, $this>
      */
     public function statusHistories(): HasMany
@@ -66,12 +105,44 @@ class Quotation extends Model
     }
 
     /**
+     * Server-calculated business flag (API Design §9.4A): acceptance is
+     * permitted only from quotation_ready / under_discussion while the
+     * latest revision (or legacy head validity) is within valid_until.
+     * Clients must never re-derive this rule.
+     */
+    public function canAccept(): bool
+    {
+        if (! $this->canDiscuss()) {
+            return false;
+        }
+
+        $validUntil = $this->latest_revision_id !== null
+            ? $this->latestRevision?->valid_until
+            : $this->valid_until;
+
+        return $validUntil === null || ! $validUntil->isPast();
+    }
+
+    /**
+     * Server-calculated business flag (API Design §9.4A): discussion is open
+     * only while quotation_ready / under_discussion.
+     */
+    public function canDiscuss(): bool
+    {
+        return in_array($this->status, [
+            QuotationStatus::QuotationReady,
+            QuotationStatus::UnderDiscussion,
+        ], true);
+    }
+
+    /**
      * @return array<string, string|class-string>
      */
     protected function casts(): array
     {
         return [
             'status' => QuotationStatus::class,
+            'quantity_hint' => 'integer',
             'subtotal' => 'decimal:2',
             'discount_amount' => 'decimal:2',
             'tax_amount' => 'decimal:2',
@@ -81,6 +152,7 @@ class Quotation extends Model
             'deposit_amount' => 'decimal:2',
             'remaining_amount' => 'decimal:2',
             'valid_until' => 'datetime',
+            'submitted_at' => 'datetime',
             'accepted_at' => 'datetime',
         ];
     }

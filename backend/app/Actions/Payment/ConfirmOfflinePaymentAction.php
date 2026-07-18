@@ -4,6 +4,7 @@ namespace App\Actions\Payment;
 
 use App\Actions\Inventory\ProcessStoreOrderPaidStockAction;
 use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
+use App\Enums\AuditAction;
 use App\Enums\BookingStatus;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentMethod;
@@ -11,6 +12,7 @@ use App\Enums\PaymentStage;
 use App\Enums\PaymentStatus;
 use App\Enums\ServicePaymentType;
 use App\Enums\StoreOrderStatus;
+use App\Events\Audit\AuditEvent;
 use App\Events\Payment\PaymentPaid;
 use App\Models\Admin;
 use App\Models\Order;
@@ -35,9 +37,11 @@ class ConfirmOfflinePaymentAction
         private DashboardCacheInvalidatorInterface $dashboardCache,
     ) {}
 
-    public function handle(Admin $admin, int $paymentId): Payment
+    public function handle(Admin $admin, int $paymentId, ?string $notes = null): Payment
     {
-        $payment = DB::transaction(function () use ($admin, $paymentId): Payment {
+        $previousStatus = null;
+
+        $payment = DB::transaction(function () use ($admin, $paymentId, $notes, &$previousStatus): Payment {
             $payment = Payment::query()
                 ->whereKey($paymentId)
                 ->lockForUpdate()
@@ -47,6 +51,7 @@ class ConfirmOfflinePaymentAction
                 throw new ModelNotFoundException;
             }
 
+            // Idempotent confirm: re-confirming a paid payment is a no-op.
             if ($payment->status === PaymentStatus::Paid) {
                 return $payment->load(['payable', 'transactions', 'statusHistories']);
             }
@@ -54,6 +59,8 @@ class ConfirmOfflinePaymentAction
             if ($payment->status->isTerminal()) {
                 throw new DomainException('Payment is already in a terminal state.');
             }
+
+            $previousStatus = $payment->status;
 
             $payment->update([
                 'status' => PaymentStatus::Paid,
@@ -65,7 +72,7 @@ class ConfirmOfflinePaymentAction
                 'status' => PaymentStatus::Paid,
                 'changed_by_type' => 'admin',
                 'changed_by_id' => $admin->id,
-                'notes' => null,
+                'notes' => $notes,
             ]);
 
             $this->confirmPayable($payment, $admin);
@@ -74,6 +81,21 @@ class ConfirmOfflinePaymentAction
 
             return $payment->fresh(['payable', 'transactions', 'statusHistories']);
         });
+
+        if ($previousStatus !== null) {
+            event(AuditEvent::record(
+                action: AuditAction::PaymentConfirm,
+                admin: $admin,
+                description: 'Payment confirmed.',
+                entityType: Payment::class,
+                entityId: $payment->id,
+                metadata: [
+                    'previous_status' => $previousStatus->value,
+                    'new_status' => PaymentStatus::Paid->value,
+                    'notes' => $notes,
+                ],
+            ));
+        }
 
         $this->dashboardCache->invalidate();
 

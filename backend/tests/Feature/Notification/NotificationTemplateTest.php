@@ -28,6 +28,10 @@ class NotificationTemplateTest extends TestCase
 
     public function test_super_admin_can_create_list_show_and_update_templates(): void
     {
+        // Remove the migration-seeded Sprint 27 operational templates so the
+        // pagination and ordering assertions below stay deterministic.
+        DB::table('notification_templates')->delete();
+
         $admin = Admin::factory()->superAdmin()->create();
         $token = $admin->createToken('admin-panel')->plainTextToken;
 

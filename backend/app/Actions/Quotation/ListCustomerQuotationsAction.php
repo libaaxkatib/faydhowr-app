@@ -20,7 +20,7 @@ class ListCustomerQuotationsAction
     ): LengthAwarePaginator {
         return $profile
             ->quotations()
-            ->with('booking')
+            ->with(['booking', 'latestRevision'])
             ->when($status !== null, fn ($query) => $query->where('status', $status->value))
             ->when($bookingId !== null, fn ($query) => $query->where('booking_id', $bookingId))
             ->latest()

@@ -11,7 +11,7 @@ class GetCustomerQuotationAction
     {
         return $profile
             ->quotations()
-            ->with('booking')
+            ->with(['booking', 'latestRevision', 'attachments.upload'])
             ->whereKey($quotationId)
             ->first();
     }

@@ -3,7 +3,9 @@
 namespace App\Actions\StoreOrder;
 
 use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
+use App\Enums\AuditAction;
 use App\Enums\StoreOrderStatus;
+use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\Payment;
 use App\Models\StoreOrder;
@@ -32,7 +34,9 @@ class AdvanceStoreOrderStatusAction
 
     public function handle(Admin $admin, int $storeOrderId, StoreOrderStatus $targetStatus): StoreOrder
     {
-        $storeOrder = DB::transaction(function () use ($admin, $storeOrderId, $targetStatus): StoreOrder {
+        $previousStatus = null;
+
+        $storeOrder = DB::transaction(function () use ($admin, $storeOrderId, $targetStatus, &$previousStatus): StoreOrder {
             $storeOrder = StoreOrder::query()
                 ->whereKey($storeOrderId)
                 ->lockForUpdate()
@@ -43,6 +47,8 @@ class AdvanceStoreOrderStatusAction
             }
 
             $this->assertTransitionAllowed($storeOrder, $targetStatus);
+
+            $previousStatus = $storeOrder->status;
 
             $storeOrder->update([
                 'status' => $targetStatus,
@@ -57,6 +63,18 @@ class AdvanceStoreOrderStatusAction
 
             return $storeOrder->load(['items', 'statusHistories']);
         });
+
+        event(AuditEvent::record(
+            action: AuditAction::StoreOrderStatusChange,
+            admin: $admin,
+            description: 'Store order status changed.',
+            entityType: StoreOrder::class,
+            entityId: $storeOrder->id,
+            metadata: [
+                'previous_status' => $previousStatus?->value,
+                'new_status' => $targetStatus->value,
+            ],
+        ));
 
         $this->dashboardCache->invalidate();
 

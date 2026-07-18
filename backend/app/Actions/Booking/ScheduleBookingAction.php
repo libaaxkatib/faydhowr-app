@@ -4,7 +4,10 @@ namespace App\Actions\Booking;
 
 use App\Contracts\Booking\Services\BookingPaymentGateInterface;
 use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
+use App\Enums\AuditAction;
 use App\Enums\BookingStatus;
+use App\Events\Audit\AuditEvent;
+use App\Events\Booking\BookingScheduled;
 use App\Models\Admin;
 use App\Models\Booking;
 use DateTimeInterface;
@@ -56,8 +59,24 @@ class ScheduleBookingAction
                 'notes' => null,
             ]);
 
+            DB::afterCommit(fn (): mixed => BookingScheduled::dispatch($booking));
+
             return $booking;
         });
+
+        event(AuditEvent::record(
+            action: AuditAction::BookingSchedule,
+            admin: $admin,
+            description: 'Booking scheduled.',
+            entityType: Booking::class,
+            entityId: $booking->id,
+            metadata: [
+                'previous_status' => BookingStatus::Accepted->value,
+                'new_status' => BookingStatus::Scheduled->value,
+                'scheduled_start_at' => $booking->scheduled_start_at?->toISOString(),
+                'scheduled_end_at' => $booking->scheduled_end_at?->toISOString(),
+            ],
+        ));
 
         $this->dashboardCache->invalidate();
 

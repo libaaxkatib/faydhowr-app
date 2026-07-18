@@ -36,6 +36,20 @@ enum AdminPermission: string
     case ReviewsView = 'reviews.view';
     case ReviewsModerate = 'reviews.moderate';
 
+    case PaymentsView = 'payments.view';
+    case PaymentsConfirm = 'payments.confirm';
+
+    case BookingsView = 'bookings.view';
+    case BookingsManage = 'bookings.manage';
+
+    case StoreOrdersView = 'store_orders.view';
+    case StoreOrdersManage = 'store_orders.manage';
+
+    case QuotationsView = 'quotations.view';
+    case QuotationsReview = 'quotations.review';
+    case QuotationsIssue = 'quotations.issue';
+    case QuotationsManage = 'quotations.manage';
+
     public function label(): string
     {
         return match ($this) {
@@ -62,6 +76,16 @@ enum AdminPermission: string
             self::CustomersAttachments => 'Customer Attachments',
             self::ReviewsView => 'View Reviews',
             self::ReviewsModerate => 'Moderate Reviews',
+            self::PaymentsView => 'View Payments',
+            self::PaymentsConfirm => 'Confirm Payments',
+            self::BookingsView => 'View Bookings',
+            self::BookingsManage => 'Manage Bookings',
+            self::StoreOrdersView => 'View Store Orders',
+            self::StoreOrdersManage => 'Manage Store Orders',
+            self::QuotationsView => 'View Quotations',
+            self::QuotationsReview => 'Review Quotations',
+            self::QuotationsIssue => 'Issue Quotations',
+            self::QuotationsManage => 'Manage Quotations',
         };
     }
 
@@ -91,6 +115,16 @@ enum AdminPermission: string
             self::CustomersAttachments => 'Customers',
             self::ReviewsView,
             self::ReviewsModerate => 'Reviews',
+            self::PaymentsView,
+            self::PaymentsConfirm => 'Payments',
+            self::BookingsView,
+            self::BookingsManage => 'Bookings',
+            self::StoreOrdersView,
+            self::StoreOrdersManage => 'Store Orders',
+            self::QuotationsView,
+            self::QuotationsReview,
+            self::QuotationsIssue,
+            self::QuotationsManage => 'Quotations',
         };
     }
 

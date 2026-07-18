@@ -62,7 +62,7 @@ class QuotationPostgresIntegrityTest extends TestCase
             'quotation_number' => sprintf('QT-%s-%06d', now()->format('Y'), fake()->unique()->numberBetween(1, 999999)),
             'customer_profile_id' => $profile->id,
             'booking_id' => null,
-            'status' => 'pending_review',
+            'status' => 'submitted',
             'subtotal' => 100,
             'discount_amount' => 10,
             'tax_amount' => 5,

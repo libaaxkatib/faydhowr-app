@@ -15,17 +15,26 @@ class StoreQuotationDiscussionMessageRequest extends FormRequest
     }
 
     /**
+     * Discussion attachments reference staged uploads by UUID (Sprint 28) —
+     * JSON attachment blobs are no longer accepted.
+     *
      * @return array<string, array<int, string>>
      */
     public function rules(): array
     {
         return [
             'message' => ['required', 'string', 'max:5000'],
-            'attachments' => ['nullable', 'array', 'max:10'],
-            'attachments.*.original_name' => ['nullable', 'string', 'max:255'],
-            'attachments.*.mime_type' => ['nullable', 'string', 'max:100'],
-            'attachments.*.file_size' => ['nullable', 'integer', 'min:1'],
+            'upload_ids' => ['nullable', 'array', 'max:10'],
+            'upload_ids.*' => ['uuid'],
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function uploadUuids(): array
+    {
+        return array_values($this->validated('upload_ids') ?? []);
     }
 
     protected function failedValidation(Validator $validator): void

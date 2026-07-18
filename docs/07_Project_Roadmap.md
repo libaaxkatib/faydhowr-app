@@ -96,7 +96,7 @@ Phases are sequential for **major dependencies**, with limited parallelization o
 | **8** | Services Module | Catalog, details, search, book/quote CTAs |
 | **9** | Store Module | Catalog (V1 physical categories), Selling Price, `product_images`, cart, checkout **preview**, `store_orders` (`STO-…`) + Unified Payment; stock decrease only after Payment Paid + one-time `RCPT-…` |
 | **9A** | Inventory Module | Suppliers (`status` active/inactive), POs (Draft→Submitted→**Approved**→…), Goods Receipts only after approval, `stock_ledgers`, adjustments, low-stock dashboard (separate from Store) |
-| **10** | Quotation Module | Requests, uploads (`POST /uploads`), description, Discuss Quotation, revisions, timeline, Accept (no Reject) |
+| **10** | Quotation Module | Draft requests (no customer pricing), uploads (`POST /uploads`), description, Submit (locks request + attachments), admin review/assignment, admin-issued immutable revisions (Version 1, 2, 3…), Discuss Quotation, timeline, Accept latest revision (no Reject) — Sprint 28 workflow |
 | **11** | Booking Module | Create, details, history, cancel (policy) |
 | **12** | Cart & Checkout | Cart management, checkout, order create/confirm |
 | **13** | Payment Integration | Initialize, webhook/callback, success/failure, history |
@@ -383,7 +383,7 @@ Every phase must align with these approved documents. Conflicts are resolved by 
 | Login only when required | Explicit G6–G9 and G14 checks |
 | Production-ready v1 | Phases 17–20 mandatory; Future Versions quarantined |
 | Spec alignment | G1 freeze + DoD documentation clause |
-| Quotation V1 | Accept + Discuss only; six statuses; QT / revision rules; no Reject |
+| Quotation V1 | Accept + Discuss only; eight statuses (Draft → Cancelled, Sprint 28); customer never submits pricing; immutable revisions on one permanent QT number; no Reject |
 
 ---
 

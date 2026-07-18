@@ -24,7 +24,7 @@ class AcceptQuotationTest extends TestCase
 
     private int $quotationSequence = 1;
 
-    public function test_customer_can_accept_a_quotation_ready_quotation_without_changing_its_booking(): void
+    public function test_customer_can_accept_a_quotation_ready_quotation_and_the_booking_is_accepted_automatically(): void
     {
         $user = User::factory()->create();
         $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
@@ -54,9 +54,35 @@ class AcceptQuotationTest extends TestCase
             'changed_by_type' => 'user',
             'changed_by_id' => $user->id,
         ]);
+
+        // Sprint 27: quotation acceptance automatically accepts the booking.
         $this->assertDatabaseHas('bookings', [
             'id' => $booking->id,
-            'status' => 'submitted',
+            'status' => 'accepted',
+        ]);
+        $this->assertDatabaseHas('booking_status_histories', [
+            'booking_id' => $booking->id,
+            'status' => 'accepted',
+            'changed_by_type' => 'user',
+            'changed_by_id' => $user->id,
+        ]);
+    }
+
+    public function test_quotation_acceptance_does_not_regress_a_booking_already_past_acceptance(): void
+    {
+        $user = User::factory()->create();
+        $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
+        $booking = $this->createBooking($profile, BookingStatus::Scheduled);
+        $quotation = $this->createQuotation($profile, $booking, QuotationStatus::QuotationReady);
+
+        $this
+            ->withToken($user->createToken('customer-mobile')->plainTextToken)
+            ->postJson("/api/v1/quotations/{$quotation->id}/accept")
+            ->assertOk();
+
+        $this->assertDatabaseHas('bookings', [
+            'id' => $booking->id,
+            'status' => 'scheduled',
         ]);
     }
 
@@ -188,15 +214,15 @@ class AcceptQuotationTest extends TestCase
     {
         $user = User::factory()->create();
         $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
-        $quotation = $this->createQuotation($profile, null, QuotationStatus::PendingReview);
+        $quotation = $this->createQuotation($profile, null, QuotationStatus::Submitted);
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
             ->postJson("/api/v1/quotations/{$quotation->id}/accept");
 
         $response
-            ->assertUnprocessable()
-            ->assertJsonPath('error_code', 'VALIDATION_ERROR')
+            ->assertConflict()
+            ->assertJsonPath('error_code', 'QUOTATION_INVALID_STATE')
             ->assertJsonPath('message', 'This quotation cannot be accepted.');
     }
 

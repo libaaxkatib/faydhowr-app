@@ -24,6 +24,7 @@ class ListQuotationDiscussionAction
 
         return $quotation
             ->discussionMessages()
+            ->with('attachments.upload')
             ->oldest()
             ->get();
     }

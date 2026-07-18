@@ -15,19 +15,29 @@ class StoreQuotationRequest extends FormRequest
     }
 
     /**
+     * Customers never submit pricing (Sprint 28): all pricing and payment
+     * fields are explicitly prohibited on customer endpoints.
+     *
      * @return array<string, array<int, string>>
      */
     public function rules(): array
     {
         return [
             'booking_id' => ['nullable', 'integer', 'exists:bookings,id'],
-            'currency' => ['required', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
-            'subtotal' => ['required', 'decimal:0,2', 'min:0'],
-            'discount_amount' => ['nullable', 'decimal:0,2', 'min:0'],
-            'tax_amount' => ['nullable', 'decimal:0,2', 'min:0'],
-            'total_amount' => ['required', 'decimal:0,2', 'min:0'],
-            'valid_until' => ['nullable', 'date'],
-            'notes' => ['nullable', 'string', 'max:5000'],
+            'requirements' => ['required', 'string', 'max:5000'],
+            'description' => ['nullable', 'string', 'max:5000'],
+            'preferred_timing' => ['nullable', 'string', 'max:255'],
+            'quantity_hint' => ['nullable', 'integer', 'min:1'],
+            'attachment_ids' => ['nullable', 'array', 'max:10'],
+            'attachment_ids.*' => ['uuid'],
+            'subtotal' => ['prohibited'],
+            'discount_amount' => ['prohibited'],
+            'tax_amount' => ['prohibited'],
+            'total_amount' => ['prohibited'],
+            'payment_type' => ['prohibited'],
+            'deposit_percentage' => ['prohibited'],
+            'deposit_amount' => ['prohibited'],
+            'remaining_amount' => ['prohibited'],
         ];
     }
 
