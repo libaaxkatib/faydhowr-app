@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'max_concurrent_bookings',
     'requires_address',
     'is_active',
+    'is_featured',
     'sort_order',
     'payment_type',
     'deposit_percentage',
@@ -98,6 +99,7 @@ class Service extends Model
             'max_concurrent_bookings' => 'integer',
             'requires_address' => 'boolean',
             'is_active' => 'boolean',
+            'is_featured' => 'boolean',
             'sort_order' => 'integer',
         ];
     }

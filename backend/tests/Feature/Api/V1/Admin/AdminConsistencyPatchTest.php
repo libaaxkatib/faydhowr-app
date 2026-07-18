@@ -237,6 +237,8 @@ class AdminConsistencyPatchTest extends TestCase
             'admins.manage',
             'bookings.manage',
             'bookings.view',
+            'content.manage',
+            'content.view',
             'customers.attachments',
             'customers.create',
             'customers.delete',

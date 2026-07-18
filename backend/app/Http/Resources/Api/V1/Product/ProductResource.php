@@ -36,6 +36,7 @@ class ProductResource extends JsonResource
             'currency' => $this->currency,
             'current_stock' => $this->current_stock,
             'low_stock_threshold' => $this->low_stock_threshold,
+            'availability_status' => $this->availabilityStatus(),
             'is_featured' => $this->is_featured,
             'status' => $this->status->value,
             'category' => $this->whenLoaded('category', fn (): array => [
@@ -47,5 +48,22 @@ class ProductResource extends JsonResource
                 : (new ProductImageResource($primaryImage))->resolve(),
             'additional_images' => ProductImageResource::collection($additionalImages)->resolve(),
         ];
+    }
+
+    /**
+     * Server-authoritative availability state (API Design §7): out-of-stock
+     * products stay publicly visible and are never hidden.
+     */
+    private function availabilityStatus(): string
+    {
+        if ($this->current_stock <= 0) {
+            return 'out_of_stock';
+        }
+
+        if ($this->low_stock_threshold > 0 && $this->current_stock <= $this->low_stock_threshold) {
+            return 'low_stock';
+        }
+
+        return 'in_stock';
     }
 }

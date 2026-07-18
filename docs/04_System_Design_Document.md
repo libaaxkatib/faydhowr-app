@@ -144,6 +144,16 @@ Flutter submits requests and renders API responses. The REST API routes requests
 6. Acceptance is recorded only by an authorized action and approved business rule: allowed from `quotation_ready` or `under_discussion`, valid only for the **latest revision** (stale references return `409 Conflict`), and executed in a row-locked transaction that snapshots the payment policy and auto-accepts the linked booking.
 7. An accepted quotation becomes eligible to create an order according to the approved process.
 
+## 7A. Home & Global Search Flow (Sprint 29)
+
+1. A guest (or authenticated) client requests `GET /api/v1/home` or any Home section endpoint; no authentication is required and the shared `public-catalog` rate limiter (60 requests/minute/IP) applies.
+2. Laravel serves the response from a server-side cache (**TTL 5 minutes**). On a cache miss, the Home aggregation service composes the sections: active in-schedule hero banners, service categories with at least one active service, featured services (`is_featured`, manual curation, `sort_order`), popular services (ranked internally on `favorites_count`, which is never exposed), store products with `selling_price` (out-of-stock products visible with the Out of Stock state), Before & After gallery, `published` reviews preview, active FAQs, and whitelisted public contact fields.
+3. The aggregate response includes informational metadata (`generated_at`, `cache_expires_at`, `version`); clients render sections without deriving business logic from metadata or recalculating server flags.
+4. The **`HomeCacheInvalidator`** flushes Home caches whenever hero banners, featured services, featured products, FAQ, gallery items, review moderation, service status, or product status change (admin mutations and moderation actions call it inside their workflow).
+5. For search, the client calls unified search, service search, product search, or suggestions (minimum query length 2, `public-catalog` throttle). PostgreSQL `pg_trgm` indexes match case-insensitively (SQLite tests use a `LIKE` fallback), and results are ranked server-side: exact name → prefix → word → description match, with `sort_order`, featured, then alphabetical tie-breakers.
+6. Suggestions return at most 10 items (`type`, `name`, `slug`/product identifier, `thumbnail`) with no prices, discounts, or stock. Recent searches remain device-local — the backend stores no search history.
+7. Admins manage hero banners, gallery items, FAQs, and featured curation through `content.view` / `content.manage` guarded APIs; every mutation is transactional, emits an `AuditEvent`, and invalidates Home caches.
+
 ## 8. Order Flow
 
 1. For Store commerce, Laravel validates checkout preview eligibility, then the client creates a Store Order via `POST /api/v1/store-orders` (checkout itself does not create the order).

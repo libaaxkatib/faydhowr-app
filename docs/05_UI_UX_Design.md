@@ -276,6 +276,15 @@ For each screen: Purpose, Components, Buttons, Inputs, Navigation, Empty / Loadi
 8. FAQ  
 9. Contact Information  
 
+**Home content rules (Sprint 29 — final):**
+
+- Hero banners are admin-managed and may carry an action (open a Service, Product, Category, or URL) or be display-only; only active, in-schedule banners render. Banner taps follow the server-provided `action_type` / `action_reference` — the client never invents destinations.
+- Featured Services and Featured Store Products are manually curated by the business and rendered in the server-provided order; the client never re-sorts or re-selects them.
+- The aggregate Home payload also carries a **Popular Services** section (server-ranked internally by favorites; the count itself is never shown or returned). When rendered, it appears as an optional row directly after Featured Services without changing the mandatory block order above.
+- Store Product cards on Home always show the Selling Price; **out-of-stock products remain visible** with a clear **Out of Stock** badge — never hidden.
+- Customer Reviews shows published reviews only. No internal metrics (e.g. favorites counts) appear anywhere on Home.
+- Contact shows only the approved public company fields returned by the API.
+
 ---
 
 ## 4.3 Search Results (S-003)
@@ -925,14 +934,17 @@ Used by booking and checkout; does not rewrite historical snapshots.
 ## 8.1 Behavior
 
 1. Entry from Home Search Bar (below Hero).
-2. Query searches **Services** and **Store Products**.
-3. Results grouped or tabbed by type.
+2. Query searches **Services** and **Store Products** (minimum 2 characters).
+3. Results grouped or tabbed by type, in the **server-provided ranking order** (exact name → prefix → word → description match; the client never re-ranks).
 4. Tap opens the relevant detail screen.
 5. No login required to search or open results.
+6. Out-of-stock products appear in results with the Out of Stock state — never hidden.
 
-## 8.2 Suggestions
+## 8.2 Suggestions (Sprint 29 — final)
 
-- Show recent searches (device-local) when focusing empty field (optional v1)
+- Live suggestions appear from 2 characters; **maximum 10** items.
+- Each suggestion shows exactly: `thumbnail`, `name`, and its type (Service / Product). Suggestions **never show prices, discounts, or stock**.
+- Show recent searches (device-local only — the backend stores no search history) when focusing an empty field (optional v1)
 - Optional category shortcuts while query empty
 - Do not fabricate product prices in suggestions—only real catalog entities
 
@@ -1699,6 +1711,40 @@ Store orders (`STO-…`) get a fulfilment status control on the Store Order deta
 - For a COD order at **Payment Pending**, "Complete" is disabled with the hint "Complete via payment confirmation" — completion happens by confirming the payment (§22.5).
 - If a COD payment is rejected, the order displays **Cancelled** with the automatic restock recorded in its history.
 - Viewing requires `store_orders.view`; status changes require `store_orders.manage`.
+
+---
+
+# 22A. Admin Home Content Management Module (Sprint 29)
+
+Desktop-first. Viewing requires `content.view`; all mutations require `content.manage`. Every change is audited and refreshes the customer Home automatically (cache invalidation).
+
+## 22A.1 Hero Banners
+
+| Element | Specification |
+| --- | --- |
+| **List** | Image thumbnail, title, action type, schedule window, active state, sort order; includes inactive and out-of-schedule banners with a visibility hint (e.g. "Not currently shown") |
+| **Form** | Title, subtitle, image, Action Type selector (`Service` / `Product` / `Category` / `URL` / `None`), Action Target picker shown for actionable types (service, product, or category picker; URL field), sort order, active toggle, optional Start/End schedule |
+| **Validation** | Action target required unless Action Type is None; End must be after Start |
+| **Forbidden** | No hard delete UI other than soft-delete "Remove" with confirmation |
+
+## 22A.2 Before & After Gallery
+
+List and form for gallery items: title, Before image, After image, optional related service, sort order, active toggle.
+
+## 22A.3 FAQ
+
+List and form for FAQ entries: question, answer, sort order, active toggle.
+
+## 22A.4 Featured Curation
+
+- Services list gains a **Featured** toggle plus sort order (manual curation only; no automatic featuring). Inactive services show the toggle disabled with a hint that inactive services never appear on Home.
+- Featured products are managed on the existing product edit screen (`products.update`).
+
+## 22A.5 Business Rules
+
+- Customers only ever see active, in-schedule content; the admin list always shows everything with clear visibility states.
+- Announcements do not exist in Backend V1 — no announcements management UI.
+- Saving any Home Content change takes effect on customer Home within the 5-minute cache window (immediate on cache invalidation).
 
 ---
 

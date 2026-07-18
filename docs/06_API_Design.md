@@ -437,44 +437,83 @@ See §12.
 
 ---
 
-# 5. Home APIs
+# 5. Home APIs (Sprint 29 — Final)
 
-Home may be loaded via a single aggregate endpoint and/or section endpoints. Both patterns are valid; aggregate is preferred for first paint.
+Home is delivered through **both** a single aggregate endpoint **and** per-section endpoints (approved Sprint 29 decision). Both patterns are first-class contracts; Flutter may use either. The aggregate is preferred for first paint; section endpoints support partial refresh and lazy loading.
 
-## 5.1 Aggregate (Recommended)
+All Home endpoints are **guest endpoints** (no authentication) and are throttled by the shared **`public-catalog` rate limiter** (60 requests per minute per IP, §16.6). Home payloads are guest payloads and **never include `is_favorite`** (§12) and **never include `favorites_count`** — heart state is resolved client-side from the authenticated favorites list, and the popularity aggregate is internal ranking input only. Announcements are **out of scope** for Backend V1 and are not part of any Home contract.
 
-| Method | Path | Auth |
-| --- | --- | --- |
-| `GET` | `/api/v1/home` | Guest |
+## 5.1 Aggregate
+
+| Item | Spec |
+| --- | --- |
+| **Method / Path** | `GET /api/v1/home` |
+| **Auth** | Guest (no authentication) |
+| **Caching** | Server-side cache, **TTL 5 minutes**, invalidated by the `HomeCacheInvalidator` (§18.1) |
+| **Rate limits** | `public-catalog` throttle (§16.6) |
 
 **Returns sections in UX order:**
 
-1. Hero banners  
+1. Hero banners (active + inside schedule only — §5.3)  
 2. (Client renders Search Bar locally; search calls §15)  
-3. Service categories  
-4. Featured services  
-5. Store products (with prices)  
-6. Before & after gallery teasers  
-7. Reviews  
-8. FAQ teasers  
-9. Contact information  
+3. Service categories (only categories with at least one active service)  
+4. Featured services (`is_featured = true`, active only, ordered by `sort_order`)  
+5. Popular services (ranked internally by `favorites_count`; the count is **never exposed**)  
+6. Store products (featured/latest, **with `selling_price` + `currency`**; out-of-stock products remain visible with an **Out of Stock** availability state — never hidden)  
+7. Before & after gallery teasers  
+8. Customer reviews preview (`published` reviews only)  
+9. FAQ teasers (active FAQs, ordered by `sort_order`)  
+10. Contact information (approved public company fields only — §5.4)  
+
+**Response metadata (informational only — clients must not derive business logic from these fields):**
+
+```json
+{
+  "success": true,
+  "data": { "sections": { } },
+  "meta": {
+    "generated_at": "2026-07-18T12:00:00Z",
+    "cache_expires_at": "2026-07-18T12:05:00Z",
+    "version": "v1"
+  }
+}
+```
 
 ## 5.2 Section Endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/v1/home/hero-banners` | Hero Banner |
-| `GET` | `/api/v1/home/service-categories` | Service Categories |
-| `GET` | `/api/v1/home/featured-services` | Featured Services |
-| `GET` | `/api/v1/home/store-products` | Store Products |
-| `GET` | `/api/v1/home/before-after` | Before & After Gallery |
-| `GET` | `/api/v1/home/reviews` | Reviews (**deferred to Sprint 25** — Home module) |
-| `GET` | `/api/v1/home/faq` | FAQ |
-| `GET` | `/api/v1/home/contact` | Contact Information |
+| `GET` | `/api/v1/home/hero-banners` | Hero banners (active + inside schedule) |
+| `GET` | `/api/v1/home/service-categories` | Service categories with at least one active service |
+| `GET` | `/api/v1/home/featured-services` | Featured services (`is_featured`, `sort_order`) |
+| `GET` | `/api/v1/home/store-products` | Store products (with prices; Out of Stock visible) |
+| `GET` | `/api/v1/home/before-after` | Before & After gallery |
+| `GET` | `/api/v1/home/reviews` | Customer reviews preview (`published` only) |
+| `GET` | `/api/v1/home/faq` | FAQ preview |
+| `GET` | `/api/v1/home/contact` | Public contact information |
 
-All guest-accessible. Home payloads are guest payloads and **never include `is_favorite`** (§12); heart state is resolved client-side from the authenticated favorites list.
+All section endpoints are guest-accessible, share the aggregate's 5-minute server cache, and use the `public-catalog` throttle. Section endpoints that paginate (before-after, reviews, faq) use the **standard `meta` pagination format (§3.4)** — the legacy `data.pagination` shape is never used for new endpoints.
 
-> **Sprint boundary:** `GET /api/v1/home/reviews` is **deferred to Sprint 25** with the rest of the Home module. Sprint 24 delivers review submission, owner management, per-service published reviews, and admin moderation (§8A).
+> **Popular Services** is delivered inside the aggregate response only — the approved section-endpoint list contains no dedicated endpoint for it. Its ranking input (`favorites_count`) is internal and never serialized.
+
+## 5.3 Hero Banner Contract
+
+Each banner exposes:
+
+| Field | Notes |
+| --- | --- |
+| `id` | Banner identifier |
+| `title`, `subtitle` | Display copy |
+| `image_url` | Absolute URL only |
+| `action_type` | One of `service`, `product`, `category`, `url`, `none` |
+| `action_reference` | Target reference for the action: service `slug`, product identifier, category `slug`, or absolute URL; `null` when `action_type = none` |
+| `sort_order` | Display order |
+
+**Visibility rule:** only banners that are **active** (`is_active = true`) **and inside their schedule window** (`starts_at` ≤ now ≤ `ends_at`, where bounds are optional) appear publicly. Scheduling and activation are admin-managed (§18.11).
+
+## 5.4 Public Contact Whitelist
+
+`GET /api/v1/home/contact` exposes **only approved company fields** (company name, phone, email, WhatsApp, address, working hours, social links). It must **never** expose SMTP settings, API keys, internal settings, authentication settings, or any other sensitive configuration — the endpoint reads from an explicit whitelist, never from a settings dump.
 
 ---
 
@@ -507,7 +546,7 @@ All catalog endpoints in §6.1–§6.4 are **guest endpoints**: authentication i
 | **Errors** | `404` `NOT_FOUND` (unknown slug, inactive, or soft-deleted service); `429` `RATE_LIMITED` (per-IP) |
 | **Rate limits** | Public per-IP throttle (§16.6) |
 
-> **Deferred fields:** `before_after` and `faq` are **not returned** by Sprint 22 catalog payloads. They will be introduced when the Gallery and FAQ modules are implemented.
+> **Deferred fields:** `before_after` and `faq` are **not returned** by service catalog payloads. Sprint 29 delivers the **global** Home Before & After gallery and FAQ (§5) as standalone home content; embedding per-service `before_after` / `faq` blocks in service detail payloads remains deferred.
 
 **Official V1 catalog and modes:**
 
@@ -527,7 +566,7 @@ The service payload uses `mode` values `one_time` and `monthly_contract`; subtyp
 
 > **Official V1 Services Catalog Seeder:** the backend ships a seeder that provisions the full official catalog above — service categories, services, service modes, service subtypes, and coverage cities — so the public catalog APIs are never empty on a fresh install. The seeder uses **official placeholder images** for `thumbnail`, `hero_image`, and `gallery` until production assets are available.
 >
-> **Catalog management:** Admin Services CRUD belongs to **Sprint 29**. Until then, the Official Seeder manages the catalog.
+> **Catalog management:** Full Admin Services CRUD is **deferred to a later Backend V1 sprint** (it was split out of Sprint 29, which delivers Home + Global Search only). Until then, the Official Seeder manages the catalog. Sprint 29 adds only the **featured curation toggle** (`is_featured`, `sort_order`) via Home Content Management (§18.11).
 
 ## 6.3 Service Categories
 
@@ -548,10 +587,12 @@ The service payload uses `mode` values `one_time` and `monthly_contract`; subtyp
 | **Query** | `q` (required, **minimum length 2**); `page`; `per_page` (default 20, maximum 100) |
 | **Search fields** | Service **name** and **short description** only |
 | **Visibility** | Same rules as §6.1 (active, non-deleted services) |
-| **Response `200`** | Paginated service cards (same shape as §6.1); empty result list is `200`, not an error |
+| **Ranking** | Documented ranking rules (§15.5) |
+| **Response `200`** | Paginated service cards (same shape as §6.1, §3.4 `meta` pagination); empty result list is `200`, not an error |
 | **Errors** | `422` `VALIDATION_ERROR` (missing `q` or fewer than 2 characters); `429` `RATE_LIMITED` (per-IP) |
+| **Rate limits** | `public-catalog` throttle (§16.6) |
 
-See also §15 unified search (separate, later scope).
+See also §15 unified search and ranking rules (Sprint 29).
 
 ## 6.5 Book Service
 
@@ -616,6 +657,8 @@ Includes `selling_price`, `currency`, `unit`, `sku`, `current_stock` / `availabi
 | Method | Path | Auth |
 | --- | --- | --- |
 | `GET` | `/api/v1/products/search` | Guest |
+
+Full spec in §15.2 (Sprint 29) — `q` minimum length 2, ranked per §15.5, `public-catalog` throttle; out-of-stock products remain visible with the Out of Stock state.
 
 ## 7.5 Cart
 
@@ -1341,41 +1384,77 @@ Existing module-specific uploads — customer attachments (admin), product image
 
 ---
 
-# 15. Search APIs
+# 15. Search APIs (Sprint 29 — Final)
 
-Powers Home Search Bar under the Hero (Services + Store Products).
+Powers Home Search Bar under the Hero (Services + Store Products). All search and suggestion endpoints are **guest endpoints** using the shared **`public-catalog` rate limiter** (§16.6), return only publicly visible content (active, non-deleted services; active products — out-of-stock products remain visible with an Out of Stock state), and use the standard **`meta` pagination format (§3.4)** where paginated.
+
+**Search engine:** PostgreSQL with **`pg_trgm`** GIN indexes on searched columns (Database Design §5.2) for case-insensitive matching at scale. The SQLite automated-test environment uses a functionally equivalent `LIKE` fallback; the API contract is identical in both.
 
 ## 15.1 Search Services
 
 `GET /api/v1/services/search?q={query}`
 
-Full spec in §6.4 — searches service name and short description; `q` minimum length 2.
+Full spec in §6.4 — searches service name and short description; `q` minimum length 2; ranked per §15.5.
 
 ## 15.2 Search Products
 
-`GET /api/v1/products/search?q={query}`
+| Item | Spec |
+| --- | --- |
+| **Method / Path** | `GET /api/v1/products/search` |
+| **Auth** | Guest (no authentication) |
+| **Query** | `q` (required, **minimum length 2**); optional `category_id`; `page`; `per_page` (default 20, maximum 100) |
+| **Search fields** | Product **name** and **description** |
+| **Visibility** | Active, non-deleted products; **out-of-stock products remain in results** with the Out of Stock availability state |
+| **Ranking** | Documented ranking rules (§15.5) |
+| **Response `200`** | Paginated product cards (§3.4 `meta`), always with `selling_price` + `currency`; empty result list is `200`, not an error |
+| **Errors** | `422` `VALIDATION_ERROR`; `429` `RATE_LIMITED` |
+| **Rate limits** | `public-catalog` throttle (§16.6) |
 
 ## 15.3 Unified Search (Recommended for Home)
 
-| Method | Path | Auth |
-| --- | --- | --- |
-| `GET` | `/api/v1/search` | Guest |
-
-**Query:** `q`, optional `type=all|service|product`, pagination  
-
-**Returns:** Grouped `services` and `products` arrays (products include prices).
+| Item | Spec |
+| --- | --- |
+| **Method / Path** | `GET /api/v1/search` |
+| **Auth** | Guest (no authentication) |
+| **Query** | `q` (required, minimum length 2); optional `type=all\|service\|product` (default `all`); pagination per group |
+| **Response `200`** | Grouped `services` and `products` arrays (products include `selling_price` + `currency`), each ranked per §15.5 |
+| **Rate limits** | `public-catalog` throttle (§16.6) |
 
 ## 15.4 Search Suggestions
 
-| Method | Path | Auth |
-| --- | --- | --- |
-| `GET` | `/api/v1/search/suggestions` | Guest |
+| Item | Spec |
+| --- | --- |
+| **Method / Path** | `GET /api/v1/search/suggestions` |
+| **Auth** | Guest (no authentication) |
+| **Query** | `q` (minimum length 2) |
+| **Limit** | **Maximum 10 suggestions** total (services + products combined) |
+| **Rate limits** | `public-catalog` throttle (§16.6) |
 
-**Query:** `q` (may be empty for popular/recent server-side suggestions)  
+**Suggestion payload — exactly these fields:**
 
-**Returns:** Lightweight suggestion list (names/ids/types). Must not invent fake prices. Client may also show local recent searches.
+| Field | Notes |
+| --- | --- |
+| `type` | `service` or `product` |
+| `name` | Display name |
+| `slug` | Service `slug`, or the product public identifier |
+| `thumbnail` | Absolute URL |
 
-**Empty query / no results:** `200` with empty lists — not an error.
+Suggestions must **not** include prices, discounts, or stock information.
+
+**Empty query / no results:** `200` with an empty list — not an error.
+
+**Recent searches:** recent searches are **device-local only**. The backend stores nothing — there is **no search-history table and no user search tracking**. The client renders its own local recent-search list; no API exists for it.
+
+## 15.5 Search Ranking Rules (Final)
+
+Results are ranked by match tier, then tie-breakers — the ordering is server-authoritative and identical for all clients:
+
+1. **Exact name match**
+2. **Prefix match** (name starts with the query)
+3. **Word match** (query matches a whole word within the name)
+4. **Description match**
+
+**Tie-breakers, in order:** `sort_order` → featured (`is_featured` first) → alphabetical by name.
 
 ---
 
@@ -1452,7 +1531,7 @@ Unexpected failures → `500` `SERVER_ERROR` with safe message; detailed diagnos
 
 ## 16.6 Rate Limiting
 
-HTTP `429` `RATE_LIMITED` with `Retry-After` when possible. Stricter limits on auth, payment initialize, and uploads. Public guest catalog endpoints (services, categories, search) require a per-IP throttle even though no authentication is required: **public tier = 60 requests per minute per IP**. Unified upload endpoint: **20 uploads per minute per customer** (§14.5). Review submission (`POST /api/v1/reviews`): **5 submissions per minute per customer** (§8A.1). Favorites endpoints (§12): **30 requests per minute per customer**. Admin Operations mutation endpoints (§18.9): **60 requests per minute per admin**.
+HTTP `429` `RATE_LIMITED` with `Retry-After` when possible. Stricter limits on auth, payment initialize, and uploads. Public guest catalog endpoints (services, categories, search) require a per-IP throttle even though no authentication is required: **public tier = 60 requests per minute per IP**. This public tier is implemented as the named **`public-catalog` rate limiter** and applies to **all** Home endpoints (§5), unified search, search suggestions, service search, and product search endpoints (§15) — Sprint 29 final. Unified upload endpoint: **20 uploads per minute per customer** (§14.5). Review submission (`POST /api/v1/reviews`): **5 submissions per minute per customer** (§8A.1). Favorites endpoints (§12): **30 requests per minute per customer**. Admin Operations mutation endpoints (§18.9): **60 requests per minute per admin**.
 
 ---
 
@@ -1519,10 +1598,12 @@ Apply per-IP and per-user limits on authentication, search abuse, uploads, and p
 
 | Resource | Guidance |
 | --- | --- |
-| Home aggregate, categories | Short TTL HTTP/cache or server cache |
+| Home aggregate + section endpoints | Server cache, **TTL 5 minutes**, invalidated by the **`HomeCacheInvalidator`** (Sprint 29) |
 | Service/product details | Cache publicly with invalidation on admin updates |
 | Customer-private data | No shared public cache; `Cache-Control: private` |
 | Favorites / notifications | Low TTL or no cache |
+
+**`HomeCacheInvalidator` (Sprint 29 — final):** Home caches (aggregate and all sections) are invalidated whenever any of the following change: hero banners, featured services, featured products, FAQ entries, Before & After gallery items, review moderation (publish/hide), service status (activate/deactivate/delete), or product status. The `GET /home` response exposes `generated_at`, `cache_expires_at`, and `version` in `meta` — informational only; clients must not build logic on them.
 
 Use `ETag` / `If-None-Match` optionally for catalog.
 
@@ -1599,6 +1680,7 @@ Use §3.5 consistently. Creating resources → `201`. Validation → `422`. Auth
 | Notifications | `/api/v1/notifications` |
 | Search | `/api/v1/search`, `/api/v1/search/suggestions` |
 | Uploads | `/api/v1/uploads` |
+| Home Content (admin) | `/api/v1/admin/hero-banners`, `/api/v1/admin/before-after`, `/api/v1/admin/faqs` (§18.11) |
 
 ---
 
@@ -1674,7 +1756,7 @@ Admin APIs use Sanctum tokens issued to `admins`, middleware `auth:sanctum` + `a
 
 Effective permissions = role permissions ∪ direct permissions. Super Admin permissions are implicit and not persisted.
 
-Permission catalog (route-aligned): `products.create`, `products.update`, `products.delete`, `suppliers.manage`, `purchase_orders.manage`, `goods_receipts.manage`, `admins.manage`, `roles.manage`. Sprint 27 adds the Admin Operations keys (§18.9): `payments.view`, `payments.confirm`, `bookings.view`, `bookings.manage`, `store_orders.view`, `store_orders.manage`. Sprint 28 adds the Quotation keys (§18.10): `quotations.view`, `quotations.review`, `quotations.issue`, `quotations.manage`.
+Permission catalog (route-aligned): `products.create`, `products.update`, `products.delete`, `suppliers.manage`, `purchase_orders.manage`, `goods_receipts.manage`, `admins.manage`, `roles.manage`. Sprint 27 adds the Admin Operations keys (§18.9): `payments.view`, `payments.confirm`, `bookings.view`, `bookings.manage`, `store_orders.view`, `store_orders.manage`. Sprint 28 adds the Quotation keys (§18.10): `quotations.view`, `quotations.review`, `quotations.issue`, `quotations.manage`. Sprint 29 adds the Home Content keys (§18.11): `content.view`, `content.manage`.
 
 ## 18.3 Admin CRUD
 
@@ -2203,6 +2285,58 @@ Permissions:
 **Notifications (after commit, §13.7 pattern):** Quotation Submitted (to operations), Quotation Issued, Quotation Revised, Discussion Reply, Quotation Expired, Quotation Cancelled.
 
 **Status codes:** `200` / `201` success; `404` `QUOTATION_NOT_FOUND`; `409` `QUOTATION_INVALID_STATE` (disallowed transition) / `QUOTATION_REVISION_STALE` (accept on older revision); `422` `VALIDATION_ERROR` (pricing consistency, missing `valid_until` / `reason`); `401` / `403` standard.
+
+---
+
+## 18.11 Home Content Management APIs (Sprint 29 — Documentation Only)
+
+Admin management of the content surfaced by the Home APIs (§5). All endpoints require `auth:sanctum` + `admin` middleware plus the listed permission, emit an **AuditEvent** on every mutation, invalidate Home caches through the **`HomeCacheInvalidator`** (§18.1), and share the admin operations throttle (60 requests/minute/admin, §16.6). Read endpoints paginate with the standard `meta` format (§3.4).
+
+Permissions:
+
+| Permission | Grants |
+| --- | --- |
+| `content.view` | List/detail of hero banners, Before & After items, FAQs, and featured curation state |
+| `content.manage` | Create, update, delete, activate/deactivate, reorder, schedule; featured toggles |
+
+### Hero Banners
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/hero-banners` | `content.view` | Includes inactive and out-of-schedule banners |
+| POST | `/api/v1/admin/hero-banners` | `content.manage` | Body: `title`, optional `subtitle`, `image_url` (via Upload Service or absolute URL), `action_type` (`service` \| `product` \| `category` \| `url` \| `none`), `action_reference` (required unless `action_type = none`), `sort_order`, `is_active`, optional `starts_at` / `ends_at` |
+| PATCH | `/api/v1/admin/hero-banners/{banner}` | `content.manage` | Partial update; same fields |
+| DELETE | `/api/v1/admin/hero-banners/{banner}` | `content.manage` | Soft delete |
+
+### Before & After Gallery
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/before-after` | `content.view` | Includes inactive items |
+| POST | `/api/v1/admin/before-after` | `content.manage` | Body: `title`, `before_image_url`, `after_image_url`, optional `service_id`, `sort_order`, `is_active` |
+| PATCH | `/api/v1/admin/before-after/{item}` | `content.manage` | Partial update |
+| DELETE | `/api/v1/admin/before-after/{item}` | `content.manage` | Soft delete |
+
+### FAQ
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/faqs` | `content.view` | Includes inactive entries |
+| POST | `/api/v1/admin/faqs` | `content.manage` | Body: `question`, `answer`, `sort_order`, `is_active` |
+| PATCH | `/api/v1/admin/faqs/{faq}` | `content.manage` | Partial update |
+| DELETE | `/api/v1/admin/faqs/{faq}` | `content.manage` | Soft delete |
+
+### Featured Curation
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| PATCH | `/api/v1/admin/services/{service}/featured` | `content.manage` | Body: `is_featured` (boolean), optional `sort_order`. **Manual curation only** — no automatic featuring. Inactive services can never appear featured publicly |
+
+Featured **products** continue to use the existing product update permission (`products.update`); toggling product featured state also invalidates Home caches.
+
+**Audit events:** Hero Banner Create/Update/Delete, Before & After Create/Update/Delete, FAQ Create/Update/Delete, Feature Service toggle — payload includes the acting `admin_id`, entity identifier, and changed fields.
+
+**Status codes:** `200` / `201` success; `404` `NOT_FOUND`; `422` `VALIDATION_ERROR` (e.g. missing `action_reference` for an actionable banner, invalid `action_type`); `401` / `403` standard.
 
 ---
 

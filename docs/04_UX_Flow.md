@@ -105,6 +105,23 @@ Home is the primary value surface. It is scrollable and content-led, not a dashb
 | **FAQ** | Reduce uncertainty before contact or booking |
 | **Contact Information** | Clear path to reach the business |
 
+### Home content rules (Sprint 29 — final)
+
+- Home may be loaded through the single aggregate API or per-section APIs; both render identical content. Sections load without login and refresh from a 5-minute server cache.
+- **Hero banners are tappable** when configured: a banner opens a service, product, category, or external URL according to its admin-configured action; banners with no action are display-only. Only active, in-schedule banners ever appear.
+- **Featured Services** are hand-picked by the business (manual curation); customers never see inactive services on Home.
+- **Store Products** always show the Selling Price; **out-of-stock products stay visible** with a clear **Out of Stock** state — they are never silently hidden.
+- **Customer Reviews** shows published reviews only.
+- Home never shows internal metrics such as favorites counts.
+
+### Search flow (Sprint 29 — final)
+
+1. Customer taps the Search Bar and types at least 2 characters.
+2. Live **suggestions** appear (maximum 10): each shows a thumbnail, name, and whether it is a Service or a Product — never prices, discounts, or stock.
+3. Submitting the query opens full results grouped into Services and Products, ranked by relevance (exact name first, then prefix, word, and description matches).
+4. **Recent searches** are stored only on the device and shown locally; clearing them is a device action. The backend keeps no search history.
+5. Empty results show a friendly empty state — never an error.
+
 ## 2.3 Guest Capabilities on Entry
 
 Without logging in, customers can:
@@ -587,7 +604,7 @@ Admin approves → Published (visible publicly)   |   Admin hides → Hidden (ne
 | Moderation outcome | No notification is sent when a review is published or hidden (deferred to a future version) |
 | Rate limit feedback | Excessive submissions (over 5/minute) show a friendly "try again shortly" message |
 
-Published reviews appear on the service details reviews section and reviews lists. The Home reviews section is deferred to Sprint 25.
+Published reviews appear on the service details reviews section and reviews lists. The Home reviews section is delivered with the Home module (Sprint 29) and shows published reviews only.
 
 ## 7.6 Service Favorites (Favorites Module)
 
@@ -1143,6 +1160,31 @@ Staff moderate customer booking reviews — approving genuine feedback for publi
 
 ---
 
+# 17B. Admin Home Content Management (Panel — Sprint 29)
+
+## 17B.1 Objective
+
+Staff curate everything the customer Home screen shows — hero banners, featured services, Before & After gallery, and FAQ — without touching catalog pricing or business workflows.
+
+## 17B.2 Primary Path
+
+1. Staff opens **Home Content** (requires `content.view`).
+2. Manages **Hero Banners**: create/edit title, subtitle, image, action (`service` / `product` / `category` / `url` / `none` with its target reference), order, active state, and optional schedule window (`starts_at` / `ends_at`).
+3. Manages **Before & After** gallery items (title, before/after images, optional related service, order, active state).
+4. Manages **FAQ** entries (question, answer, order, active state).
+5. Toggles **Featured** on services (manual curation with `sort_order`); featured products use the existing product editing flow.
+6. Every save immediately refreshes the customer Home (cache invalidation is automatic).
+
+## 17B.3 Rules
+
+- Mutations require `content.manage`; every change is audited.
+- Only active banners inside their schedule window ever appear to customers; out-of-schedule or inactive content stays admin-visible.
+- Inactive services/products never appear in Home sections regardless of featured state.
+- Featuring is manual only — no automatic selection.
+- Announcements are out of scope for Backend V1 — no announcements management exists.
+
+---
+
 ## Traceability Summary
 
 | UX area | SRS / Design alignment |
@@ -1156,6 +1198,7 @@ Staff moderate customer booking reviews — approving genuine feedback for publi
 | Simple bottom navigation | Customer-first, minimal cognitive load |
 | Unified references | `CUS` / `BK` / `QT` / `ORD` / `PAY` / `INV` / `REF` / `STO` |
 | Admin operational flows (§§14, 16A, 17) | SRS §24 (Admin Operations — Sprint 27) |
+| Home & Global Search (§2.2) + Home Content admin (§17B) | SRS §26 (Home & Global Search — Sprint 29) |
 
 ---
 

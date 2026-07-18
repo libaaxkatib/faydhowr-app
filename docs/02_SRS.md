@@ -259,10 +259,10 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | --- | --- | --- |
 | FR-010 | The system shall present service categories and service listings with name, description, media, optional Starting From price, and both **Book Now** and **Request Quotation** options. | Must |
 | FR-010A | Public services catalog APIs shall be guest-accessible (no authentication) with per-IP rate limiting of 60 requests per minute per IP. The public identifier for a service is its `slug`; numeric IDs remain internal. Catalog listings shall expose only active, non-deleted services; the categories listing shall return only categories having at least one active service. Sorting is limited to `display_order` (default) and `name`. Pagination defaults to 20 items per page with a maximum of 100. Service images are returned as `thumbnail`, `hero_image`, and `gallery[]` using absolute URLs only. Catalog payloads shall not include `is_favorite` — it appears only in authenticated customer-specific responses (Favorites Module, §22). Catalog payloads shall not include `before_after` or `faq`; these fields are introduced when their own modules are implemented. | Must |
-| FR-010B | The system shall ship an Official V1 Services Catalog Seeder provisioning the official catalog: service categories, services, service modes, service subtypes, and coverage cities. The seeder uses official placeholder images for `thumbnail`, `hero_image`, and `gallery` until production assets are available. The catalog is seeder-managed until Admin Services CRUD is delivered (Sprint 29); the seeder also provisions each service's payment policy (`payment_type`, `deposit_percentage` — §23.4). | Must |
+| FR-010B | The system shall ship an Official V1 Services Catalog Seeder provisioning the official catalog: service categories, services, service modes, service subtypes, and coverage cities. The seeder uses official placeholder images for `thumbnail`, `hero_image`, and `gallery` until production assets are available. The catalog is seeder-managed until Admin Services CRUD is delivered (deferred to a later Backend V1 sprint — split out of Sprint 29, which delivers Home + Global Search and only the featured curation toggle); the seeder also provisions each service's payment policy (`payment_type`, `deposit_percentage` — §23.4). | Must |
 | FR-011 | The system shall present store categories and product listings with name, description, media, Selling Price, and availability (In Stock / Low Stock / Out of Stock). V1 categories: Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, Air Fresheners. | Must |
-| FR-012 | The system shall support search and/or filter of services and products. | Should |
-| FR-012A | Service search shall match against service name and short description only, and shall require a minimum query length of 2 characters. Service listings shall support filtering by category, mode (`one_time` / `monthly_contract`), and coverage city. | Must |
+| FR-012 | The system shall support search and/or filter of services and products. Full Home & Global Search requirements are specified in §26 (Sprint 29). | Should |
+| FR-012A | Service search shall match against service name and short description only, and shall require a minimum query length of 2 characters. Service listings shall support filtering by category, mode (`one_time` / `monthly_contract`), and coverage city. Result ordering follows the documented search ranking rules (§26.3). | Must |
 | FR-013 | The system shall show product/service detail pages with complete customer-facing information. | Must |
 
 ### 5.3 Store Commerce
@@ -1645,7 +1645,7 @@ Review submission is limited to **5 submissions per minute per customer**.
 
 #### FR-093.9 Home Reviews Section
 
-The Home reviews endpoint (`GET /api/v1/home/reviews`) is **deferred to Sprint 25** with the Home module.
+The Home reviews endpoint (`GET /api/v1/home/reviews`) is delivered with the Home module (**Sprint 29**, §26); it returns a preview of `published` reviews only.
 
 #### FR-093.10 Permissions
 
@@ -1942,6 +1942,48 @@ Expose the operational payment, booking, and store-order lifecycles through secu
 | FR-097.5 | Every quotation mutation shall run in a database transaction with row-level locking on the quotation aggregate; revision `version_number` values shall be assigned under the row lock (revision concurrency protection). | Must |
 | FR-097.6 | Customer acceptance shall validate the referenced revision is the **latest** inside the locked transaction; stale references return `409 Conflict` (latest-revision validation). | Must |
 | FR-097.7 | Customer quotation endpoints enforce ownership scoping (non-owned records resolve as `404`); admin mutation endpoints are rate-limited per the Admin Operations limiter. | Must |
+
+---
+
+## 26. Home & Global Search Module (Sprint 29)
+
+> **Scope (final):** guest Home APIs (aggregate + section endpoints), global search across services and products, search suggestions, admin Home Content management (hero banners, Before & After gallery, FAQ, featured curation), and the Home caching strategy. **Announcements are out of scope for Backend V1.** Full Admin Services CRUD is split out of this sprint and deferred.
+
+### 26.1 Home APIs
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| FR-098.1 | The system shall provide **both** a Home aggregate endpoint (`GET /api/v1/home`) **and** per-section endpoints (`hero-banners`, `service-categories`, `featured-services`, `store-products`, `before-after`, `reviews`, `faq`, `contact`). Clients (Flutter, Web, future mobile) may use either approach; both return identical section content. | Must |
+| FR-098.2 | All Home endpoints shall be guest-accessible (no authentication) and throttled by the shared `public-catalog` rate limiter (60 requests per minute per IP). | Must |
+| FR-098.3 | Hero banners shall support `action_type` ∈ {`service`, `product`, `category`, `url`, `none`} with an `action_reference` where applicable. Only **active** banners **inside their schedule window** appear publicly. | Must |
+| FR-098.4 | Featured Services shall use `services.is_featured` with **manual admin curation only**, ordered by `sort_order`. Inactive services shall never appear in any Home section. | Must |
+| FR-098.5 | Popular Services ranking shall use the internal `favorites_count` aggregate; `favorites_count` shall **never** be exposed through public APIs. | Must |
+| FR-098.6 | Out-of-stock products shall **remain visible** in Home and search payloads with an **Out of Stock** availability state; they are never hidden. | Must |
+| FR-098.7 | The public contact endpoint shall expose **only approved company fields** and never SMTP settings, API keys, internal settings, authentication settings, or any sensitive configuration. | Must |
+| FR-098.8 | `GET /api/v1/home` shall return `generated_at`, `cache_expires_at`, and `version` metadata. These fields are **informational only**; clients shall not derive business logic from them. | Must |
+| FR-098.9 | Home responses shall be served from a server-side cache with a **5-minute TTL**, invalidated by the `HomeCacheInvalidator` when any of the following change: hero banners, featured services, featured products, FAQ, gallery items, review moderation, service status, or product status. | Must |
+
+### 26.2 Global Search
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| FR-099.1 | The system shall provide unified search (`GET /api/v1/search`), service search, and product search — all guest-accessible, minimum query length 2, throttled by the `public-catalog` rate limiter, and paginated using the standard `meta` format. | Must |
+| FR-099.2 | Search suggestions (`GET /api/v1/search/suggestions`) shall return at most **10 results** with exactly: `type`, `name`, `slug` (or product identifier), and `thumbnail`. Suggestions shall **not** include prices, discounts, or stock. | Must |
+| FR-099.3 | Recent searches shall remain **device-local**. The backend shall store nothing: no search-history table and no user search tracking. | Must |
+| FR-099.4 | Search shall use PostgreSQL `pg_trgm` indexes in production; the SQLite automated-test environment uses a `LIKE` fallback with an identical API contract. | Must |
+
+### 26.3 Search Ranking Rules
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| FR-099.5 | Results shall be ranked by match tier: **1)** exact name match, **2)** prefix match, **3)** word match, **4)** description match — with tie-breakers, in order: `sort_order`, featured flag, alphabetical name. Ranking is server-authoritative and identical for all clients. | Must |
+
+### 26.4 Home Content Administration
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| FR-100.1 | Admins shall manage hero banners, Before & After gallery items, FAQ entries, and the featured curation toggle through permission-guarded APIs: `content.view` (read) and `content.manage` (mutations), within Hybrid RBAC. | Must |
+| FR-100.2 | Every Home Content mutation shall emit an Audit Event (acting admin, entity, changed fields) and shall invalidate Home caches via the `HomeCacheInvalidator`. | Must |
 
 ---
 

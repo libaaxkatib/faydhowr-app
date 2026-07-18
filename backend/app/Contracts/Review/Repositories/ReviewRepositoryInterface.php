@@ -35,6 +35,14 @@ interface ReviewRepositoryInterface
     public function paginatePublishedForService(int $serviceId, int $perPage): LengthAwarePaginator;
 
     /**
+     * Home reviews preview: newest published reviews across all services
+     * (API Design §5.2).
+     *
+     * @return LengthAwarePaginator<int, Review>
+     */
+    public function paginatePublished(int $perPage): LengthAwarePaginator;
+
+    /**
      * @return LengthAwarePaginator<int, Review>
      */
     public function paginateForAdmin(AdminReviewFiltersData $filters): LengthAwarePaginator;

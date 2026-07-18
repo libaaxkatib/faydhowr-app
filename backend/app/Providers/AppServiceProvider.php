@@ -21,6 +21,7 @@ use App\Contracts\Auth\Repositories\PasswordResetTokenRepositoryInterface;
 use App\Contracts\Auth\Repositories\PhoneOtpRepositoryInterface;
 use App\Contracts\Auth\Services\OtpServiceInterface;
 use App\Contracts\Booking\Services\BookingPaymentGateInterface;
+use App\Contracts\Catalog\Repositories\ProductCatalogRepositoryInterface;
 use App\Contracts\Catalog\Repositories\ServiceCatalogRepositoryInterface;
 use App\Contracts\Catalog\Services\ServiceCatalogServiceInterface;
 use App\Contracts\Customer\Repositories\CustomerActivityRepositoryInterface;
@@ -41,6 +42,11 @@ use App\Contracts\Device\Repositories\CustomerDeviceRepositoryInterface;
 use App\Contracts\Device\Services\DeviceRegistrationServiceInterface;
 use App\Contracts\Favorite\Repositories\FavoriteRepositoryInterface;
 use App\Contracts\Favorite\Services\FavoriteServiceInterface;
+use App\Contracts\Home\HomeCacheInvalidatorInterface;
+use App\Contracts\Home\Repositories\BeforeAfterItemRepositoryInterface;
+use App\Contracts\Home\Repositories\FaqRepositoryInterface;
+use App\Contracts\Home\Repositories\HeroBannerRepositoryInterface;
+use App\Contracts\Home\Services\HomeServiceInterface;
 use App\Contracts\Reports\Excel\ExcelReportGeneratorInterface;
 use App\Contracts\Reports\Pdf\PdfReportGeneratorInterface;
 use App\Contracts\Reports\ReportManagerInterface;
@@ -51,6 +57,7 @@ use App\Contracts\Reports\Services\RevenueReportServiceInterface;
 use App\Contracts\Reports\Storage\ReportStorageInterface;
 use App\Contracts\Review\Repositories\ReviewRepositoryInterface;
 use App\Contracts\Review\Services\ReviewServiceInterface;
+use App\Contracts\Search\Services\GlobalSearchServiceInterface;
 use App\Contracts\Settings\Repositories\BranchRepositoryInterface;
 use App\Contracts\Settings\Repositories\SettingsAuditRepositoryInterface;
 use App\Contracts\Settings\Repositories\SystemSettingRepositoryInterface;
@@ -61,13 +68,19 @@ use App\Contracts\Settings\Services\SettingsServiceInterface;
 use App\Contracts\Sms\SmsSenderInterface;
 use App\Contracts\Upload\Repositories\UploadRepositoryInterface;
 use App\Contracts\Upload\Services\UploadServiceInterface;
+use App\Models\BeforeAfterItem;
 use App\Models\Booking;
+use App\Models\Faq;
+use App\Models\HeroBanner;
 use App\Models\Payment;
+use App\Models\Product;
 use App\Models\Quotation;
+use App\Models\Review;
 use App\Models\Service;
 use App\Models\StoreOrder;
 use App\Observers\Customer\CustomerCommercialActivityObserver;
 use App\Observers\Favorite\ServiceFavoriteObserver;
+use App\Observers\Home\HomeContentCacheObserver;
 use App\Observers\Review\BookingReviewObserver;
 use App\Repositories\Accounting\AccountingPeriodRepository;
 use App\Repositories\Accounting\AccountRepository;
@@ -77,6 +90,7 @@ use App\Repositories\Accounting\LedgerRepository;
 use App\Repositories\Accounting\TrialBalanceRepository;
 use App\Repositories\Auth\PasswordResetTokenRepository;
 use App\Repositories\Auth\PhoneOtpRepository;
+use App\Repositories\Catalog\ProductCatalogRepository;
 use App\Repositories\Catalog\ServiceCatalogRepository;
 use App\Repositories\Customer\CustomerActivityRepository;
 use App\Repositories\Customer\CustomerAddressRepository;
@@ -85,6 +99,9 @@ use App\Repositories\Customer\CustomerNoteRepository;
 use App\Repositories\Customer\CustomerRepository;
 use App\Repositories\Device\CustomerDeviceRepository;
 use App\Repositories\Favorite\FavoriteRepository;
+use App\Repositories\Home\BeforeAfterItemRepository;
+use App\Repositories\Home\FaqRepository;
+use App\Repositories\Home\HeroBannerRepository;
 use App\Repositories\Review\ReviewRepository;
 use App\Repositories\Settings\BranchRepository;
 use App\Repositories\Settings\SettingsAuditRepository;
@@ -121,6 +138,8 @@ use App\Services\Dashboard\Widgets\QuotationSummaryWidget;
 use App\Services\Dashboard\Widgets\RevenueSummaryWidget;
 use App\Services\Device\DeviceRegistrationService;
 use App\Services\Favorite\FavoriteService;
+use App\Services\Home\HomeCacheInvalidator;
+use App\Services\Home\HomeService;
 use App\Services\Notification\Channels\EmailNotificationChannel;
 use App\Services\Notification\Channels\InAppNotificationChannel;
 use App\Services\Notification\Channels\SmsNotificationChannel;
@@ -147,6 +166,7 @@ use App\Services\Reports\Services\RevenueReportService;
 use App\Services\Reports\Storage\LocalReportStorage;
 use App\Services\Reports\Storage\ReportStorageManager;
 use App\Services\Review\ReviewService;
+use App\Services\Search\GlobalSearchService;
 use App\Services\Settings\AuditService;
 use App\Services\Settings\BackupService;
 use App\Services\Settings\BranchService;
@@ -210,6 +230,20 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(ServiceCatalogRepositoryInterface::class, ServiceCatalogRepository::class);
 
         $this->app->singleton(ServiceCatalogServiceInterface::class, ServiceCatalogService::class);
+
+        $this->app->bind(ProductCatalogRepositoryInterface::class, ProductCatalogRepository::class);
+
+        $this->app->bind(HeroBannerRepositoryInterface::class, HeroBannerRepository::class);
+
+        $this->app->bind(BeforeAfterItemRepositoryInterface::class, BeforeAfterItemRepository::class);
+
+        $this->app->bind(FaqRepositoryInterface::class, FaqRepository::class);
+
+        $this->app->singleton(HomeCacheInvalidatorInterface::class, HomeCacheInvalidator::class);
+
+        $this->app->singleton(HomeServiceInterface::class, HomeService::class);
+
+        $this->app->singleton(GlobalSearchServiceInterface::class, GlobalSearchService::class);
 
         $this->app->bind(UploadRepositoryInterface::class, UploadRepository::class);
 
@@ -373,6 +407,14 @@ class AppServiceProvider extends ServiceProvider
         Booking::observe($this->app->make(BookingReviewObserver::class));
 
         Service::observe($this->app->make(ServiceFavoriteObserver::class));
+
+        $homeContentObserver = $this->app->make(HomeContentCacheObserver::class);
+        HeroBanner::observe($homeContentObserver);
+        BeforeAfterItem::observe($homeContentObserver);
+        Faq::observe($homeContentObserver);
+        Service::observe($homeContentObserver);
+        Product::observe($homeContentObserver);
+        Review::observe($homeContentObserver);
 
         RateLimiter::for('auth-register', function (Request $request): Limit {
             return Limit::perMinute(5)->by($request->ip());

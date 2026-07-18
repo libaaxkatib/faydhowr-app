@@ -121,6 +121,7 @@ Most transactional tables include:
 | **Notification Management** | Templates, translations, preferences, lifecycle delivery, archive | `notification_templates`, `notification_template_translations`, `notification_preferences`, `notifications`, `archived_notifications` |
 | **Review Management** | Customer reviews of completed bookings (V1) | `reviews` |
 | **Favorites** | Customer-saved services (V1: services only; product favorites deferred) | `favorites` |
+| **Home Content** | Admin-managed Home screen content (Sprint 29): hero banners, Before & After gallery, FAQ | `hero_banners`, `before_after_items`, `faqs` |
 | **Settings** | System configuration and audit | `system_settings`, `branches`, `settings_audit_log`, `audit_logs` |
 
 ## 2.2 Module Notes
@@ -175,6 +176,15 @@ Most transactional tables include:
 - One favorite per customer per service; adds are idempotent.
 - When a service becomes inactive or is deleted, related favorites are **automatically removed**; services maintain a cached `favorites_count`.
 - Favorites never mutate booking, quotation, cart, checkout, or payment state; no admin management and no activity-log events in V1.
+
+### Home Content (Sprint 29)
+
+- Admin-managed content surfaced by the guest Home APIs: hero banners (with `action_type` / `action_reference` and optional schedule window), the global Before & After gallery, and FAQ entries.
+- Only **active** rows inside their schedule (banners) appear publicly; inactive/out-of-schedule rows remain admin-visible.
+- Featured Services use **`services.is_featured`** (manual curation only, ordered by `sort_order`) — no separate table. Featured Products reuse the existing product featured flag.
+- Popular Services rank internally on `services.favorites_count`; the count itself is never exposed publicly.
+- Recent searches are **device-local**: no search-history table exists and the backend stores no user search data (Sprint 29 decision).
+- Announcements are out of scope for Backend V1 — no announcements table.
 
 ### Settings
 
@@ -703,6 +713,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 - Catalog is seeded from `AdminPermission` enum. Keys without implemented protected routes must not be invented.
 - Sprint 27 (Admin Operations) adds six keys to the catalog: `payments.view`, `payments.confirm`, `bookings.view`, `bookings.manage`, `store_orders.view`, `store_orders.manage`.
 - Sprint 28 (Quotation Request Workflow) adds four keys: `quotations.view` (queue/detail/attachments), `quotations.review` (assign/reassign reviewer, reply in discussion, close discussion), `quotations.issue` (issue Version 1 and revisions), `quotations.manage` (expire, cancel, accept on customer's behalf).
+- Sprint 29 (Home & Global Search) adds two keys: `content.view` (read hero banners, Before & After items, FAQs, featured curation state), `content.manage` (create/update/delete/reorder/schedule Home Content; featured toggles).
 
 ---
 
@@ -821,6 +832,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | `max_concurrent_bookings` | INT | O | Capacity rule |
 | `requires_address` | BOOLEAN | R | |
 | `is_active` | BOOLEAN | R | |
+| `is_featured` | BOOLEAN | R | Default false. Home Featured Services curation (Sprint 29): **manual admin curation only**, ordered by `sort_order`; inactive services never appear featured publicly |
 | `sort_order` | INT | R | |
 | `payment_type` | VARCHAR(30) | R | Service payment policy: `full_before_service`, `deposit`, `pay_after_service`; admin-configurable per service (Sprint 26) |
 | `deposit_percentage` | TINYINT UNSIGNED | O | Required **only** when `payment_type = deposit`; allowed range 1–99; NULL otherwise |
@@ -1025,6 +1037,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | `has_tier_pricing` | BOOLEAN | R | When true, use `product_price_tiers` for quantity bands on Selling Price |
 | `allow_optional_quotation` | BOOLEAN | R | Enables optional product quote via **shared** Quotation Module |
 | `is_active` | BOOLEAN | R | |
+| `is_featured` | BOOLEAN | R | Default false. Home Featured Store Products curation (manual only); out-of-stock featured products remain visible with the Out of Stock state (Sprint 29) |
 | `sort_order` | INT | R | |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
@@ -2357,6 +2370,105 @@ Unified File Upload Service (Sprint 23, approved). Customer-uploaded files are s
 
 ---
 
+## 3.13 Home Content (Sprint 29)
+
+> **Scope (final):** admin-managed content surfaced by the guest Home APIs. Featured Services/Products use flags on `services` / `products` (no join tables). Announcements are **out of scope** for Backend V1. No search-history table exists — recent searches are device-local.
+
+### 3.13.1 `hero_banners`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `hero_banners` |
+| **Purpose** | Home hero carousel banners with optional call-to-action and schedule window. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | — (`action_reference` is a soft reference resolved by `action_type`) |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `title` | VARCHAR(200) | R | |
+| `subtitle` | VARCHAR(500) | O | |
+| `image_url` | VARCHAR(2048) | R | Absolute URL only |
+| `action_type` | VARCHAR(20) | R | `service`, `product`, `category`, `url`, `none` |
+| `action_reference` | VARCHAR(2048) | O | Service `slug` / product identifier / category `slug` / absolute URL; NULL when `action_type = none` |
+| `sort_order` | INT | R | Default 0 |
+| `is_active` | BOOLEAN | R | |
+| `starts_at` | TIMESTAMP | O | Schedule start (optional) |
+| `ends_at` | TIMESTAMP | O | Schedule end (optional) |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
+| `deleted_at` | TIMESTAMP | O | |
+
+#### Constraints / Rules
+
+- `action_reference` is required for `action_type` ∈ {`service`, `product`, `category`, `url`}; must be NULL for `none`.
+- `ends_at`, when present with `starts_at`, must be after `starts_at`.
+- **Public visibility:** `is_active = true` AND now within [`starts_at`, `ends_at`] (open bounds allowed). Out-of-schedule or inactive banners are admin-visible only.
+- Mutations are admin-only (`content.manage`), audited, and invalidate Home caches.
+
+---
+
+### 3.13.2 `before_after_items`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `before_after_items` |
+| **Purpose** | Global Home Before & After gallery items (marketing evidence). |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `service_id` → `services.id` (optional attribution) |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `service_id` | BIGINT UNSIGNED | O | Optional related service |
+| `title` | VARCHAR(200) | R | |
+| `before_image_url` | VARCHAR(2048) | R | Absolute URL only |
+| `after_image_url` | VARCHAR(2048) | R | Absolute URL only |
+| `sort_order` | INT | R | Default 0 |
+| `is_active` | BOOLEAN | R | |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
+| `deleted_at` | TIMESTAMP | O | |
+
+#### Constraints / Rules
+
+- Public listing returns active items only, ordered by `sort_order`.
+- This is the **global** Home gallery; per-service `before_after` embedding in catalog payloads remains deferred.
+
+---
+
+### 3.13.3 `faqs`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `faqs` |
+| **Purpose** | Frequently asked questions surfaced on Home (preview) and FAQ listing. |
+| **Primary Key** | `id` |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `question` | VARCHAR(500) | R | |
+| `answer` | TEXT | R | |
+| `sort_order` | INT | R | Default 0 |
+| `is_active` | BOOLEAN | R | |
+| `created_at` | TIMESTAMP | R | |
+| `updated_at` | TIMESTAMP | R | |
+| `deleted_at` | TIMESTAMP | O | |
+
+#### Constraints / Rules
+
+- Public listing returns active entries only, ordered by `sort_order`.
+- Global FAQs only in V1; per-service `faq` embedding remains deferred.
+
+---
+
 # 4. Relationships
 
 ## 4.1 One-to-One
@@ -2376,7 +2488,7 @@ Unified File Upload Service (Sprint 23, approved). Customer-uploaded files are s
 | `users` | `customer_profiles`, `customer_devices`, `carts`, `notifications` | Sole customer authentication principal; authentication-adjacent children remain user-scoped |
 | `customer_profiles` | `customer_addresses`, `customer_notes`, `uploads`, `bookings`, `quotations`, `orders`, `payments`, `reviews`, `favorites` | Customer business/profile data and approved business-module ownership (saved payment methods removed from V1 — §3.1.4) |
 | `service_categories` | `services` | Category catalog |
-| `services` | `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates`, `bookings`, `quotations`, `reviews` (denormalized `service_id`), `favorites` (auto-removed on deactivation/deletion) | Service definition, availability, usage, published review aggregates, and favorites |
+| `services` | `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates`, `bookings`, `quotations`, `reviews` (denormalized `service_id`), `favorites` (auto-removed on deactivation/deletion), `before_after_items` (optional attribution) | Service definition, availability, usage, published review aggregates, favorites, and Home gallery attribution |
 | `product_categories` | `products` | Store taxonomy (V1: Chemicals, Tools, Accessories, PPE, Air Fresheners) |
 | `products` | `product_images`, `cart_items`, `store_order_items`, `quotations`, `stock_ledgers`, `purchase_order_items`, `stock_adjustments` | Product definition, commerce, and on-hand stock |
 | `suppliers` | `purchase_orders` | Inventory procurement |
@@ -2472,12 +2584,16 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | `service_categories` | UNIQUE(`slug`) | SEO/API lookup |
 | `services` | UNIQUE(`slug`) | Detail lookup |
 | `services` | (`is_active`, `category_id`, `sort_order`) | Browse/filter |
+| `services` | (`is_featured`, `is_active`, `sort_order`) | Home Featured Services section (Sprint 29) |
+| `services` | GIN `pg_trgm` on `name`; GIN `pg_trgm` on `short_description` | Case-insensitive search + ranking (PostgreSQL; SQLite tests use `LIKE` fallback) |
 | `service_modes` | (`service_id`, `mode`, `is_active`) | Supported service-mode lookup |
 | `service_coverage_cities` | UNIQUE(`service_id`, `city`) | Service coverage validation |
 | `product_categories` | UNIQUE(`slug`) | Lookup |
 | `products` | UNIQUE(`slug`) | Detail lookup |
 | `products` | UNIQUE(`sku`) | Inventory / catalog ops |
 | `products` | (`is_active`, `category_id`, `sort_order`) | Store browse |
+| `products` | (`is_featured`, `is_active`, `sort_order`) | Home Featured Store Products section (Sprint 29) |
+| `products` | GIN `pg_trgm` on `name`; GIN `pg_trgm` on `description` | Case-insensitive search + ranking (PostgreSQL; SQLite tests use `LIKE` fallback) |
 | `products` | (`current_stock`, `low_stock_threshold`) | Low-stock dashboard alerts |
 | `products` | (`allow_optional_quotation`, `is_active`) | Quote-enabled products |
 | `purchase_orders` | UNIQUE(`po_number`) | PO lookup |
@@ -2553,6 +2669,16 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | `audit_logs` | (`entity_type`, `entity_id`, `created_at`) | Entity audit trail |
 | `audit_logs` | (`actor_type`, `actor_id`, `created_at`) | Actor activity |
 
+## 5.5A Home Content (Sprint 29)
+
+| Table | Index | Purpose |
+| --- | --- | --- |
+| `hero_banners` | (`is_active`, `sort_order`) | Public hero listing |
+| `hero_banners` | (`starts_at`, `ends_at`) | Schedule-window filtering |
+| `before_after_items` | (`is_active`, `sort_order`) | Public gallery listing |
+| `before_after_items` | (`service_id`) | Optional service attribution |
+| `faqs` | (`is_active`, `sort_order`) | Public FAQ listing |
+
 ## 5.6 Indexing Guidelines
 
 - Prefer composite indexes matching real `WHERE` + `ORDER BY` patterns.
@@ -2579,6 +2705,7 @@ Indexes below are recommendations for common access paths. Exact index types dep
 5. Historical order/booking/quote snapshots remain valid after catalog edits.
 6. Every active service supports both Book Now and Request Quotation; the optional Starting From amount is not a final assessed price.
 7. V1 Store categories are limited to Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, and Air Fresheners.
+8. **Home Content integrity (Sprint 29):** featured curation is manual only (`is_featured` + `sort_order`); an inactive or soft-deleted service/product never appears in any public Home section regardless of its featured flag. Out-of-stock products remain publicly visible with the Out of Stock availability state — never hidden. Hero banners appear publicly only when active and inside their schedule window; `action_reference` must be present for actionable `action_type` values and NULL for `none`. `services.favorites_count` may rank Popular Services internally but is never exposed publicly.
 
 ## 6.3 Stock & Pricing Integrity
 

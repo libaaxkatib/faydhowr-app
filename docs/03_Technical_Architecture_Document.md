@@ -295,6 +295,38 @@ Request attachments reference staged uploads by FK/UUID via the Unified Upload S
 - Domain events (Quotation Submitted, Issued, Revised, Discussion Reply, Expired, Cancelled) are consumed by notification listeners and dispatched via `DB::afterCommit()`; listener failures are logged and never roll back business transactions.
 - Routes enforce Hybrid RBAC with the Sprint 28 keys — `quotations.view`, `quotations.review`, `quotations.issue`, `quotations.manage` — plus customer ownership scoping; admin mutations share the admin-operations rate limiter.
 
+## 10E. Home & Global Search Architecture (Sprint 29)
+
+### 10E.1 Module Boundary
+
+Home is a **read-only guest aggregation layer** over existing domains (services, products, reviews, settings) plus the new admin-managed Home Content entities (`hero_banners`, `before_after_items`, `faqs`). It exposes both the aggregate `GET /api/v1/home` and per-section endpoints with matching section content (Popular Services appears in the aggregate only); Flutter, Web, and future mobile clients consume the same APIs. Announcements are out of scope for Backend V1.
+
+### 10E.2 Layering (existing patterns)
+
+- **Repositories** — Home Content repositories behind contracts (hero banners, before/after items, FAQs); read paths for featured/popular services and store products reuse the existing catalog repositories.
+- **Service Layer / Domain Actions** — a Home aggregation service composes sections; admin mutations run through single-responsibility actions (create/update/delete banner, gallery item, FAQ; toggle featured). Controllers stay thin.
+- **readonly DTOs / Form Requests / API Resources** — admin mutation payloads travel as readonly DTOs validated at the HTTP boundary; every public payload is shaped by API Resources (no model leakage, absolute image URLs only).
+- **Server-authoritative flags** — availability (`in_stock` / `low_stock` / `out_of_stock`), featured state, and section ordering are computed server-side; clients only render them. Out-of-stock products remain visible with the Out of Stock state.
+
+### 10E.3 Caching (`HomeCacheInvalidator`)
+
+- Home aggregate and section responses are served from a server-side cache with a **5-minute TTL**.
+- A dedicated **`HomeCacheInvalidator`** (same contract pattern as the dashboard cache invalidator) flushes Home caches when: hero banners change, featured services change, featured products change, FAQ changes, gallery changes, review moderation occurs, service status changes, or product status changes.
+- `GET /home` exposes `generated_at`, `cache_expires_at`, and `version` in response metadata — informational only; clients must not build logic on them.
+
+### 10E.4 Search Infrastructure
+
+- **PostgreSQL `pg_trgm`** GIN indexes power case-insensitive search on service name/short description and product name/description. The SQLite automated-test environment falls back to `LIKE` with an identical API contract.
+- **Ranking is server-authoritative:** exact name match → prefix match → word match → description match; ties broken by `sort_order`, then featured flag, then alphabetical name.
+- Suggestions return at most 10 lightweight items (`type`, `name`, `slug`/product identifier, `thumbnail`) — never prices, discounts, or stock.
+- **No server-side search history:** recent searches are device-local; no search-history table and no user search tracking exist.
+
+### 10E.5 Security, RBAC, Audit
+
+- All Home and search endpoints are guest-accessible behind the shared **`public-catalog` rate limiter** (60 requests/minute/IP).
+- The public contact endpoint reads from an explicit whitelist of approved company fields — never SMTP, API keys, or any sensitive configuration.
+- Admin Home Content routes enforce Hybrid RBAC with the Sprint 29 keys `content.view` / `content.manage`; every mutation runs in a transaction, emits an `AuditEvent`, and invalidates Home caches. `favorites_count` is internal ranking input and is never serialized into public payloads.
+
 ## 11. Notification Architecture
 
 Sprint 12 Notification Architecture (Option B):

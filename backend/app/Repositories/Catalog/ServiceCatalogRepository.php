@@ -6,6 +6,7 @@ use App\Contracts\Catalog\Repositories\ServiceCatalogRepositoryInterface;
 use App\DataTransferObjects\Catalog\ServiceCatalogFiltersData;
 use App\Models\Service;
 use App\Models\ServiceCategory;
+use App\Support\Search\CatalogSearch;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -46,16 +47,10 @@ class ServiceCatalogRepository implements ServiceCatalogRepositoryInterface
 
     public function searchVisible(string $query, int $perPage): LengthAwarePaginator
     {
-        $builder = $this->visibleQuery()
-            ->where(function (Builder $search) use ($query): void {
-                $like = '%'.addcslashes($query, '%_\\').'%';
-                $search->where('name', 'like', $like)
-                    ->orWhere('short_description', 'like', $like);
-            });
+        $builder = CatalogSearch::filter($this->visibleQuery(), $query, 'name', 'short_description');
 
-        $this->applySort($builder, 'display_order');
-
-        return $builder->paginate($perPage);
+        return CatalogSearch::rank($builder, $query, 'name', 'sort_order', 'is_featured')
+            ->paginate($perPage);
     }
 
     public function categoriesWithVisibleServices(): Collection
@@ -68,6 +63,44 @@ class ServiceCatalogRepository implements ServiceCatalogRepositoryInterface
             })
             ->orderBy('sort_order')
             ->orderBy('id')
+            ->get();
+    }
+
+    public function featuredVisible(int $limit): Collection
+    {
+        return $this->visibleQuery()
+            ->where('is_featured', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    public function popularVisible(int $limit): Collection
+    {
+        return $this->visibleQuery()
+            ->orderByDesc('favorites_count')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    public function suggestVisible(string $query, int $limit): Collection
+    {
+        $builder = CatalogSearch::filter(
+            Service::query()
+                ->where('is_active', true)
+                ->whereHas('modes', fn (Builder $modes) => $modes->where('is_active', true))
+                ->with(['media' => fn ($media) => $media->orderBy('sort_order')->orderBy('id')]),
+            $query,
+            'name',
+            'short_description',
+        );
+
+        return CatalogSearch::rank($builder, $query, 'name', 'sort_order', 'is_featured')
+            ->limit($limit)
             ->get();
     }
 

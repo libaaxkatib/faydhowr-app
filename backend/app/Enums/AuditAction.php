@@ -30,6 +30,18 @@ enum AuditAction: string
     case QuotationExpire = 'quotation_expire';
     case QuotationCancel = 'quotation_cancel';
     case QuotationAdminAccept = 'quotation_admin_accept';
+    case HeroBannerCreate = 'hero_banner_create';
+    case HeroBannerUpdate = 'hero_banner_update';
+    case HeroBannerDelete = 'hero_banner_delete';
+    case HeroBannerPublish = 'hero_banner_publish';
+    case HeroBannerHide = 'hero_banner_hide';
+    case GalleryCreate = 'gallery_create';
+    case GalleryUpdate = 'gallery_update';
+    case GalleryDelete = 'gallery_delete';
+    case FaqCreate = 'faq_create';
+    case FaqUpdate = 'faq_update';
+    case FaqDelete = 'faq_delete';
+    case ServiceFeatureToggle = 'service_feature_toggle';
 
     /**
      * @return list<string>

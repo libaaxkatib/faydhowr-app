@@ -88,6 +88,16 @@ class ReviewRepository implements ReviewRepositoryInterface
             ->paginate($perPage);
     }
 
+    public function paginatePublished(int $perPage): LengthAwarePaginator
+    {
+        return Review::query()
+            ->with('customerProfile')
+            ->where('status', ReviewStatus::Published->value)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate($perPage);
+    }
+
     public function paginateForAdmin(AdminReviewFiltersData $filters): LengthAwarePaginator
     {
         $query = Review::query()->with(['customerProfile', 'booking', 'service']);

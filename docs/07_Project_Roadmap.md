@@ -92,7 +92,7 @@ Phases are sequential for **major dependencies**, with limited parallelization o
 | **4** | Laravel Backend Setup | API project, auth scaffolding baseline, environments, CI basics |
 | **5** | Database Implementation | Implement approved schema (tables, indexes, integrity) |
 | **6** | Authentication | Register, login, logout, forgot/reset password, tokens, soft auth |
-| **7** | Home Module | Hero, search, categories, featured services, products, gallery, reviews, FAQ, contact |
+| **7** | Home Module | Sprint 29 scope: aggregate `GET /home` **and** section endpoints; admin-managed hero banners (`action_type` + schedule), manually curated featured services (`is_featured`), popular services (internal `favorites_count` ranking, never exposed), store products (Out of Stock visible), gallery, published reviews preview, FAQ, whitelisted contact; global search + suggestions (max 10, `pg_trgm`, documented ranking); 5-minute `HomeCacheInvalidator` cache; `public-catalog` throttle; recent searches device-local; announcements out of V1; Admin Services CRUD deferred to a later sprint |
 | **8** | Services Module | Catalog, details, search, book/quote CTAs |
 | **9** | Store Module | Catalog (V1 physical categories), Selling Price, `product_images`, cart, checkout **preview**, `store_orders` (`STO-…`) + Unified Payment; stock decrease only after Payment Paid + one-time `RCPT-…` |
 | **9A** | Inventory Module | Suppliers (`status` active/inactive), POs (Draft→Submitted→**Approved**→…), Goods Receipts only after approval, `stock_ledgers`, adjustments, low-stock dashboard (separate from Store) |
@@ -384,6 +384,7 @@ Every phase must align with these approved documents. Conflicts are resolved by 
 | Production-ready v1 | Phases 17–20 mandatory; Future Versions quarantined |
 | Spec alignment | G1 freeze + DoD documentation clause |
 | Quotation V1 | Accept + Discuss only; eight statuses (Draft → Cancelled, Sprint 28); customer never submits pricing; immutable revisions on one permanent QT number; no Reject |
+| Home & Search V1 | Sprint 29: dual Home contract (aggregate + sections); manual featured curation; server-authoritative search ranking; suggestions capped at 10 without prices/stock; recent searches device-local (no backend history); announcements out of scope |
 
 ---
 

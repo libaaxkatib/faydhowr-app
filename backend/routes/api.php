@@ -13,6 +13,10 @@ use App\Http\Controllers\Api\V1\Admin\ArchivedNotificationController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\Auth\AdminAuthController;
 use App\Http\Controllers\Api\V1\Admin\Bookings\BookingController as AdminBookingController;
+use App\Http\Controllers\Api\V1\Admin\Content\BeforeAfterItemController as AdminBeforeAfterItemController;
+use App\Http\Controllers\Api\V1\Admin\Content\FaqController as AdminFaqController;
+use App\Http\Controllers\Api\V1\Admin\Content\HeroBannerController as AdminHeroBannerController;
+use App\Http\Controllers\Api\V1\Admin\Content\ServiceFeaturedController as AdminServiceFeaturedController;
 use App\Http\Controllers\Api\V1\Admin\Customers\CustomerActivityController as AdminCustomerActivityController;
 use App\Http\Controllers\Api\V1\Admin\Customers\CustomerAddressController as AdminCustomerAddressController;
 use App\Http\Controllers\Api\V1\Admin\Customers\CustomerAttachmentController as AdminCustomerAttachmentController;
@@ -66,6 +70,7 @@ use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
 use App\Http\Controllers\Api\V1\Devices\DeviceController;
 use App\Http\Controllers\Api\V1\Favorites\FavoriteController;
 use App\Http\Controllers\Api\V1\GoodsReceipt\GoodsReceiptController;
+use App\Http\Controllers\Api\V1\Home\HomeController;
 use App\Http\Controllers\Api\V1\Notification\NotificationController;
 use App\Http\Controllers\Api\V1\Notification\NotificationPreferenceController;
 use App\Http\Controllers\Api\V1\Order\OrderController;
@@ -74,6 +79,7 @@ use App\Http\Controllers\Api\V1\Payment\PaymentController;
 use App\Http\Controllers\Api\V1\Payment\PaymentWebhookController;
 use App\Http\Controllers\Api\V1\Product\ProductController;
 use App\Http\Controllers\Api\V1\Product\ProductImageController;
+use App\Http\Controllers\Api\V1\Product\ProductSearchController;
 use App\Http\Controllers\Api\V1\PurchaseOrder\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationAcceptanceController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationAttachmentController;
@@ -82,6 +88,7 @@ use App\Http\Controllers\Api\V1\Quotation\QuotationDiscussionController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationRevisionController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationTimelineController;
 use App\Http\Controllers\Api\V1\Reviews\ReviewController;
+use App\Http\Controllers\Api\V1\Search\SearchController;
 use App\Http\Controllers\Api\V1\StoreOrder\StoreOrderController;
 use App\Http\Controllers\Api\V1\Supplier\SupplierController;
 use App\Http\Controllers\Api\V1\Uploads\UploadController;
@@ -127,6 +134,42 @@ Route::prefix('v1/auth')->group(function (): void {
 });
 
 Route::prefix('v1')->middleware('throttle:public-catalog')->group(function (): void {
+    Route::get('home', [HomeController::class, 'index'])
+        ->name('api.v1.home.index');
+
+    Route::get('home/hero-banners', [HomeController::class, 'heroBanners'])
+        ->name('api.v1.home.hero-banners');
+
+    Route::get('home/service-categories', [HomeController::class, 'serviceCategories'])
+        ->name('api.v1.home.service-categories');
+
+    Route::get('home/featured-services', [HomeController::class, 'featuredServices'])
+        ->name('api.v1.home.featured-services');
+
+    Route::get('home/store-products', [HomeController::class, 'storeProducts'])
+        ->name('api.v1.home.store-products');
+
+    Route::get('home/before-after', [HomeController::class, 'beforeAfter'])
+        ->name('api.v1.home.before-after');
+
+    Route::get('home/reviews', [HomeController::class, 'reviews'])
+        ->name('api.v1.home.reviews');
+
+    Route::get('home/faq', [HomeController::class, 'faq'])
+        ->name('api.v1.home.faq');
+
+    Route::get('home/contact', [HomeController::class, 'contact'])
+        ->name('api.v1.home.contact');
+
+    Route::get('search', [SearchController::class, 'index'])
+        ->name('api.v1.search');
+
+    Route::get('search/suggestions', [SearchController::class, 'suggestions'])
+        ->name('api.v1.search.suggestions');
+
+    Route::get('products/search', ProductSearchController::class)
+        ->name('api.v1.products.search');
+
     Route::get('service-categories', [CatalogServiceCategoryController::class, 'index'])
         ->name('api.v1.catalog.service-categories');
 
@@ -192,6 +235,69 @@ Route::prefix('v1/admin/reviews')
             ->whereNumber('review')
             ->middleware('permission:reviews.moderate')
             ->name('api.v1.admin.reviews.hide');
+    });
+
+Route::prefix('v1/admin')
+    ->middleware(['auth:sanctum', 'admin'])
+    ->group(function (): void {
+        Route::get('hero-banners', [AdminHeroBannerController::class, 'index'])
+            ->middleware('permission:content.view')
+            ->name('api.v1.admin.hero-banners.index');
+
+        Route::post('hero-banners', [AdminHeroBannerController::class, 'store'])
+            ->middleware(['permission:content.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.hero-banners.store');
+
+        Route::patch('hero-banners/{banner}', [AdminHeroBannerController::class, 'update'])
+            ->whereNumber('banner')
+            ->middleware(['permission:content.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.hero-banners.update');
+
+        Route::delete('hero-banners/{banner}', [AdminHeroBannerController::class, 'destroy'])
+            ->whereNumber('banner')
+            ->middleware(['permission:content.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.hero-banners.destroy');
+
+        Route::get('before-after', [AdminBeforeAfterItemController::class, 'index'])
+            ->middleware('permission:content.view')
+            ->name('api.v1.admin.before-after.index');
+
+        Route::post('before-after', [AdminBeforeAfterItemController::class, 'store'])
+            ->middleware(['permission:content.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.before-after.store');
+
+        Route::patch('before-after/{item}', [AdminBeforeAfterItemController::class, 'update'])
+            ->whereNumber('item')
+            ->middleware(['permission:content.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.before-after.update');
+
+        Route::delete('before-after/{item}', [AdminBeforeAfterItemController::class, 'destroy'])
+            ->whereNumber('item')
+            ->middleware(['permission:content.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.before-after.destroy');
+
+        Route::get('faqs', [AdminFaqController::class, 'index'])
+            ->middleware('permission:content.view')
+            ->name('api.v1.admin.faqs.index');
+
+        Route::post('faqs', [AdminFaqController::class, 'store'])
+            ->middleware(['permission:content.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.faqs.store');
+
+        Route::patch('faqs/{faq}', [AdminFaqController::class, 'update'])
+            ->whereNumber('faq')
+            ->middleware(['permission:content.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.faqs.update');
+
+        Route::delete('faqs/{faq}', [AdminFaqController::class, 'destroy'])
+            ->whereNumber('faq')
+            ->middleware(['permission:content.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.faqs.destroy');
+
+        Route::patch('services/{service}/featured', [AdminServiceFeaturedController::class, 'update'])
+            ->whereNumber('service')
+            ->middleware(['permission:content.manage', 'throttle:admin-operations'])
+            ->name('api.v1.admin.services.featured');
     });
 
 Route::prefix('v1/admin/payments')
