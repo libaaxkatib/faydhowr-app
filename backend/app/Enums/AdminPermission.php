@@ -25,6 +25,14 @@ enum AdminPermission: string
     case SettingsView = 'settings.view';
     case SettingsManage = 'settings.manage';
 
+    case CustomersView = 'customers.view';
+    case CustomersCreate = 'customers.create';
+    case CustomersUpdate = 'customers.update';
+    case CustomersDelete = 'customers.delete';
+    case CustomersRestore = 'customers.restore';
+    case CustomersNotes = 'customers.notes';
+    case CustomersAttachments = 'customers.attachments';
+
     public function label(): string
     {
         return match ($this) {
@@ -42,6 +50,13 @@ enum AdminPermission: string
             self::AccountingView => 'View Accounting',
             self::SettingsView => 'View Settings',
             self::SettingsManage => 'Manage Settings',
+            self::CustomersView => 'View Customers',
+            self::CustomersCreate => 'Create Customers',
+            self::CustomersUpdate => 'Update Customers',
+            self::CustomersDelete => 'Delete Customers',
+            self::CustomersRestore => 'Restore Customers',
+            self::CustomersNotes => 'Customer Notes',
+            self::CustomersAttachments => 'Customer Attachments',
         };
     }
 
@@ -62,6 +77,13 @@ enum AdminPermission: string
             self::AccountingView => 'Accounting',
             self::SettingsView,
             self::SettingsManage => 'Settings',
+            self::CustomersView,
+            self::CustomersCreate,
+            self::CustomersUpdate,
+            self::CustomersDelete,
+            self::CustomersRestore,
+            self::CustomersNotes,
+            self::CustomersAttachments => 'Customers',
         };
     }
 

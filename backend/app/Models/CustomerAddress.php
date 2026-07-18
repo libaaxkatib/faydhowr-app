@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'line2',
     'city',
     'state_region',
+    'district',
     'postal_code',
     'country_code',
     'latitude',

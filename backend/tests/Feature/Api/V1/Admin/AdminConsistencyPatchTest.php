@@ -235,6 +235,13 @@ class AdminConsistencyPatchTest extends TestCase
         $this->assertSame([
             'accounting.view',
             'admins.manage',
+            'customers.attachments',
+            'customers.create',
+            'customers.delete',
+            'customers.notes',
+            'customers.restore',
+            'customers.update',
+            'customers.view',
             'dashboard.view',
             'goods_receipts.manage',
             'notifications.manage',
@@ -271,7 +278,7 @@ class AdminConsistencyPatchTest extends TestCase
         $this->assertSame($catalog, $routePermissions);
         $this->assertDatabaseCount('permissions', count($catalog));
         $this->assertDatabaseMissing('permissions', ['key' => 'products.view']);
-        $this->assertDatabaseMissing('permissions', ['key' => 'customers.view']);
+        $this->assertDatabaseHas('permissions', ['key' => 'customers.view']);
         $this->assertSame(0, DB::table('permissions')->whereNotIn('key', $catalog)->count());
     }
 }

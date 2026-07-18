@@ -310,7 +310,7 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-070 | The customer shall be able to view My Account using `customer_profiles` fields (photo, name, **read-only** Customer Reference `CUS-YYYY-######`, preferred language, member since) and `users` fields (email, phone), plus quick stats for Bookings / Quotations / Orders. | Must |
+| FR-070 | The customer shall be able to view My Account using `customer_profiles` fields (photo, name, **read-only** Customer Code `CUS-######`, e.g. `CUS-000001`, preferred language, member since) and `users` fields (email, phone), plus quick stats for Bookings / Quotations / Orders. | Must |
 | FR-071 | The customer shall be able to add/edit saved addresses and set a default. Addresses shall **never be permanently deleted**; unused addresses are marked **Inactive**. | Must |
 | FR-072 | The customer shall be able to view consolidated history of orders, bookings, quotations, and payments via account navigation. | Must |
 | FR-073 | The customer shall be able to manage notification preferences (Push, Email, and category toggles). | Must |
@@ -329,7 +329,7 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | FR-081 | Admins shall manage bookings (list/search/filter; view details with media counters, timeline with actor audit, linked records; status updates via controlled dropdown of approved statuses only; read-only Priority High/Medium/Low; booking age; informational manual Assigned To; internal staff notes with name/role/date/time). Booking Number is read-only. Bookings are never permanently deleted. No Booking Value / Estimated Value on this module. | Must |
 | FR-082 | Admins shall manage quotations (list/search/filter; view details with price breakdown, revision history with Created By/role/date/time, read-only Compare Revisions between any two versions, discussion with keyword search and attachment counters, timeline with actor audit, linked records; status updates via controlled dropdown; validity countdown on list and details; issue revisions; internal staff notes). Every quotation must originate from a **Booking** or **Product Request** only — Admin / Sales / Accountant shall never create a standalone quotation. QT Number is read-only. Quotations are never permanently deleted. Only the latest revision may be accepted. Discussion history cannot be deleted. | Must |
 | FR-083 | Admins shall manage orders (list/search/filter; view details with ordered items, price breakdown with discounts/delivery/tax, business summary cards, timeline with actor audit, order documents with availability status, linked records incl. **Order Documents** shortcut; status updates via controlled dropdown of approved order statuses only; **Current Stage Indicator** compact read-only label above progress tracker showing current workflow stage; **Order Progress Tracker** visual stepper Pending Payment → Confirmed → Processing → Completed highlighting current step; **Order Age** displayed in list and details; **Payment Timeline** with expanded payment events Payment Requested/Received/Confirmed/Refund Processed each with Performed By, Staff Role, Date, Time; **Documents Status** each document shows ✅ Available or ⏳ Not Available Yet; **Financial Summary** compact read-only breakdown Subtotal/Discount/Delivery Fee/Tax/Grand Total/Amount Paid/Remaining Balance; **Latest Note indicator** read-only timestamp of most recent internal note). Every order is created **automatically** from an accepted quotation — no manual Create Order. Order Number is read-only. Orders are never permanently deleted. Every order remains permanently linked to its originating Booking or Product Request and its accepted Quotation. **Payment Status color system** standardized across Admin Panel: Paid (green), Partially Paid (orange), Unpaid (red), Refunded (blue). Order statuses: Pending Payment, Confirmed, Processing, Completed, Cancelled. Internal staff notes with name/role/date/time. | Must |
-| FR-084 | Admins shall manage customer profiles (list/search/filter with default **Active Customers**; view profile joined to `users` contact data, Member Since, business summary including **Total Spent**, timeline with icons, linked records; internal staff notes with name/role/date/time audit; set Inactive / suspend per policy). Customer Number is auto-generated and read-only on `customer_profiles`. Classification is **Lead** vs **Active Customer** (no VIP). Customer identities and profiles are never permanently deleted. | Must |
+| FR-084 | Admins shall manage customer profiles (list/search/filter with default **Active Customers**; view profile joined to `users` contact data, Member Since, business summary including **Total Spent**, timeline with icons, linked records; internal staff notes with name/role/date/time audit; manage Customer Status per the canonical set `ACTIVE` / `INACTIVE` / `BLOCKED` / `DELETED` — see FR-092). Customer Code is auto-generated and read-only on `customer_profiles`. Classification is **Lead** vs **Active Customer** (no VIP). Customer identities and profiles are never permanently deleted (soft delete only). Full Customer Management requirements are specified in FR-092. | Must |
 | FR-085 | Admins shall configure notification templates and operational settings (**Admin**). | Should |
 | FR-086 | Admins shall manage payments (list/search/filter; view details with payment information, transaction reference with **Copy** button, business summary cards Amount Due/Amount Paid/Remaining Balance/Payment Status, **Financial Audit Summary** Payment Requested By/Payment Confirmed By/Confirmation Date/Last Updated, source chain & linkage, payment documents with availability status, payment timeline with actor audit, linked records, internal staff notes with name/role/date/time; **Payment Verification Badge** Verified/Pending Verification independent from status displayed in list and details; **Payment Age** displayed in list and details e.g. "Received 1 day ago"/"Waiting Verification 3 days"; **Payment Method Icons** consistent branded icons in list and details; **Current Stage Indicator** compact read-only label above progress tracker; **Payment Progress Tracker** visual stepper Pending → Received → Confirmed / Pending → Failed / Confirmed → Refunded highlighting current step; **Payment Documents** Payment Receipt/Invoice/Order PDF with ✅ Available or ⏳ Pending; **Latest Note indicator** read-only timestamp). Every payment must originate from an existing **Order** — no manual Create Payment. Payment Number (`PAY-…`) is read-only. Payments are never permanently deleted. Every payment remains permanently linked to its originating Order. Approved payment statuses: Pending, Received, Confirmed, Failed, Refunded. Supported payment methods: EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card. Receipt history is permanent. Status updates via controlled dropdown only. | Must |
 | FR-087 | The Admin Panel shall use **one login** and **one panel**; after sign-in Dual Dashboard Architecture loads Super Admin or Operations dashboard, sidebar, and Hybrid RBAC permissions for **Super Admin**, **Manager**, **Sales**, **Inventory**, or **Accountant** only. | Must |
@@ -840,7 +840,7 @@ Linked navigation (admin and support): Customer → Booking (when applicable) �
 
 | Record | Prefix pattern | Example |
 | --- | --- | --- |
-| Customer | `CUS-YYYY-######` | `CUS-2026-000001` |
+| Customer | `CUS-######` | `CUS-000001` |
 | Booking | `BK-YYYY-######` | `BK-2026-000001` |
 | Quotation | `QT-YYYY-######` | `QT-2026-000001` |
 | Order (Service) | `ORD-YYYY-######` | `ORD-2026-000001` |
@@ -965,7 +965,7 @@ Provide a secure personal space for the authenticated `users` identity, linked `
 ### 13.2 Profile Data (Logical)
 
 - `users`: phone, email, password/credential metadata, provider linkage, verification flags, account status, and last-login metadata
-- `customer_profiles`: name, avatar, Customer Reference Number `CUS-YYYY-######` (system-assigned, read-only), preferred language, classification, and notification preferences
+- `customer_profiles`: name, avatar, Customer Code `CUS-######` (system-assigned, read-only, e.g. `CUS-000001`), preferred language, classification, and notification preferences
 - Addresses / service locations (`is_active`; never customer hard-deleted)
 - Saved payment methods (masked; distinct from payment history ledger)
 - Notification preferences
@@ -1335,6 +1335,174 @@ Under System Information, the system shall display a Maintenance Mode section ma
 - BR-S14: SMTP passwords and other sensitive settings values are write-only: masked in the UI and never returned by APIs or written to logs.
 - BR-S15: Restore from backup requires Super Admin authority and explicit confirmation.
 - BR-S16: Multi-branch support may be introduced in a future version without redesigning the module.
+
+---
+
+## 20. Customer Management Module (Admin)
+
+### FR-092 Customer Management
+
+This section specifies the complete Customer Management module used in the Admin Panel. It extends FR-084 and reuses the approved identity architecture (ADR-001): a Customer is the pair of a `users` authentication identity and its one-to-one `customer_profiles` business record. Customers may register from the Mobile Application, the Website, or be created by staff from the Admin Panel.
+
+#### FR-092.1 Authentication Boundary
+
+- Browsing the application does NOT require login.
+- Login is REQUIRED before a customer can: Book a Service, Request a Quotation, or Place a Store Order.
+- Guest Customers are NOT supported. Every booking, quotation, order, payment, and review must belong to a registered customer account.
+
+#### FR-092.2 Customer Account Uniqueness
+
+- Each customer may have ONLY ONE account; duplicate customer accounts are not allowed.
+- Customer Code is generated automatically by the system using the format `CUS-######` (zero-padded sequential): `CUS-000001`, `CUS-000002`, `CUS-000003`. It is read-only and never editable.
+- Phone Number must be unique across all customer accounts.
+- Email must be unique when provided (email is optional).
+
+#### FR-092.3 Customer Profile
+
+The system shall store and display the following customer profile data:
+
+- Customer Code (`CUS-######`, auto-generated, read-only)
+- Full Name
+- Mobile Number
+- Email
+- Gender
+- Date of Birth
+- Profile Photo
+- Preferred Language (Somali / English / Arabic)
+- Status (see FR-092.5)
+- Registration Date
+- Last Login
+- Internal Notes (staff-only; see FR-092.8)
+- Tags (free-form staff labels for segmentation)
+
+#### FR-092.4 Customer Addresses
+
+The system shall support multiple addresses per customer. Each address contains:
+
+- Label (e.g., Home, Office)
+- Contact Person
+- Phone Number
+- Country
+- State
+- District
+- Address (street/detail text)
+- GPS Latitude
+- GPS Longitude
+- Default Address flag
+
+At most one default address exists per customer among active addresses. Addresses are never permanently deleted (marked Inactive instead, per FR-071).
+
+#### FR-092.5 Customer Status
+
+The customer account status shall use ONLY these values (no additional statuses may be introduced):
+
+| Status | Definition |
+| --- | --- |
+| `ACTIVE` | Customer has full access. |
+| `INACTIVE` | Customer account is temporarily inactive and cannot use customer services until reactivated. |
+| `BLOCKED` | Customer cannot Login, Book Services, Request Quotations, or Place Store Orders. |
+| `DELETED` | Soft Deleted customer. Hidden from normal customer lists. All business history remains available. |
+
+These values are stored and enforced on `customer_profiles.status` only. They are distinct from `users.status` (identity / authentication lifecycle). See Status Field Responsibilities below.
+
+##### Status Field Responsibilities
+
+| Field | Responsibility |
+| --- | --- |
+| `users.status` | Identity / Authentication lifecycle. Controls account authentication state and identity-related lifecycle. Not used for customer business operations. |
+| `customer_profiles.status` | Customer business status. Controls operational permissions such as booking services, requesting quotations, and placing store orders. |
+
+- Business operations MUST use **`customer_profiles.status`**.
+- Authentication lifecycle MUST use **`users.status`**.
+- These two fields serve different purposes and must never be treated as interchangeable.
+
+#### FR-092.6 Customer Relationships
+
+A customer may have: Bookings, Quotations, Store Orders, Payments, Reviews, Addresses, Notes, Attachments, and Activity Logs. All relationships shall remain permanently linked to the customer account, including after soft deletion.
+
+#### FR-092.7 Customer Activity Timeline
+
+The system shall record and display a chronological activity timeline per customer, covering these events:
+
+- Registration
+- Login
+- Profile Update
+- Password Reset
+- Address Added
+- Address Updated
+- Booking Created
+- Booking Updated
+- Booking Completed
+- Quotation Requested
+- Quotation Accepted
+- Store Order Created
+- Payment Recorded
+- Review Submitted
+
+Timeline entries are read-only audit history and must be presented in chronological order.
+
+#### FR-092.8 Customer Notes
+
+Internal notes only, visible only to authorized staff (never exposed to customers). Each note contains: Note (body), Created By (staff name/role), Created At.
+
+#### FR-092.9 Customer Attachments
+
+The system shall support attaching files to a customer record: Images, PDF, and Documents. For each attachment the system stores: File Name, File Type, File Size, Uploaded By, Uploaded At.
+
+#### FR-092.10 Search
+
+Staff shall be able to search customers by: Customer Code, Full Name, Phone Number, Email.
+
+#### FR-092.11 Filters
+
+Staff shall be able to filter the customer list by: Status, Registration Date, Last Login, Country, State, District.
+
+#### FR-092.12 Customer Deletion Policy
+
+- Soft Delete ONLY. Customer records are never permanently deleted during normal operations.
+- Soft Deleted customers must retain: Bookings, Quotations, Orders, Payments, Reviews, and Audit History. No business records may be lost.
+
+#### FR-092.13 Customer Restore Policy
+
+- Only Super Admin may restore deleted customers.
+- Restored customers may return to `ACTIVE` or `INACTIVE`.
+- Historical records must remain intact through delete and restore.
+
+#### FR-092.14 Permissions
+
+The Customer Management module uses the following Hybrid RBAC permission keys:
+
+| Permission | Grants |
+| --- | --- |
+| `customers.view` | View customer list, details, timeline, and activity history |
+| `customers.create` | Create customer accounts from the Admin Panel |
+| `customers.update` | Edit profile data, manage addresses, change status (`ACTIVE` / `INACTIVE` / `BLOCKED`) |
+| `customers.delete` | Soft delete customers |
+| `customers.restore` | Restore soft-deleted customers (exercisable by Super Admin only in V1) |
+| `customers.notes` | View and add internal customer notes |
+| `customers.attachments` | View, upload, and remove customer attachments |
+
+#### FR-092.15 Validation Rules
+
+- Phone Number must be unique.
+- Email must be unique (when provided).
+- GPS coordinates must be valid (latitude −90..90, longitude −180..180).
+- Required fields must be validated.
+- Customer Code is generated automatically and cannot be supplied or edited.
+
+#### FR-092.16 Business Rules
+
+- BR-C01: Guest customers are not supported; every transactional record belongs to a registered customer account.
+- BR-C02: One account per customer; phone unique, email unique when provided.
+- BR-C03: Customer Code format is `CUS-######` (e.g., `CUS-000001`), auto-generated, sequential, read-only.
+- BR-C04: Customer status uses only `ACTIVE`, `INACTIVE`, `BLOCKED`, `DELETED`.
+- BR-C05: `BLOCKED` customers cannot login, book services, request quotations, or place store orders.
+- BR-C06: `INACTIVE` customers cannot use customer services until reactivated.
+- BR-C07: Deletion is soft delete only; `DELETED` customers are hidden from normal lists and all business history remains available.
+- BR-C08: Only Super Admin may restore deleted customers, and only to `ACTIVE` or `INACTIVE`.
+- BR-C09: Internal notes and attachments are staff-only and never exposed on customer-facing APIs.
+- BR-C10: The activity timeline is read-only, chronological audit history.
+- BR-C11: Access to every Customer Management capability is governed by the `customers.*` permission keys (FR-092.14).
 
 ---
 

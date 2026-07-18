@@ -54,7 +54,7 @@ class RegisterCustomerTest extends TestCase
         ]);
         $this->assertDatabaseHas('customer_profiles', [
             'user_id' => $user->id,
-            'customer_number' => sprintf('CUS-%s-%06d', now()->format('Y'), $user->id),
+            'customer_number' => sprintf('CUS-%06d', $user->id),
             'full_name' => 'Fayadhowr Customer',
             'preferred_language' => 'so',
             'classification' => 'lead',

@@ -27,6 +27,7 @@ class CustomerAddressFactory extends Factory
             'line2' => null,
             'city' => fake()->city(),
             'state_region' => null,
+            'district' => null,
             'postal_code' => null,
             'country_code' => 'SO',
             'latitude' => null,

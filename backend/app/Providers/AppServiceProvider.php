@@ -16,6 +16,16 @@ use App\Contracts\Accounting\Services\JournalEntryServiceInterface;
 use App\Contracts\Accounting\Services\JournalPostingServiceInterface;
 use App\Contracts\Accounting\Services\LedgerServiceInterface;
 use App\Contracts\Accounting\Services\TrialBalanceServiceInterface;
+use App\Contracts\Customer\Repositories\CustomerActivityRepositoryInterface;
+use App\Contracts\Customer\Repositories\CustomerAddressRepositoryInterface;
+use App\Contracts\Customer\Repositories\CustomerAttachmentRepositoryInterface;
+use App\Contracts\Customer\Repositories\CustomerNoteRepositoryInterface;
+use App\Contracts\Customer\Repositories\CustomerRepositoryInterface;
+use App\Contracts\Customer\Services\AddressServiceInterface;
+use App\Contracts\Customer\Services\AttachmentServiceInterface;
+use App\Contracts\Customer\Services\CustomerActivityServiceInterface;
+use App\Contracts\Customer\Services\CustomerServiceInterface;
+use App\Contracts\Customer\Services\NoteServiceInterface;
 use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Contracts\Dashboard\DashboardMetadataBuilderInterface;
 use App\Contracts\Dashboard\DashboardQueryServiceInterface;
@@ -35,12 +45,22 @@ use App\Contracts\Settings\Services\AuditServiceInterface;
 use App\Contracts\Settings\Services\BackupServiceInterface;
 use App\Contracts\Settings\Services\BranchServiceInterface;
 use App\Contracts\Settings\Services\SettingsServiceInterface;
+use App\Models\Booking;
+use App\Models\Payment;
+use App\Models\Quotation;
+use App\Models\StoreOrder;
+use App\Observers\Customer\CustomerCommercialActivityObserver;
 use App\Repositories\Accounting\AccountingPeriodRepository;
 use App\Repositories\Accounting\AccountRepository;
 use App\Repositories\Accounting\FinancialReportRepository;
 use App\Repositories\Accounting\JournalEntryRepository;
 use App\Repositories\Accounting\LedgerRepository;
 use App\Repositories\Accounting\TrialBalanceRepository;
+use App\Repositories\Customer\CustomerActivityRepository;
+use App\Repositories\Customer\CustomerAddressRepository;
+use App\Repositories\Customer\CustomerAttachmentRepository;
+use App\Repositories\Customer\CustomerNoteRepository;
+use App\Repositories\Customer\CustomerRepository;
 use App\Repositories\Settings\BranchRepository;
 use App\Repositories\Settings\SettingsAuditRepository;
 use App\Repositories\Settings\SystemSettingRepository;
@@ -52,6 +72,11 @@ use App\Services\Accounting\Services\JournalEntryService;
 use App\Services\Accounting\Services\JournalPostingService;
 use App\Services\Accounting\Services\LedgerService;
 use App\Services\Accounting\Services\TrialBalanceService;
+use App\Services\Customer\AddressService;
+use App\Services\Customer\AttachmentService;
+use App\Services\Customer\CustomerActivityService;
+use App\Services\Customer\CustomerService;
+use App\Services\Customer\NoteService;
 use App\Services\Dashboard\DashboardCacheInvalidator;
 use App\Services\Dashboard\DashboardManager;
 use App\Services\Dashboard\DashboardMetadataBuilder;
@@ -93,6 +118,7 @@ use App\Services\Settings\AuditService;
 use App\Services\Settings\BackupService;
 use App\Services\Settings\BranchService;
 use App\Services\Settings\SettingsService;
+use App\Support\Customer\CustomerCodeGenerator;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\Request;
@@ -164,6 +190,20 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(BranchServiceInterface::class, BranchService::class);
 
         $this->app->singleton(BackupServiceInterface::class, BackupService::class);
+
+        $this->app->singleton(CustomerCodeGenerator::class);
+
+        $this->app->bind(CustomerRepositoryInterface::class, CustomerRepository::class);
+        $this->app->bind(CustomerAddressRepositoryInterface::class, CustomerAddressRepository::class);
+        $this->app->bind(CustomerNoteRepositoryInterface::class, CustomerNoteRepository::class);
+        $this->app->bind(CustomerAttachmentRepositoryInterface::class, CustomerAttachmentRepository::class);
+        $this->app->bind(CustomerActivityRepositoryInterface::class, CustomerActivityRepository::class);
+
+        $this->app->singleton(CustomerActivityServiceInterface::class, CustomerActivityService::class);
+        $this->app->singleton(CustomerServiceInterface::class, CustomerService::class);
+        $this->app->singleton(AddressServiceInterface::class, AddressService::class);
+        $this->app->singleton(NoteServiceInterface::class, NoteService::class);
+        $this->app->singleton(AttachmentServiceInterface::class, AttachmentService::class);
 
         $this->app->singleton(RevenueReportServiceInterface::class, RevenueReportService::class);
 
@@ -244,6 +284,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $observer = $this->app->make(CustomerCommercialActivityObserver::class);
+        Booking::observe($observer);
+        Quotation::observe($observer);
+        StoreOrder::observe($observer);
+        Payment::observe($observer);
+
         RateLimiter::for('auth-register', function (Request $request): Limit {
             return Limit::perMinute(5)->by($request->ip());
         });

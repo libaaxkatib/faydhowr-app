@@ -12,6 +12,11 @@ use App\Http\Controllers\Api\V1\Admin\AdminPermissionController;
 use App\Http\Controllers\Api\V1\Admin\ArchivedNotificationController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\Auth\AdminAuthController;
+use App\Http\Controllers\Api\V1\Admin\Customers\CustomerActivityController as AdminCustomerActivityController;
+use App\Http\Controllers\Api\V1\Admin\Customers\CustomerAddressController as AdminCustomerAddressController;
+use App\Http\Controllers\Api\V1\Admin\Customers\CustomerAttachmentController as AdminCustomerAttachmentController;
+use App\Http\Controllers\Api\V1\Admin\Customers\CustomerController as AdminCustomerController;
+use App\Http\Controllers\Api\V1\Admin\Customers\CustomerNoteController as AdminCustomerNoteController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\NotificationTemplateController;
 use App\Http\Controllers\Api\V1\Admin\NotificationTemplateTranslationController;
@@ -345,6 +350,113 @@ Route::prefix('v1/admin/backups')
         Route::post('{backup}/restore', [BackupController::class, 'restore'])
             ->middleware('permission:settings.manage')
             ->name('api.v1.admin.backups.restore');
+    });
+
+Route::prefix('v1/admin/customers')
+    ->middleware(['auth:sanctum', 'admin'])
+    ->group(function (): void {
+        Route::get('', [AdminCustomerController::class, 'index'])
+            ->middleware('permission:customers.view')
+            ->name('api.v1.admin.customers.index');
+
+        Route::post('', [AdminCustomerController::class, 'store'])
+            ->middleware('permission:customers.create')
+            ->name('api.v1.admin.customers.store');
+
+        Route::get('{customer}', [AdminCustomerController::class, 'show'])
+            ->whereNumber('customer')
+            ->middleware('permission:customers.view')
+            ->name('api.v1.admin.customers.show');
+
+        Route::put('{customer}', [AdminCustomerController::class, 'update'])
+            ->whereNumber('customer')
+            ->middleware('permission:customers.update')
+            ->name('api.v1.admin.customers.update');
+
+        Route::patch('{customer}/status', [AdminCustomerController::class, 'updateStatus'])
+            ->whereNumber('customer')
+            ->middleware('permission:customers.update')
+            ->name('api.v1.admin.customers.status');
+
+        Route::delete('{customer}', [AdminCustomerController::class, 'destroy'])
+            ->whereNumber('customer')
+            ->middleware('permission:customers.delete')
+            ->name('api.v1.admin.customers.destroy');
+
+        Route::post('{customer}/restore', [AdminCustomerController::class, 'restore'])
+            ->whereNumber('customer')
+            ->middleware('permission:customers.restore')
+            ->name('api.v1.admin.customers.restore');
+
+        Route::get('{customer}/timeline', [AdminCustomerActivityController::class, 'timeline'])
+            ->whereNumber('customer')
+            ->middleware('permission:customers.view')
+            ->name('api.v1.admin.customers.timeline');
+
+        Route::get('{customer}/activity-logs', [AdminCustomerActivityController::class, 'activityLogs'])
+            ->whereNumber('customer')
+            ->middleware('permission:customers.view')
+            ->name('api.v1.admin.customers.activity-logs');
+
+        Route::get('{customer}/addresses', [AdminCustomerAddressController::class, 'index'])
+            ->whereNumber('customer')
+            ->middleware('permission:customers.view')
+            ->name('api.v1.admin.customers.addresses.index');
+
+        Route::post('{customer}/addresses', [AdminCustomerAddressController::class, 'store'])
+            ->whereNumber('customer')
+            ->middleware('permission:customers.update')
+            ->name('api.v1.admin.customers.addresses.store');
+
+        Route::put('{customer}/addresses/{address}', [AdminCustomerAddressController::class, 'update'])
+            ->whereNumber('customer')
+            ->whereNumber('address')
+            ->middleware('permission:customers.update')
+            ->name('api.v1.admin.customers.addresses.update');
+
+        Route::patch('{customer}/addresses/{address}/default', [AdminCustomerAddressController::class, 'setDefault'])
+            ->whereNumber('customer')
+            ->whereNumber('address')
+            ->middleware('permission:customers.update')
+            ->name('api.v1.admin.customers.addresses.default');
+
+        Route::patch('{customer}/addresses/{address}/deactivate', [AdminCustomerAddressController::class, 'deactivate'])
+            ->whereNumber('customer')
+            ->whereNumber('address')
+            ->middleware('permission:customers.update')
+            ->name('api.v1.admin.customers.addresses.deactivate');
+
+        Route::get('{customer}/notes', [AdminCustomerNoteController::class, 'index'])
+            ->whereNumber('customer')
+            ->middleware('permission:customers.notes')
+            ->name('api.v1.admin.customers.notes.index');
+
+        Route::post('{customer}/notes', [AdminCustomerNoteController::class, 'store'])
+            ->whereNumber('customer')
+            ->middleware('permission:customers.notes')
+            ->name('api.v1.admin.customers.notes.store');
+
+        Route::get('{customer}/attachments', [AdminCustomerAttachmentController::class, 'index'])
+            ->whereNumber('customer')
+            ->middleware('permission:customers.attachments')
+            ->name('api.v1.admin.customers.attachments.index');
+
+        Route::post('{customer}/attachments', [AdminCustomerAttachmentController::class, 'store'])
+            ->whereNumber('customer')
+            ->middleware('permission:customers.attachments')
+            ->name('api.v1.admin.customers.attachments.store');
+
+        Route::get('{customer}/attachments/{attachment}/download', [AdminCustomerAttachmentController::class, 'download'])
+            ->whereNumber('customer')
+            ->whereNumber('attachment')
+            ->middleware('permission:customers.attachments')
+            ->name('api.v1.admin.customers.attachments.download');
+
+        Route::delete('{customer}/attachments/{attachment}', [AdminCustomerAttachmentController::class, 'destroy'])
+            ->whereNumber('customer')
+            ->whereNumber('attachment')
+            ->middleware('permission:customers.attachments')
+            ->name('api.v1.admin.customers.attachments.destroy');
     });
 
 Route::prefix('v1/admin/report-exports')

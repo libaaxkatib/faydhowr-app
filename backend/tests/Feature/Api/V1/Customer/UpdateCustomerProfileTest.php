@@ -30,7 +30,7 @@ class UpdateCustomerProfileTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('message', 'Customer profile updated successfully.')
-            ->assertJsonPath('data.customer_number', 'CUS-2026-000001')
+            ->assertJsonPath('data.customer_number', 'CUS-000001')
             ->assertJsonPath('data.full_name', 'Updated Customer')
             ->assertJsonPath('data.avatar_url', 'https://example.com/avatar.png')
             ->assertJsonPath('data.preferred_language', 'en')
@@ -149,7 +149,7 @@ class UpdateCustomerProfileTest extends TestCase
         $response = $this
             ->withToken($token->plainTextToken)
             ->patchJson('/api/v1/customer/profile', [
-                'customer_number' => 'CUS-2026-999999',
+                'customer_number' => 'CUS-999999',
                 'classification' => 'active_customer',
                 'user_id' => $otherUser->id,
                 'unexpected_field' => 'ignored',
@@ -157,13 +157,13 @@ class UpdateCustomerProfileTest extends TestCase
 
         $response
             ->assertOk()
-            ->assertJsonPath('data.customer_number', 'CUS-2026-000001')
+            ->assertJsonPath('data.customer_number', 'CUS-000001')
             ->assertJsonPath('data.classification', 'lead');
 
         $this->assertDatabaseHas('customer_profiles', [
             'id' => $profile->id,
             'user_id' => $user->id,
-            'customer_number' => 'CUS-2026-000001',
+            'customer_number' => 'CUS-000001',
             'classification' => 'lead',
         ]);
     }
@@ -174,7 +174,7 @@ class UpdateCustomerProfileTest extends TestCase
             'full_name' => 'Fayadhowr Customer',
             'preferred_language' => 'so',
         ]);
-        $profile->customer_number = 'CUS-2026-000001';
+        $profile->customer_number = 'CUS-000001';
         $profile->classification = 'lead';
         $user->customerProfile()->save($profile);
 

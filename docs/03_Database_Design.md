@@ -90,7 +90,7 @@ The Flutter customer app and the Laravel admin/API layer share this database thr
 | Timestamps | `created_at`, `updated_at`; soft delete via `deleted_at` where noted |
 | Money | `DECIMAL(12,2)` (or equivalent) with explicit `currency` where amounts are stored |
 | Status fields | Constrained string/enumeration values documented per table |
-| Public references | Unified unique codes: `CUS-YYYY-######`, `BK-YYYY-######`, `QT-YYYY-######`, `ORD-YYYY-######` (service orders), `STO-YYYY-######` (store orders), `PAY-YYYY-######`, `RCPT-YYYY-######`, `PO-YYYY-######`, `GR-YYYY-######`, `INV-YYYY-######`, `REF-YYYY-######` (stored in `*_number` fields in addition to internal `id`) |
+| Public references | Unified unique codes: `CUS-######` (customers, e.g. `CUS-000001`), `BK-YYYY-######`, `QT-YYYY-######`, `ORD-YYYY-######` (service orders), `STO-YYYY-######` (store orders), `PAY-YYYY-######`, `RCPT-YYYY-######`, `PO-YYYY-######`, `GR-YYYY-######`, `INV-YYYY-######`, `REF-YYYY-######` (stored in `*_number` fields in addition to internal `id`) |
 
 ## 1.4 Common Column Patterns
 
@@ -109,7 +109,7 @@ Most transactional tables include:
 
 | Module | Responsibility | Primary Tables |
 | --- | --- | --- |
-| **User Management** | Mobile user identity, customer profiles, addresses, saved payment methods, devices, auth recovery; admin operators & Hybrid RBAC | `users`, `customer_profiles`, `customer_addresses`, `customer_payment_methods`, `customer_devices`, `password_reset_tokens`, `admins`, `permissions`, `admin_role_permissions`, `admin_permissions` |
+| **User Management** | Mobile user identity, customer profiles, addresses, saved payment methods, devices, auth recovery; customer notes, attachments, activity logs (Customer Management); admin operators & Hybrid RBAC | `users`, `customer_profiles`, `customer_addresses`, `customer_payment_methods`, `customer_devices`, `customer_notes`, `customer_attachments`, `customer_activity_logs`, `password_reset_tokens`, `admins`, `permissions`, `admin_role_permissions`, `admin_permissions` |
 | **Service Management** | Official services, modes, coverage, media, and schedule constraints | `service_categories`, `services`, `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates` |
 | **Store Management** | Product catalog, categories, images, cart, store orders | `product_categories`, `products`, `product_images`, `product_price_tiers`, `carts`, `cart_items`, `store_orders`, `store_order_items`, `store_order_status_histories` |
 | **Inventory Management** | Suppliers, purchase orders, goods receipts, stock ledger, adjustments, low-stock | `suppliers`, `purchase_orders`, `purchase_order_items`, `purchase_order_status_histories`, `goods_receipts`, `goods_receipt_items`, `stock_ledgers`, `stock_adjustments` |
@@ -128,6 +128,7 @@ Most transactional tables include:
 - **Users** are the only mobile authentication identities. Each mobile customer has one linked `customer_profiles` record for business and profile data.
 - **Admins** exist solely for the web admin panel (SRS §14). They are separate from `users` and are not field employees, technicians, or drivers.
 - Guests may browse catalogs without a `users` row; an authenticated active user is required before booking or ordering.
+- **Customer Management (SRS FR-092):** the "Customer" entity is the `users` + `customer_profiles` pair per ADR-001 — there is no standalone `customers` table. Customer Code format is `CUS-######` (e.g. `CUS-000001`), auto-generated, sequential, read-only. Customer business status uses only `ACTIVE` / `INACTIVE` / `BLOCKED` / `DELETED` on **`customer_profiles.status`** (`DELETED` via soft delete `deleted_at`); **`users.status`** remains identity / authentication lifecycle and must never be treated as interchangeable. Customers are never hard-deleted; only Super Admin may restore a deleted customer (to `ACTIVE` or `INACTIVE` on `customer_profiles.status`). Registration Date = `customer_profiles.created_at`; Last Login = `users.last_login_at`.
 
 ### Service Management
 
@@ -212,7 +213,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | Surrogate PK |
-| `customer_number` | VARCHAR(40) | R | Unique public reference `CUS-YYYY-######` (read-only to customers) |
+| `customer_number` | VARCHAR(40) | R | Unique public reference (historical format `CUS-YYYY-######`; superseded — the approved Customer Code format is `CUS-######`, see §3.1.2) |
 | `full_name` | VARCHAR(150) | R | Display name |
 | `email` | VARCHAR(191) | O | Unique when present |
 | `phone` | VARCHAR(30) | R | Unique; primary login identifier candidate |
@@ -274,18 +275,29 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 - Unique: `phone`, nullable `email`, nullable `google_subject`.
 - Check/enum: `status` in the defined set.
-- Suspended/deactivated users cannot create bookings, orders, or quotation requests.
+- `users.status` governs identity / authentication lifecycle only (e.g. suspended or deactivated identities cannot authenticate). It is **not** used for customer business operations.
 - Guest browsing does not require a `users` row; authentication is enforced at transactional boundaries.
+
+##### Status Field Responsibilities
+
+| Field | Responsibility |
+| --- | --- |
+| `users.status` | Identity / Authentication lifecycle. Controls account authentication state and identity-related lifecycle. Not used for customer business operations. |
+| `customer_profiles.status` | Customer business status. Controls operational permissions such as booking services, requesting quotations, and placing store orders. |
+
+- Business operations MUST use **`customer_profiles.status`**.
+- Authentication lifecycle MUST use **`users.status`**.
+- These two fields serve different purposes and must never be treated as interchangeable.
 
 ### 3.1.2 `customer_profiles`
 
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `customer_profiles` |
-| **Purpose** | One-to-one customer business/profile data; not an authentication identity. |
+| **Purpose** | One-to-one customer business/profile data; not an authentication identity. Primary record of the Customer Management module (SRS FR-092). |
 | **Primary Key** | `id` |
 | **Foreign Keys** | `user_id` → `users.id` (UNIQUE, required) |
-| **Relationships** | 1:1 → `users`; 1:N → addresses, saved payment methods, internal customer notes, bookings, quotation requests, orders, payments, notifications, reviews |
+| **Relationships** | 1:1 → `users`; 1:N → addresses, saved payment methods, internal customer notes, customer attachments, customer activity logs, bookings, quotation requests, orders, payments, notifications, reviews |
 
 #### Columns
 
@@ -293,20 +305,35 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | Surrogate PK |
 | `user_id` | BIGINT UNSIGNED | R | Unique one-to-one link to `users` |
-| `customer_number` | VARCHAR(40) | R | Unique public reference `CUS-YYYY-######`; read-only |
+| `customer_number` | VARCHAR(40) | R | Unique public Customer Code `CUS-######` (e.g. `CUS-000001`); auto-generated, sequential, read-only |
 | `full_name` | VARCHAR(150) | R | Display name |
 | `avatar_url` | VARCHAR(500) | O | Profile photo |
+| `gender` | VARCHAR(20) | O | `male` · `female` (optional profile data) |
+| `date_of_birth` | DATE | O | Optional profile data |
 | `preferred_language` | VARCHAR(10) | R | `so` · `en` · `ar` |
+| `status` | VARCHAR(20) | R | `ACTIVE` · `INACTIVE` · `BLOCKED` (see status rules; `DELETED` is represented by `deleted_at`) |
+| `tags` | JSON | O | Free-form staff labels for segmentation (Admin Panel only) |
 | `notification_preferences` | JSON | O | Push/email and category toggles |
 | `classification` | VARCHAR(30) | R | `lead` or `active_customer`; not an authentication role |
-| `created_at`, `updated_at`, `deleted_at` | TIMESTAMP | R/O | Profile lifecycle and soft deletion |
+| `created_at`, `updated_at`, `deleted_at` | TIMESTAMP | R/O | Registration date, profile lifecycle, and soft deletion |
 
 #### Constraints and Rules
 
 - Unique: `user_id`, `customer_number`.
-- Check/enum: `preferred_language` in `so|en|ar`; `classification` in `lead|active_customer`.
-- `customer_number` is generated by the system and is not customer-editable.
+- Check/enum: `preferred_language` in `so|en|ar`; `classification` in `lead|active_customer`; `status` in `ACTIVE|INACTIVE|BLOCKED`.
+- Indexes: `status`, `created_at` (registration-date filtering).
+- `customer_number` is generated by the system (`CUS-######`) and is not customer-editable.
 - `customer_profiles` cannot authenticate, own Sanctum tokens, or replace `users`.
+
+#### Customer Status Rules (SRS FR-092.5)
+
+- `ACTIVE`: full access.
+- `INACTIVE`: temporarily inactive; cannot use customer services until reactivated.
+- `BLOCKED`: cannot login, book services, request quotations, or place store orders.
+- `DELETED`: soft-deleted (`deleted_at` set); hidden from normal customer lists; all business history (bookings, quotations, orders, payments, reviews, audit history) remains available and linked.
+- No additional statuses may be introduced.
+- Restore (Super Admin only) clears `deleted_at` and sets `customer_profiles.status` to `ACTIVE` or `INACTIVE`.
+- Business operations (booking / quotation / store order) MUST enforce **`customer_profiles.status`**. Authentication lifecycle remains on **`users.status`** (see Status Field Responsibilities under §3.1.1). These fields must never be treated as interchangeable.
 
 ---
 
@@ -332,11 +359,12 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | `line1` | VARCHAR(255) | R | |
 | `line2` | VARCHAR(255) | O | |
 | `city` | VARCHAR(100) | R | |
-| `state_region` | VARCHAR(100) | O | |
+| `state_region` | VARCHAR(100) | O | State |
+| `district` | VARCHAR(100) | O | District (e.g., Hodan) |
 | `postal_code` | VARCHAR(30) | O | |
-| `country_code` | CHAR(2) | O | ISO-ish code |
-| `latitude` | DECIMAL(10,7) | O | |
-| `longitude` | DECIMAL(10,7) | O | |
+| `country_code` | CHAR(2) | O | ISO-ish code (Country) |
+| `latitude` | DECIMAL(10,7) | O | GPS latitude; valid range −90..90 |
+| `longitude` | DECIMAL(10,7) | O | GPS longitude; valid range −180..180 |
 | `is_default` | BOOLEAN | R | Default false |
 | `is_active` | BOOLEAN | R | Default true; unused addresses marked **Inactive** (never hard-deleted by customer) |
 | `created_at` | TIMESTAMP | R | |
@@ -350,8 +378,10 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 #### Validation Rules
 
 - Address required fields must be present when used for delivery/service booking.
+- GPS coordinates, when provided, must be valid (latitude −90..90, longitude −180..180).
 - Customers may Add / Edit / Set Default / Mark Inactive — never permanently delete.
 - Updating an address must not rewrite historical order/booking address snapshots.
+- Country / State / District support the Admin Panel customer filters (SRS FR-092.11).
 
 #### Notes
 
@@ -461,9 +491,86 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 #### Validation Rules
 
-- Visible only in Admin Panel customer profile context.
+- Visible only in Admin Panel customer profile context (permission `customers.notes`).
 - Customers never see these notes.
 - Does not rewrite commercial history or timeline events.
+
+---
+
+### 3.1.6A `customer_attachments` (Admin internal)
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `customer_attachments` |
+| **Purpose** | Staff-uploaded files attached to a customer record (Images, PDF, Documents). **Never** exposed on customer mobile APIs. |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id`, `admin_id` → `admins.id` |
+| **Relationships** | N:1 → `customer_profiles`, N:1 → `admins` (uploader) |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `customer_profile_id` | BIGINT UNSIGNED | R | FK |
+| `admin_id` | BIGINT UNSIGNED | R | Uploaded By (staff) |
+| `file_name` | VARCHAR(255) | R | Original file name |
+| `file_type` | VARCHAR(100) | R | MIME type / extension category (image, pdf, document) |
+| `file_size` | BIGINT UNSIGNED | R | Bytes |
+| `file_path` | VARCHAR(500) | R | Storage path (not publicly accessible) |
+| `created_at` | TIMESTAMP | R | Uploaded At |
+| `updated_at` | TIMESTAMP | R | |
+
+#### Constraints
+
+- Index: `customer_profile_id`.
+- FK behavior: restrict on `customer_profile_id` (attachments follow the customer record; the customer record is never hard-deleted).
+
+#### Validation Rules
+
+- Allowed types: Images, PDF, Documents; size limited per Storage Settings (FR-091.10).
+- Visible only in Admin Panel customer context (permission `customers.attachments`).
+- Files are stored outside the public web root and served through authorized endpoints only.
+
+---
+
+### 3.1.6B `customer_activity_logs`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `customer_activity_logs` |
+| **Purpose** | Chronological, read-only activity timeline per customer (SRS FR-092.7). |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id` |
+| **Relationships** | N:1 → `customer_profiles`; optional polymorphic link to the subject record (booking, quotation, order, payment, review, address) |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `customer_profile_id` | BIGINT UNSIGNED | R | FK |
+| `event_type` | VARCHAR(50) | R | See approved event set below |
+| `description` | VARCHAR(255) | O | Human-readable summary |
+| `subject_type` | VARCHAR(150) | O | Polymorphic subject class (e.g., booking, quotation) |
+| `subject_id` | BIGINT UNSIGNED | O | Polymorphic subject id |
+| `metadata` | JSON | O | Additional event context |
+| `created_at` | TIMESTAMP | R | Event time (timeline ordering) |
+
+#### Approved Event Types
+
+`registration`, `login`, `profile_update`, `password_reset`, `address_added`, `address_updated`, `booking_created`, `booking_updated`, `booking_completed`, `quotation_requested`, `quotation_accepted`, `store_order_created`, `payment_recorded`, `review_submitted`.
+
+#### Constraints
+
+- Indexes: `customer_profile_id`, (`customer_profile_id`, `created_at`) for chronological reads, `event_type`.
+- Check/enum: `event_type` in the approved set; no other event types may be introduced.
+
+#### Validation Rules
+
+- Rows are append-only audit history: never updated or deleted through the application.
+- Timeline is presented in chronological order.
+- Retained permanently, including for soft-deleted customers.
 
 ---
 

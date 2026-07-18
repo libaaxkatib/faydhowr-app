@@ -1506,6 +1506,146 @@ Response `502` (provider failure):
 | `BACKUP_RESTORE_NOT_CONFIRMED` | 422 | Missing/incorrect restore confirmation phrase |
 | 403 Forbidden | 403 | Missing `settings.*` permission or non–Super Admin on restricted actions |
 
+## 18.7 Customer Management (Documentation Only — Not Implemented)
+
+Admin Panel APIs for the Customer Management module (SRS FR-092). All endpoints require `auth:sanctum` + `admin` middleware and follow the Standard API Response Format (§3). A "Customer" is the `users` + `customer_profiles` pair (ADR-001); resources expose the merged view keyed by Customer Code.
+
+Permissions:
+
+| Permission | Grants |
+| --- | --- |
+| `customers.view` | List/search customers, view details, timeline, activity history |
+| `customers.create` | Create customer accounts from the Admin Panel |
+| `customers.update` | Update profile, manage addresses, change `customer_profiles.status` (`ACTIVE` / `INACTIVE` / `BLOCKED`) |
+| `customers.delete` | Soft delete customers |
+| `customers.restore` | Restore soft-deleted customers (Super Admin only in V1) |
+| `customers.notes` | List/add internal customer notes |
+| `customers.attachments` | List/upload/download/remove customer attachments |
+
+### 18.7.1 Customer CRUD
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/customers` | `customers.view` | List with search, filters, sorting, pagination (§18.7.2) |
+| POST | `/api/v1/admin/customers` | `customers.create` | Create account; Customer Code auto-generated |
+| GET | `/api/v1/admin/customers/{customer}` | `customers.view` | Full details incl. business summary and linked-record counts |
+| PUT | `/api/v1/admin/customers/{customer}` | `customers.update` | Update profile fields |
+| PATCH | `/api/v1/admin/customers/{customer}/status` | `customers.update` | Body `status`: `ACTIVE` / `INACTIVE` / `BLOCKED` only — writes `customer_profiles.status` only |
+| DELETE | `/api/v1/admin/customers/{customer}` | `customers.delete` | Soft delete → `customer_profiles.status` `DELETED`; business history retained |
+| POST | `/api/v1/admin/customers/{customer}/restore` | `customers.restore` (Super Admin) | Body `status`: `ACTIVE` or `INACTIVE` — restores `customer_profiles.status` only |
+
+**Customer Status clarification:** Customer Status endpoints (`PATCH …/status`, soft delete, and restore) modify **ONLY** `customer_profiles.status`. They **MUST NOT** modify `users.status`. Authentication lifecycle remains managed by the Identity / User Management module. Business operations (booking, quotation, store order) MUST use `customer_profiles.status`; authentication lifecycle MUST use `users.status`. These two fields serve different purposes and must never be treated as interchangeable.
+
+**Validation (create/update):** `full_name` — required, max 150; `phone` — required, unique across customers; `email` — optional, valid email, unique when provided; `gender` — optional, `male`/`female`; `date_of_birth` — optional, valid past date; `preferred_language` — `so`/`en`/`ar`; `tags` — optional array of strings. `customer_number` is never accepted as input (auto-generated `CUS-######`).
+
+**Example — GET `/api/v1/admin/customers/{customer}`:**
+
+```json
+{
+  "success": true,
+  "message": "Customer retrieved successfully.",
+  "data": {
+    "id": 15,
+    "customer_number": "CUS-000015",
+    "full_name": "Hodan Abdi",
+    "phone": "+252611234567",
+    "email": "hodan@example.com",
+    "gender": "female",
+    "date_of_birth": "1994-03-12",
+    "avatar_url": "https://cdn.fayadhowr.com/customers/15/avatar.jpg",
+    "preferred_language": "so",
+    "status": "ACTIVE",
+    "classification": "active_customer",
+    "tags": ["priority", "corporate"],
+    "registered_at": "2026-01-04T09:30:00Z",
+    "last_login_at": "2026-07-15T18:22:00Z",
+    "summary": { "bookings": 4, "quotations": 2, "orders": 3, "payments": 5, "total_spent": 1240.00 }
+  }
+}
+```
+
+### 18.7.2 Search, Filters, Sorting, Pagination
+
+`GET /api/v1/admin/customers` query parameters:
+
+| Parameter | Notes |
+| --- | --- |
+| `search` | Matches Customer Code, Full Name, Phone Number, Email |
+| `status` | `ACTIVE` / `INACTIVE` / `BLOCKED` / `DELETED` (`DELETED` returns soft-deleted customers; requires `customers.view`) |
+| `registered_from`, `registered_to` | Registration Date range |
+| `last_login_from`, `last_login_to` | Last Login range |
+| `country`, `state`, `district` | Address-based filters |
+| `sort` | `customer_number`, `full_name`, `registered_at`, `last_login_at` (prefix `-` for descending) |
+| `page`, `per_page` | Standard pagination (§3.4); soft-deleted customers are excluded unless `status=DELETED` |
+
+### 18.7.3 Customer Timeline & Activity History
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/customers/{customer}/timeline` | `customers.view` | Chronological activity feed; paginated |
+| GET | `/api/v1/admin/customers/{customer}/activity-logs` | `customers.view` | Same source with filters: `event_type`, `from`, `to` |
+
+Event types: `registration`, `login`, `profile_update`, `password_reset`, `address_added`, `address_updated`, `booking_created`, `booking_updated`, `booking_completed`, `quotation_requested`, `quotation_accepted`, `store_order_created`, `payment_recorded`, `review_submitted`. Entries are read-only.
+
+**Example — GET `/api/v1/admin/customers/{customer}/timeline`:**
+
+```json
+{
+  "success": true,
+  "message": "Customer timeline retrieved successfully.",
+  "data": [
+    { "id": 301, "event_type": "payment_recorded", "description": "Payment PAY-2026-000101 recorded", "created_at": "2026-07-10T11:00:00Z" },
+    { "id": 287, "event_type": "booking_created", "description": "Booking BK-2026-000045 created", "created_at": "2026-07-01T08:15:00Z" },
+    { "id": 122, "event_type": "registration", "description": "Account registered", "created_at": "2026-01-04T09:30:00Z" }
+  ]
+}
+```
+
+### 18.7.4 Addresses
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/customers/{customer}/addresses` | `customers.view` | All addresses incl. inactive |
+| POST | `/api/v1/admin/customers/{customer}/addresses` | `customers.update` | Add address |
+| PUT | `/api/v1/admin/customers/{customer}/addresses/{address}` | `customers.update` | Edit address |
+| PATCH | `/api/v1/admin/customers/{customer}/addresses/{address}/default` | `customers.update` | Set default (clears previous default) |
+| PATCH | `/api/v1/admin/customers/{customer}/addresses/{address}/deactivate` | `customers.update` | Mark inactive — addresses are never hard-deleted |
+
+**Validation:** `label` — optional, max 50; `contact_name` — optional, max 150; `phone` — optional; `country`, `state`, `district` — optional strings; `address` — required detail text; `latitude` — optional, numeric −90..90; `longitude` — optional, numeric −180..180; `is_default` — boolean.
+
+### 18.7.5 Notes
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/customers/{customer}/notes` | `customers.notes` | Chronological, newest first |
+| POST | `/api/v1/admin/customers/{customer}/notes` | `customers.notes` | Body `note` — required text |
+
+Each note returns: `note`, `created_by` (staff name + role), `created_at`. Notes are internal only and never exposed on customer mobile APIs.
+
+### 18.7.6 Attachments
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/customers/{customer}/attachments` | `customers.attachments` | File Name, File Type, File Size, Uploaded By, Uploaded At |
+| POST | `/api/v1/admin/customers/{customer}/attachments` | `customers.attachments` | Multipart upload — Images / PDF / Documents; size per Storage Settings |
+| GET | `/api/v1/admin/customers/{customer}/attachments/{attachment}/download` | `customers.attachments` | Authorized download (files are never publicly accessible) |
+| DELETE | `/api/v1/admin/customers/{customer}/attachments/{attachment}` | `customers.attachments` | Remove attachment |
+
+**Validation:** `file` — required; mime in allowed Images/PDF/Documents set; max size per `storage.max_upload_size`.
+
+### 18.7.7 Error Codes
+
+| Code | HTTP | Meaning |
+| --- | --- | --- |
+| `CUSTOMER_NOT_FOUND` | 404 | Unknown customer id |
+| `CUSTOMER_PHONE_TAKEN` | 422 | Phone number already belongs to another customer |
+| `CUSTOMER_EMAIL_TAKEN` | 422 | Email already belongs to another customer |
+| `CUSTOMER_INVALID_STATUS` | 422 | Status outside `ACTIVE` / `INACTIVE` / `BLOCKED` (or restore target outside `ACTIVE` / `INACTIVE`) |
+| `CUSTOMER_ALREADY_DELETED` | 422 | Delete requested on an already soft-deleted customer |
+| `CUSTOMER_NOT_DELETED` | 422 | Restore requested on a customer that is not soft-deleted |
+| `VALIDATION_ERROR` | 422 | Field validation failure (standard §3.3 payload) |
+| 403 Forbidden | 403 | Missing `customers.*` permission or non–Super Admin on restore |
+
 ---
 
 ## Document Control

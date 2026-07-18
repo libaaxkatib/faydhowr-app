@@ -2,7 +2,10 @@
 
 namespace App\Models;
 
+use App\Enums\Customer\CustomerGender;
+use App\Enums\Customer\CustomerStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,6 +18,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'avatar_url',
     'preferred_language',
     'notification_preferences',
+    'gender',
+    'date_of_birth',
+    'tags',
 ])]
 class CustomerProfile extends Model
 {
@@ -34,6 +40,30 @@ class CustomerProfile extends Model
     public function addresses(): HasMany
     {
         return $this->hasMany(CustomerAddress::class);
+    }
+
+    /**
+     * @return HasMany<CustomerNote, $this>
+     */
+    public function notes(): HasMany
+    {
+        return $this->hasMany(CustomerNote::class);
+    }
+
+    /**
+     * @return HasMany<CustomerAttachment, $this>
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(CustomerAttachment::class);
+    }
+
+    /**
+     * @return HasMany<CustomerActivityLog, $this>
+     */
+    public function activityLogs(): HasMany
+    {
+        return $this->hasMany(CustomerActivityLog::class);
     }
 
     /**
@@ -85,12 +115,39 @@ class CustomerProfile extends Model
     }
 
     /**
+     * @param  Builder<CustomerProfile>  $query
+     * @return Builder<CustomerProfile>
+     */
+    public function scopeActiveBusiness(Builder $query): Builder
+    {
+        return $query->where('status', CustomerStatus::Active->value)->whereNull('deleted_at');
+    }
+
+    public function displayStatus(): CustomerStatus
+    {
+        if ($this->trashed()) {
+            return CustomerStatus::Deleted;
+        }
+
+        return $this->status ?? CustomerStatus::Active;
+    }
+
+    public function canUseCustomerServices(): bool
+    {
+        return ! $this->trashed() && $this->status === CustomerStatus::Active;
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
             'notification_preferences' => 'array',
+            'tags' => 'array',
+            'date_of_birth' => 'date',
+            'status' => CustomerStatus::class,
+            'gender' => CustomerGender::class,
         ];
     }
 }

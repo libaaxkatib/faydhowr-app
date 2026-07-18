@@ -19,7 +19,7 @@ class CustomerProfileTest extends TestCase
             'preferred_language' => 'so',
             'notification_preferences' => ['push' => true],
         ]);
-        $profile->customer_number = 'CUS-2026-000001';
+        $profile->customer_number = 'CUS-000001';
         $profile->classification = 'lead';
         $user->customerProfile()->save($profile);
         $token = $user->createToken('customer-mobile');
@@ -32,7 +32,7 @@ class CustomerProfileTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('message', 'Customer profile retrieved successfully.')
-            ->assertJsonPath('data.customer_number', 'CUS-2026-000001')
+            ->assertJsonPath('data.customer_number', 'CUS-000001')
             ->assertJsonPath('data.full_name', 'Fayadhowr Customer')
             ->assertJsonPath('data.preferred_language', 'so')
             ->assertJsonPath('data.classification', 'lead')

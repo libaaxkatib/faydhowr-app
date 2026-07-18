@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api\V1\Auth;
 
+use App\Models\CustomerProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -16,6 +17,10 @@ class LoginCustomerTest extends TestCase
         $user = User::factory()->create([
             'email' => 'customer@example.com',
             'password' => Hash::make('password123'),
+        ]);
+
+        CustomerProfile::factory()->create([
+            'user_id' => $user->id,
         ]);
 
         $response = $this->postJson('/api/v1/auth/login', [

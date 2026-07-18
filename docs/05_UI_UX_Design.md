@@ -601,7 +601,7 @@ Prioritize Somali payment methods in this order:
 | Field | Specification |
 | --- | --- |
 | **Purpose** | Account hub |
-| **Components** | Authenticated User identity summary (email/phone where available); linked Customer Profile photo, full name, **CUS-YYYY-######** (read-only), preferred language, member since, and quick stats (Bookings / Quotations / Orders); quick actions menu |
+| **Components** | Authenticated User identity summary (email/phone where available); linked Customer Profile photo, full name, **Customer Code `CUS-######`** (read-only, e.g. `CUS-000001`), preferred language, member since, and quick stats (Bookings / Quotations / Orders); quick actions menu |
 | **Quick actions** | Edit Profile · Saved Addresses · Payment Methods · Notifications · Language · Security · Help Center · About Fayadhowr |
 | **Buttons** | Quick action rows; Logout (opens confirmation — never immediate) |
 | **Navigation** | Soft auth; all account sub-screens; Favorites / Histories via hub or menus |
@@ -1057,7 +1057,7 @@ Service Details → Book Now / Request Quotation → Auth? → Select Mode → P
 ## 13.1 My Account
 
 - Auth required (soft auth from Account tab)
-- Authenticated User identity summary (email/phone where available) plus linked Customer Profile photo, name, read-only **CUS-YYYY-######**, preferred language, and member since
+- Authenticated User identity summary (email/phone where available) plus linked Customer Profile photo, name, read-only **Customer Code `CUS-######`**, preferred language, and member since
 - Quick stats: Bookings / Quotations / Orders
 - Quick actions: Edit Profile, Saved Addresses, Payment Methods, Notifications, Language, Security, Help Center, About Fayadhowr
 - Logout opens confirmation (Cancel / Log Out) — never immediate
@@ -1304,18 +1304,24 @@ Detailed management UIs for Invoices, Receipts, Catalog, Settings — designed s
 
 # 18. Admin Customers Management Module
 
-Desktop-first Admin Panel module. Accessible to **Admin** and **Sales** (list/profile). **Accountant** may add/view internal notes when on the profile context. Customers never see staff notes.
+Desktop-first Admin Panel module (SRS FR-092). Visibility of every screen and action is permission-driven: `customers.view`, `customers.create`, `customers.update`, `customers.delete`, `customers.restore` (Super Admin only in V1), `customers.notes`, `customers.attachments`. Elements the current staff member is not permitted to use are hidden (not disabled). Customers never see staff notes, attachments, or activity logs.
 
 ## 18.1 Customers List
 
 | Element | Specification |
 | --- | --- |
 | **Purpose** | Browse registered customers; prioritize business activity |
+| **Access** | `customers.view` |
 | **Default filter** | ⭐ **Active Customers** (at least one Booking **or** Quotation **or** Order) |
-| **Filters** | Active Customers · Leads (Registered Only) · All Customers · Active · Inactive · Advanced Filters |
-| **Search** | Name, CUS number, phone, email |
-| **Columns** | Customer Number (`CUS-…`, auto-generated, read-only), Full Name, **Classification** (Lead / Active Customer), Phone, Email, Registration Date, Status (Active / Inactive) |
-| **Row action** | **View Profile** only |
+| **Filters** | Active Customers · Leads (Registered Only) · All Customers · Status (`ACTIVE` / `INACTIVE` / `BLOCKED`) · Registration Date range · Last Login range · Country · State · District · Advanced Filters. `DELETED` customers appear only in a dedicated **Deleted** filter view (Super Admin sees Restore action there) |
+| **Search** | Customer Code, Full Name, Phone Number, Email |
+| **Columns** | Customer Code (`CUS-######`, auto-generated, read-only), Full Name, **Classification** (Lead / Active Customer), Phone, Email, Registration Date, Last Login, **Status Badge** |
+| **Status Badge** | `ACTIVE` (green) · `INACTIVE` (grey) · `BLOCKED` (red) · `DELETED` (dark grey, Deleted view only) |
+| **Action Menu** | Per-row ⋮ menu: View Details (`customers.view`) · Edit (`customers.update`) · Change Status (`customers.update`) · Delete (`customers.delete`, confirmation dialog) · Restore (`customers.restore`, Super Admin, Deleted view only) |
+| **Primary action** | **+ New Customer** button (`customers.create`) opens the create form |
+| **Pagination** | Standard table pagination with page size selector |
+| **Empty state** | Illustration + "No customers found" with active search/filter summary and a Clear Filters action |
+| **Loading state** | Skeleton table rows while data loads |
 | **Forbidden** | Permanent delete · VIP status |
 
 ### Classification (computed, no VIP)
@@ -1325,24 +1331,81 @@ Desktop-first Admin Panel module. Accessible to **Admin** and **Sales** (list/pr
 | **Lead** | Account registered only — Bookings = 0 **and** Quotations = 0 **and** Orders = 0 |
 | **Active Customer** | At least one Booking **or** Quotation **or** Order completed/created |
 
-Every successful registration is a Customer with an automatic unique `CUS-…` number. Classification is business prioritization only — leads remain in the system.
+Every successful registration is a Customer with an automatic unique Customer Code `CUS-######` (e.g. `CUS-000001`). Classification is business prioritization only — leads remain in the system.
 
-## 18.2 Customer Profile
+## 18.2 Customer Details
+
+Tabbed detail screen: **Profile** · **Addresses** · **Notes** · **Attachments** · **Timeline** · **Activity History** · **Linked Records**. Tabs are shown only when the staff member holds the corresponding permission.
 
 | Block | Content |
 | --- | --- |
-| **Identity** | Profile photo, Customer Number (read-only), Full Name, Phone, Email, Preferred Language, Registration Date, Current Status, Classification, **Member Since** badge (registration date) |
+| **Identity header** | Profile photo, Customer Code (read-only), Full Name, Phone, Email, Preferred Language, Registration Date, Last Login, **Status Badge**, Classification, Tags, **Member Since** badge (registration date) |
 | **Business Summary** | Clickable cards: Total Bookings, Total Quotations, Total Orders, Total Payments, **Total Spent** (sum of completed/successful payments only) |
-| **Timeline** | Read-only chronological audit with category icons (e.g. 👤 Registered, 📅 Booking, 💬 Quotation Requested, ✅ Accepted, 🛒 Order, 💳 Payment) |
-| **Linked Records** | Shortcuts: Bookings, Quotations, Orders, Payments, Notifications (customer-filtered) |
-| **Customer Notes** | Internal notes with full audit: **Staff Name**, **Staff Role**, **Date**, **Time**, then body. Admin / Sales / Accountant. **Never** visible to customers |
+| **Linked Records** | Shortcuts: Bookings, Quotations, Store Orders, Payments, Reviews, Notifications (customer-filtered) |
+| **Header actions** | Edit Profile (`customers.update`) · Change Status (`customers.update`) · Delete (`customers.delete`) · Restore (`customers.restore`, Super Admin, deleted customers only) |
 
-## 18.3 Business Rules
+## 18.3 Customer Profile (View / Edit)
 
-- Customer records are never permanently deleted (Inactive / suspend / deactivate per policy).
-- Customer Number (`CUS-YYYY-######`) is auto-generated and read-only.
-- Related commercial records remain linked to the customer.
-- Timeline is read-only audit history.
+| Element | Specification |
+| --- | --- |
+| **Fields** | Customer Code (read-only), Full Name, Mobile Number, Email, Gender, Date of Birth, Profile Photo, Preferred Language, Status, Tags |
+| **Read-only** | Customer Code, Registration Date, Last Login |
+| **Validation** | Phone unique; Email unique when provided; required fields inline-validated |
+| **Status change** | Controlled dropdown limited to `ACTIVE` / `INACTIVE` / `BLOCKED` with confirmation dialog; `DELETED` is reached only via the Delete action |
+| **Save / Discard** | Save Changes / Discard Changes; unsaved-changes protection on navigation |
+
+## 18.4 Address Management
+
+| Element | Specification |
+| --- | --- |
+| **List** | Cards or table of all customer addresses: Label, Contact Person, Phone Number, Country, State, District, Address, GPS Latitude/Longitude, **Default** badge, Active/Inactive state |
+| **Actions** | Add Address · Edit · Set Default · Mark Inactive (`customers.update`). Addresses are never permanently deleted |
+| **Default rule** | Exactly one default among active addresses; setting a new default clears the previous one |
+| **Validation** | GPS coordinates must be valid (latitude −90..90, longitude −180..180); required fields validated |
+| **Empty state** | "No addresses yet" with Add Address action |
+
+## 18.5 Customer Notes
+
+| Element | Specification |
+| --- | --- |
+| **Access** | `customers.notes`; internal only — **never** visible to customers |
+| **List** | Chronological notes, newest first. Each note: body, **Created By** (Staff Name + Staff Role), **Created At** (date + time) |
+| **Add** | Text area + Add Note button |
+| **Empty state** | "No internal notes yet" |
+
+## 18.6 Customer Attachments
+
+| Element | Specification |
+| --- | --- |
+| **Access** | `customers.attachments`; internal only — **never** visible to customers |
+| **Supported types** | Images, PDF, Documents (per Storage Settings upload limits) |
+| **List** | Table: File Name, File Type, File Size, Uploaded By (staff name/role), Uploaded At, Download action |
+| **Upload** | Drag-and-drop / file picker with type and size validation, progress indicator |
+| **Empty state** | "No attachments" with Upload action |
+| **Loading state** | Skeleton rows / upload progress |
+
+## 18.7 Timeline
+
+| Element | Specification |
+| --- | --- |
+| **Access** | `customers.view` |
+| **Content** | Read-only chronological feed with category icons: 👤 Registration, 🔐 Login, ✏️ Profile Update, 🔑 Password Reset, 📍 Address Added/Updated, 📅 Booking Created/Updated/Completed, 💬 Quotation Requested/Accepted, 🛒 Store Order Created, 💳 Payment Recorded, ⭐ Review Submitted |
+| **Order** | Chronological; grouped by date with relative timestamps |
+| **Empty state** | "No activity yet" |
+
+## 18.8 Activity History
+
+Filterable view over the same activity log: filter by event type and date range, paginated, read-only. Complements the Timeline tab for support and audit review.
+
+## 18.9 Business Rules
+
+- Customer records are never permanently deleted — soft delete only (`DELETED` status); Super Admin may restore to `ACTIVE` or `INACTIVE`.
+- Customer Status uses only `ACTIVE` / `INACTIVE` / `BLOCKED` / `DELETED` (definitions in SRS FR-092.5).
+- Customer Code (`CUS-######`, e.g. `CUS-000001`) is auto-generated and read-only.
+- Related commercial records remain permanently linked to the customer, including after soft deletion.
+- Timeline and Activity History are read-only audit history in chronological order.
+- Notes and Attachments are staff-only and never exposed to customers.
+- All actions follow the `customers.*` permission keys; unauthorized actions are hidden.
 - No VIP tier.
 
 ---
@@ -2122,7 +2185,7 @@ Inline helper text explains the difference: Inclusive — tax is contained in th
 
 | Entity | Prefix | Next Number Preview |
 | --- | --- | --- |
-| Customers | CUS- | CUS-2026-001843 |
+| Customers | CUS- | CUS-001843 |
 | Bookings | BK- | BK-2026-00348 |
 | Quotations | QT- | QT-2026-00257 |
 | Invoices | INV- | INV-2026-000914 |
