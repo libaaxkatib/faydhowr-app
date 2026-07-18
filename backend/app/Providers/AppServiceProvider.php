@@ -20,6 +20,8 @@ use App\Contracts\Auth\GoogleIdTokenVerifierInterface;
 use App\Contracts\Auth\Repositories\PasswordResetTokenRepositoryInterface;
 use App\Contracts\Auth\Repositories\PhoneOtpRepositoryInterface;
 use App\Contracts\Auth\Services\OtpServiceInterface;
+use App\Contracts\Catalog\Repositories\ServiceCatalogRepositoryInterface;
+use App\Contracts\Catalog\Services\ServiceCatalogServiceInterface;
 use App\Contracts\Customer\Repositories\CustomerActivityRepositoryInterface;
 use App\Contracts\Customer\Repositories\CustomerAddressRepositoryInterface;
 use App\Contracts\Customer\Repositories\CustomerAttachmentRepositoryInterface;
@@ -63,6 +65,7 @@ use App\Repositories\Accounting\LedgerRepository;
 use App\Repositories\Accounting\TrialBalanceRepository;
 use App\Repositories\Auth\PasswordResetTokenRepository;
 use App\Repositories\Auth\PhoneOtpRepository;
+use App\Repositories\Catalog\ServiceCatalogRepository;
 use App\Repositories\Customer\CustomerActivityRepository;
 use App\Repositories\Customer\CustomerAddressRepository;
 use App\Repositories\Customer\CustomerAttachmentRepository;
@@ -81,6 +84,7 @@ use App\Services\Accounting\Services\LedgerService;
 use App\Services\Accounting\Services\TrialBalanceService;
 use App\Services\Auth\GoogleTokenInfoVerifier;
 use App\Services\Auth\OtpService;
+use App\Services\Catalog\ServiceCatalogService;
 use App\Services\Customer\AddressService;
 use App\Services\Customer\AttachmentService;
 use App\Services\Customer\CustomerActivityService;
@@ -181,6 +185,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(OtpServiceInterface::class, OtpService::class);
 
         $this->app->singleton(GoogleIdTokenVerifierInterface::class, GoogleTokenInfoVerifier::class);
+
+        $this->app->bind(ServiceCatalogRepositoryInterface::class, ServiceCatalogRepository::class);
+
+        $this->app->singleton(ServiceCatalogServiceInterface::class, ServiceCatalogService::class);
 
         $this->app->singleton(AccountRepositoryInterface::class, AccountRepository::class);
 
@@ -343,6 +351,11 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by(
                 Str::lower((string) ($request->input('email') ?? $request->input('phone'))).'|'.$request->ip(),
             );
+        });
+
+        // Public catalog tier per API Design §16.6: 60 requests/minute/IP.
+        RateLimiter::for('public-catalog', function (Request $request): Limit {
+            return Limit::perMinute(60)->by($request->ip());
         });
     }
 }

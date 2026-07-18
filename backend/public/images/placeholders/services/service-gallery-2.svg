@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="Service gallery placeholder 2">
+  <rect width="1200" height="800" fill="#f5efe8"/>
+  <rect x="40" y="40" width="1120" height="720" rx="24" fill="none" stroke="#d8c9b9" stroke-width="4" stroke-dasharray="16 12"/>
+  <circle cx="600" cy="340" r="110" fill="#e5d6c9"/>
+  <path d="M330 640 L510 460 L640 590 L730 500 L870 640 Z" fill="#e5d6c9"/>
+  <text x="600" y="730" text-anchor="middle" font-family="Arial, sans-serif" font-size="40" fill="#ac9682">Gallery image coming soon</text>
+</svg>

@@ -25,6 +25,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             BranchSeeder::class,
             SystemSettingsSeeder::class,
+            ServicesCatalogSeeder::class,
         ]);
     }
 }

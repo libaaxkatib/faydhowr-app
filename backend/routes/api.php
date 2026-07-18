@@ -52,6 +52,8 @@ use App\Http\Controllers\Api\V1\Auth\PhoneAuthController;
 use App\Http\Controllers\Api\V1\Auth\RegistrationController;
 use App\Http\Controllers\Api\V1\Booking\BookingController;
 use App\Http\Controllers\Api\V1\Cart\CartController;
+use App\Http\Controllers\Api\V1\Catalog\ServiceCategoryController as CatalogServiceCategoryController;
+use App\Http\Controllers\Api\V1\Catalog\ServiceController as CatalogServiceController;
 use App\Http\Controllers\Api\V1\Checkout\CheckoutController;
 use App\Http\Controllers\Api\V1\Customer\CustomerAddressController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
@@ -109,6 +111,20 @@ Route::prefix('v1/auth')->group(function (): void {
     Route::post('reset-password', [PasswordRecoveryController::class, 'reset'])
         ->middleware('throttle:auth-recovery')
         ->name('api.v1.auth.reset-password');
+});
+
+Route::prefix('v1')->middleware('throttle:public-catalog')->group(function (): void {
+    Route::get('service-categories', [CatalogServiceCategoryController::class, 'index'])
+        ->name('api.v1.catalog.service-categories');
+
+    Route::get('services/search', [CatalogServiceController::class, 'search'])
+        ->name('api.v1.catalog.services.search');
+
+    Route::get('services', [CatalogServiceController::class, 'index'])
+        ->name('api.v1.catalog.services.index');
+
+    Route::get('services/{slug}', [CatalogServiceController::class, 'show'])
+        ->name('api.v1.catalog.services.show');
 });
 
 Route::prefix('v1/admin/auth')->group(function (): void {

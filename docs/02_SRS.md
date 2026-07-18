@@ -258,8 +258,11 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | ID | Requirement | Priority |
 | --- | --- | --- |
 | FR-010 | The system shall present service categories and service listings with name, description, media, optional Starting From price, and both **Book Now** and **Request Quotation** options. | Must |
+| FR-010A | Public services catalog APIs shall be guest-accessible (no authentication) with per-IP rate limiting of 60 requests per minute per IP. The public identifier for a service is its `slug`; numeric IDs remain internal. Catalog listings shall expose only active, non-deleted services; the categories listing shall return only categories having at least one active service. Sorting is limited to `display_order` (default) and `name`. Pagination defaults to 20 items per page with a maximum of 100. Service images are returned as `thumbnail`, `hero_image`, and `gallery[]` using absolute URLs only. Favorites are deferred; catalog payloads shall not include `is_favorite`. Catalog payloads shall not include `before_after` or `faq`; these fields are introduced when their own modules are implemented. | Must |
+| FR-010B | The system shall ship an Official V1 Services Catalog Seeder provisioning the official catalog: service categories, services, service modes, service subtypes, and coverage cities. The seeder uses official placeholder images for `thumbnail`, `hero_image`, and `gallery` until production assets are available. The catalog is seeder-managed until Admin Services CRUD is delivered (Sprint 29). | Must |
 | FR-011 | The system shall present store categories and product listings with name, description, media, Selling Price, and availability (In Stock / Low Stock / Out of Stock). V1 categories: Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, Air Fresheners. | Must |
 | FR-012 | The system shall support search and/or filter of services and products. | Should |
+| FR-012A | Service search shall match against service name and short description only, and shall require a minimum query length of 2 characters. Service listings shall support filtering by category, mode (`one_time` / `monthly_contract`), and coverage city. | Must |
 | FR-013 | The system shall show product/service detail pages with complete customer-facing information. | Must |
 
 ### 5.3 Store Commerce

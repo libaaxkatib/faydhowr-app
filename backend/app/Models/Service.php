@@ -55,6 +55,14 @@ class Service extends Model
     }
 
     /**
+     * @return HasMany<ServiceMedia, $this>
+     */
+    public function media(): HasMany
+    {
+        return $this->hasMany(ServiceMedia::class);
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array

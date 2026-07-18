@@ -471,22 +471,34 @@ All guest-accessible. Optional auth may enrich `is_favorite` flags on service/pr
 
 # 6. Service APIs
 
+All catalog endpoints in §6.1–§6.4 are **guest endpoints**: authentication is never required, and per-IP rate limiting is required — **60 requests per minute per IP** (§16.6 public tier). The public identifier for a service is its **`slug`**; numeric IDs remain internal and are never used in public paths. Favorites are deferred to the Favorites module sprint — **no catalog payload includes `is_favorite`**. `service_blackout_dates` is out of catalog scope (booking-time concern only).
+
+**Service images contract (all catalog payloads):** images are returned as an `images` object with `thumbnail`, `hero_image`, and `gallery[]` — **absolute URLs only** — derived from `service_media` (Database Design §3.2.5): the primary media supplies `thumbnail` and `hero_image`; remaining media form `gallery[]` in `sort_order`.
+
 ## 6.1 List Services
 
-| Method | Path | Auth |
-| --- | --- | --- |
-| `GET` | `/api/v1/services` | Guest |
-
-**Query:** `category_id`, `mode` (`one_time` | `monthly_contract`), `city` (`Mogadishu` | `Hargeisa`), `page`, `per_page`, `sort`  
-**Returns:** Service cards including optional `starting_from_price`, `currency`, available `modes`, coverage cities, media, and optional `is_favorite` if authenticated.
+| Item | Spec |
+| --- | --- |
+| **Method / Path** | `GET /api/v1/services` |
+| **Auth** | Guest (no authentication) |
+| **Query** | `category_id` (optional, integer); `mode` (optional, `one_time` \| `monthly_contract`); `city` (optional, `Mogadishu` \| `Hargeisa`); `sort` (optional, `display_order` default \| `name` — **no other sort options**); `page`; `per_page` (default **20**, maximum **100**) |
+| **Visibility** | Only active (`is_active`), non-soft-deleted services with at least one active mode; default ordering follows catalog display order |
+| **Response `200`** | Paginated service cards (§3.4 meta): `slug`, `name`, `short_description`, optional `starting_from_price` + `currency`, active `modes` (with `subtype` where applicable), coverage cities, and `images` (`thumbnail`, `hero_image`, `gallery[]` — absolute URLs) |
+| **Errors** | `422` `VALIDATION_ERROR` (invalid filter, sort, or pagination values); `429` `RATE_LIMITED` (per-IP) |
+| **Rate limits** | Public per-IP throttle (§16.6) |
 
 ## 6.2 Service Details
 
-| Method | Path | Auth |
-| --- | --- | --- |
-| `GET` | `/api/v1/services/{id}` | Guest |
+| Item | Spec |
+| --- | --- |
+| **Method / Path** | `GET /api/v1/services/{slug}` |
+| **Auth** | Guest (no authentication) |
+| **Identifier** | `slug` is the public identifier; numeric IDs remain internal |
+| **Response `200`** | Full detail — `images` (`thumbnail`, `hero_image`, `gallery[]` — absolute URLs), description, inclusions/exclusions, optional `starting_from_price`, `currency`, service modes/subtypes, coverage cities, and both Book Now and Request Quotation actions |
+| **Errors** | `404` `NOT_FOUND` (unknown slug, inactive, or soft-deleted service); `429` `RATE_LIMITED` (per-IP) |
+| **Rate limits** | Public per-IP throttle (§16.6) |
 
-**Returns:** Full detail — media, description, inclusions/exclusions, optional `starting_from_price`, `currency`, service modes/subtypes, coverage cities, before/after refs, FAQ refs, both Book Now and Request Quotation actions, and `is_favorite` if authenticated.
+> **Deferred fields:** `before_after` and `faq` are **not returned** by Sprint 22 catalog payloads. They will be introduced when the Gallery and FAQ modules are implemented.
 
 **Official V1 catalog and modes:**
 
@@ -504,19 +516,33 @@ All guest-accessible. Optional auth may enrich `is_favorite` flags on service/pr
 
 The service payload uses `mode` values `one_time` and `monthly_contract`; subtype values follow the Database Design naming. Service coverage in V1 is Mogadishu and Hargeisa. A Starting From price is optional and informational; final operational price follows Fayadhowr assessment/review.
 
+> **Official V1 Services Catalog Seeder:** the backend ships a seeder that provisions the full official catalog above — service categories, services, service modes, service subtypes, and coverage cities — so the public catalog APIs are never empty on a fresh install. The seeder uses **official placeholder images** for `thumbnail`, `hero_image`, and `gallery` until production assets are available.
+>
+> **Catalog management:** Admin Services CRUD belongs to **Sprint 29**. Until then, the Official Seeder manages the catalog.
+
 ## 6.3 Service Categories
 
-| Method | Path | Auth |
-| --- | --- | --- |
-| `GET` | `/api/v1/service-categories` | Guest |
+| Item | Spec |
+| --- | --- |
+| **Method / Path** | `GET /api/v1/service-categories` |
+| **Auth** | Guest (no authentication) |
+| **Visibility** | Returns **only categories having at least one active service**; empty categories are excluded |
+| **Response `200`** | Category list: `slug`, `name`, ordered by catalog display order |
+| **Errors** | `429` `RATE_LIMITED` (per-IP) |
 
 ## 6.4 Search Services
 
-| Method | Path | Auth |
-| --- | --- | --- |
-| `GET` | `/api/v1/services/search` | Guest |
+| Item | Spec |
+| --- | --- |
+| **Method / Path** | `GET /api/v1/services/search` |
+| **Auth** | Guest (no authentication) |
+| **Query** | `q` (required, **minimum length 2**); `page`; `per_page` (default 20, maximum 100) |
+| **Search fields** | Service **name** and **short description** only |
+| **Visibility** | Same rules as §6.1 (active, non-deleted services) |
+| **Response `200`** | Paginated service cards (same shape as §6.1); empty result list is `200`, not an error |
+| **Errors** | `422` `VALIDATION_ERROR` (missing `q` or fewer than 2 characters); `429` `RATE_LIMITED` (per-IP) |
 
-**Query:** `q`, pagination. See also §15 unified search.
+See also §15 unified search (separate, later scope).
 
 ## 6.5 Book Service
 
@@ -1083,6 +1109,8 @@ Powers Home Search Bar under the Hero (Services + Store Products).
 
 `GET /api/v1/services/search?q={query}`
 
+Full spec in §6.4 — searches service name and short description; `q` minimum length 2.
+
 ## 15.2 Search Products
 
 `GET /api/v1/products/search?q={query}`
@@ -1149,7 +1177,7 @@ Unexpected failures → `500` `SERVER_ERROR` with safe message; detailed diagnos
 
 ## 16.6 Rate Limiting
 
-HTTP `429` `RATE_LIMITED` with `Retry-After` when possible. Stricter limits on auth, payment initialize, and uploads.
+HTTP `429` `RATE_LIMITED` with `Retry-After` when possible. Stricter limits on auth, payment initialize, and uploads. Public guest catalog endpoints (services, categories, search) require a per-IP throttle even though no authentication is required: **public tier = 60 requests per minute per IP**.
 
 ---
 
