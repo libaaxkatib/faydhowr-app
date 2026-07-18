@@ -573,6 +573,39 @@ Admin approves → Published (visible publicly)   |   Admin hides → Hidden (ne
 
 Published reviews appear on the service details reviews section and reviews lists. The Home reviews section is deferred to Sprint 25.
 
+## 7.6 Service Favorites (Favorites Module)
+
+Favorites in V1 cover **services only** (product favorites are deferred to a future version). Favorites never alter booking, quotation, cart, checkout, or payment flows.
+
+```text
+Customer taps heart on a Service Card / Service Details
+        ↓
+Authenticated?  ── No ──→  Soft auth gate (login / register)  ──→  retry add on success
+        ↓ Yes
+Add favorite (idempotent — already saved returns success)
+        ↓
+Heart shows saved state
+        ↓
+Account → Favorites screen lists saved services (full Service Cards, newest first)
+        ↓
+Tap heart again (card or list) → favorite removed → heart returns to unsaved state
+```
+
+| UX rule | Behavior |
+| --- | --- |
+| Guest browsing | Catalog and Home payloads never include `is_favorite`; browsing never requires login |
+| Heart state on public cards | Resolved client-side from the authenticated customer's favorites list |
+| Save requires login | Guest heart tap triggers the soft auth gate, then retries the add |
+| Idempotent save | Tapping save on an already-saved service succeeds silently (no duplicate, no error) |
+| Remove | Heart toggle removes by **service**; no separate favorite record id in the UX |
+| Idempotent remove | Removing a service that is not currently saved succeeds silently (no error); errors appear only for non-existent or inaccessible services |
+| Unavailable services | Services that become inactive or deleted are removed from favorites automatically and never appear as "unavailable" entries |
+| Inactive account | Inactive customers cannot add, remove, or view favorites |
+| Empty state | Favorites screen shows guidance and a Browse Services CTA |
+| No limit | Unlimited favorites; the list paginates |
+| Rate limit feedback | Excessive requests (over 30/minute) show a friendly "try again shortly" message |
+| No notifications / activity log | Favorites actions are silent — no timeline events, no notifications |
+
 ---
 
 # 8. Payment Flow

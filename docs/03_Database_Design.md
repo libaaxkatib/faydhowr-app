@@ -120,6 +120,7 @@ Most transactional tables include:
 | **Order Management** | Store orders and line items | `orders`, `order_items`, `order_status_histories` |
 | **Notification Management** | Templates, translations, preferences, lifecycle delivery, archive | `notification_templates`, `notification_template_translations`, `notification_preferences`, `notifications`, `archived_notifications` |
 | **Review Management** | Customer reviews of completed bookings (V1) | `reviews` |
+| **Favorites** | Customer-saved services (V1: services only; product favorites deferred) | `favorites` |
 | **Settings** | System configuration and audit | `system_settings`, `branches`, `settings_audit_log`, `audit_logs` |
 
 ## 2.2 Module Notes
@@ -166,6 +167,13 @@ Most transactional tables include:
 - Lightweight customer feedback for **completed bookings only** in V1 (product/order/service-target reviews deferred to a future version).
 - Reviews begin `pending`; admin moderation publishes or hides them. Public surfaces show `published` reviews only.
 - Does not introduce workforce rating of employees (employees are out of scope).
+
+### Favorites
+
+- Customer-saved **services only** in V1 (product favorites deferred to a future version).
+- One favorite per customer per service; adds are idempotent.
+- When a service becomes inactive or is deleted, related favorites are **automatically removed**; services maintain a cached `favorites_count`.
+- Favorites never mutate booking, quotation, cart, checkout, or payment state; no admin management and no activity-log events in V1.
 
 ### Settings
 
@@ -845,6 +853,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | `sort_order` | INT | R | |
 | `average_rating` | DECIMAL(3,2) | O | Cached aggregate from `published` reviews only; recalculated on review publish/hide (§3.9.1); NULL when no published reviews; clients display one decimal place; visible from the first published review (no minimum threshold) |
 | `reviews_count` | INT UNSIGNED | R | Cached count of `published` reviews; default 0; recalculated on review publish/hide |
+| `favorites_count` | INT UNSIGNED | R | Cached count of favorites (§3.12.1); default 0; updated on favorite add/remove and automatic removal; internal aggregate — not exposed in public catalog payloads |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
 | `deleted_at` | TIMESTAMP | O | |
@@ -2303,6 +2312,46 @@ Unified File Upload Service (Sprint 23, approved). Customer-uploaded files are s
 
 ---
 
+## 3.12 Favorites
+
+> **V1 scope (Favorites Module — final):** Favorites support **services only**. Product favorites are out of V1 scope and deferred to a future version (no product reference exists in this design).
+
+### 3.12.1 `favorites`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `favorites` |
+| **Purpose** | Customer-saved services (mobile heart/save feature). |
+| **Primary Key** | `id` |
+| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id`; `service_id` → `services.id` |
+| **Relationships** | N:1 customer profile; N:1 service |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `customer_profile_id` | BIGINT UNSIGNED | R | FK (owner, resolved server-side from the authenticated customer per ADR-001) |
+| `service_id` | BIGINT UNSIGNED | R | FK; must reference an **active** service at creation |
+| `created_at` | TIMESTAMP | R | Drives newest-favorited-first list ordering |
+| `updated_at` | TIMESTAMP | R | |
+
+#### Constraints
+
+- UNIQUE(`customer_profile_id`, `service_id`) — one favorite per customer per service; add and remove are idempotent at the API layer (`200 OK` when already favorited on add, and when not currently favorited on remove).
+- No soft delete: favorites are hard-deleted rows.
+
+#### Lifecycle & Integrity
+
+- Adding requires an authenticated customer with **active** account status and an **active** service; inactive customers cannot add, remove, or list favorites.
+- **Automatic removal:** when a service becomes inactive or is deleted, all related `favorites` rows are removed and the service's cached `favorites_count` is recalculated. Favorites of unavailable services are never surfaced.
+- Removal is keyed by service (heart-toggle semantics): the delete contract is `DELETE /api/v1/favorites/{service}`. Removal is **idempotent** — removing an existing accessible service that is not currently favorited succeeds; not-found applies only to non-existent or inaccessible services.
+- `services.favorites_count` (§3.2.2) is maintained on add, remove, and automatic removal; it is internal and not part of public catalog payloads.
+- No favorites cap per customer — list access is paginated only.
+- No activity-log/timeline events and no admin management tables or APIs in V1.
+
+---
+
 # 4. Relationships
 
 ## 4.1 One-to-One
@@ -2320,9 +2369,9 @@ Unified File Upload Service (Sprint 23, approved). Customer-uploaded files are s
 | Parent | Children | Description |
 | --- | --- | --- |
 | `users` | `customer_profiles`, `customer_devices`, `carts`, `notifications` | Sole customer authentication principal; authentication-adjacent children remain user-scoped |
-| `customer_profiles` | `customer_addresses`, `customer_payment_methods`, `customer_notes`, `uploads`, `bookings`, `quotation_requests`, `orders`, `payments`, `reviews` | Customer business/profile data and approved business-module ownership |
+| `customer_profiles` | `customer_addresses`, `customer_payment_methods`, `customer_notes`, `uploads`, `bookings`, `quotation_requests`, `orders`, `payments`, `reviews`, `favorites` | Customer business/profile data and approved business-module ownership |
 | `service_categories` | `services` | Category catalog |
-| `services` | `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates`, `bookings`, `quotation_requests`, `reviews` (denormalized `service_id`) | Service definition, availability, usage, and published review aggregates |
+| `services` | `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates`, `bookings`, `quotation_requests`, `reviews` (denormalized `service_id`), `favorites` (auto-removed on deactivation/deletion) | Service definition, availability, usage, published review aggregates, and favorites |
 | `product_categories` | `products` | Store taxonomy (V1: Chemicals, Tools, Accessories, PPE, Air Fresheners) |
 | `products` | `product_images`, `cart_items`, `store_order_items`, `quotation_requests`, `stock_ledgers`, `purchase_order_items`, `stock_adjustments` | Product definition, commerce, and on-hand stock |
 | `suppliers` | `purchase_orders` | Inventory procurement |
@@ -2478,7 +2527,7 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | `uploads` | (`customer_profile_id`, `created_at`) | Owner-scoped access checks and listings |
 | `uploads` | (`attached_at`, `expires_at`) | Scheduled cleanup of expired unattached uploads |
 
-## 5.5 Reviews / Settings / Audit
+## 5.5 Reviews / Favorites / Settings / Audit
 
 | Table | Index | Purpose |
 | --- | --- | --- |
@@ -2486,6 +2535,9 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | `reviews` | (`service_id`, `status`, `created_at`) | Public published listing per service; aggregate recalculation on publish/hide |
 | `reviews` | (`customer_profile_id`, `created_at`) | Customer history |
 | `reviews` | (`status`, `created_at`) | Admin moderation queue (pending first) |
+| `favorites` | UNIQUE(`customer_profile_id`, `service_id`) | One favorite per customer per service; idempotent add; delete-by-service |
+| `favorites` | (`customer_profile_id`, `created_at`) | Customer favorites list (newest first) |
+| `favorites` | (`service_id`) | Automatic removal on service deactivation/deletion; `favorites_count` recalculation |
 | `system_settings` | UNIQUE(`category`, `key`); INDEX(`category`) | Config lookup |
 | `branches` | UNIQUE(`code`); INDEX(`status`); partial UNIQUE(`is_default`) WHERE `is_default = TRUE` | Branch lookup, single default |
 | `audit_logs` | (`entity_type`, `entity_id`, `created_at`) | Entity audit trail |
@@ -2574,6 +2626,16 @@ Indexes below are recommendations for common access paths. Exact index types dep
 8. Reviews survive customer soft-deletion; public identity falls back to "Verified Customer".
 9. Reverting a completed booking to a non-completed status automatically sets its review to `hidden`; reviews are never deleted automatically.
 10. Deleting a `pending` review releases UNIQUE(`booking_id`) — the booking becomes reviewable again.
+
+## 6.8A Favorites Integrity
+
+1. Favorites target **services only** in V1; the referenced service must be active at add time.
+2. One favorite per customer per service — UNIQUE(`customer_profile_id`, `service_id`); add and remove are both idempotent (removing a not-currently-favorited accessible service succeeds).
+3. Only authenticated customers with **active** account status may add, remove, or list favorites.
+4. Service deactivation or deletion **automatically removes** related favorites; favorites of unavailable services are never surfaced.
+5. `services.favorites_count` is a cached aggregate maintained on add, remove, and automatic removal; it is never exposed in public catalog payloads.
+6. Favorites never mutate booking, quotation, cart, checkout, or payment state.
+7. Favorites rows are hard-deleted (no soft delete); no activity-log events are recorded.
 
 ## 6.9 Referential Integrity
 

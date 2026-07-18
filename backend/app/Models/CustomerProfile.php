@@ -123,6 +123,14 @@ class CustomerProfile extends Model
     }
 
     /**
+     * @return HasMany<Favorite, $this>
+     */
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    /**
      * @param  Builder<CustomerProfile>  $query
      * @return Builder<CustomerProfile>
      */

@@ -36,6 +36,8 @@ use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Contracts\Dashboard\DashboardMetadataBuilderInterface;
 use App\Contracts\Dashboard\DashboardQueryServiceInterface;
 use App\Contracts\Dashboard\DashboardWidgetRegistryInterface;
+use App\Contracts\Favorite\Repositories\FavoriteRepositoryInterface;
+use App\Contracts\Favorite\Services\FavoriteServiceInterface;
 use App\Contracts\Reports\Excel\ExcelReportGeneratorInterface;
 use App\Contracts\Reports\Pdf\PdfReportGeneratorInterface;
 use App\Contracts\Reports\ReportManagerInterface;
@@ -59,8 +61,10 @@ use App\Contracts\Upload\Services\UploadServiceInterface;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\Quotation;
+use App\Models\Service;
 use App\Models\StoreOrder;
 use App\Observers\Customer\CustomerCommercialActivityObserver;
+use App\Observers\Favorite\ServiceFavoriteObserver;
 use App\Observers\Review\BookingReviewObserver;
 use App\Repositories\Accounting\AccountingPeriodRepository;
 use App\Repositories\Accounting\AccountRepository;
@@ -76,6 +80,7 @@ use App\Repositories\Customer\CustomerAddressRepository;
 use App\Repositories\Customer\CustomerAttachmentRepository;
 use App\Repositories\Customer\CustomerNoteRepository;
 use App\Repositories\Customer\CustomerRepository;
+use App\Repositories\Favorite\FavoriteRepository;
 use App\Repositories\Review\ReviewRepository;
 use App\Repositories\Settings\BranchRepository;
 use App\Repositories\Settings\SettingsAuditRepository;
@@ -109,6 +114,7 @@ use App\Services\Dashboard\Widgets\OrderSummaryWidget;
 use App\Services\Dashboard\Widgets\PaymentSummaryWidget;
 use App\Services\Dashboard\Widgets\QuotationSummaryWidget;
 use App\Services\Dashboard\Widgets\RevenueSummaryWidget;
+use App\Services\Favorite\FavoriteService;
 use App\Services\Notification\Channels\EmailNotificationChannel;
 use App\Services\Notification\Channels\InAppNotificationChannel;
 use App\Services\Notification\Channels\SmsNotificationChannel;
@@ -206,6 +212,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(ReviewRepositoryInterface::class, ReviewRepository::class);
 
         $this->app->singleton(ReviewServiceInterface::class, ReviewService::class);
+
+        $this->app->bind(FavoriteRepositoryInterface::class, FavoriteRepository::class);
+
+        $this->app->singleton(FavoriteServiceInterface::class, FavoriteService::class);
 
         $this->app->singleton(AccountRepositoryInterface::class, AccountRepository::class);
 
@@ -350,6 +360,8 @@ class AppServiceProvider extends ServiceProvider
 
         Booking::observe($this->app->make(BookingReviewObserver::class));
 
+        Service::observe($this->app->make(ServiceFavoriteObserver::class));
+
         RateLimiter::for('auth-register', function (Request $request): Limit {
             return Limit::perMinute(5)->by($request->ip());
         });
@@ -388,6 +400,13 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('reviews', function (Request $request): Limit {
             return Limit::perMinute(5)->by(
                 'reviews|'.($request->user()?->getAuthIdentifier() ?? $request->ip()),
+            );
+        });
+
+        // Favorites per API Design §16.6: 30 requests/minute/customer.
+        RateLimiter::for('favorites', function (Request $request): Limit {
+            return Limit::perMinute(30)->by(
+                'favorites|'.($request->user()?->getAuthIdentifier() ?? $request->ip()),
             );
         });
     }

@@ -465,7 +465,7 @@ Home may be loaded via a single aggregate endpoint and/or section endpoints. Bot
 | `GET` | `/api/v1/home/faq` | FAQ |
 | `GET` | `/api/v1/home/contact` | Contact Information |
 
-All guest-accessible. Optional auth may enrich `is_favorite` flags on service/product teasers.
+All guest-accessible. Home payloads are guest payloads and **never include `is_favorite`** (§12); heart state is resolved client-side from the authenticated favorites list.
 
 > **Sprint boundary:** `GET /api/v1/home/reviews` is **deferred to Sprint 25** with the rest of the Home module. Sprint 24 delivers review submission, owner management, per-service published reviews, and admin moderation (§8A).
 
@@ -473,7 +473,7 @@ All guest-accessible. Optional auth may enrich `is_favorite` flags on service/pr
 
 # 6. Service APIs
 
-All catalog endpoints in §6.1–§6.4 are **guest endpoints**: authentication is never required, and per-IP rate limiting is required — **60 requests per minute per IP** (§16.6 public tier). The public identifier for a service is its **`slug`**; numeric IDs remain internal and are never used in public paths. Favorites are deferred to the Favorites module sprint — **no catalog payload includes `is_favorite`**. `service_blackout_dates` is out of catalog scope (booking-time concern only).
+All catalog endpoints in §6.1–§6.4 are **guest endpoints**: authentication is never required, and per-IP rate limiting is required — **60 requests per minute per IP** (§16.6 public tier). The public identifier for a service is its **`slug`**; numeric IDs remain internal and are never used in public paths. **No catalog payload includes `is_favorite`** — catalog endpoints are public and cacheable; `is_favorite` appears only in authenticated customer-specific responses (§12). The cached `favorites_count` aggregate (§12) is internal and not part of catalog payloads. `service_blackout_dates` is out of catalog scope (booking-time concern only).
 
 **Service images contract (all catalog payloads):** images are returned as an `images` object with `thumbnail`, `hero_image`, and `gallery[]` — **absolute URLs only** — derived from `service_media` (Database Design §3.2.5): the primary media supplies `thumbnail` and `hero_image`; remaining media form `gallery[]` in `sort_order`.
 
@@ -599,7 +599,7 @@ V1 product categories: Cleaning Chemicals, Cleaning Tools, Cleaning Accessories,
 | --- | --- | --- |
 | `GET` | `/api/v1/products/{id}` | Guest |
 
-Includes `selling_price`, `currency`, `unit`, `sku`, `current_stock` / `availability_status` (`in_stock`, `low_stock`, `out_of_stock`), optional `badge`, optional `price_tiers[]`, media gallery (ordered), specifications, `allow_optional_quotation`, `is_favorite` if authenticated.
+Includes `selling_price`, `currency`, `unit`, `sku`, `current_stock` / `availability_status` (`in_stock`, `low_stock`, `out_of_stock`), optional `badge`, optional `price_tiers[]`, media gallery (ordered), specifications, `allow_optional_quotation`. No `is_favorite` — product favorites are out of V1 scope (§12, §20.1).
 
 ## 7.3 Categories
 
@@ -991,38 +991,54 @@ Paginated customer payments; filter by `status`, `payable_type`.
 
 ---
 
-# 12. Favorites APIs
+# 12. Favorites APIs (Favorites Module — Final)
 
-Favorites are independent of booking, quotation, cart, checkout, and payment.
+> **V1 scope (final):** Favorites support **services only**. Product favorites are out of V1 scope and deferred to a future version (§20.1).
+
+Favorites are independent of booking, quotation, cart, checkout, and payment — favorites endpoints never mutate commercial state.
+
+**Global rules (final):**
+
+- All favorites endpoints require authentication and an **active** customer account. Inactive (non-active status or soft-deleted) customers cannot add, remove, or list favorites.
+- **Guest responses never include `is_favorite`.** `is_favorite` may appear only in authenticated, customer-specific responses. Public catalog and Home payloads are cacheable guest payloads and never carry it, even when a token is supplied.
+- One favorite per customer per service; **add and remove are both idempotent** (`200 OK` when the state already matches).
+- When a service becomes **inactive or is deleted**, its related favorites are **automatically removed** for all customers.
+- Services maintain a cached **`favorites_count`** aggregate, updated on favorite add/remove and on automatic removal. It is an internal aggregate and is not part of public catalog payloads.
+- **No favorites limit** per customer — pagination only.
+- **Rate limit:** **30 requests per minute per customer** across favorites endpoints (§16.6).
+- No admin favorites management APIs and no activity-log/timeline events in V1.
 
 ## 12.1 Add Favorite
 
 | Method | Path | Auth |
 | --- | --- | --- |
-| `POST` | `/api/v1/favorites` | Required |
+| `POST` | `/api/v1/favorites` | Required (active customer) |
 
-**Body:** `favorite_type`: `service` | `product`; `service_id` or `product_id`  
-**Result:** `201` or `200` if already favorited (idempotent).
+**Body:** `service_id` (required; must reference an active service)  
+**Result:** `201 Created` on first add; **`200 OK` if already favorited** (idempotent). Unknown or inactive service → `404` `NOT_FOUND`.
 
 ## 12.2 Remove Favorite
 
 | Method | Path | Auth |
 | --- | --- | --- |
-| `DELETE` | `/api/v1/favorites/{id}` | Required |
-| `DELETE` | `/api/v1/favorites` | Required |
+| `DELETE` | `/api/v1/favorites/{service}` | Required (active customer) |
 
-Alternate body/query delete by `favorite_type` + target id for heart-toggle UX.
+The **only** delete form: the path parameter is the **service id** (heart-toggle UX).
+
+**Idempotent (final):** if the service exists and is accessible but is **not currently favorited** by the authenticated customer, the endpoint returns **`200 OK`** (never `404`). `404` `NOT_FOUND` is reserved exclusively for: the service does not exist, or the customer cannot access the service.
 
 ## 12.3 List Favorites
 
 | Method | Path | Auth |
 | --- | --- | --- |
-| `GET` | `/api/v1/favorites` | Required |
+| `GET` | `/api/v1/favorites` | Required (active customer) |
 
-**Query:** `type=service|product|all`, pagination  
-**Returns:** Favorited services and products with card payloads (product Selling Price always present).
+**Query:** pagination only (`page`, `per_page` — default 20, max 100)  
+**Returns:** the customer's favorited services as **full Service Card payloads** (§6.1 card contract: name, slug, category, short description, starting-from price when configured, images object), newest-favorited first. Because this response is customer-specific, each card may include `is_favorite: true`.
 
-Guest heart tap without token → API `401` → client soft auth → retry add.
+Favorites of services that have since become inactive or deleted never appear — they are removed automatically (never surfaced as "unavailable" entries).
+
+Guest heart tap without token → API `401` → client soft auth → retry add. Heart state on **public** catalog cards is resolved client-side from this list (guest payloads carry no flag).
 
 ---
 
@@ -1313,13 +1329,25 @@ Do not leak existence of other customers’ private resources (prefer `404` over
 | Rating outside 1–5, comment outside 10–1000 characters | `422` | `VALIDATION_ERROR` |
 | Review submission rate limit exceeded | `429` | `RATE_LIMITED` |
 
+## 16.4C Favorites Errors (§12)
+
+| Case | Status | Code |
+| --- | --- | --- |
+| Unknown or inactive service on add | `404` | `NOT_FOUND` |
+| Remove for a service that does not exist or is not accessible to the customer | `404` | `NOT_FOUND` |
+| Inactive customer account on any favorites endpoint | `403` | `ACCOUNT_INACTIVE` |
+| Missing / non-integer `service_id` | `422` | `VALIDATION_ERROR` |
+| Favorites rate limit exceeded | `429` | `RATE_LIMITED` |
+
+Add and remove are both idempotent: already-favorited service on add → `200 OK`; existing accessible service that is not currently favorited on remove → `200 OK` (never an error).
+
 ## 16.5 Server Error (500)
 
 Unexpected failures → `500` `SERVER_ERROR` with safe message; detailed diagnostics only in server logs.
 
 ## 16.6 Rate Limiting
 
-HTTP `429` `RATE_LIMITED` with `Retry-After` when possible. Stricter limits on auth, payment initialize, and uploads. Public guest catalog endpoints (services, categories, search) require a per-IP throttle even though no authentication is required: **public tier = 60 requests per minute per IP**. Unified upload endpoint: **20 uploads per minute per customer** (§14.5). Review submission (`POST /api/v1/reviews`): **5 submissions per minute per customer** (§8A.1).
+HTTP `429` `RATE_LIMITED` with `Retry-After` when possible. Stricter limits on auth, payment initialize, and uploads. Public guest catalog endpoints (services, categories, search) require a per-IP throttle even though no authentication is required: **public tier = 60 requests per minute per IP**. Unified upload endpoint: **20 uploads per minute per customer** (§14.5). Review submission (`POST /api/v1/reviews`): **5 submissions per minute per customer** (§8A.1). Favorites endpoints (§12): **30 requests per minute per customer**.
 
 ---
 
@@ -1496,6 +1524,7 @@ Future API and product enhancements may include the following. These items are *
 
 - Live order tracking  
 - Product / order / service-target ratings & reviews (V1 ships **completed booking reviews only** — §8A)  
+- Product favorites (V1 ships **service favorites only** — §12)  
 - Loyalty & rewards program  
 - Promotional coupons  
 - Multi-language support  

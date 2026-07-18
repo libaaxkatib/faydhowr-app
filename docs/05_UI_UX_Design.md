@@ -362,7 +362,7 @@ Store is a separate product-commerce module. Its Categories, Product List, Produ
 | --- | --- |
 | **Purpose** | Inspect product, see price, purchase or optionally quote |
 | **Components** | Swipeable image gallery (placeholders + pagination; zoom-ready); name; **Selling Price with unit** (e.g. `12.00 / Bottle`); optional **tier pricing** table; availability badge (In Stock / Low Stock / Out of Stock); optional marketing badge (New / Best Seller / Popular / Limited Stock); SKU; rating & reviews; description; specifications; quantity control **`−  Qty  +`**; related products |
-| **Buttons** | **Add to Cart** (primary; disabled when Out of Stock); **Request Quotation** (secondary/outlined when enabled); Favorite; open cart |
+| **Buttons** | **Add to Cart** (primary; disabled when Out of Stock); **Request Quotation** (secondary/outlined when enabled); open cart — no Favorite button in V1 (product favorites deferred; Favorites V1 covers services only) |
 | **Inputs** | Quantity (`−` / `+`) |
 | **Navigation** | Cart; shared Quotation Module (same as Services); Image Viewer / zoom; back |
 | **Empty** | Out of Stock CTAs per status rules |
@@ -640,13 +640,16 @@ Triggered from My Account → Log out. Title: **Log Out**. Message: **Are you su
 
 ### Favorites (S-089)
 
+> **V1 scope (final):** Favorites support **services only**. Product favorites are deferred to a future version.
+
 | Field | Specification |
 | --- | --- |
-| **Purpose** | Allow customers to view all their saved favorite services and products |
-| **Components** | App bar title Favorites; grouped or tabbed lists of favorite Service Cards and Product Cards; heart controls on cards |
-| **Buttons** | Open service/product detail; remove favorite (heart); Browse Services / Browse Store from empty state |
-| **Navigation** | Account → Favorites (auth required); opens Service Details or Product Details; back to Account |
-| **Empty** | Empty Favorites state with guidance to save items from Services/Store |
+| **Purpose** | Allow customers to view all their saved favorite services |
+| **Components** | App bar title Favorites; paginated list of favorite **Service Cards** (full card payloads, newest-favorited first); heart controls on cards |
+| **Buttons** | Open service detail; remove favorite (heart, toggles by service); Browse Services from empty state |
+| **Navigation** | Account → Favorites (auth required, active account); opens Service Details; back to Account |
+| **Empty** | Empty Favorites state with guidance to save services from the catalog |
+| **Rules** | Services that become inactive/deleted disappear automatically (never shown as unavailable); inactive customer accounts cannot open this screen; no favorites limit — list paginates |
 
 ---
 
@@ -717,17 +720,16 @@ White surface, `#E5E7EB` border, 12–16 px radius, 12–16 px padding, Level 0�
 - Optional marketing badge: New · Best Seller · Popular · Limited Stock
 - Opens Product Details
 - Clean retail layout; no hidden pricing
-- **Favorite (Heart) icon** in the top-right corner
-- Customers can tap the icon to save or remove a product from Favorites
-- Saving favorites requires login (soft auth gate); browsing cards does not
+- No Favorite (Heart) icon in V1 — **product favorites are deferred to a future version** (Favorites V1 covers services only)
 
 ## 5.5 Service Card
 
 - Image, name, short value line, optional Starting From price, and available service-mode cue
 - Opens Service Details
 - **Favorite (Heart) icon** in the top-right corner
-- Customers can tap the icon to save or remove a service from Favorites
+- Customers can tap the icon to save or remove a service from Favorites (toggle keyed by service)
 - Saving favorites requires login (soft auth gate); browsing cards does not
+- Guest/catalog payloads never include `is_favorite` — heart state is resolved client-side from the authenticated customer's favorites list
 
 ## 5.6 Review Card
 
@@ -1106,17 +1108,18 @@ Service Details → Book Now / Request Quotation → Auth? → Select Mode → P
 
 ### Favorites Experience
 
-Favorites let customers save services and products for later. This feature does **not** change booking, quotation, cart, checkout, or payment workflows.
+Favorites let customers save **services** for later (V1 — product favorites are deferred to a future version). This feature does **not** change booking, quotation, cart, checkout, or payment workflows.
 
 | Moment | Behavior |
 | --- | --- |
-| **Save Product** | Tap the heart on a Product Card → soft auth if needed → product saved to Favorites; heart shows saved state |
-| **Save Service** | Tap the heart on a Service Card → soft auth if needed → service saved to Favorites; heart shows saved state |
-| **Remove Favorite** | Tap a filled heart on a card (or from the Favorites list) → item removed from Favorites; heart returns to unsaved state |
-| **Empty Favorites State** | When no saved items exist, show clear empty copy and CTAs to browse Services and Store |
-| **Favorite List** | Authenticated Favorites screen lists all saved services and products; tap a row/card to open its detail screen |
+| **Save Service** | Tap the heart on a Service Card → soft auth if needed → service saved to Favorites; heart shows saved state; already-saved taps succeed silently (idempotent) |
+| **Remove Favorite** | Tap a filled heart on a card (or from the Favorites list) → service removed from Favorites (toggle keyed by service); heart returns to unsaved state; removing a not-currently-saved service succeeds silently (idempotent) |
+| **Empty Favorites State** | When no saved services exist, show clear empty copy and a Browse Services CTA |
+| **Favorite List** | Authenticated Favorites screen lists saved services as full Service Cards, newest first, paginated; tap a card to open Service Details |
+| **Unavailable services** | Services that become inactive or deleted are removed from Favorites automatically — never shown as unavailable entries |
 | **Navigation** | Account → Favorites |
-| **Login required** | Login is required to **save** favorites and to **view** the Favorites screen; browsing catalog cards never requires login |
+| **Login required** | Login (active account) is required to **save** favorites and to **view** the Favorites screen; browsing catalog cards never requires login. Inactive accounts cannot add, remove, or list favorites |
+| **Heart state** | Guest/catalog payloads never include `is_favorite`; the app resolves heart state from the customer's favorites list |
 
 ---
 

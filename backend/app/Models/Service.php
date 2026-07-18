@@ -71,6 +71,14 @@ class Service extends Model
     }
 
     /**
+     * @return HasMany<Favorite, $this>
+     */
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
@@ -79,6 +87,7 @@ class Service extends Model
             'starting_from_price' => 'decimal:2',
             'average_rating' => 'decimal:2',
             'reviews_count' => 'integer',
+            'favorites_count' => 'integer',
             'duration_minutes' => 'integer',
             'min_lead_hours' => 'integer',
             'max_concurrent_bookings' => 'integer',

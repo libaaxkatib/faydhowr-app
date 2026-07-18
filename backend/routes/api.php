@@ -59,6 +59,7 @@ use App\Http\Controllers\Api\V1\Catalog\ServiceReviewController as CatalogServic
 use App\Http\Controllers\Api\V1\Checkout\CheckoutController;
 use App\Http\Controllers\Api\V1\Customer\CustomerAddressController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
+use App\Http\Controllers\Api\V1\Favorites\FavoriteController;
 use App\Http\Controllers\Api\V1\GoodsReceipt\GoodsReceiptController;
 use App\Http\Controllers\Api\V1\Notification\NotificationController;
 use App\Http\Controllers\Api\V1\Notification\NotificationPreferenceController;
@@ -148,6 +149,18 @@ Route::prefix('v1/reviews')
         Route::delete('{review}', [ReviewController::class, 'destroy'])
             ->whereNumber('review')
             ->name('api.v1.reviews.destroy');
+    });
+
+Route::prefix('v1/favorites')
+    ->middleware(['auth:sanctum', 'throttle:favorites'])
+    ->group(function (): void {
+        Route::post('/', [FavoriteController::class, 'store'])
+            ->name('api.v1.favorites.store');
+        Route::get('/', [FavoriteController::class, 'index'])
+            ->name('api.v1.favorites.index');
+        Route::delete('{service}', [FavoriteController::class, 'destroy'])
+            ->whereNumber('service')
+            ->name('api.v1.favorites.destroy');
     });
 
 Route::prefix('v1/admin/reviews')

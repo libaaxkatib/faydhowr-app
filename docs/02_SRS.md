@@ -258,7 +258,7 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | ID | Requirement | Priority |
 | --- | --- | --- |
 | FR-010 | The system shall present service categories and service listings with name, description, media, optional Starting From price, and both **Book Now** and **Request Quotation** options. | Must |
-| FR-010A | Public services catalog APIs shall be guest-accessible (no authentication) with per-IP rate limiting of 60 requests per minute per IP. The public identifier for a service is its `slug`; numeric IDs remain internal. Catalog listings shall expose only active, non-deleted services; the categories listing shall return only categories having at least one active service. Sorting is limited to `display_order` (default) and `name`. Pagination defaults to 20 items per page with a maximum of 100. Service images are returned as `thumbnail`, `hero_image`, and `gallery[]` using absolute URLs only. Favorites are deferred; catalog payloads shall not include `is_favorite`. Catalog payloads shall not include `before_after` or `faq`; these fields are introduced when their own modules are implemented. | Must |
+| FR-010A | Public services catalog APIs shall be guest-accessible (no authentication) with per-IP rate limiting of 60 requests per minute per IP. The public identifier for a service is its `slug`; numeric IDs remain internal. Catalog listings shall expose only active, non-deleted services; the categories listing shall return only categories having at least one active service. Sorting is limited to `display_order` (default) and `name`. Pagination defaults to 20 items per page with a maximum of 100. Service images are returned as `thumbnail`, `hero_image`, and `gallery[]` using absolute URLs only. Catalog payloads shall not include `is_favorite` — it appears only in authenticated customer-specific responses (Favorites Module, §22). Catalog payloads shall not include `before_after` or `faq`; these fields are introduced when their own modules are implemented. | Must |
 | FR-010B | The system shall ship an Official V1 Services Catalog Seeder provisioning the official catalog: service categories, services, service modes, service subtypes, and coverage cities. The seeder uses official placeholder images for `thumbnail`, `hero_image`, and `gallery` until production assets are available. The catalog is seeder-managed until Admin Services CRUD is delivered (Sprint 29). | Must |
 | FR-011 | The system shall present store categories and product listings with name, description, media, Selling Price, and availability (In Stock / Low Stock / Out of Stock). V1 categories: Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, Air Fresheners. | Must |
 | FR-012 | The system shall support search and/or filter of services and products. | Should |
@@ -1629,6 +1629,67 @@ The Home reviews endpoint (`GET /api/v1/home/reviews`) is **deferred to Sprint 2
 - BR-R11: Reverting a completed booking to a non-completed status automatically hides its review; the review is never deleted automatically.
 - BR-R12: Deleting a pending review re-opens the booking for a new review submission.
 - BR-R13: Ratings display from the first published review (no minimum threshold); clients render the average to one decimal place.
+
+---
+
+## 22. Favorites Module
+
+> **Disambiguation:** this module covers **customer service favorites** (mobile heart/save feature). It is unrelated to admin Reports Dashboard favorites (FR-090.17), which are internal admin preferences.
+
+### 22.1 Objective
+
+Allow authenticated customers to save services for later retrieval, without altering booking, quotation, cart, checkout, or payment workflows.
+
+### 22.2 Functional Requirements
+
+#### FR-094.1 V1 Scope
+
+Favorites V1 supports **services only**. Product favorites are **out of V1 scope** and deferred to a future version.
+
+#### FR-094.2 Add / Remove / List
+
+- Only authenticated customers with an **active** account may add, remove, or list favorites. Inactive (non-active status or soft-deleted) customers cannot use any favorites capability.
+- **One favorite per customer per service.** Adding an already-favorited service is idempotent and returns success (`200 OK`) without creating a duplicate.
+- Adding requires an **active** service; unknown or inactive services are rejected as not found.
+- Removal is keyed by **service** (heart-toggle semantics), not by favorite record id. Removal is **idempotent**: removing a service that exists and is accessible but is not currently favorited succeeds (`200 OK`); not-found responses are reserved for services that do not exist or are not accessible to the customer.
+- The favorites list returns the customer's favorited services as **full Service Card payloads** (catalog card contract), newest-favorited first, paginated (default 20, max 100).
+
+#### FR-094.3 `is_favorite` Visibility
+
+- **Guest responses shall never include `is_favorite`.** Public catalog and Home payloads are cacheable guest payloads and never carry it, even when a token is supplied.
+- `is_favorite` may appear **only** in authenticated, customer-specific responses (e.g., the favorites list itself).
+- Heart state on public catalog cards is resolved client-side from the customer's favorites list.
+
+#### FR-094.4 Automatic Removal
+
+When a service becomes **inactive or is deleted**, all related favorites are **automatically removed** for all customers. Favorites of unavailable services are never surfaced.
+
+#### FR-094.5 Favorites Aggregate
+
+Each service maintains a cached **`favorites_count`**, updated on favorite add, remove, and automatic removal. The aggregate is internal and is not exposed in public catalog payloads.
+
+#### FR-094.6 Limits & Rate Limiting
+
+- There is **no maximum favorites count** per customer; the list is controlled by pagination only.
+- Favorites endpoints are limited to **30 requests per minute per customer**.
+
+#### FR-094.7 Exclusions (V1)
+
+- No activity-log/timeline events are recorded for favorites actions.
+- No admin favorites management APIs or screens.
+- Favorites trigger no notifications.
+
+### 22.3 Business Rules
+
+- BR-F01: V1 favorites target services only; product favorites are deferred.
+- BR-F02: `is_favorite` never appears in guest responses; only authenticated customer-specific responses may include it.
+- BR-F03: One favorite per customer per service; add and remove are both idempotent (`200 OK` when already favorited on add, and when not currently favorited on remove; `404` only for non-existent or inaccessible services).
+- BR-F04: Service deactivation or deletion automatically removes related favorites.
+- BR-F05: Favorites never mutate booking, quotation, cart, checkout, or payment state.
+- BR-F06: Inactive customers cannot add, remove, or list favorites.
+- BR-F07: Services carry a cached `favorites_count`, maintained on add/remove/automatic removal; it is not a public catalog field.
+- BR-F08: No favorites limit; pagination only. Favorites endpoints are rate limited to 30 requests/minute/customer.
+- BR-F09: Favorites produce no activity-log events and have no admin management in V1.
 
 ---
 
