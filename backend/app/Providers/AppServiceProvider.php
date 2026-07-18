@@ -16,6 +16,10 @@ use App\Contracts\Accounting\Services\JournalEntryServiceInterface;
 use App\Contracts\Accounting\Services\JournalPostingServiceInterface;
 use App\Contracts\Accounting\Services\LedgerServiceInterface;
 use App\Contracts\Accounting\Services\TrialBalanceServiceInterface;
+use App\Contracts\Auth\GoogleIdTokenVerifierInterface;
+use App\Contracts\Auth\Repositories\PasswordResetTokenRepositoryInterface;
+use App\Contracts\Auth\Repositories\PhoneOtpRepositoryInterface;
+use App\Contracts\Auth\Services\OtpServiceInterface;
 use App\Contracts\Customer\Repositories\CustomerActivityRepositoryInterface;
 use App\Contracts\Customer\Repositories\CustomerAddressRepositoryInterface;
 use App\Contracts\Customer\Repositories\CustomerAttachmentRepositoryInterface;
@@ -45,6 +49,7 @@ use App\Contracts\Settings\Services\AuditServiceInterface;
 use App\Contracts\Settings\Services\BackupServiceInterface;
 use App\Contracts\Settings\Services\BranchServiceInterface;
 use App\Contracts\Settings\Services\SettingsServiceInterface;
+use App\Contracts\Sms\SmsSenderInterface;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\Quotation;
@@ -56,6 +61,8 @@ use App\Repositories\Accounting\FinancialReportRepository;
 use App\Repositories\Accounting\JournalEntryRepository;
 use App\Repositories\Accounting\LedgerRepository;
 use App\Repositories\Accounting\TrialBalanceRepository;
+use App\Repositories\Auth\PasswordResetTokenRepository;
+use App\Repositories\Auth\PhoneOtpRepository;
 use App\Repositories\Customer\CustomerActivityRepository;
 use App\Repositories\Customer\CustomerAddressRepository;
 use App\Repositories\Customer\CustomerAttachmentRepository;
@@ -72,6 +79,8 @@ use App\Services\Accounting\Services\JournalEntryService;
 use App\Services\Accounting\Services\JournalPostingService;
 use App\Services\Accounting\Services\LedgerService;
 use App\Services\Accounting\Services\TrialBalanceService;
+use App\Services\Auth\GoogleTokenInfoVerifier;
+use App\Services\Auth\OtpService;
 use App\Services\Customer\AddressService;
 use App\Services\Customer\AttachmentService;
 use App\Services\Customer\CustomerActivityService;
@@ -118,6 +127,9 @@ use App\Services\Settings\AuditService;
 use App\Services\Settings\BackupService;
 use App\Services\Settings\BranchService;
 use App\Services\Settings\SettingsService;
+use App\Services\Sms\LogSmsSender;
+use App\Services\Sms\NullSmsSender;
+use App\Services\Sms\SmsSenderManager;
 use App\Support\Customer\CustomerCodeGenerator;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Foundation\Application;
@@ -148,6 +160,27 @@ class AppServiceProvider extends ServiceProvider
 
             return $manager;
         });
+
+        $this->app->singleton(SmsSenderManager::class, function (): SmsSenderManager {
+            $manager = new SmsSenderManager;
+            $manager->register('log', new LogSmsSender);
+            $manager->register('null', new NullSmsSender);
+
+            return $manager;
+        });
+
+        $this->app->bind(
+            SmsSenderInterface::class,
+            fn (Application $app): SmsSenderInterface => $app->make(SmsSenderManager::class)->driver(),
+        );
+
+        $this->app->bind(PhoneOtpRepositoryInterface::class, PhoneOtpRepository::class);
+
+        $this->app->bind(PasswordResetTokenRepositoryInterface::class, PasswordResetTokenRepository::class);
+
+        $this->app->singleton(OtpServiceInterface::class, OtpService::class);
+
+        $this->app->singleton(GoogleIdTokenVerifierInterface::class, GoogleTokenInfoVerifier::class);
 
         $this->app->singleton(AccountRepositoryInterface::class, AccountRepository::class);
 
@@ -297,6 +330,18 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('auth-login', function (Request $request): Limit {
             return Limit::perMinute(5)->by(
                 Str::lower((string) $request->input('email')).'|'.$request->ip(),
+            );
+        });
+
+        RateLimiter::for('auth-otp', function (Request $request): Limit {
+            return Limit::perMinute(10)->by(
+                (string) $request->input('phone').'|'.$request->ip(),
+            );
+        });
+
+        RateLimiter::for('auth-recovery', function (Request $request): Limit {
+            return Limit::perMinute(5)->by(
+                Str::lower((string) ($request->input('email') ?? $request->input('phone'))).'|'.$request->ip(),
             );
         });
     }

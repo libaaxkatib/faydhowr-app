@@ -158,7 +158,7 @@ Related transactional follow-ons (Accept Quotation / Discuss Quotation, pay a pa
 | Sub-flow | Customer outcome |
 | --- | --- |
 | **Continue with Phone** (default) | Enter phone (default 🇸🇴 +252) → **Continue** → OTP verify → session → continue intent |
-| **Continue with Google** | Native Android/iOS Google Sign-In using device accounts (account picker if multiple; quick sign-in if one). Customer does **not** type Gmail. Future implementation. |
+| **Continue with Google** | Native Android/iOS Google Sign-In using device accounts (account picker if multiple; quick sign-in if one). Customer does **not** type Gmail. |
 | **Continue with Email** | Email + Password (Show/Hide) → optional Remember Me → Continue; Forgot Password available |
 | Register / Create Account | Phone Number (**primary**) + Email (**optional**) + Password + **Confirm Password** (must match); Google may auto-complete registration after successful Google Sign-In |
 | Credential recovery | Forgot / Reset password path → return to login (email path) |

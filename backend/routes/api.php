@@ -44,8 +44,11 @@ use App\Http\Controllers\Api\V1\Admin\Settings\SettingsAuditLogController;
 use App\Http\Controllers\Api\V1\Admin\Settings\SettingsController;
 use App\Http\Controllers\Api\V1\Admin\Settings\SmtpTestController;
 use App\Http\Controllers\Api\V1\Auth\AuthenticatedUserController;
+use App\Http\Controllers\Api\V1\Auth\GoogleAuthController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
+use App\Http\Controllers\Api\V1\Auth\PasswordRecoveryController;
+use App\Http\Controllers\Api\V1\Auth\PhoneAuthController;
 use App\Http\Controllers\Api\V1\Auth\RegistrationController;
 use App\Http\Controllers\Api\V1\Booking\BookingController;
 use App\Http\Controllers\Api\V1\Cart\CartController;
@@ -86,6 +89,26 @@ Route::prefix('v1/auth')->group(function (): void {
     Route::post('register', [RegistrationController::class, 'store'])
         ->middleware('throttle:auth-register')
         ->name('api.v1.auth.register');
+
+    Route::post('phone/request', [PhoneAuthController::class, 'requestOtp'])
+        ->middleware('throttle:auth-otp')
+        ->name('api.v1.auth.phone.request');
+
+    Route::post('phone/verify', [PhoneAuthController::class, 'verify'])
+        ->middleware('throttle:auth-otp')
+        ->name('api.v1.auth.phone.verify');
+
+    Route::post('google', [GoogleAuthController::class, 'store'])
+        ->middleware('throttle:auth-login')
+        ->name('api.v1.auth.google');
+
+    Route::post('forgot-password', [PasswordRecoveryController::class, 'forgot'])
+        ->middleware('throttle:auth-recovery')
+        ->name('api.v1.auth.forgot-password');
+
+    Route::post('reset-password', [PasswordRecoveryController::class, 'reset'])
+        ->middleware('throttle:auth-recovery')
+        ->name('api.v1.auth.reset-password');
 });
 
 Route::prefix('v1/admin/auth')->group(function (): void {

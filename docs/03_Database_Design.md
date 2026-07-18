@@ -109,7 +109,7 @@ Most transactional tables include:
 
 | Module | Responsibility | Primary Tables |
 | --- | --- | --- |
-| **User Management** | Mobile user identity, customer profiles, addresses, saved payment methods, devices, auth recovery; customer notes, attachments, activity logs (Customer Management); admin operators & Hybrid RBAC | `users`, `customer_profiles`, `customer_addresses`, `customer_payment_methods`, `customer_devices`, `customer_notes`, `customer_attachments`, `customer_activity_logs`, `password_reset_tokens`, `admins`, `permissions`, `admin_role_permissions`, `admin_permissions` |
+| **User Management** | Mobile user identity, customer profiles, addresses, saved payment methods, devices, auth recovery (reset tokens + phone OTPs); customer notes, attachments, activity logs (Customer Management); admin operators & Hybrid RBAC | `users`, `customer_profiles`, `customer_addresses`, `customer_payment_methods`, `customer_devices`, `customer_notes`, `customer_attachments`, `customer_activity_logs`, `password_reset_tokens`, `phone_otps`, `admins`, `permissions`, `admin_role_permissions`, `admin_permissions` |
 | **Service Management** | Official services, modes, coverage, media, and schedule constraints | `service_categories`, `services`, `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates` |
 | **Store Management** | Product catalog, categories, images, cart, store orders | `product_categories`, `products`, `product_images`, `product_price_tiers`, `carts`, `cart_items`, `store_orders`, `store_order_items`, `store_order_status_histories` |
 | **Inventory Management** | Suppliers, purchase orders, goods receipts, stock ledger, adjustments, low-stock | `suppliers`, `purchase_orders`, `purchase_order_items`, `purchase_order_status_histories`, `goods_receipts`, `goods_receipt_items`, `stock_ledgers`, `stock_adjustments` |
@@ -609,6 +609,49 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 #### Notes
 
 - Aligns with FR-003 credential recovery.
+
+---
+
+### 3.1.7A `phone_otps`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `phone_otps` |
+| **Purpose** | Hashed one-time passwords for phone login and phone-based password recovery (SRS FR-002A–FR-002C, FR-003A). |
+| **Primary Key** | `id` |
+| **Foreign Keys** | None — logical link to `users` via `phone` (an OTP may be requested before the identity is resolved) |
+| **Relationships** | Associated to `users` by phone number at verification time |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK |
+| `phone` | VARCHAR(30) | R | E.164 normalized target phone |
+| `purpose` | VARCHAR(30) | R | `login` · `password_reset` |
+| `otp_hash` | VARCHAR(255) | R | Hash of the 6-digit code; raw OTP never persisted |
+| `attempts` | SMALLINT UNSIGNED | R | Failed verification count; default 0, cap 5 |
+| `expires_at` | TIMESTAMP | R | 5 minutes after issue |
+| `consumed_at` | TIMESTAMP | O | Set on successful verification (single-use) |
+| `invalidated_at` | TIMESTAMP | O | Set when superseded by a newer OTP or attempt cap reached |
+| `created_at` | TIMESTAMP | R | Issue time; drives resend cooldown and hourly caps |
+
+#### Constraints
+
+- At most one *active* OTP per (`phone`, `purpose`): issuing a new OTP sets `invalidated_at` on any prior unconsumed row.
+- An OTP is valid only when unexpired, unconsumed, not invalidated, and `attempts` < 5.
+- Single-use: `consumed_at` set exactly once; consumed OTPs never verify again (replay protection).
+
+#### Validation Rules
+
+- Raw OTP values are never stored or logged.
+- Resend cooldown (60 s) and hourly request cap (5 per phone) are enforced from `created_at` history.
+- Expired/terminal rows are prunable by scheduled cleanup; no business data depends on them.
+
+#### Notes
+
+- Aligns with FR-002A–FR-002C (login) and FR-003A (phone recovery).
+- Delivery goes through the provider-independent SMS abstraction (SRS FR-002E); no provider-specific columns belong in this table.
 
 ---
 
@@ -2304,6 +2347,8 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | `customer_devices` | (`user_id`, `is_active`) | Push fan-out |
 | `customer_devices` | UNIQUE(`device_token`) | Token upsert |
 | `password_reset_tokens` | (`subject_type`, `subject_id`, `expires_at`) | Recovery cleanup |
+| `phone_otps` | (`phone`, `purpose`, `created_at`) | OTP lookup, cooldown and hourly-cap checks |
+| `phone_otps` | (`expires_at`) | Scheduled pruning of expired rows |
 
 ## 5.2 Catalog
 

@@ -182,7 +182,7 @@ Admin users share **one Admin Login** and **one Admin Panel**. After authenticat
 - Login method priority: **(1) Phone Number (default)** → **(2) Google Sign-In** → **(3) Email**.
 - Phone remains the primary authentication method for Somalia; default country is **Somalia (+252)**.
 - Phone login verifies via **OTP**.
-- Google Sign-In uses native Android/iOS account pickers with accounts already on the device (future implementation — customer does not type a Gmail address).
+- Google Sign-In uses native Android/iOS account pickers with accounts already on the device (customer does not type a Gmail address). The server verifies the provider ID token and links the account via `users.google_subject`.
 - Email login remains fully supported (email + password, Show/Hide, Forgot Password, Remember Me).
 - Sessions/tokens must expire and be refreshable according to security policy.
 - Hybrid RBAC applies to the admin panel (role + direct permissions).
@@ -196,6 +196,32 @@ Admin users share **one Admin Login** and **one Admin Panel**. After authenticat
 - `customer_profiles` owns customer business and profile data.
 - Business modules reference `customer_profiles` where approved by their domain architecture; Booking uses `customer_profile_id`.
 - There is no standalone `customers` authentication identity table.
+
+### 4.2B Authentication Flows
+
+Success and failure conditions below apply to the endpoints specified in the API Design document (§2). Detailed limits live in FR-002A–FR-003B.
+
+**Phone + OTP login**
+
+1. Customer enters phone number (default country +252) → client calls OTP request.
+2. System generates a 6-digit OTP, stores only its hash with expiry and purpose, invalidates prior unconsumed OTPs for that phone/purpose, and dispatches it through the SMS abstraction.
+3. Customer enters the code → client calls OTP verify.
+4. Success: OTP valid, unexpired, unconsumed, attempts under cap, `users.status` allows authentication, linked customer profile is not `BLOCKED`/`INACTIVE`/deleted → OTP marked consumed, `phone_verified_at` set (first time), token issued, `last_login_at` updated, `login` activity recorded.
+5. Failure: wrong code (attempt counter increments), expired/consumed code, attempt cap reached (OTP invalidated), resend cooldown or hourly cap active, or blocked account status → authentication refused with a stable error code; no token issued.
+6. Resend: allowed only after the cooldown; issues a fresh OTP and invalidates the previous one.
+
+**Google Sign-In**
+
+1. Client obtains an ID token from the native Google account picker and sends it to the server.
+2. Success: token signature/audience/expiry verified → account resolved by `google_subject`, else linked by verified email, else auto-provisioned (identity + customer profile) → token issued subject to the same status gates as other methods.
+3. Failure: invalid/expired/wrong-audience token, or blocked/suspended account → refused; no partial account creation.
+
+**Forgot / Reset Password**
+
+1. Customer submits identifier → system responds generically (no account-existence leak). Both recovery paths are supported in V1: the email path issues a hashed single-use reset token (60 min); the phone path issues an OTP with `password_reset` purpose.
+2. Customer submits token/OTP + new password + confirmation.
+3. Success: credential updated (one-way hash), token/OTP consumed, **all** access tokens revoked, `password_reset` activity recorded.
+4. Failure: invalid/expired/used token, password confirmation mismatch, or rate limit exceeded → refused; existing password and sessions unchanged.
 
 ### 4.3 Account Lifecycle
 
@@ -216,7 +242,14 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | --- | --- | --- |
 | FR-001 | The system shall allow a customer to register by creating a **`users`** identity with **Phone Number (primary)** and optional Email, plus Password and **Confirm Password** (must match), and a linked **`customer_profiles`** record. Google users may provision both after Google Sign-In when required. | Must |
 | FR-002 | The system shall authenticate customers against **`users`** in this priority: (1) Continue with Phone + OTP (default country Somalia +252), (2) Continue with Google (native device accounts), (3) Continue with Email + password; and maintain a secure session bound to the `users` principal. | Must |
+| FR-002A | The system shall issue one-time passwords (OTP) for phone authentication on request, delivered via the SMS provider abstraction. Each OTP shall be numeric (6 digits), single-use, bound to one phone number and one purpose, and shall expire after a short validity window (5 minutes). Requesting a new OTP invalidates any previous unconsumed OTP for the same phone and purpose. | Must |
+| FR-002B | The system shall enforce OTP abuse controls: a resend cooldown (60 seconds between requests per phone), a request cap (maximum 5 OTP requests per phone per hour), and a verification attempt cap (maximum 5 failed attempts per OTP, after which the OTP is invalidated and a new one must be requested). All OTP endpoints shall additionally be rate limited per IP. | Must |
+| FR-002C | The system shall verify OTPs server-side against a stored hash (raw OTP values are never persisted), mark the OTP consumed on success, set `users.phone_verified_at` when applicable, and issue a session token bound to the `users` principal. Expired, consumed, or unknown OTPs shall never authenticate. | Must |
+| FR-002D | The system shall support Google Sign-In by verifying the provider ID token server-side (signature, expiry, and audience), then resolving the account in this order: (1) existing `users.google_subject` match, (2) existing verified-email match (link `google_subject`), (3) auto-provision a new `users` identity and linked `customer_profiles` record per FR-001. Google authentication respects the same `users.status` and `customer_profiles.status` gates as all other login methods. | Must |
+| FR-002E | SMS delivery for OTPs shall go through a provider-independent SMS abstraction (single send contract). No specific SMS provider is selected in this specification; the implementation must allow swapping providers via configuration without changing business logic. | Must |
 | FR-003 | The system shall allow customers to reset or recover credentials securely (email/password path includes Forgot Password). | Must |
+| FR-003A | Forgot Password shall accept the account identifier (email or phone). **Backend V1 supports both recovery paths: Email Password Recovery and Phone OTP Password Recovery.** The system shall always return a generic success response without disclosing whether an account exists. Email recovery issues a single-use, hashed, time-limited reset token (60 minutes); phone recovery reuses the OTP lifecycle (FR-002A/FR-002B) with a distinct `password_reset` purpose. | Must |
+| FR-003B | Reset Password shall require the valid unconsumed token (or OTP) plus the new password with confirmation, hash the new password using the framework's one-way hashing, mark the token/OTP consumed, and revoke all existing access tokens for the account so every device must re-authenticate. | Must |
 | FR-004 | The system shall allow customers to log out from the mobile app (with confirmation). | Must |
 | FR-005 | The system shall restrict transactional features to authenticated customers. | Must |
 

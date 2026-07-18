@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'sms' => [
+        'driver' => env('SMS_DRIVER', 'log'),
+    ],
+
+    'google' => [
+        'client_ids' => array_filter(explode(',', (string) env('GOOGLE_CLIENT_IDS', ''))),
+    ],
+
 ];

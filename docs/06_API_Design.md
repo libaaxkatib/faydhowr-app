@@ -118,25 +118,58 @@ Authentication APIs operate on `users` only. Registration creates the authentica
 | **Result** | Customer profile + access token (or require phone OTP verification per policy) |
 | **Google** | After successful Google Sign-In, if no customer exists, server may auto-provision / complete registration |
 
+> **Implementation note (Sprint 21, approved limitation):** the current registration implementation does not yet collect `phone`. Bringing registration up to this spec is outside Sprint 21 scope; until then, phone OTP login applies only to accounts that already have a phone number on file.
+
 ## 2.2 Login — Phone (OTP)
+
+Primary login method for Somalia. OTP lifecycle rules: SRS FR-002A–FR-002C; storage: Database Design §3.1.7A (`phone_otps`).
+
+### 2.2.1 Request OTP
 
 | Item | Spec |
 | --- | --- |
-| **Start** | `POST /api/v1/auth/phone/start` — body: `phone` (E.164; UI default country Somalia `+252`) |
-| **Verify** | `POST /api/v1/auth/phone/verify` — body: `phone`, `otp` |
+| **Method / Path** | `POST /api/v1/auth/phone/request` |
 | **Auth** | Guest |
-| **Result** | Access token (+ refresh if used) + customer summary |
-| **Notes** | Primary login method for Somalia |
+| **Purpose** | Issue a 6-digit single-use OTP to the given phone via the SMS abstraction. Also serves as **resend**: a repeat call after the cooldown issues a fresh OTP and invalidates the previous one. |
+| **Body** | `phone` (required, E.164; UI default country Somalia `+252`) |
+| **Validation** | `phone` — required, valid E.164 format |
+| **Response `200`** | Generic acknowledgement: `{ "success": true, "message": "If this phone number is registered, a code has been sent.", "data": { "expires_in": 300, "resend_after": 60 } }` — identical for known and unknown phones (no account-existence leak) |
+| **Errors** | `422` `VALIDATION_ERROR` (malformed phone); `429` `OTP_COOLDOWN` (resend within 60 s); `429` `RATE_LIMITED` (over 5 requests/phone/hour or per-IP limit) |
+| **Rate limits** | 1 request / 60 s per phone (cooldown); 5 / hour per phone; stricter per-IP throttle |
+| **Security** | OTP stored as hash only; previous unconsumed OTP for the same phone/purpose invalidated on each issue; OTP value never included in the response or logs |
 
-## 2.2B Login — Google (Future Implementation)
+> **Implementation note (Sprint 21 final patch):** no SMS is dispatched to phone numbers that have no customer account (delivery cost control). The full OTP lifecycle (record, cooldown, hourly cap) still runs for unknown phones so the response and throttling behavior remain byte-identical — no account enumeration.
+
+### 2.2.2 Verify OTP
+
+| Item | Spec |
+| --- | --- |
+| **Method / Path** | `POST /api/v1/auth/phone/verify` |
+| **Auth** | Guest |
+| **Purpose** | Verify the OTP and authenticate |
+| **Body** | `phone` (required, E.164), `otp` (required, 6 digits) |
+| **Validation** | `phone` — required, valid E.164; `otp` — required, exactly 6 digits |
+| **Response `200`** | Access token + customer summary (same shape as email login) |
+| **Errors** | `422` `VALIDATION_ERROR`; `401` `OTP_INVALID` (wrong code — attempt counter increments); `401` `OTP_EXPIRED` (past 5-minute window, consumed, or superseded); `401` `OTP_ATTEMPTS_EXCEEDED` (5 failed attempts — OTP invalidated, new request required); `403` `ACCOUNT_SUSPENDED` / blocked business status (same gates as all login methods); `429` `RATE_LIMITED` (per-IP) |
+| **Rate limits** | Max 5 failed verification attempts per OTP; per-IP throttle on the endpoint |
+| **Security** | Constant-time hash comparison; OTP marked consumed on success (replay protection); sets `phone_verified_at` on first successful verification; updates `last_login_at`; records `login` activity |
+
+## 2.2B Login — Google
 
 | Item | Spec |
 | --- | --- |
 | **Method / Path** | `POST /api/v1/auth/google` |
 | **Auth** | Guest |
-| **Body** | Provider ID token from **native** Google Sign-In (Android/iOS); account picker when multiple device accounts |
-| **Result** | Access token + customer summary; may auto-register if new |
-| **Client rule** | Do not collect Gmail password or require typing email — use device Google accounts only |
+| **Purpose** | Authenticate (or auto-register) with a Google ID token from **native** Google Sign-In (Android/iOS); account picker when multiple device accounts |
+| **Body** | `id_token` (required — provider ID token) |
+| **Validation** | `id_token` — required string; server verifies signature, expiry, and audience (app client IDs) |
+| **Account resolution** | (1) existing `users.google_subject` match → login; (2) verified-email match → link `google_subject`, then login; (3) no match → auto-provision `users` + `customer_profiles` (per FR-001), then login |
+| **Response `200`** | Access token + customer summary; newly provisioned accounts return the same shape |
+| **Errors** | `422` `VALIDATION_ERROR`; `401` `GOOGLE_TOKEN_INVALID` (bad signature / expired / wrong audience); `403` `ACCOUNT_SUSPENDED` / blocked business status; `429` `RATE_LIMITED` |
+| **Rate limits** | Per-IP throttle (auth-tier limits, §16.6) |
+| **Security** | ID token verified server-side against Google's published keys; `google_subject` is the immutable link key (unique, nullable); no partial account creation on failure; client must never collect Gmail passwords — device Google accounts only |
+
+> **Implementation note (Sprint 21):** server-side verification currently uses Google's `tokeninfo` endpoint (signature and expiry validated by Google; audience checked locally against configured client IDs). Offline JWKS verification (validating signatures locally against Google's published keys) may replace it in the future behind the same verifier interface — no change to authentication business logic.
 
 ## 2.2C Login — Email
 
@@ -163,9 +196,13 @@ Authentication APIs operate on `users` only. Registration creates the authentica
 | --- | --- |
 | **Method / Path** | `POST /api/v1/auth/forgot-password` |
 | **Auth** | Guest |
-| **Purpose** | Start credential recovery (email/password path) |
-| **Body** | `email` (or `phone` where recovery policy allows) |
-| **Result** | Generic success message (do not leak account existence excessively) |
+| **Purpose** | Start credential recovery. **Both paths are supported in V1.** Email path issues a single-use hashed reset token (valid 60 minutes) delivered by email. Phone path issues an OTP with purpose `password_reset` (full OTP lifecycle per §2.2 / FR-002A–FR-002B). |
+| **Body** | Exactly one of: `email` (valid email) or `phone` (E.164) |
+| **Validation** | One identifier required; `email` — valid format; `phone` — valid E.164 |
+| **Response `200`** | Generic acknowledgement: `{ "success": true, "message": "If this account exists, recovery instructions have been sent." }` — identical whether or not the account exists (no account-existence leak) |
+| **Errors** | `422` `VALIDATION_ERROR`; `429` `RATE_LIMITED` (per-identifier and per-IP throttle); `429` `OTP_COOLDOWN` (phone path resend within cooldown) |
+| **Rate limits** | Auth-tier limits (§16.6); phone path additionally inherits OTP cooldown / hourly caps |
+| **Security** | Raw tokens/OTPs never persisted (hash only) or logged; issuing a new token invalidates prior unconsumed tokens for the same account |
 
 ## 2.5 Reset Password
 
@@ -173,8 +210,24 @@ Authentication APIs operate on `users` only. Registration creates the authentica
 | --- | --- |
 | **Method / Path** | `POST /api/v1/auth/reset-password` |
 | **Auth** | Guest |
-| **Purpose** | Complete recovery with token |
-| **Body** | `token`, identifier, `password`, `password_confirmation` |
+| **Purpose** | Complete recovery and set a new password |
+| **Body** | Identifier (`email` or `phone`, matching the forgot-password request), `token` (email reset token **or** the 6-digit OTP for the phone path), `password`, `password_confirmation` |
+| **Validation** | Identifier required; `token` — required; `password` — required, project password policy, must match `password_confirmation` |
+| **Response `200`** | `{ "success": true, "message": "Password has been reset." }` — no token issued; the customer logs in with the new password |
+| **Errors** | `422` `VALIDATION_ERROR` (including confirmation mismatch); `401` `RESET_TOKEN_INVALID` (unknown/expired/used token or OTP); `429` `RATE_LIMITED` |
+| **Rate limits** | Auth-tier limits (§16.6); attempt caps on the underlying token/OTP |
+| **Security** | Token compared against stored hash; marked used on success (single-use / replay protection); new password stored via one-way hashing; **all existing access tokens for the account are revoked** so every device must re-authenticate; `password_reset` activity recorded |
+
+## 2.5A SMS Provider Abstraction
+
+OTP delivery is provider-independent by design. No SMS provider is selected in this specification.
+
+| Rule | Detail |
+| --- | --- |
+| **Contract** | A single application-level SMS sending contract (send to E.164 phone, message body); business logic depends only on this contract |
+| **Provider selection** | Configuration-driven; swapping providers must require no changes to authentication business logic |
+| **Failure handling** | Provider failures are logged and surfaced as delivery failures; they never leak OTP values and never bypass rate limiting |
+| **Non-production** | Local/test environments may use a null/log driver; OTPs remain hash-stored and are never echoed in API responses in any environment |
 
 ## 2.6 Token Authentication
 
@@ -1070,6 +1123,12 @@ HTTP `422` + field map (`error_code: VALIDATION_ERROR`).
 | --- | --- | --- |
 | Missing/invalid token | `401` | `UNAUTHENTICATED` |
 | Expired token | `401` | `TOKEN_EXPIRED` |
+| Wrong OTP code | `401` | `OTP_INVALID` |
+| Expired / consumed / superseded OTP | `401` | `OTP_EXPIRED` |
+| OTP failed-attempt cap reached | `401` | `OTP_ATTEMPTS_EXCEEDED` |
+| OTP resend requested within cooldown | `429` | `OTP_COOLDOWN` |
+| Invalid Google ID token | `401` | `GOOGLE_TOKEN_INVALID` |
+| Invalid / expired / used password reset token | `401` | `RESET_TOKEN_INVALID` |
 
 ## 16.3 Authorization Errors
 
@@ -1102,6 +1161,11 @@ HTTP `429` `RATE_LIMITED` with `Retry-After` when possible. Stricter limits on a
 - Secure password hashing (one-way)
 - Token revocation on logout
 - Lockout / rate limit brute-force login
+- OTPs and reset tokens stored as hashes only; raw values never persisted, logged, or echoed in responses
+- OTPs are single-use, purpose-bound, expire after 5 minutes, invalidated on reissue, and capped at 5 failed attempts (replay protection)
+- Google ID tokens verified server-side (signature, expiry, audience) before any account action
+- Successful password reset revokes all existing access tokens for the account
+- Recovery and OTP-request endpoints return generic responses that never disclose account existence
 
 ## 17.2 Authorization
 
