@@ -25,7 +25,6 @@ use App\Actions\Quotation\AcceptQuotationAction;
 use App\Actions\Quotation\CreateQuotationAction;
 use App\Actions\StoreOrder\CancelStoreOrderAction;
 use App\Actions\StoreOrder\CreateStoreOrderAction;
-use App\Actions\StoreOrder\InitializeStoreOrderPaymentAction;
 use App\Actions\Supplier\CreateSupplierAction;
 use App\Actions\Supplier\DeleteSupplierAction;
 use App\Actions\Supplier\UpdateSupplierAction;
@@ -1349,7 +1348,6 @@ class DashboardTest extends TestCase
             AcceptQuotationAction::class,
             CreateStoreOrderAction::class,
             CancelStoreOrderAction::class,
-            InitializeStoreOrderPaymentAction::class,
             CreateSupplierAction::class,
             UpdateSupplierAction::class,
             DeleteSupplierAction::class,

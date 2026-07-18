@@ -13,6 +13,7 @@ use App\Models\Payment;
 use App\Models\PaymentTransaction;
 use App\Models\StoreOrder;
 use App\Services\Payments\PaymentGatewayManager;
+use App\Support\Payments\PaymentNumberGenerator;
 use DomainException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,7 @@ class HandlePaymentWebhookAction
     public function __construct(
         private PaymentGatewayManager $gatewayManager,
         private ProcessStoreOrderPaidStockAction $processStoreOrderPaidStock,
+        private PaymentNumberGenerator $paymentNumbers,
         private DashboardCacheInvalidatorInterface $dashboardCache,
     ) {}
 
@@ -103,7 +105,7 @@ class HandlePaymentWebhookAction
         $payment->update([
             'status' => PaymentStatus::Paid,
             'paid_at' => now(),
-            'receipt_number' => $payment->receipt_number ?? $this->nextReceiptNumber(),
+            'receipt_number' => $payment->receipt_number ?? $this->paymentNumbers->nextReceiptNumber(),
         ]);
 
         $transaction->update([
@@ -192,30 +194,5 @@ class HandlePaymentWebhookAction
             'changed_by_id' => null,
             'notes' => null,
         ]);
-    }
-
-    private function nextReceiptNumber(): string
-    {
-        $year = now()->format('Y');
-
-        if (DB::getDriverName() === 'pgsql') {
-            DB::select('SELECT pg_advisory_xact_lock(hashtext(?))', ["payment-receipt-number-{$year}"]);
-        }
-
-        $latestReceiptNumber = Payment::withTrashed()
-            ->where('receipt_number', 'like', "RCPT-{$year}-%")
-            ->orderByDesc('receipt_number')
-            ->lockForUpdate()
-            ->value('receipt_number');
-
-        $nextSequence = $latestReceiptNumber === null
-            ? 1
-            : ((int) substr($latestReceiptNumber, -6)) + 1;
-
-        if ($nextSequence > 999999) {
-            throw new DomainException('The receipt number range for this year is exhausted.');
-        }
-
-        return sprintf('RCPT-%s-%06d', $year, $nextSequence);
     }
 }

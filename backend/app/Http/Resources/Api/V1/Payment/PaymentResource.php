@@ -31,6 +31,8 @@ class PaymentResource extends JsonResource
                 ];
             }),
             'status' => $this->status->value,
+            'payment_method' => $this->payment_method?->value,
+            'payment_stage' => $this->payment_stage?->value,
             'amount' => $this->amount,
             'currency' => $this->currency,
             'gateway' => $this->gateway,

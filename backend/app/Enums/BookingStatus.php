@@ -12,5 +12,6 @@ enum BookingStatus: string
     case Scheduled = 'scheduled';
     case InProgress = 'in_progress';
     case Completed = 'completed';
+    case Closed = 'closed';
     case Cancelled = 'cancelled';
 }

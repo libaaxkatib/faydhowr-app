@@ -196,8 +196,8 @@ Complete customer-facing screen list for Version 1.
 | S-080 | My Account | Yes |
 | S-081 | Edit Profile | Yes |
 | S-082 | Saved Addresses | Yes |
-| S-082B | Payment Methods | Yes |
-| S-082C | Add / Edit Payment Method | Yes |
+| S-082B | Payment Methods | ~~Removed from V1~~ (saved payment methods deferred — Sprint 26) |
+| S-082C | Add / Edit Payment Method | ~~Removed from V1~~ (saved payment methods deferred — Sprint 26) |
 | S-083 | Address Form (Add/Edit) | Yes |
 | S-084 | Order History | Yes |
 | S-085 | Order Details | Yes |
@@ -398,15 +398,15 @@ Store is a separate product-commerce module. Its Categories, Product List, Produ
 
 | Field | Specification |
 | --- | --- |
-| **Purpose** | Collect fulfillment details and confirm order totals |
-| **Components** | Order summary; fulfillment type; **saved address selector**; **Contact Phone Number** (for delivery team); notes; payment entry point |
+| **Purpose** | Collect fulfillment details, select the payment method, and confirm order totals |
+| **Components** | Order summary; fulfillment type; **saved address selector**; **Contact Phone Number** (for delivery team); notes; **payment method selection** (EVC Plus · eDahab · Bank Transfer · Cash on Delivery) |
 | **Buttons** | Place order / Proceed to payment; edit address; back to cart |
-| **Inputs** | Fulfillment fields; address (reuse saved — never re-ask full address if already collected); contact phone; notes |
+| **Inputs** | Fulfillment fields; address (reuse saved — never re-ask full address if already collected); contact phone; payment method; notes |
 | **Navigation** | Requires auth; Payment; soft auth return-to-intent |
 | **Empty** | Guard: if cart empty, redirect to Empty Cart |
 | **Loading** | Submitting / validating overlay |
 | **Error** | Field errors; stock/price change dialog; server/offline retry |
-| **Success** | Moves to Payment or Order Confirmation per payment timing policy |
+| **Success** | Prepaid methods move to Payment; **Cash on Delivery confirms the order immediately** and moves to Order Confirmation |
 
 **Contact Phone Number:** Shown on Checkout for delivery coordination. Prefill from profile phone when available; do not ask again elsewhere in this flow if already on file.
 
@@ -512,28 +512,28 @@ Store is a separate product-commerce module. Its Categories, Product List, Produ
 
 | Screen | Purpose | States |
 | --- | --- | --- |
-| Payment | Review amount and start provider-neutral gateway flow | Pending / Initialized / Processing; Error init |
-| Confirming | Ambiguous/pending capture | Indeterminate progress; no false success |
-| Success | Authoritative Paid state | Amount, payment reference, receipt number (`RCPT-YYYY-######`), confirmed order status, next steps |
-| Failure | Failed capture | Message, Retry Payment, Contact |
+| Payment | Review the installment amount (deposit / balance / full per the service payment policy), select a V1 method, and view its payment instructions | Pending / Initialized / Processing; Error init |
+| Confirming | Awaiting admin verification of the offline payment | Indeterminate progress; no false success |
+| Success | Authoritative Paid state (admin-confirmed in V1) | Amount, payment reference, receipt number (`RCPT-YYYY-######`), updated entity status, next steps |
+| Failure | Failed / not received | Message, Retry Payment, Contact |
 
 **Buttons:** Confirm Payment / Pay; Retry; View entity; Home  
-**Inputs:** Provider-managed; Fayadhowr shows amount summary only  
+**Inputs:** Method selection only (V1: EVC Plus · eDahab · Bank Transfer · Cash on Service / Cash on Delivery); Fayadhowr shows amount summary and payment instructions — no card fields (V1 has no online gateway)  
 **Navigation:** From a Service Order or Store Order using the same unified payment experience.  
 
 **Order Summary on Payment (required lines):** Subtotal · Delivery Fee · Tax (default `0.00`) · Total  
 
 ### Payment method display order (customer app)
 
-Prioritize Somali payment methods in this order:
+V1 payment methods (final — Sprint 26), in this order:
 
 1. **EVC Plus** (Default)  
 2. **eDahab**  
-3. **Jeeb**  
-4. **Salaam Somali Bank**  
-5. **Bank Transfer**  
-6. **Debit / Credit Card** (Optional)  
-7. **Digital Wallet** (Future-ready placeholder)
+3. **Bank Transfer**  
+4. **Cash on Delivery** (store orders only)  
+5. **Cash on Service** (cleaning services only, when the service payment policy allows)
+
+Jeeb and Salaam Somali Bank are removed from V1. Cards (Visa/Mastercard), Apple Pay, Google Pay, Zaad, Sahal, and Premier Wallet are deferred to a future version. V1 has no online gateway: after method selection the customer sees payment instructions, and confirmation is admin-verified.
 
 ---
 
@@ -602,7 +602,7 @@ Prioritize Somali payment methods in this order:
 | --- | --- |
 | **Purpose** | Account hub |
 | **Components** | Authenticated User identity summary (email/phone where available); linked Customer Profile photo, full name, **Customer Code `CUS-######`** (read-only, e.g. `CUS-000001`), preferred language, member since, and quick stats (Bookings / Quotations / Orders); quick actions menu |
-| **Quick actions** | Edit Profile · Saved Addresses · Payment Methods · Notifications · Language · Security · Help Center · About Fayadhowr |
+| **Quick actions** | Edit Profile · Saved Addresses · Notifications · Language · Security · Help Center · About Fayadhowr (Payment Methods removed from V1 — saved instruments deferred) |
 | **Buttons** | Quick action rows; Logout (opens confirmation — never immediate) |
 | **Navigation** | Soft auth; all account sub-screens; Favorites / Histories via hub or menus |
 | **Loading** | Profile skeleton |
@@ -616,9 +616,9 @@ Editable Customer Profile fields: profile photo, full name, preferred language, 
 
 List + Add / Edit / Set Default / Mark Inactive. **Visible `Default` badge** on the current default address; **Active** / **Inactive** status badges. Non-default active addresses show **Set Default**. **Never permanently delete.**
 
-### Payment Methods (S-082B)
+### Payment Methods (S-082B) — Removed from V1
 
-Saved methods for EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card. **Visible `Default` badge** on the current default method; other methods show **Set Default**. Add + Change Default. **Payment history never deleted.**
+**Saved payment methods are removed from V1** (no saved instruments, no saved cards, no PCI storage — Sprint 26). The customer selects a payment method at pay time on the payment screen. **Payment history never deleted.** Saved instruments may return in a future version.
 
 ### Language (S-087B)
 
@@ -715,7 +715,7 @@ White surface, `#E5E7EB` border, 12–16 px radius, 12–16 px padding, Level 0�
 - Image, name, **mandatory visible price with unit** (e.g. `12.00 / Bottle`)
 - **Availability badge:** In Stock · Low Stock · Out of Stock
 - **Selling Price** with unit; Cost Price is never shown to customers
-- Creating a Store Order after Checkout preview does not decrease stock; stock decreases only after Payment is Paid
+- Creating a Store Order after Checkout preview does not decrease stock; prepaid stock decreases only after Payment is Paid (Cash on Delivery orders confirm immediately and decrease stock at confirmation)
 - Checkout preview validates cart/stock/address; Store Order is created by a dedicated Store Order step (`STO-…`)
 - Optional marketing badge: New · Best Seller · Popular · Limited Stock
 - Opens Product Details
@@ -1033,10 +1033,11 @@ Service Details → Book Now / Request Quotation → Auth? → Select Mode → P
 ## 12.1 Payment Screen
 
 - Entity context uses the unified Payment contract (`payable_type`, `payable_id`) for Service Orders and Store Orders.
-- Amount and currency (authoritative)
-- What is being paid (short summary)
-- Primary **Pay** launches a provider-neutral gateway handoff
-- No card PAN fields stored in Fayadhowr UI beyond provider requirements
+- Amount and currency (authoritative) — the server-calculated installment for the current payment stage (deposit / balance / full) per the service payment policy
+- What is being paid (short summary, including the stage — e.g., "Deposit (30%)" or "Remaining balance")
+- Method selection: V1 methods only (EVC Plus · eDahab · Bank Transfer · Cash on Service / Cash on Delivery as applicable)
+- Primary **Pay** shows the selected method's payment instructions (V1 has no online gateway; confirmation is admin-verified)
+- No card fields anywhere in V1 (cards deferred; no PCI storage)
 
 ## 12.2 Payment Success
 
@@ -1064,9 +1065,9 @@ Service Details → Book Now / Request Quotation → Auth? → Select Mode → P
 - Auth required (soft auth from Account tab)
 - Authenticated User identity summary (email/phone where available) plus linked Customer Profile photo, name, read-only **Customer Code `CUS-######`**, preferred language, and member since
 - Quick stats: Bookings / Quotations / Orders
-- Quick actions: Edit Profile, Saved Addresses, Payment Methods, Notifications, Language, Security, Help Center, About Fayadhowr
-- Logout opens confirmation (Cancel / Log Out) — never immediate
-- Addresses: visible **Default** badge + Active/Inactive; payment methods: visible **Default** badge + Set Default on others
+- Quick actions: Edit Profile, Saved Addresses, Notifications, Language, Security, Help Center, About Fayadhowr (Payment Methods removed from V1 — saved instruments deferred)
+- Logout opens confirmation (Cancel / Log Out) — never immediate; logout affects the **current device only** (multi-device login allowed; Logout All Devices deferred)
+- Addresses: visible **Default** badge + Active/Inactive
 - Addresses never permanently deleted (Inactive); payment history never deleted; language is app-wide
 - About Fayadhowr is a trust-building company profile (story, mission, vision, experience, certificates, awards, partners, stats, legal, version)
 - Suspended users see blocking banner for new transactions
@@ -1090,7 +1091,7 @@ Service Details → Book Now / Request Quotation → Auth? → Select Mode → P
 - Quotation Details: Latest Version indicator, timeline, **View Revision History**
 - Primary actions: **Accept Quotation** / **Discuss Quotation** (never Reject)
 - Discuss: messages + additional images/videos/PDFs on the same quotation
-- Pay after acceptance
+- Pay after acceptance per the snapshotted service payment policy: full before service, deposit (configured percentage) before scheduling with balance after completion, or pay after service
 
 ## 13.5 Logout
 
@@ -1432,9 +1433,11 @@ Desktop-first. Primary access: **Admin**. Linked modules for Sales/Accountant vi
 
 ### Booking statuses (Admin display — only; controlled dropdown)
 
-Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Cancelled  
+Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Closed · Cancelled  
 
 (`Rejected` is never used. No custom status values.)
+
+**Payment gates (Sprint 26):** a booking moves to **Scheduled** only after any required pre-payment (full or deposit, per the snapshotted service payment policy) is confirmed. **Closed** = service completed **and** all required payments confirmed; the admin confirming the final payment moves Completed → Closed.
 
 ### Priority (read-only)
 
@@ -1445,7 +1448,7 @@ High · Medium · Low — Fayadhowr color badges on list and details.
 | Block | Content |
 | --- | --- |
 | **Header** | Booking Number (read-only), service title, selected mode/subtype, status, **Priority** badge, **booking age**, customer/CUS, requested date/time window, confirmed start/end when available, **Assigned To** (manual informational name) |
-| **Status update** | Controlled dropdown limited to the eight approved statuses (no free-text) |
+| **Status update** | Controlled dropdown limited to the nine approved statuses (no free-text) |
 | **Customer Information** | Name, phone, email, CUS |
 | **Service Details** | Service, selected mode/subtype, optional Starting From price, duration, coverage city, linked quotation when applicable |
 | **Property Details** | Address / property snapshot |
@@ -1625,16 +1628,17 @@ Pending · Received · Confirmed · Failed · Refunded
 
 ### Supported payment methods (with icons)
 
+V1 methods (final — Sprint 26):
+
 | Method | Icon Label | Color |
 | --- | --- | --- |
 | EVC Plus | E | Green |
 | eDahab | eD | Orange |
-| Jeeb | J | Primary Blue |
-| Salaam Somali Bank | SB | Teal |
 | Bank Transfer | BT | Grey |
-| Debit / Credit Card | DC | Blue |
+| Cash on Delivery | CD | Teal |
+| Cash on Service | CS | Primary Blue |
 
-Icons displayed consistently in both list and details.
+Icons displayed consistently in both list and details. Jeeb and Salaam Somali Bank are removed from V1; cards and wallets are deferred.
 
 ## 22.3 Payment Details
 
@@ -2329,14 +2333,16 @@ Tax configuration is managed exclusively by the Tax Settings screen (§24.7).
 **Route:** `/admin/settings/payments`
 
 #### Payment Methods (Enable / Disable toggles)
+
+V1 methods (final — Sprint 26). Jeeb, Salaam Somali Bank, cards, and wallets are removed from V1 and have no toggles.
+
 | Method | Default State | Brand Colour |
 | --- | --- | --- |
 | EVC Plus | Enabled | #E8401A |
 | eDahab | Enabled | #00A651 |
-| Jeeb | Enabled | #1E3A5F |
-| Salaam Somali Bank | Disabled | #004B87 |
 | Bank Transfer | Enabled | #475569 |
-| Debit / Credit Card | Disabled | #1D4ED8 |
+| Cash on Delivery | Enabled | #0D9488 |
+| Cash on Service | Enabled | #1E3A5F |
 
 #### Additional Fields
 | Field | Type |
@@ -2345,7 +2351,7 @@ Tax configuration is managed exclusively by the Tax Settings screen (§24.7).
 
 Currency configuration is managed exclusively by the Currency Settings screen (§24.6).
 
-Note: No payment gateway integration yet. Payment methods are listed for customer reference only.
+Note: No payment gateway integration in V1. Method confirmation is admin-verified; per-service payment policy (payment type / deposit percentage) is configured on the service form, not here.
 
 ### 24.18 Security Settings
 
@@ -2507,7 +2513,7 @@ Under System Information, a Maintenance Mode section is displayed.
 12. Settings Audit Logs (full change-log view)
 13. Service Settings (hours, days, holidays, availability, lead time + Restore Defaults)
 14. Store Settings (categories, delivery fee, inventory warning + Restore Defaults)
-15. Payment Settings (6 methods with toggles, instructions + Restore Defaults)
+15. Payment Settings (5 V1 methods with toggles, instructions + Restore Defaults)
 16. Security Settings (password policy, session, audit, 2FA future + Restore Defaults)
 17. Roles & Permissions (read-only role matrix)
 18. System Information (version, database, backup, status, legal + Maintenance Mode future)

@@ -132,7 +132,7 @@ class InventoryStockUpdateTest extends TestCase
         $this->postWebhook($this->webhookPayload($payment->gateway_reference, 'success'))
             ->assertUnprocessable()
             ->assertJsonPath('error_code', 'VALIDATION_ERROR')
-            ->assertJsonPath('message', 'Insufficient stock to fulfill the paid store order.');
+            ->assertJsonPath('message', 'Insufficient stock to fulfill the store order.');
 
         $this->assertDatabaseHas('payments', [
             'id' => $payment->id,

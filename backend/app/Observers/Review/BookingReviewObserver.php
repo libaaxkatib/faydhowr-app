@@ -26,6 +26,12 @@ class BookingReviewObserver
             return;
         }
 
+        // Closed is a forward transition (service completed and all required
+        // payments confirmed — Sprint 26), not a reversion.
+        if ($booking->status === BookingStatus::Closed) {
+            return;
+        }
+
         $this->reviews->hideForBookingReversion($booking);
     }
 }

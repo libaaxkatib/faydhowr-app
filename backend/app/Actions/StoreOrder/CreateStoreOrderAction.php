@@ -2,23 +2,40 @@
 
 namespace App\Actions\StoreOrder;
 
+use App\Actions\Inventory\DeductStoreOrderStockAction;
 use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStage;
+use App\Enums\PaymentStatus;
 use App\Enums\ProductStatus;
 use App\Enums\StoreOrderStatus;
 use App\Models\Cart;
 use App\Models\CustomerAddress;
 use App\Models\CustomerProfile;
 use App\Models\StoreOrder;
+use App\Support\Payments\PaymentNumberGenerator;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
 class CreateStoreOrderAction
 {
-    public function __construct(private DashboardCacheInvalidatorInterface $dashboardCache) {}
+    public function __construct(
+        private DeductStoreOrderStockAction $deductStoreOrderStock,
+        private PaymentNumberGenerator $paymentNumbers,
+        private DashboardCacheInvalidatorInterface $dashboardCache,
+    ) {}
 
-    public function handle(CustomerProfile $profile, int $addressId, ?string $notes = null): StoreOrder
-    {
-        $storeOrder = DB::transaction(function () use ($profile, $addressId, $notes): StoreOrder {
+    public function handle(
+        CustomerProfile $profile,
+        int $addressId,
+        PaymentMethod $paymentMethod,
+        ?string $notes = null,
+    ): StoreOrder {
+        if ($paymentMethod === PaymentMethod::CashOnService) {
+            throw new DomainException('PAYMENT_METHOD_NOT_ALLOWED');
+        }
+
+        $storeOrder = DB::transaction(function () use ($profile, $addressId, $paymentMethod, $notes): StoreOrder {
             $profile = CustomerProfile::query()
                 ->whereKey($profile)
                 ->lockForUpdate()
@@ -90,12 +107,19 @@ class CreateStoreOrderAction
                 $subtotal = bcadd($subtotal, $lineTotal, 2);
             }
 
+            $isCashOnDelivery = $paymentMethod === PaymentMethod::CashOnDelivery;
+
+            // COD orders confirm immediately and stock decreases at
+            // confirmation; prepaid orders start pending_payment and do not
+            // decrease stock (API Design §7.6A).
             $storeOrder = StoreOrder::query()->create([
                 'store_order_number' => $this->nextStoreOrderNumber(),
                 'customer_profile_id' => $profile->id,
                 'cart_id' => $cart->id,
                 'customer_address_id' => $address->id,
-                'status' => StoreOrderStatus::PendingPayment,
+                'status' => $isCashOnDelivery
+                    ? StoreOrderStatus::Confirmed
+                    : StoreOrderStatus::PendingPayment,
                 'currency' => $currency,
                 'total_items' => count($lineSnapshots),
                 'total_quantity' => $totalQuantity,
@@ -119,11 +143,16 @@ class CreateStoreOrderAction
             }
 
             $storeOrder->statusHistories()->create([
-                'status' => StoreOrderStatus::PendingPayment,
+                'status' => $storeOrder->status,
                 'changed_by_type' => 'user',
                 'changed_by_id' => $profile->user_id,
                 'notes' => null,
             ]);
+
+            if ($isCashOnDelivery) {
+                $this->deductStoreOrderStock->handle($storeOrder);
+                $this->createCashOnDeliveryPayment($profile, $storeOrder);
+            }
 
             $cart->items()->delete();
 
@@ -133,6 +162,31 @@ class CreateStoreOrderAction
         $this->dashboardCache->invalidate();
 
         return $storeOrder;
+    }
+
+    /**
+     * COD orders carry a pending full-stage payment from creation; it is
+     * confirmed by an admin after delivery (API Design §7.6A).
+     */
+    private function createCashOnDeliveryPayment(CustomerProfile $profile, StoreOrder $storeOrder): void
+    {
+        $payment = $storeOrder->payments()->create([
+            'payment_number' => $this->paymentNumbers->nextPaymentNumber(),
+            'customer_profile_id' => $profile->id,
+            'status' => PaymentStatus::Pending,
+            'payment_method' => PaymentMethod::CashOnDelivery,
+            'payment_stage' => PaymentStage::Full,
+            'idempotency_key' => 'cod-'.$storeOrder->store_order_number,
+            'amount' => $storeOrder->subtotal,
+            'currency' => $storeOrder->currency,
+        ]);
+
+        $payment->statusHistories()->create([
+            'status' => PaymentStatus::Pending,
+            'changed_by_type' => 'user',
+            'changed_by_id' => $profile->user_id,
+            'notes' => null,
+        ]);
     }
 
     private function nextStoreOrderNumber(): string

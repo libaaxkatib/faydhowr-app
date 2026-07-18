@@ -59,6 +59,7 @@ use App\Http\Controllers\Api\V1\Catalog\ServiceReviewController as CatalogServic
 use App\Http\Controllers\Api\V1\Checkout\CheckoutController;
 use App\Http\Controllers\Api\V1\Customer\CustomerAddressController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
+use App\Http\Controllers\Api\V1\Devices\DeviceController;
 use App\Http\Controllers\Api\V1\Favorites\FavoriteController;
 use App\Http\Controllers\Api\V1\GoodsReceipt\GoodsReceiptController;
 use App\Http\Controllers\Api\V1\Notification\NotificationController;
@@ -583,6 +584,10 @@ Route::prefix('v1/uploads')
             ->whereUuid('uuid')
             ->name('api.v1.uploads.destroy');
     });
+
+Route::post('v1/devices', [DeviceController::class, 'store'])
+    ->middleware('auth:sanctum')
+    ->name('api.v1.devices.store');
 
 Route::get('v1/customer/profile', [CustomerProfileController::class, 'show'])
     ->middleware('auth:sanctum')

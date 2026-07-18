@@ -44,6 +44,7 @@ class StoreOrderTest extends TestCase
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
             ->postJson('/api/v1/store-orders', [
                 'address_id' => $address->id,
+                'payment_method' => 'evc_plus',
                 'notes' => 'Please call on arrival',
             ]);
 
@@ -107,6 +108,7 @@ class StoreOrderTest extends TestCase
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
             ->postJson('/api/v1/store-orders', [
                 'address_id' => $address->id,
+                'payment_method' => 'evc_plus',
             ])
             ->assertUnprocessable()
             ->assertJsonPath('error_code', 'CART_EMPTY');
@@ -127,6 +129,7 @@ class StoreOrderTest extends TestCase
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
             ->postJson('/api/v1/store-orders', [
                 'address_id' => 999999,
+                'payment_method' => 'evc_plus',
             ])
             ->assertNotFound()
             ->assertJsonPath('error_code', 'ADDRESS_NOT_FOUND');
@@ -153,6 +156,7 @@ class StoreOrderTest extends TestCase
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
             ->postJson('/api/v1/store-orders', [
                 'address_id' => $address->id,
+                'payment_method' => 'evc_plus',
             ])
             ->assertUnprocessable()
             ->assertJsonPath('error_code', 'VALIDATION_ERROR')
@@ -293,6 +297,7 @@ class StoreOrderTest extends TestCase
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
             ->postJson('/api/v1/store-orders', [
                 'address_id' => 1,
+                'payment_method' => 'evc_plus',
             ])
             ->assertNotFound()
             ->assertJsonPath('error_code', 'CUSTOMER_PROFILE_NOT_FOUND');

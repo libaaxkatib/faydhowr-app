@@ -7,7 +7,6 @@ use App\Actions\Payment\GetCustomerPaymentAction;
 use App\Actions\Payment\InitializePaymentAction;
 use App\Actions\Payment\ListCustomerPaymentsAction;
 use App\Actions\Payment\ProcessPaymentAction;
-use App\Actions\StoreOrder\InitializeStoreOrderPaymentAction;
 use App\Enums\PaymentStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Payment\InitializePaymentRequest;
@@ -135,14 +134,12 @@ class PaymentController extends Controller
         InitializePaymentRequest $request,
         GetCustomerProfileAction $getCustomerProfile,
         InitializePaymentAction $initializePayment,
-        InitializeStoreOrderPaymentAction $initializeStoreOrderPayment,
     ): JsonResponse {
         /** @var User $user */
         $user = $request->user();
 
-        $validated = $request->validated();
-        $isStoreOrderPayment = array_key_exists('store_order_id', $validated)
-            && $validated['store_order_id'] !== null;
+        $data = $request->toData();
+        $isStoreOrderPayment = $data->payableType === 'store_order';
 
         try {
             $profile = $getCustomerProfile->handle($user);
@@ -151,9 +148,7 @@ class PaymentController extends Controller
                 return $this->profileNotFound();
             }
 
-            $payment = $isStoreOrderPayment
-                ? $initializeStoreOrderPayment->handle($profile, $validated)
-                : $initializePayment->handle($profile, $validated);
+            $payment = $initializePayment->handle($profile, $data);
         } catch (ModelNotFoundException) {
             return ApiResponse::error(
                 $isStoreOrderPayment ? 'Store order not found.' : 'Order not found.',

@@ -7,6 +7,7 @@ use App\Actions\StoreOrder\CancelStoreOrderAction;
 use App\Actions\StoreOrder\CreateStoreOrderAction;
 use App\Actions\StoreOrder\GetCustomerStoreOrderAction;
 use App\Actions\StoreOrder\ListCustomerStoreOrdersAction;
+use App\Enums\PaymentMethod;
 use App\Enums\StoreOrderStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\StoreOrder\CancelStoreOrderRequest;
@@ -94,6 +95,7 @@ class StoreOrderController extends Controller
             $storeOrder = $createStoreOrder->handle(
                 $profile,
                 (int) $request->validated('address_id'),
+                PaymentMethod::from((string) $request->validated('payment_method')),
                 $request->validated('notes'),
             );
         } catch (DomainException $exception) {

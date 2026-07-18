@@ -5,6 +5,7 @@ namespace Tests\Feature\Api\V1\Quotation;
 use App\Enums\BookingStatus;
 use App\Enums\QuotationStatus;
 use App\Enums\ServiceMode;
+use App\Enums\ServicePaymentType;
 use App\Models\Booking;
 use App\Models\CustomerProfile;
 use App\Models\Quotation;
@@ -56,6 +57,115 @@ class AcceptQuotationTest extends TestCase
         $this->assertDatabaseHas('bookings', [
             'id' => $booking->id,
             'status' => 'submitted',
+        ]);
+    }
+
+    public function test_acceptance_snapshots_the_full_before_service_payment_policy(): void
+    {
+        $user = User::factory()->create();
+        $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
+        $booking = $this->createBooking($profile, BookingStatus::Submitted);
+        $quotation = $this->createQuotation($profile, $booking, QuotationStatus::QuotationReady);
+
+        $response = $this
+            ->withToken($user->createToken('customer-mobile')->plainTextToken)
+            ->postJson("/api/v1/quotations/{$quotation->id}/accept");
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.payment_type', 'full_before_service')
+            ->assertJsonPath('data.deposit_percentage', null)
+            ->assertJsonPath('data.deposit_amount', null)
+            ->assertJsonPath('data.remaining_amount', null);
+
+        $this->assertDatabaseHas('quotations', [
+            'id' => $quotation->id,
+            'payment_type' => 'full_before_service',
+            'deposit_percentage' => null,
+            'deposit_amount' => null,
+            'remaining_amount' => null,
+        ]);
+    }
+
+    public function test_acceptance_snapshots_the_deposit_payment_policy(): void
+    {
+        $user = User::factory()->create();
+        $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
+        $booking = $this->createBooking(
+            $profile,
+            BookingStatus::Submitted,
+            ServicePaymentType::Deposit,
+            depositPercentage: 30,
+        );
+        $quotation = $this->createQuotation($profile, $booking, QuotationStatus::QuotationReady);
+
+        $response = $this
+            ->withToken($user->createToken('customer-mobile')->plainTextToken)
+            ->postJson("/api/v1/quotations/{$quotation->id}/accept");
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.payment_type', 'deposit')
+            ->assertJsonPath('data.deposit_percentage', 30)
+            ->assertJsonPath('data.deposit_amount', '28.50')
+            ->assertJsonPath('data.remaining_amount', '66.50');
+
+        $this->assertDatabaseHas('quotations', [
+            'id' => $quotation->id,
+            'payment_type' => 'deposit',
+            'deposit_percentage' => 30,
+            'deposit_amount' => 28.50,
+            'remaining_amount' => 66.50,
+        ]);
+    }
+
+    public function test_acceptance_snapshots_the_pay_after_service_payment_policy(): void
+    {
+        $user = User::factory()->create();
+        $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
+        $booking = $this->createBooking($profile, BookingStatus::Submitted, ServicePaymentType::PayAfterService);
+        $quotation = $this->createQuotation($profile, $booking, QuotationStatus::QuotationReady);
+
+        $response = $this
+            ->withToken($user->createToken('customer-mobile')->plainTextToken)
+            ->postJson("/api/v1/quotations/{$quotation->id}/accept");
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.payment_type', 'pay_after_service')
+            ->assertJsonPath('data.deposit_percentage', null)
+            ->assertJsonPath('data.deposit_amount', null)
+            ->assertJsonPath('data.remaining_amount', '95.00');
+    }
+
+    public function test_the_payment_snapshot_does_not_change_when_the_service_policy_changes_later(): void
+    {
+        $user = User::factory()->create();
+        $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
+        $booking = $this->createBooking(
+            $profile,
+            BookingStatus::Submitted,
+            ServicePaymentType::Deposit,
+            depositPercentage: 30,
+        );
+        $quotation = $this->createQuotation($profile, $booking, QuotationStatus::QuotationReady);
+
+        $this
+            ->withToken($user->createToken('customer-mobile')->plainTextToken)
+            ->postJson("/api/v1/quotations/{$quotation->id}/accept")
+            ->assertOk();
+
+        $booking->service->update([
+            'payment_type' => ServicePaymentType::Deposit,
+            'deposit_percentage' => 50,
+        ]);
+
+        $this->assertDatabaseHas('quotations', [
+            'id' => $quotation->id,
+            'payment_type' => 'deposit',
+            'deposit_percentage' => 30,
+            'deposit_amount' => 28.50,
+            'remaining_amount' => 66.50,
         ]);
     }
 
@@ -147,8 +257,12 @@ class AcceptQuotationTest extends TestCase
         ]);
     }
 
-    private function createBooking(CustomerProfile $profile, BookingStatus $status): Booking
-    {
+    private function createBooking(
+        CustomerProfile $profile,
+        BookingStatus $status,
+        ServicePaymentType $paymentType = ServicePaymentType::FullBeforeService,
+        ?int $depositPercentage = null,
+    ): Booking {
         $category = ServiceCategory::query()->create([
             'name' => fake()->unique()->words(2, true),
             'slug' => fake()->unique()->slug(2),
@@ -163,6 +277,8 @@ class AcceptQuotationTest extends TestCase
             'requires_address' => true,
             'is_active' => true,
             'sort_order' => 0,
+            'payment_type' => $paymentType,
+            'deposit_percentage' => $depositPercentage,
         ]);
         $mode = ServiceModeOption::query()->create([
             'service_id' => $service->id,

@@ -111,7 +111,7 @@ Exact numeric targets shall be defined by product leadership after baseline anal
 
 - Only authenticated customers may complete bookings, quotation requests, store checkouts, and payments.
 - Prices shown to customers must match the authoritative backend price at confirmation time.
-- Quotation-based services cannot be paid until a valid quote is accepted by the customer (unless policy allows deposits earlier — see Quotation Workflow).
+- Quotation-based services cannot be paid until a valid quote is accepted by the customer. Payment timing after acceptance follows the **service payment policy** (`full_before_service`, `deposit`, `pay_after_service`) — see Quotation Workflow and §23.
 - Cancelation and refund eligibility follow configured business policies enforced by the backend.
 - Admins are the source of truth for catalog availability, schedule capacity, quote issuance, and fulfillment status.
 
@@ -259,7 +259,7 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | --- | --- | --- |
 | FR-010 | The system shall present service categories and service listings with name, description, media, optional Starting From price, and both **Book Now** and **Request Quotation** options. | Must |
 | FR-010A | Public services catalog APIs shall be guest-accessible (no authentication) with per-IP rate limiting of 60 requests per minute per IP. The public identifier for a service is its `slug`; numeric IDs remain internal. Catalog listings shall expose only active, non-deleted services; the categories listing shall return only categories having at least one active service. Sorting is limited to `display_order` (default) and `name`. Pagination defaults to 20 items per page with a maximum of 100. Service images are returned as `thumbnail`, `hero_image`, and `gallery[]` using absolute URLs only. Catalog payloads shall not include `is_favorite` — it appears only in authenticated customer-specific responses (Favorites Module, §22). Catalog payloads shall not include `before_after` or `faq`; these fields are introduced when their own modules are implemented. | Must |
-| FR-010B | The system shall ship an Official V1 Services Catalog Seeder provisioning the official catalog: service categories, services, service modes, service subtypes, and coverage cities. The seeder uses official placeholder images for `thumbnail`, `hero_image`, and `gallery` until production assets are available. The catalog is seeder-managed until Admin Services CRUD is delivered (Sprint 29). | Must |
+| FR-010B | The system shall ship an Official V1 Services Catalog Seeder provisioning the official catalog: service categories, services, service modes, service subtypes, and coverage cities. The seeder uses official placeholder images for `thumbnail`, `hero_image`, and `gallery` until production assets are available. The catalog is seeder-managed until Admin Services CRUD is delivered (Sprint 29); the seeder also provisions each service's payment policy (`payment_type`, `deposit_percentage` — §23.4). | Must |
 | FR-011 | The system shall present store categories and product listings with name, description, media, Selling Price, and availability (In Stock / Low Stock / Out of Stock). V1 categories: Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, Air Fresheners. | Must |
 | FR-012 | The system shall support search and/or filter of services and products. | Should |
 | FR-012A | Service search shall match against service name and short description only, and shall require a minimum query length of 2 characters. Service listings shall support filtering by category, mode (`one_time` / `monthly_contract`), and coverage city. | Must |
@@ -279,8 +279,8 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | FR-026 | Every product shall have a unique SKU, Selling Price, Cost Price, Currency, Current Stock, Low Stock Threshold, and Status. Selling Price is customer-facing; Cost Price is for inventory valuation and profit reporting. | Must |
 | FR-027 | Products may optionally define quantity tier pricing for Selling Price; when configured, tiers are displayed and applied by quantity. | Should |
 | FR-028 | Checkout shall capture a Contact Phone Number for delivery coordination (prefill from profile when available). | Must |
-| FR-029 | Payment method presentation shall prioritize Somali methods: EVC Plus (default), eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, then optional Card and future Digital Wallet. | Must |
-| FR-029A | Store Orders shall reuse the Unified Payment Module and follow Order lifecycle: `pending_payment` → `confirmed` → `processing` → `completed` / `cancelled`. | Must |
+| FR-029 | Payment method presentation shall offer exactly the V1 methods: EVC Plus (default), eDahab, Bank Transfer, and Cash on Delivery (store orders) / Cash on Service (cleaning services, per service payment policy). Jeeb and Salaam Somali Bank are removed from V1. Cards, Apple Pay, Google Pay, Zaad, Sahal, Premier Wallet, and any online gateway integration are deferred (§23). | Must |
+| FR-029A | Store Orders shall reuse the Unified Payment Module and follow the Order lifecycle: `pending_payment` → `confirmed` → `preparing` → `out_for_delivery` → `delivered` → (`payment_pending` for Cash on Delivery) → `completed` / `cancelled`. Prepaid methods require confirmed payment before `confirmed`; Cash on Delivery confirms the order at checkout and enters `payment_pending` after delivery until an admin confirms cash collection (§23.3). | Must |
 
 ### 5.3A Inventory
 
@@ -354,7 +354,7 @@ Requirements are identified as **FR-xxx**. Priority: **Must** / **Should** / **C
 | FR-073 | The customer shall be able to manage notification preferences (Push, Email, and category toggles). | Must |
 | FR-074 | The customer shall be able to edit profile photo and full name on `customer_profiles`, and email and phone on `users`. Customer Reference Number remains read-only on `customer_profiles`. | Must |
 | FR-075 | The customer shall be able to select preferred language: Somali, English, or Arabic; selection updates the entire application. | Must |
-| FR-076 | The customer shall be able to manage saved payment methods (add / set default) for EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, and Debit/Credit Card. Payment **history** is never deleted by the customer. | Must |
+| FR-076 | **Saved payment methods are removed from V1** (no saved instruments, no saved cards, no PCI storage). Customers select a payment method at pay time only. Payment **history** is never deleted by the customer. Saved payment methods are deferred to a future version (§23.7). | — |
 | FR-077 | Security screens shall support Change Password, optional Change PIN, and placeholders for Two-Factor Authentication and Active Devices. | Should |
 | FR-078 | Help Center shall provide FAQs and Contact Fayadhowr channels (WhatsApp, Phone, Email). About Fayadhowr shall present a company profile (story, mission, vision, years of experience, certificates & licenses, awards, partners & clients, statistics) plus Privacy Policy, Terms & Conditions, and app version. | Must |
 | FR-079 | Logout shall require confirmation (Cancel / Log Out) and must never log the customer out immediately on first tap. | Must |
@@ -769,7 +769,10 @@ Approved Admin Panel booking statuses (display labels):
 - `Scheduled`
 - `In Progress`
 - `Completed`
+- `Closed`
 - `Cancelled`
+
+**`Closed`** means the service is completed **and** all required payments for the booking are completed (per the service payment policy — §23.4). Bookings for `pay_after_service` and `deposit` services remain `Completed` until the final payment is confirmed by an admin, then become `Closed`.
 
 Notes:
 
@@ -817,9 +820,12 @@ Support assessment/review pricing for every service by allowing customers to cho
 8. Customer reviews the latest quotation (Latest Version / current revision clearly indicated).
 9. Customer primary actions: **Accept Quotation** or **Discuss Quotation**.
 10. If **Discuss Quotation**: status becomes **Under Discussion**. Customer and team may exchange messages and additional files; team may update the quotation creating **v2, v3…** on the **same** quotation (never a separate quotation). Each update notifies the customer. Discussion **never closes** the quotation.
-11. If **Accept Quotation** (latest revision only, while not Expired/Cancelled): status becomes **Accepted**; system unlocks **Payment**.
-12. Customer pays according to quote terms (full or deposit). Linked payment/invoice references are recorded.
-13. Operations fulfills; timeline continues through service completion.
+11. If **Accept Quotation** (latest revision only, while not Expired/Cancelled): status becomes **Accepted**; the system snapshots the service payment policy onto the quotation (`payment_type`, `deposit_percentage`, `deposit_amount`, `remaining_amount`) and unlocks **Payment** according to that policy.
+12. Customer pays according to the snapshotted service payment policy (§23.4):
+    - `full_before_service` — the full quotation total is payable; the booking becomes **Scheduled** only after full payment is confirmed.
+    - `deposit` — the customer pays `quotation_total × deposit_percentage`; the booking becomes **Scheduled** only after the deposit payment is confirmed. After service completion, the remaining balance becomes payable; the booking becomes **Closed** after an admin confirms the final payment.
+    - `pay_after_service` — no payment is required before scheduling; the full amount becomes payable after service completion and the booking becomes **Closed** after an admin confirms the payment.
+13. Operations fulfills; timeline continues through service completion and payment closure.
 
 ### 10.5 Alternate / Exception Flows
 
@@ -904,8 +910,8 @@ Provide one gateway-independent payment lifecycle for Service Orders and Store O
 
 | Entity | Payment V1 treatment |
 | --- | --- |
-| Service Order | Payable through the unified Payment module |
-| Store Order | Future payable type supported without redesign |
+| Service Order | Payable through the unified Payment module; installments follow the service payment policy (§23.4) |
+| Store Order | Payable through the unified Payment module; Cash on Delivery follows the COD lifecycle (§23.3) |
 
 ### 11.3 Main Flow
 
@@ -933,15 +939,29 @@ Provide one gateway-independent payment lifecycle for Service Orders and Store O
 - `Failed`
 - `Cancelled`
 
+### 11.4A Payment Stage (V1)
+
+Every payment record carries a **`payment_stage`**: `deposit`, `balance`, or `full`. The stage determines the server-calculated installment amount:
+
+| Stage | Amount |
+| --- | --- |
+| `full` | Full payable total |
+| `deposit` | `quotation_total × deposit_percentage` (snapshotted at acceptance) |
+| `balance` | `remaining_amount` (snapshotted at acceptance), payable after service completion |
+
+### 11.4B Offline Methods (V1)
+
+Bank Transfer, Cash on Delivery, and Cash on Service are **offline methods**: no gateway handoff and no provider webhook exist. Their payments remain `Pending` until an **admin confirms** receipt/collection, which moves them to `Paid` with full audit (who confirmed, when). EVC Plus and eDahab are V1 methods whose confirmation is likewise admin-verified until gateway integration (deferred) exists.
+
 ### 11.5 Rules & Safeguards
 
-- Amount charged must equal backend-calculated payable amount at initiation time.
+- The amount charged must always equal the server-calculated **installment** according to `payment_stage` and the service payment policy (`payment_type`) — never a client-supplied amount.
 - Payment records and one-or-more `payment_transactions` must be unique and reconcilable.
 - Webhook/callback handling must be idempotent.
 - Repeated callbacks for the same successful gateway transaction must never create duplicate payment, transaction, history, or order state transitions.
 - Customers must never mark a payment successful from the client alone.
 - Every successful payment produces one receipt with `RCPT-YYYY-######`; receipt PDF generation is outside V1.
-- Gateway adapters must remain provider-neutral for EVC Plus, Zaad, Sahal, Stripe, PayPal, and future providers.
+- Gateway adapters must remain provider-neutral so future providers can be added without redesign; V1 ships with no online gateway integration (all confirmations are admin-verified/offline — §11.4B).
 
 ### 11.6 Failure & Reconciliation
 
@@ -1005,7 +1025,6 @@ Provide a secure personal space for the authenticated `users` identity, linked `
 - `users`: phone, email, password/credential metadata, provider linkage, verification flags, account status, and last-login metadata
 - `customer_profiles`: name, avatar, Customer Code `CUS-######` (system-assigned, read-only, e.g. `CUS-000001`), preferred language, classification, and notification preferences
 - Addresses / service locations (`is_active`; never customer hard-deleted)
-- Saved payment methods (masked; distinct from payment history ledger)
 - Notification preferences
 - Account eligibility is enforced on `users`; Customer classification is held by `customer_profiles`
 - Activity summaries: orders, bookings, quotations, payments
@@ -1018,7 +1037,6 @@ Provide a secure personal space for the authenticated `users` identity, linked `
 | View profile | Customer reads current personal data |
 | Update profile | Customer edits allowed fields with validation |
 | Manage addresses | Add / edit / set default; mark **Inactive** (never hard-delete) |
-| Payment methods | Add / set default for Somali-first methods; history never customer-deleted |
 | Language | Somali · English · Arabic (app-wide) |
 | Security | Change password; optional PIN; 2FA & Active Devices placeholders; re-auth for sensitive changes |
 | Help / About | FAQ & Contact Fayadhowr; full company profile (story, mission, vision, experience, trust blocks, stats); Privacy; Terms; app version |
@@ -1032,7 +1050,7 @@ Provide a secure personal space for the authenticated `users` identity, linked `
 - Suspended customers cannot create new bookings, quotes, or orders.
 - Personal data access is strictly owner-scoped on customer APIs.
 - Addresses are never permanently deleted by customers; mark Inactive instead.
-- Payment history is never deleted by customers.
+- Payment history is never deleted by customers. Saved payment methods do not exist in V1 (deferred — §23.7).
 - Preferred language (Somali / English / Arabic) updates the entire application UI.
 
 ---
@@ -1048,13 +1066,13 @@ The Admin Panel is the operational control plane for Fayadhowr. It is **not** pa
 | Domain | Responsibilities |
 | --- | --- |
 | **Dashboard** | Executive snapshot: KPIs, business monitoring, customer service metrics, revenue analytics, live activity |
-| **Catalog — Services** | Create/edit services, Starting From pricing information, media, schedule rules, visibility, and both customer action paths |
+| **Catalog — Services** | Create/edit services, Starting From pricing information, media, schedule rules, visibility, both customer action paths, and the per-service payment policy (`payment_type`, `deposit_percentage` — §23.4) |
 | **Catalog — Store** | Create/edit products, categories, images, Selling Price, Cost Price, Current Stock display, Low Stock Threshold, visibility |
 | **Inventory** | Suppliers, Purchase Orders, Goods Receipts, Stock Ledger, Stock Adjustments, Low Stock alerts |
 | **Bookings** | List/filter bookings, assign, update status, add internal notes |
 | **Quotations** | Review requests, issue/revise quotes, set validity and terms |
 | **Orders** | Fulfill Store Orders, update processing/completion status |
-| **Payments** | View transactions, reconcile exceptions (refunds outside V1) |
+| **Payments** | View transactions, confirm offline payments (bank transfer / cash — V1 admin verification), reconcile exceptions (refunds outside V1) |
 | **Customers** | Search/filter `customer_profiles` with joined `users` contact data; view profile, business summary, timeline, linked records; internal staff notes; Inactive/suspend per policy — never permanent delete |
 | **Notifications** | Templates, manual broadcast (optional), delivery diagnostics |
 | **Settings** | Business info, currency, payment provider config, roles/permissions |
@@ -1327,7 +1345,7 @@ The system shall allow Admin to configure: Booking Working Hours (start/end), Wo
 The system shall allow Admin to manage: Product Categories (Cleaning Chemicals, Cleaning Tools, Cleaning Accessories, PPE, Air Fresheners), Default Delivery Fee (currency input), Inventory Warning Level / Low Stock Threshold (dashboard alerts; Email/SMS outside V1). Tax configuration is managed exclusively by Tax Settings (FR-091.6).
 
 #### FR-091.16 Payment Settings
-The system shall allow Admin to enable/disable the following payment methods via toggles: EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card. Additionally: Payment Instructions (textarea). Currency configuration is managed exclusively by Currency Settings (FR-091.5). No payment gateway integration is included in this release.
+The system shall allow Admin to enable/disable the V1 payment methods via toggles: EVC Plus, eDahab, Bank Transfer, Cash on Delivery (store orders), Cash on Service (cleaning services). Additionally: Payment Instructions (textarea). Currency configuration is managed exclusively by Currency Settings (FR-091.5). No payment gateway integration is included in this release. Jeeb, Salaam Somali Bank, cards, and wallets are not part of V1 (§23.7).
 
 #### FR-091.17 Security Settings
 The system shall allow Admin to configure: Minimum Password Length (6/8/10/12), Password Complexity (letters/letters+numbers/letters+numbers+symbols), Password Expiry (never/30/90/180 days), Session Timeout (15min/30min/1hr/4hr), Login Audit Logging (toggle). Two-Factor Authentication shall be displayed as a future feature, clearly labelled, with disabled/greyed-out toggles.
@@ -1690,6 +1708,126 @@ Each service maintains a cached **`favorites_count`**, updated on favorite add, 
 - BR-F07: Services carry a cached `favorites_count`, maintained on add/remove/automatic removal; it is not a public catalog field.
 - BR-F08: No favorites limit; pagination only. Favorites endpoints are rate limited to 30 requests/minute/customer.
 - BR-F09: Favorites produce no activity-log events and have no admin management in V1.
+
+---
+
+## 23. Payment Methods & Customer Devices Module
+
+### 23.1 Objective
+
+Define the final V1 payment method set, per-service payment policies, the Cash on Delivery order lifecycle, payment stages, customer device registration for future push notifications, and multi-device authentication rules.
+
+### 23.2 Payment Methods (V1)
+
+#### FR-095.1 Supported Methods
+
+V1 supports exactly these payment methods:
+
+| Method | Applies to |
+| --- | --- |
+| EVC Plus (default) | Store orders and cleaning services |
+| eDahab | Store orders and cleaning services |
+| Bank Transfer | Store orders and cleaning services |
+| Cash on Delivery | Store products only |
+| Cash on Service | Cleaning services only (per service payment policy) |
+
+#### FR-095.2 Removed from V1
+
+Jeeb, Salaam Somali Bank, Visa, Mastercard, Apple Pay, Google Pay, Zaad, Sahal, and Premier Wallet are **removed from V1 completely**. No saved payment methods, no saved cards, no PCI storage.
+
+### 23.3 Store Products Payment (COD Lifecycle)
+
+#### FR-095.3 Checkout Flow
+
+Store purchase flow: Cart → Checkout → **Payment Method Selection** → Order Confirmed.
+
+- Prepaid methods (EVC Plus, eDahab, Bank Transfer): the order remains `pending_payment` until payment is confirmed, then becomes `confirmed`.
+- Cash on Delivery: selecting COD confirms the order immediately; the payment is recorded and remains pending until collected.
+
+#### FR-095.4 COD Order Status Flow
+
+```text
+Confirmed → Preparing → Out for Delivery → Delivered
+        → Payment Pending → (Admin Confirms Payment) → Completed
+```
+
+A COD order is never `completed` until an admin confirms cash collection.
+
+### 23.4 Cleaning Services Payment Policy
+
+#### FR-095.5 Per-Service Policy
+
+Each service stores its own payment policy:
+
+- `payment_type` — one of `full_before_service`, `deposit`, `pay_after_service`.
+- `deposit_percentage` — required **only** when `payment_type = deposit`; allowed range **1–99**; NULL otherwise. Configurable by the administrator per individual service (e.g., Deep Cleaning 30%, Office Cleaning 50%).
+
+#### FR-095.6 Quotation Acceptance & Payment Gates
+
+```text
+Quotation Accepted
+   → (deposit) customer pays quotation_total × deposit_percentage
+   → Deposit Payment Confirmed
+   → Booking Scheduled
+   → Service Completed
+   → Remaining Balance Payable
+   → Admin Confirms Final Payment
+   → Booking Closed
+```
+
+- `full_before_service`: full payment confirmed before the booking becomes Scheduled.
+- `deposit`: deposit confirmed before Scheduled; balance payable after completion.
+- `pay_after_service`: no pre-payment; full amount payable after completion.
+- **Booking `Closed`** = service completed **and** all required payments completed.
+
+#### FR-095.7 Snapshot Rules
+
+When a quotation is accepted, the system snapshots onto the quotation: `payment_type`, `deposit_percentage`, `deposit_amount`, `remaining_amount`. Future changes to the service's payment policy **must not** change already-accepted quotations.
+
+#### FR-095.8 Payment Stages
+
+Every payment record carries `payment_stage` ∈ {`deposit`, `balance`, `full`}. The payment amount must always equal the server-calculated installment according to `payment_stage` and the snapshotted `payment_type` (§11.4A).
+
+### 23.5 Customer Devices
+
+#### FR-095.9 Device Registration
+
+The system shall register customer devices to support **future** push notifications. Notification sending is out of this module's scope.
+
+- Ownership: devices belong to **`users`** (authentication principal), not `customer_profiles`.
+- Stored fields only: `device_id` (client-generated installation identifier), `user_id`, `platform`, `push_token`, `app_version`, `last_seen_at`, `is_active`.
+- Explicitly **not** stored: device name, model, GPS, IP history, battery, trusted-device flags.
+- Registration is an authenticated upsert keyed by (`user_id`, `device_id`); the push token is updatable.
+- Invalid/expired tokens are deactivated, never failing business transactions.
+
+### 23.6 Authentication (Multi-Device)
+
+#### FR-095.10 Sessions
+
+- Multi-device login is **allowed**: one customer account may hold valid tokens on multiple devices simultaneously.
+- Logout revokes the **current device token only**; other devices stay signed in.
+- **Logout All Devices** is deferred to a future version.
+- Password reset **continues to revoke all tokens** for the account (security behavior, unchanged).
+
+### 23.7 Deferred (Future Versions)
+
+- Payment gateway integration (any online provider)
+- Saved payment methods / saved cards / PCI storage
+- Refunds, disputes, chargebacks
+- Multiple currencies
+- Recurring payments
+- Customer device management screen (Active Devices remains a placeholder)
+- Logout All Devices
+
+### 23.8 Business Rules
+
+- BR-P01: Only the five V1 methods are selectable; admin can toggle each via Payment Settings (FR-091.16).
+- BR-P02: COD applies to store orders only; Cash on Service applies to cleaning services only.
+- BR-P03: Payment amounts are always server-calculated installments (`payment_stage` × snapshotted policy); clients never set amounts.
+- BR-P04: Offline confirmations (bank transfer, cash) are admin-verified with full audit.
+- BR-P05: Accepted quotations are immutable with respect to later service payment-policy changes (snapshot rule).
+- BR-P06: A booking is `Closed` only when the service is completed and all required payments are confirmed.
+- BR-P07: Devices are user-owned, minimal-field records for future push delivery only.
 
 ---
 

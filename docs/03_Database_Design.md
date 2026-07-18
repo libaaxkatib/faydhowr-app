@@ -109,7 +109,7 @@ Most transactional tables include:
 
 | Module | Responsibility | Primary Tables |
 | --- | --- | --- |
-| **User Management** | Mobile user identity, customer profiles, addresses, saved payment methods, devices, auth recovery (reset tokens + phone OTPs); customer notes, attachments, activity logs (Customer Management); admin operators & Hybrid RBAC | `users`, `customer_profiles`, `customer_addresses`, `customer_payment_methods`, `customer_devices`, `customer_notes`, `customer_attachments`, `customer_activity_logs`, `password_reset_tokens`, `phone_otps`, `admins`, `permissions`, `admin_role_permissions`, `admin_permissions` |
+| **User Management** | Mobile user identity, customer profiles, addresses, registered devices, auth recovery (reset tokens + phone OTPs); customer notes, attachments, activity logs (Customer Management); admin operators & Hybrid RBAC. Saved payment methods are removed from V1 (§3.1.4) | `users`, `customer_profiles`, `customer_addresses`, `customer_devices`, `customer_notes`, `customer_attachments`, `customer_activity_logs`, `password_reset_tokens`, `phone_otps`, `admins`, `permissions`, `admin_role_permissions`, `admin_permissions` |
 | **Service Management** | Official services, modes, coverage, media, and schedule constraints | `service_categories`, `services`, `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates` |
 | **Store Management** | Product catalog, categories, images, cart, store orders | `product_categories`, `products`, `product_images`, `product_price_tiers`, `carts`, `cart_items`, `store_orders`, `store_order_items`, `store_order_status_histories` |
 | **Inventory Management** | Suppliers, purchase orders, goods receipts, stock ledger, adjustments, low-stock | `suppliers`, `purchase_orders`, `purchase_order_items`, `purchase_order_status_histories`, `goods_receipts`, `goods_receipt_items`, `stock_ledgers`, `stock_adjustments` |
@@ -145,7 +145,8 @@ Most transactional tables include:
 - Store owns catalog, categories, product images, cart, checkout, Store Orders, and Unified Payment integration.
 - Store does **not** own suppliers, purchase orders, goods receipts, stock ledger, or stock adjustments.
 - Every product has **Selling Price** (customer-facing) and **Cost Price** (inventory/accounting).
-- Normal path: cart → Store Order (`pending_payment`) → Payment → on `paid`, confirm order and decrease stock.
+- Normal path (prepaid): cart → checkout → payment method selection → Store Order (`pending_payment`) → Payment → on `paid`, confirm order and decrease stock.
+- Cash on Delivery path: cart → checkout → COD selection → order `confirmed` immediately (payment recorded `pending`; stock decreases at confirmation) → `preparing` → `out_for_delivery` → `delivered` → `payment_pending` → admin confirms cash collection → `completed`.
 - Optional path: product-related **quotation request** (does not replace fixed-price purchase).
 
 ### Inventory Management
@@ -307,7 +308,7 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | **Purpose** | One-to-one customer business/profile data; not an authentication identity. Primary record of the Customer Management module (SRS FR-092). |
 | **Primary Key** | `id` |
 | **Foreign Keys** | `user_id` → `users.id` (UNIQUE, required) |
-| **Relationships** | 1:1 → `users`; 1:N → addresses, saved payment methods, internal customer notes, customer attachments, customer activity logs, bookings, quotation requests, orders, payments, notifications, reviews |
+| **Relationships** | 1:1 → `users`; 1:N → addresses, internal customer notes, customer attachments, customer activity logs, bookings, quotation requests, orders, payments, notifications, reviews |
 
 #### Columns
 
@@ -399,44 +400,9 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 ---
 
-### 3.1.4 `customer_payment_methods`
+### 3.1.4 `customer_payment_methods` — REMOVED FROM V1 (Deferred)
 
-| Attribute | Detail |
-| --- | --- |
-| **Table Name** | `customer_payment_methods` |
-| **Purpose** | Saved checkout instruments for a customer (separate from immutable `payments` history). |
-| **Primary Key** | `id` |
-| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id` |
-| **Relationships** | N:1 → `customer_profiles` |
-
-#### Columns
-
-| Column | Data Type | Required | Notes |
-| --- | --- | --- | --- |
-| `id` | BIGINT UNSIGNED | R | PK |
-| `customer_profile_id` | BIGINT UNSIGNED | R | FK |
-| `type` | VARCHAR(40) | R | `evc_plus`, `edahab`, `jeeb`, `salaam_somali_bank`, `bank_transfer`, `card` |
-| `display_label` | VARCHAR(100) | O | Customer-facing nickname |
-| `masked_account` | VARCHAR(60) | R | Masked phone / account / last4 |
-| `provider_token` | VARCHAR(191) | O | Tokenized card/wallet reference (never PAN/CVV) |
-| `is_default` | BOOLEAN | R | Default false |
-| `is_active` | BOOLEAN | R | Default true |
-| `created_at` | TIMESTAMP | R | |
-| `updated_at` | TIMESTAMP | R | |
-
-#### Constraints
-
-- At most one `is_default = true` among active methods per customer.
-- Check/enum: `type` in defined set.
-
-#### Validation Rules
-
-- Customers may Add / Set Default. **Payment history** in `payments` is never customer-deleted.
-- No full card PAN or CVV stored.
-
-#### Notes
-
-- Distinct from `payments` ledger rows (`PAY-…` references).
+> **Sprint 26 (final):** Saved payment methods are **removed from V1**. No saved instruments, no saved cards, no PCI storage. Customers select a payment method at pay time only; the method used is recorded on the `payments` row (`payments.payment_method`, §3.6.1). This table is **not created in V1** and may be reintroduced in a future version alongside saved instruments.
 
 ---
 
@@ -445,36 +411,39 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `customer_devices` |
-| **Purpose** | Push notification device tokens for customers. |
+| **Purpose** | Registered customer devices to support **future** push notifications (Sprint 26 registers devices only; sending is out of scope). |
 | **Primary Key** | `id` |
 | **Foreign Keys** | `user_id` → `users.id` |
-| **Relationships** | N:1 → `users` |
+| **Relationships** | N:1 → `users` (**ownership stays on `users`, not `customer_profiles`** — authentication-adjacent per ADR-001) |
 
 #### Columns
 
 | Column | Data Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
+| `device_id` | VARCHAR(100) | R | Client-generated installation identifier; upsert key together with `user_id` |
 | `user_id` | BIGINT UNSIGNED | R | FK |
 | `platform` | VARCHAR(20) | R | `ios`, `android` |
-| `device_token` | VARCHAR(255) | R | Push token |
+| `push_token` | VARCHAR(255) | O | Push notification token; updatable on re-registration |
 | `app_version` | VARCHAR(30) | O | |
-| `is_active` | BOOLEAN | R | |
-| `last_seen_at` | TIMESTAMP | O | |
+| `last_seen_at` | TIMESTAMP | O | Updated on registration/heartbeat |
+| `is_active` | BOOLEAN | R | Default true |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
 
 #### Constraints
 
-- Unique: (`user_id`, `device_token`) or globally unique `device_token`
+- Unique: (`user_id`, `device_id`) — registration is an idempotent upsert on this key.
 
 #### Validation Rules
 
-- Inactive/invalid tokens disabled rather than failing business transactions.
+- Inactive/invalid tokens are deactivated rather than failing business transactions.
+- **Stored fields are limited to the list above.** Device name, model, GPS, IP history, battery, and trusted-device flags are explicitly **not** stored (V1 decision).
 
 #### Notes
 
-- Supports SRS push notification channel.
+- Supports the future push notification channel only; V1 performs no notification sending from this table.
+- Multi-device login is allowed; device rows are independent of Sanctum tokens. Logout (current-device token revocation) does not delete the device row.
 
 ---
 
@@ -851,6 +820,8 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | `requires_address` | BOOLEAN | R | |
 | `is_active` | BOOLEAN | R | |
 | `sort_order` | INT | R | |
+| `payment_type` | VARCHAR(30) | R | Service payment policy: `full_before_service`, `deposit`, `pay_after_service`; admin-configurable per service (Sprint 26) |
+| `deposit_percentage` | TINYINT UNSIGNED | O | Required **only** when `payment_type = deposit`; allowed range 1–99; NULL otherwise |
 | `average_rating` | DECIMAL(3,2) | O | Cached aggregate from `published` reviews only; recalculated on review publish/hide (§3.9.1); NULL when no published reviews; clients display one decimal place; visible from the first published review (no minimum threshold) |
 | `reviews_count` | INT UNSIGNED | R | Cached count of `published` reviews; default 0; recalculated on review publish/hide |
 | `favorites_count` | INT UNSIGNED | R | Cached count of favorites (§3.12.1); default 0; updated on favorite add/remove and automatic removal; internal aggregate — not exposed in public catalog payloads |
@@ -862,6 +833,8 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 
 - `starting_from_price`, when present, must be >= 0.
 - Inactive services cannot accept new bookings/quote requests.
+- `deposit_percentage` must be present and within 1–99 when `payment_type = deposit`; must be NULL for `full_before_service` and `pay_after_service`.
+- Accepted quotations snapshot the payment policy (§3.5.3); changing `payment_type` / `deposit_percentage` never affects already-accepted quotations.
 
 #### Validation Rules
 
@@ -1434,8 +1407,9 @@ Inventory is a separate domain from Store. Store owns catalog commerce; Inventor
 
 - Unique `booking_number`
 - `customer_profile_id` NOT NULL
-- Status in: `pending_review`, `quotation_ready`, `under_discussion`, `accepted`, `scheduled`, `in_progress`, `completed`, `cancelled`  
-  (Admin display labels: Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Cancelled)  
+- Status in: `pending_review`, `quotation_ready`, `under_discussion`, `accepted`, `scheduled`, `in_progress`, `completed`, `closed`, `cancelled`
+  (Admin display labels: Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Closed · Cancelled)
+- **Payment gates (Sprint 26):** a booking may move to `scheduled` only after the payment required by the quotation's snapshotted `payment_type` is confirmed (`full_before_service`: full payment; `deposit`: deposit payment; `pay_after_service`: no gate). `closed` = service completed **and** all required payments confirmed (`balance` for deposit policy, `full` for pay-after-service); an admin confirming the final payment moves `completed` → `closed`.
   **Never** `rejected`. No custom status values. Status updates use a controlled dropdown only.
 - Priority in: `high`, `medium`, `low` (Admin badges: High · Medium · Low).
 
@@ -1656,7 +1630,10 @@ These files help administrators accurately assess the requested work and prepare
 | `subtotal_amount` | DECIMAL(12,2) | R | |
 | `tax_amount` | DECIMAL(12,2) | R | Default 0 |
 | `total_amount` | DECIMAL(12,2) | R | |
-| `deposit_amount` | DECIMAL(12,2) | O | If partial payment allowed |
+| `payment_type` | VARCHAR(30) | O | **Snapshot at acceptance** of the service payment policy: `full_before_service`, `deposit`, `pay_after_service`; NULL until accepted |
+| `deposit_percentage` | TINYINT UNSIGNED | O | **Snapshot at acceptance**; only when `payment_type = deposit`; range 1–99; NULL otherwise |
+| `deposit_amount` | DECIMAL(12,2) | O | **Snapshot at acceptance**: `total_amount × deposit_percentage`; only when `payment_type = deposit` |
+| `remaining_amount` | DECIMAL(12,2) | O | **Snapshot at acceptance**: `total_amount − deposit_amount` (deposit) or `total_amount` (pay_after_service); NULL for `full_before_service` |
 | `valid_until` | TIMESTAMP | R | Acceptance window |
 | `terms` | TEXT | O | |
 | `issued_by_admin_id` | BIGINT UNSIGNED | O | FK |
@@ -1675,6 +1652,7 @@ These files help administrators accurately assess the requested work and prepare
 - **Accept Quotation** and **Discuss Quotation** only by owning customer (never Reject).
 - Only the **latest** revision may be accepted; older revisions read-only.
 - Accepted quotation unlocks payment / fulfillment path.
+- **Snapshot rule (Sprint 26):** on acceptance, the system copies the service's `payment_type` and `deposit_percentage` onto the quotation and computes `deposit_amount` / `remaining_amount`. Future changes to the service payment policy **must not** change already-accepted quotations; payment gates read the quotation snapshot, never the live service row.
 - Discuss / team updates create a new `version_no` on the **same** `quotation_number` (do not create a new quotation).
 - Status becomes `under_discussion` while discussion is active.
 
@@ -1796,7 +1774,9 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 | `customer_profile_id` | BIGINT UNSIGNED | R | FK |
 | `payable_type` | VARCHAR(30) | R | Polymorphic originating payable type; V1 Service Order and Store Order |
 | `payable_id` | BIGINT UNSIGNED | R | Originating payable entity id |
-| `amount` | DECIMAL(12,2) | R | Charged amount |
+| `payment_method` | VARCHAR(30) | R | V1 enum: `evc_plus`, `edahab`, `bank_transfer`, `cash_on_delivery` (store orders only), `cash_on_service` (cleaning services only) |
+| `payment_stage` | VARCHAR(20) | R | `deposit`, `balance`, `full` — determines the server-calculated installment amount |
+| `amount` | DECIMAL(12,2) | R | Charged amount; always equals the server-calculated installment per `payment_stage` and the snapshotted `payment_type` |
 | `currency` | CHAR(3) | R | |
 | `status` | VARCHAR(30) | R | `pending`, `initialized`, `processing`, `paid`, `failed`, `cancelled` |
 | `idempotency_key` | VARCHAR(100) | R | Unique for safe retries |
@@ -1815,17 +1795,18 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 
 #### Validation Rules
 
-- Amount must match backend-calculated payable amount at initiation.
-- When an active Payment already exists for the payable entity, initialization returns it and does not create another Payment. A new Payment is permitted only after the previous Payment is `paid`, `failed`, or `cancelled`.
-- Client cannot mark payment Paid; only gateway verification may do so.
-- Callback/webhook verification order is mandatory before state change: gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment validation, duplicate-callback check, then one atomic database transaction.
-- When Payment becomes Paid, the originating Order transitions from `pending_payment` to `confirmed` in the same approved transaction; Failed or Cancelled payments do not cancel Orders.
+- Amount must equal the server-calculated **installment** for the payment's `payment_stage` and the payable's snapshotted `payment_type` (never a client-supplied amount): `full` = full payable total; `deposit` = quotation `deposit_amount` snapshot; `balance` = quotation `remaining_amount` snapshot.
+- When an active Payment already exists for the payable entity, initialization returns it and does not create another Payment. A new Payment is permitted only after the previous Payment is `paid`, `failed`, or `cancelled`. A `deposit` stage followed later by a `balance` stage is the approved two-payment sequence for deposit-policy services.
+- Client cannot mark payment Paid.
+- **Offline methods (V1):** `bank_transfer`, `cash_on_delivery`, and `cash_on_service` have no gateway or webhook; their payments remain `pending` until an **admin confirms** receipt/collection (full audit of confirming admin and time). EVC Plus and eDahab confirmations are likewise admin-verified until gateway integration (deferred) exists.
+- Callback/webhook verification order (applies only when a future gateway exists): gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment validation, duplicate-callback check, then one atomic database transaction.
+- When a `full` or prepaid-stage Payment becomes Paid, the originating Order transitions from `pending_payment` to `confirmed` in the same transaction; Failed or Cancelled payments do not cancel Orders. Confirming a `balance` (or `pay_after_service` `full`) payment after service completion closes the booking (`completed` → `closed`).
 - Payment publishes `PaymentPaid` or `PaymentFailed`; it does not notify customers directly.
 
 #### Notes
 
-- No PAN/CVV/full card data stored.
-- Gateway implementation is provider-neutral; provider-specific metadata belongs to `payment_transactions`, not `payments`.
+- No PAN/CVV/full card data stored; no saved instruments in V1.
+- Gateway implementation is provider-neutral for future providers; V1 ships without online gateway integration.
 - Refunds are outside V1.
 
 ---
@@ -1931,7 +1912,8 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 - `quotation_id` is required only for `product_quotation` or quotation-derived `booking` orders.
 - `source_type` must be `store_cart`, `product_quotation`, or `booking`; `cart_id` is required for `store_cart`, and `booking_id` is required for `booking`.
 - Totals must equal sum of item snapshots + discount + delivery + tax (policy)
-- Order status in: `pending_payment`, `confirmed`, `processing`, `completed`, `cancelled`
+- Order status in: `pending_payment`, `confirmed`, `preparing`, `out_for_delivery`, `delivered`, `payment_pending`, `completed`, `cancelled`
+- `payment_pending` is reachable **only** for Cash on Delivery orders (after `delivered`, until admin confirms cash collection)
 - Payment status in: `unpaid`, `partially_paid`, `paid`, `refunded`
 
 #### Validation Rules
@@ -1939,12 +1921,12 @@ Timeline events: Quotation Created, Customer Discussion, Team Replies, Quotation
 - Orders are created by the system at authenticated store-cart checkout or when an accepted quotation requires an order; never manually by Admin/Sales/Accountant.
 - Selling Price and available stock re-validated at Store Order placement; overselling is rejected.
 - Creating a Store Order never decreases `products.current_stock`.
-- Stock decreases only after related Payment becomes `paid`, and then a Stock Ledger `customer_sale` entry is written.
+- Prepaid methods: stock decreases only after related Payment becomes `paid`, and then a Stock Ledger `customer_sale` entry is written. Cash on Delivery: the order is confirmed at checkout (payment remains `pending`); stock decreases at COD confirmation with the same Stock Ledger `customer_sale` entry.
 - Failed or cancelled payments leave stock unchanged.
 - Suspended customers cannot place orders.
 - Order records are never permanently deleted.
 - Source link (cart, quotation, and/or booking as applicable) is permanent.
-- Store Orders reuse the Unified Payment Module and lifecycle: `pending_payment` → `confirmed` → `processing` → `completed` / `cancelled`.
+- Store Orders reuse the Unified Payment Module. Lifecycle (Sprint 26): `pending_payment` → `confirmed` → `preparing` → `out_for_delivery` → `delivered` → `completed` / `cancelled`; Cash on Delivery inserts `payment_pending` between `delivered` and `completed` — the order completes only after an admin confirms cash collection.
 
 #### Notes
 
@@ -2369,7 +2351,7 @@ Unified File Upload Service (Sprint 23, approved). Customer-uploaded files are s
 | Parent | Children | Description |
 | --- | --- | --- |
 | `users` | `customer_profiles`, `customer_devices`, `carts`, `notifications` | Sole customer authentication principal; authentication-adjacent children remain user-scoped |
-| `customer_profiles` | `customer_addresses`, `customer_payment_methods`, `customer_notes`, `uploads`, `bookings`, `quotation_requests`, `orders`, `payments`, `reviews`, `favorites` | Customer business/profile data and approved business-module ownership |
+| `customer_profiles` | `customer_addresses`, `customer_notes`, `uploads`, `bookings`, `quotation_requests`, `orders`, `payments`, `reviews`, `favorites` | Customer business/profile data and approved business-module ownership (saved payment methods removed from V1 — §3.1.4) |
 | `service_categories` | `services` | Category catalog |
 | `services` | `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates`, `bookings`, `quotation_requests`, `reviews` (denormalized `service_id`), `favorites` (auto-removed on deactivation/deletion) | Service definition, availability, usage, published review aggregates, and favorites |
 | `product_categories` | `products` | Store taxonomy (V1: Chemicals, Tools, Accessories, PPE, Air Fresheners) |
@@ -2408,7 +2390,6 @@ Unified File Upload Service (Sprint 23, approved). Customer-uploaded files are s
 
 ```text
 users ──┬── customer_profiles (1:1) ──┬── customer_addresses
-        │                              ├── customer_payment_methods
         │                              ├── customer_notes
         │                              ├── bookings ──── booking_status_histories
         │                              │       └── services ──┬── service_modes
@@ -2453,7 +2434,7 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | `customer_profiles` | UNIQUE(`customer_number`) | Customer public-reference lookup |
 | `admins` | UNIQUE(`email`) | Admin login |
 | `customer_devices` | (`user_id`, `is_active`) | Push fan-out |
-| `customer_devices` | UNIQUE(`device_token`) | Token upsert |
+| `customer_devices` | UNIQUE(`user_id`, `device_id`) | Idempotent device registration upsert |
 | `password_reset_tokens` | (`subject_type`, `subject_id`, `expires_at`) | Recovery cleanup |
 | `phone_otps` | (`phone`, `purpose`, `created_at`) | OTP lookup, cooldown and hourly-cap checks |
 | `phone_otps` | (`expires_at`) | Scheduled pruning of expired rows |
@@ -2603,10 +2584,13 @@ Indexes below are recommendations for common access paths. Exact index types dep
 ## 6.6 Payment Integrity
 
 1. Idempotent payment and gateway-transaction processing is required.
-2. Payment becomes Paid only after server-side gateway verification.
-3. A Paid payment changes its originating Order from `pending_payment` to `confirmed`; Failed and Cancelled payments leave the Order unchanged.
+2. Payment becomes Paid only after server-side verification: gateway verification when a future gateway exists; **admin confirmation with full audit for V1 offline methods** (bank transfer, cash on delivery, cash on service, and admin-verified EVC Plus / eDahab).
+3. A Paid prepaid payment changes its originating Order from `pending_payment` to `confirmed`; Failed and Cancelled payments leave the Order unchanged. COD orders confirm at checkout and complete only after admin confirms cash collection (`payment_pending` → `completed`).
 4. Every successful payment creates exactly one receipt with public `RCPT-YYYY-######`.
-5. Refunds are outside V1.
+5. `payment_method` is restricted to the V1 enum; `cash_on_delivery` applies to store orders only and `cash_on_service` to cleaning services only.
+6. `payment_stage` ∈ {`deposit`, `balance`, `full`}; the amount always equals the server-calculated installment for that stage and the payable's snapshotted `payment_type`.
+7. Deposit-policy bookings may move to `scheduled` only after the `deposit` payment is Paid; confirming the final (`balance` / pay-after-service `full`) payment moves the completed booking to `closed`.
+8. Refunds are outside V1.
 
 ## 6.7 Notification Integrity
 
@@ -2952,7 +2936,7 @@ Fully-qualified dotted keys (`category.key`), listed in the canonical category o
 | 10 | backup | backup.enabled, backup.retention_days, backup.last_run_at |
 | — | service | service.booking_start_time, service.booking_end_time, service.working_days (JSON array), service.booking_availability, service.default_lead_time |
 | — | store | store.default_delivery_fee, store.inventory_warning_level |
-| — | payment | payment.enabled_methods (JSON array), payment.instructions |
+| — | payment | payment.enabled_methods (JSON array; V1 values: `evc_plus`, `edahab`, `bank_transfer`, `cash_on_delivery`, `cash_on_service`), payment.instructions |
 | — | security | security.min_password_length, security.password_complexity, security.password_expiry, security.session_timeout, security.login_audit_enabled |
 
 Audit Logs (category 11 in the canonical order) are stored in the `settings_audit_log` table, not as settings keys. Branch records live in the relational `branches` table; only the `branch.default` pointer is kept in `system_settings`.

@@ -180,7 +180,7 @@ Orders begin in `pending_payment`. When a payment becomes Paid, the originating 
 
 ### 10.4 Gateway Abstraction
 
-The Payment domain shall define a provider-neutral gateway abstraction. Provider adapters may support EVC Plus, Zaad, Sahal, Stripe, PayPal, or future gateways without coupling Payment models or originating domains to a specific provider.
+The Payment domain shall define a provider-neutral gateway abstraction so future gateway providers can be added without coupling Payment models or originating domains to a specific provider. **V1 ships with no online gateway integration** (Sprint 26 — final): all V1 methods (EVC Plus, eDahab, Bank Transfer, Cash on Delivery, Cash on Service) are confirmed through admin verification with full audit; gateway adapters are a future-version concern.
 
 ### 10.5 Events and Notifications
 

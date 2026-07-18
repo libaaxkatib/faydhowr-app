@@ -190,6 +190,8 @@ Primary login method for Somalia. OTP lifecycle rules: SRS FR-002A–FR-002C; st
 | **Auth** | Required |
 | **Purpose** | Revoke the current access token only; tokens issued to other devices remain valid |
 
+**Multi-device policy (Sprint 26 — final):** multi-device login is allowed — one customer account may be logged in on multiple devices simultaneously. Logout affects the current device only. **Logout All Devices is deferred** to a future version (§20.1). Password reset continues to revoke **all** tokens for the account (§2.5 security behavior, unchanged).
+
 ## 2.4 Forgot Password
 
 | Item | Spec |
@@ -385,17 +387,23 @@ Base: authenticated customer scope; customers only access **their own** data.
 
 **Rule:** Customer APIs must **not** expose permanent delete for addresses.
 
-## 4.2B Payment Methods (Saved Instruments)
+## 4.2B Payment Methods (Saved Instruments) — REMOVED FROM V1
+
+> **Sprint 26 (final):** Saved payment methods are **removed from V1**. There are no saved-instrument endpoints, no saved cards, and no PCI storage. Customers select one of the V1 payment methods at pay time (§11.1). The customer cannot delete payment **history** (`payments` ledger). Saved instruments are deferred to a future version (§20.1).
+
+## 4.2C Customer Devices (Push Registration)
+
+Registers customer devices to support **future** push notifications. Notification sending is not part of V1.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/v1/customer/payment-methods` | List saved methods |
-| `POST` | `/api/v1/customer/payment-methods` | Add method (tokenized / masked) |
-| `POST` | `/api/v1/customer/payment-methods/{id}/default` | Change default |
+| `POST` | `/api/v1/devices` | Register or update the current device (idempotent upsert) |
 
-Supported `type` values: `evc_plus`, `edahab`, `jeeb`, `salaam_somali_bank`, `bank_transfer`, `card`.
+**Body:** `device_id` (client-generated installation identifier, required), `platform` (`ios` / `android`, required), `push_token` (optional; updatable), `app_version` (optional).
 
-**Rules:** No full PAN/CVV storage. Customer cannot delete payment **history** (`payments` ledger). Deactivating a saved instrument (if offered later) must not erase ledger rows.
+**Behavior:** Authenticated only; the device is owned by the authenticated **`users`** identity. Upsert key is (`user_id`, `device_id`): re-registration updates `push_token`, `app_version`, `platform`, and `last_seen_at`, and reactivates the row (`is_active = true`). Stored fields are limited to the approved list (§Database Design 3.1.5) — no device name, model, GPS, IP history, or battery data.
+
+**Rules:** Registration failures never block business transactions. There is no customer device management screen in V1 (Active Devices remains a placeholder); device listing/revocation APIs are deferred.
 
 ## 4.3 Notifications
 
@@ -635,9 +643,11 @@ Includes `selling_price`, `currency`, `unit`, `sku`, `current_stock` / `availabi
 
 **Body:** `address_id`, optional notes  
 **Behavior:** Validates stock/Selling Prices and address ownership; returns a **checkout preview summary only** (priced lines, totals, address). Does **not** create a Store Order and does **not** decrease stock.  
-**Next step:** Client creates the Store Order via `POST /api/v1/store-orders`, then initializes payment via the Unified Payment Module.
+**Next step:** Client creates the Store Order via `POST /api/v1/store-orders` with the selected **payment method** (Cart → Checkout → Payment Method Selection → Order Confirmed), then — for prepaid methods — initializes payment via the Unified Payment Module.
 
-**Stock rule:** Stock decreases only after Payment = `paid`. Failed or cancelled payments leave stock unchanged. Negative stock is not allowed.
+**Payment methods (store):** `evc_plus`, `edahab`, `bank_transfer` (prepaid), `cash_on_delivery` (COD).
+
+**Stock rule:** Prepaid: stock decreases only after Payment = `paid`. COD: the order confirms at checkout and stock decreases at COD confirmation. Failed or cancelled payments leave stock unchanged. Negative stock is not allowed.
 
 ## 7.6A Store Orders
 
@@ -648,8 +658,9 @@ Includes `selling_price`, `currency`, `unit`, `sku`, `current_stock` / `availabi
 | `POST` | `/api/v1/store-orders` | Required |
 | `PATCH` | `/api/v1/store-orders/{id}/cancel` | Required (owner) |
 
-**Create behavior:** Creates a `store_orders` record in `pending_payment` with public number `STO-YYYY-######`, line snapshots, and clears cart items. Does **not** decrease stock.  
-**Cancel:** Allowed only while `pending_payment`.
+**Create behavior:** Creates a `store_orders` record with public number `STO-YYYY-######`, line snapshots, and clears cart items. Prepaid methods: the order starts `pending_payment` and does **not** decrease stock. **Cash on Delivery:** the order is created `confirmed` immediately, a `payments` record is created `pending` (`payment_method = cash_on_delivery`, `payment_stage = full`), and stock decreases at confirmation.  
+**COD lifecycle:** `confirmed` → `preparing` → `out_for_delivery` → `delivered` → `payment_pending` → (admin confirms cash collection) → `completed`. A COD order never completes before admin payment confirmation.  
+**Cancel:** Allowed only while `pending_payment` (prepaid orders).
 
 Service Orders remain under `/api/v1/orders` with `ORD-YYYY-######` and are commercially separate from Store Orders.
 
@@ -941,14 +952,17 @@ Payment V1 is a unified, customer-profile-owned module for Service Orders and St
 
 - `payable_type`: Service Order and Store Order in V1 use the same polymorphic contract
 - `payable_id`
-- `payment_method`: preferred Somali-first enum — `evc_plus` (default) | `edahab` | `jeeb` | `salaam_somali_bank` | `bank_transfer` | `card` (optional) | `digital_wallet` (future placeholder)
+- `payment_method`: V1 enum (final) — `evc_plus` (default) | `edahab` | `bank_transfer` | `cash_on_delivery` (store orders only) | `cash_on_service` (cleaning services only). Jeeb, Salaam Somali Bank, cards, and wallets are **not** valid values in V1.
+- `payment_stage`: `deposit` | `balance` | `full` — must match the stage the payable currently allows (server-validated)
 - `idempotency_key` (required)
 
-**Result:** The existing active Payment (`pending`, `initialized`, or `processing`) for the payable is returned when one exists; otherwise, initialization creates and returns a Payment record `pending`/`initialized` plus a provider-neutral gateway handoff payload.
+**Result:** The existing active Payment (`pending`, `initialized`, or `processing`) for the payable is returned when one exists; otherwise, initialization creates and returns a Payment record. **V1 has no online gateway**, so no gateway handoff payload is produced; the response includes the payment instructions relevant to the chosen offline method.
 
 **UI Order Summary fields:** `subtotal`, `delivery_fee`, `tax` (default `0.00`), `total`.
 
-**Rules:** Amount equals the server-calculated payable total; the authenticated customer owns the payable entity. A payable has at most one active Payment (`pending`, `initialized`, or `processing`); a new Payment can be initialized only after the prior Payment is `paid`, `failed`, or `cancelled`. This domain rule applies to Service Orders and Store Orders through the polymorphic payable reference. For Store Orders, Payment = `paid` decreases stock and writes a Stock Ledger customer-sale entry; failed/cancelled payments leave stock unchanged. Gateway adapters remain provider-neutral for EVC Plus, Zaad, Sahal, Stripe, PayPal, and future providers.
+**Rules:** The amount always equals the **server-calculated installment** for the `payment_stage` and the payable's snapshotted `payment_type`: `full` = full payable total; `deposit` = quotation `deposit_amount` snapshot; `balance` = quotation `remaining_amount` snapshot (payable only after service completion). The authenticated customer owns the payable entity. A payable has at most one active Payment (`pending`, `initialized`, or `processing`); a new Payment can be initialized only after the prior Payment is `paid`, `failed`, or `cancelled` — the `deposit` then `balance` sequence is the approved two-payment flow for deposit-policy services. For Store Orders, prepaid Payment = `paid` decreases stock and writes a Stock Ledger customer-sale entry; failed/cancelled payments leave stock unchanged (COD follows §7.6A). Gateway adapters remain provider-neutral for future providers; V1 ships without any online gateway integration.
+
+**Service payment gates:** deposit-policy bookings become **Scheduled** only after the `deposit` payment is confirmed; `full_before_service` bookings after the `full` payment is confirmed; `pay_after_service` requires no pre-payment. Confirming the final payment after service completion moves the booking `completed` → `closed`.
 
 ## 11.2 Payment Callback
 
@@ -957,7 +971,9 @@ Payment V1 is a unified, customer-profile-owned module for Service Orders and St
 | `POST` | `/api/v1/payments/webhook` | Provider signature (not customer token) |
 | `GET`/`POST` | `/api/v1/payments/callback` | Provider return URL pattern |
 
-**Behavior:** Before any business state changes, webhook/callback handling verifies in this order: gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment status, and duplicate-callback status. The resulting Payment update, `payment_transactions` update, `payment_status_histories` insert, and Order confirmation (only on success) execute in one database transaction. A successful callback changes Payment `processing -> paid` and then Order `pending_payment -> confirmed`; failed callbacks leave the Order unchanged. Repeated callbacks for the same successful transaction are idempotent and must not create duplicate state transitions. Payment publishes domain events (`PaymentPaid`, `PaymentFailed`) rather than sending notifications directly.
+> **V1 note (Sprint 26):** V1 ships **without online gateway integration**, so webhook/callback endpoints are dormant contracts reserved for future providers. All V1 confirmations are **admin-verified**: an admin confirms receipt/collection for `bank_transfer`, `cash_on_delivery`, `cash_on_service`, and admin-verified `evc_plus` / `edahab` payments, moving the payment `pending` → `paid` with full audit (confirming admin, timestamp).
+
+**Behavior (future gateways):** Before any business state changes, webhook/callback handling verifies in this order: gateway signature/authentication, gateway transaction reference, Payment resolution, active-Payment status, and duplicate-callback status. The resulting Payment update, `payment_transactions` update, `payment_status_histories` insert, and Order confirmation (only on success) execute in one database transaction. A successful callback changes Payment `processing -> paid` and then Order `pending_payment -> confirmed`; failed callbacks leave the Order unchanged. Repeated callbacks for the same successful transaction are idempotent and must not create duplicate state transitions. Payment publishes domain events (`PaymentPaid`, `PaymentFailed`) rather than sending notifications directly.
 
 ## 11.3 Payment Success
 
@@ -1525,6 +1541,14 @@ Future API and product enhancements may include the following. These items are *
 - Live order tracking  
 - Product / order / service-target ratings & reviews (V1 ships **completed booking reviews only** — §8A)  
 - Product favorites (V1 ships **service favorites only** — §12)  
+- Payment gateway integration (any online provider; V1 confirmations are admin-verified — §11.2)  
+- Saved payment methods / saved cards (removed from V1 — §4.2B; no PCI storage)  
+- Card and wallet payment methods (Visa, Mastercard, Apple Pay, Google Pay, Zaad, Sahal, Premier Wallet)  
+- Refunds, disputes, chargebacks  
+- Multiple currencies  
+- Recurring payments  
+- Logout All Devices (V1 logout is current-device only — §2.3)  
+- Customer device management screen (V1 registers devices only — §4.2C)  
 - Loyalty & rewards program  
 - Promotional coupons  
 - Multi-language support  

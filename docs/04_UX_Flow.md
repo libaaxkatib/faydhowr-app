@@ -298,11 +298,10 @@ Continue Shopping  ——or——  Checkout
         ↓
 Login (if required)
         ↓
-Create Store Order (stock NOT decreased)
+Payment Method Selection (EVC Plus · eDahab · Bank Transfer · Cash on Delivery)
         ↓
-Payment
-        ↓
-Payment Paid → Inventory Decrease + Stock Ledger
+Prepaid: Create Store Order (stock NOT decreased) → Payment → Paid → Inventory Decrease + Stock Ledger → Order Confirmed
+Cash on Delivery: Order Confirmed immediately (stock decreased; payment pending until collected)
         ↓
 Order Confirmation
 ```
@@ -347,12 +346,12 @@ On product detail, customers always see:
 5. Soft auth gate if needed (**login required to place an order**).
 6. Provide/confirm fulfillment details (delivery/pickup) and address as required.
 7. Review order summary with re-validated Selling Prices/stock (overselling rejected).
-8. Create Store Order in `pending_payment` — **stock is not decreased**.
-9. Proceed to **Payment** via Unified Payment Module.
-10. Stock decreases only after Payment = Paid; failed/cancelled payment leaves stock unchanged.
+8. **Select payment method** — V1 options: EVC Plus (default), eDahab, Bank Transfer, Cash on Delivery.
+9. Prepaid methods: create Store Order in `pending_payment` (**stock not decreased**), proceed to **Payment** via the Unified Payment Module; stock decreases only after Payment = Paid.
+10. **Cash on Delivery:** the order is **Confirmed immediately** (stock decreased at confirmation); the payment is recorded as pending and collected on delivery.
 11. **Order Confirmation** with store order reference (`STO-YYYY-######`).
 
-Store Order lifecycle: `pending_payment` → `confirmed` → `processing` → `completed` / `cancelled`.
+Store Order lifecycle: `pending_payment` → `confirmed` → `preparing` → `out_for_delivery` → `delivered` → `completed` / `cancelled`. **Cash on Delivery** adds `payment_pending` after `delivered`: the order completes only after an admin confirms cash collection.
 
 ## 5.5 Optional Product Quotation
 
@@ -385,7 +384,7 @@ Quotations cover **services** (often required by pricing model) and **products**
 | Primary customer actions | **Accept Quotation** or **Discuss Quotation** (never Reject) |
 | Discuss Quotation | Messaging + extra images/videos/PDFs on the **same** quotation; status **Under Discussion**; does not close the quote |
 | Revisions | Updates create v1, v2, v3…; **Latest Version** clearly marked; only latest may be accepted |
-| After accept | Status **Accepted** → Payment / fulfillment path unlocks |
+| After accept | Status **Accepted** → payment/fulfillment unlocks per the **snapshotted service payment policy**: `full_before_service` — pay full amount before scheduling; `deposit` — pay the configured deposit before scheduling, balance after completion; `pay_after_service` — no pre-payment, pay after completion |
 | Notifications | Every quotation update and every new discussion message notifies the other party |
 
 **Statuses (only):** Pending Review · Quotation Ready · Under Discussion · Accepted · Expired · Cancelled
@@ -616,9 +615,9 @@ Customers pay when a payable entity exists:
 
 | Payable entity | Typical entry |
 | --- | --- |
-| Store order | Checkout completion path |
-| Booking | When status/policy makes booking payable |
-| Accepted quotation | Immediately after acceptance (full or deposit per terms) |
+| Store order | Checkout completion path (prepaid) or Cash on Delivery collection after delivery |
+| Booking | When the service payment policy makes the booking payable |
+| Accepted quotation | Per the **snapshotted service payment policy**: `full_before_service` — full amount immediately after acceptance; `deposit` — deposit (`quotation_total × deposit_percentage`) after acceptance, balance after service completion; `pay_after_service` — full amount after service completion |
 
 ## 8.2 Payment Journey
 
@@ -626,18 +625,21 @@ Customers pay when a payable entity exists:
 Open payable entity (Order / Booking / Accepted Quotation)
         ↓
 Review amount, currency, and what is being paid
+(deposit / balance / full installment per the service payment policy)
         ↓
 Tap Pay
         ↓
 Authenticate session already required (entity is customer-owned)
         ↓
-Choose/initiate payment method via provider flow
+Choose payment method (V1: EVC Plus · eDahab · Bank Transfer · Cash on Service / Cash on Delivery)
         ↓
-Provider processing
+Follow the method's payment instructions (V1 has no online gateway;
+confirmation is admin-verified)
         ↓
-Success → Payment success state + entity status update + notification
+Confirmed → Payment success state + entity status update + notification
+   (deposit confirmed → booking Scheduled; final payment confirmed → booking Closed)
    or
-Failure → Clear failure state + retry guidance (entity remains payable if valid)
+Failure / not received → Clear pending/failure state + retry guidance
 ```
 
 ## 8.3 UX Rules
@@ -721,7 +723,7 @@ Profile Home
 | Quick stats | See Bookings / Quotations / Orders counts (deep-link to histories) |
 | Edit Profile | Update photo, name, email, phone; CUS remains read-only |
 | Addresses | Add, edit, set default; **mark Inactive** (never permanently delete) |
-| Payment methods | Add / set default for EVC Plus, eDahab, Jeeb, Salaam Somali Bank, Bank Transfer, Debit/Credit Card; **payment history never deleted** |
+| Payment methods | **No saved payment methods in V1** (deferred); method is chosen at pay time; **payment history never deleted** |
 | Language | Select Somali / English / Arabic — updates entire app UI |
 | Security | Change Password; Change PIN (if enabled); 2FA & Active Devices placeholders |
 | Notifications | Open Notification Center / preferences |
@@ -864,15 +866,14 @@ Account Tab
  └── Auth? → My Account
       ├── Edit Profile (CUS read-only)
       ├── Saved Addresses (Inactive allowed; never delete)
-      ├── Payment Methods (add / set default; history never deleted)
       ├── Language (Somali / English / Arabic — app-wide)
       ├── Security (Password · PIN · 2FA/Devices placeholders)
       ├── Help Center · About Fayadhowr
       ├── Booking History → Booking Details → Pay / Cancel (policy)
       ├── Order History → Order Details → Pay / Track
-      ├── Quotation History → Quotation Details → Accept / Discuss → Pay (after Accept)
+      ├── Quotation History → Quotation Details → Accept / Discuss → Pay (after Accept, per service payment policy)
       ├── Notifications → Entity deep link
-      └── Logout
+      └── Logout (current device only; other devices stay signed in)
 ```
 
 ## 13.3 Cross-Cutting Entries
@@ -915,7 +916,7 @@ Operations staff review and manage all service bookings without permanently dele
 
 - Booking Number (`BK-…`) is read-only.
 - Priority is read-only: High · Medium · Low.
-- Statuses: Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Cancelled (never Rejected; no custom values).
+- Statuses: Pending Review · Quotation Ready · Under Discussion · Accepted · Scheduled · In Progress · Completed · Closed · Cancelled (never Rejected; no custom values). A booking becomes **Scheduled** only after any required pre-payment (full or deposit, per the snapshotted service payment policy) is confirmed; **Closed** = service completed and all required payments confirmed.
 - No permanent delete; booking always remains linked to its customer.
 - No Booking Value / Estimated Value on this module.
 
@@ -1039,7 +1040,7 @@ Every payment must originate from an existing Order via: Booking / Product Reque
 - Payment Number (`PAY-…`) is read-only.
 - No manual payment creation; every payment must originate from an existing Order.
 - Payment statuses: Pending · Received · Confirmed · Failed · Refunded (no custom values).
-- Supported methods: EVC Plus · eDahab · Jeeb · Salaam Somali Bank · Bank Transfer · Debit / Credit Card.
+- Supported methods (V1 — final): EVC Plus · eDahab · Bank Transfer · Cash on Delivery · Cash on Service. Jeeb and Salaam Somali Bank are removed from V1; cards and wallets are deferred.
 - No permanent delete; payment always remains linked to its originating Order.
 - Receipt history is permanent.
 - Payment Progress Tracker is visual indicator only — no actions or logic attached.
@@ -1363,7 +1364,7 @@ Settings Dashboard → Store Settings
 
 ```
 Settings Dashboard → Payment Settings
-  → 6 payment method cards with enable/disable toggles
+  → 5 payment method cards with enable/disable toggles (EVC Plus · eDahab · Bank Transfer · Cash on Delivery · Cash on Service)
   → Currency dropdown + Payment Instructions textarea
   → Info: "No gateway integration yet"
   → Save / Discard footer

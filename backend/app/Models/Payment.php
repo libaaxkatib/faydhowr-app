@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStage;
 use App\Enums\PaymentStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -19,6 +21,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'payable_type',
     'payable_id',
     'status',
+    'payment_method',
+    'payment_stage',
+    'idempotency_key',
     'amount',
     'currency',
     'gateway',
@@ -81,6 +86,8 @@ class Payment extends Model
     {
         return [
             'status' => PaymentStatus::class,
+            'payment_method' => PaymentMethod::class,
+            'payment_stage' => PaymentStage::class,
             'amount' => 'decimal:2',
             'paid_at' => 'datetime',
         ];

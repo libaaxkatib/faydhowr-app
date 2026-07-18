@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\QuotationStatus;
+use App\Enums\ServicePaymentType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -20,6 +21,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'discount_amount',
     'tax_amount',
     'total_amount',
+    'payment_type',
+    'deposit_percentage',
+    'deposit_amount',
+    'remaining_amount',
     'valid_until',
     'accepted_at',
     'notes',
@@ -71,6 +76,10 @@ class Quotation extends Model
             'discount_amount' => 'decimal:2',
             'tax_amount' => 'decimal:2',
             'total_amount' => 'decimal:2',
+            'payment_type' => ServicePaymentType::class,
+            'deposit_percentage' => 'integer',
+            'deposit_amount' => 'decimal:2',
+            'remaining_amount' => 'decimal:2',
             'valid_until' => 'datetime',
             'accepted_at' => 'datetime',
         ];

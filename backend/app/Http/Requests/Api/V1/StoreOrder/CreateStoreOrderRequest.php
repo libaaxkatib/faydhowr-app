@@ -6,6 +6,7 @@ use App\Support\ApiResponse;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Validation\Rule;
 
 class CreateStoreOrderRequest extends FormRequest
 {
@@ -21,6 +22,10 @@ class CreateStoreOrderRequest extends FormRequest
     {
         return [
             'address_id' => ['required', 'integer'],
+            'payment_method' => [
+                'required',
+                Rule::in(['evc_plus', 'edahab', 'bank_transfer', 'cash_on_delivery']),
+            ],
             'notes' => ['nullable', 'string', 'max:5000'],
         ];
     }

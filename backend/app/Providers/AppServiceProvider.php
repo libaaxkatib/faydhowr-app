@@ -20,6 +20,7 @@ use App\Contracts\Auth\GoogleIdTokenVerifierInterface;
 use App\Contracts\Auth\Repositories\PasswordResetTokenRepositoryInterface;
 use App\Contracts\Auth\Repositories\PhoneOtpRepositoryInterface;
 use App\Contracts\Auth\Services\OtpServiceInterface;
+use App\Contracts\Booking\Services\BookingPaymentGateInterface;
 use App\Contracts\Catalog\Repositories\ServiceCatalogRepositoryInterface;
 use App\Contracts\Catalog\Services\ServiceCatalogServiceInterface;
 use App\Contracts\Customer\Repositories\CustomerActivityRepositoryInterface;
@@ -36,6 +37,8 @@ use App\Contracts\Dashboard\DashboardCacheInvalidatorInterface;
 use App\Contracts\Dashboard\DashboardMetadataBuilderInterface;
 use App\Contracts\Dashboard\DashboardQueryServiceInterface;
 use App\Contracts\Dashboard\DashboardWidgetRegistryInterface;
+use App\Contracts\Device\Repositories\CustomerDeviceRepositoryInterface;
+use App\Contracts\Device\Services\DeviceRegistrationServiceInterface;
 use App\Contracts\Favorite\Repositories\FavoriteRepositoryInterface;
 use App\Contracts\Favorite\Services\FavoriteServiceInterface;
 use App\Contracts\Reports\Excel\ExcelReportGeneratorInterface;
@@ -80,6 +83,7 @@ use App\Repositories\Customer\CustomerAddressRepository;
 use App\Repositories\Customer\CustomerAttachmentRepository;
 use App\Repositories\Customer\CustomerNoteRepository;
 use App\Repositories\Customer\CustomerRepository;
+use App\Repositories\Device\CustomerDeviceRepository;
 use App\Repositories\Favorite\FavoriteRepository;
 use App\Repositories\Review\ReviewRepository;
 use App\Repositories\Settings\BranchRepository;
@@ -96,6 +100,7 @@ use App\Services\Accounting\Services\LedgerService;
 use App\Services\Accounting\Services\TrialBalanceService;
 use App\Services\Auth\GoogleTokenInfoVerifier;
 use App\Services\Auth\OtpService;
+use App\Services\Booking\BookingPaymentGateService;
 use App\Services\Catalog\ServiceCatalogService;
 use App\Services\Customer\AddressService;
 use App\Services\Customer\AttachmentService;
@@ -114,6 +119,7 @@ use App\Services\Dashboard\Widgets\OrderSummaryWidget;
 use App\Services\Dashboard\Widgets\PaymentSummaryWidget;
 use App\Services\Dashboard\Widgets\QuotationSummaryWidget;
 use App\Services\Dashboard\Widgets\RevenueSummaryWidget;
+use App\Services\Device\DeviceRegistrationService;
 use App\Services\Favorite\FavoriteService;
 use App\Services\Notification\Channels\EmailNotificationChannel;
 use App\Services\Notification\Channels\InAppNotificationChannel;
@@ -216,6 +222,12 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(FavoriteRepositoryInterface::class, FavoriteRepository::class);
 
         $this->app->singleton(FavoriteServiceInterface::class, FavoriteService::class);
+
+        $this->app->bind(CustomerDeviceRepositoryInterface::class, CustomerDeviceRepository::class);
+
+        $this->app->singleton(DeviceRegistrationServiceInterface::class, DeviceRegistrationService::class);
+
+        $this->app->singleton(BookingPaymentGateInterface::class, BookingPaymentGateService::class);
 
         $this->app->singleton(AccountRepositoryInterface::class, AccountRepository::class);
 

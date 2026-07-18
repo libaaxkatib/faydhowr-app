@@ -27,11 +27,7 @@ class InitializeStoreOrderPaymentTest extends TestCase
 
         $response = $this
             ->withToken($user->createToken('customer-mobile')->plainTextToken)
-            ->postJson('/api/v1/payments/initialize', [
-                'store_order_id' => $storeOrder->id,
-                'gateway' => 'manual',
-                'gateway_reference' => 'STO-INIT-001',
-            ]);
+            ->postJson('/api/v1/payments/initialize', $this->payload($storeOrder));
 
         $response
             ->assertCreated()
@@ -40,10 +36,11 @@ class InitializeStoreOrderPaymentTest extends TestCase
             ->assertJsonPath('meta', null)
             ->assertJsonPath('data.payable.type', 'store_order')
             ->assertJsonPath('data.payable.store_order_number', $storeOrder->store_order_number)
-            ->assertJsonPath('data.status', 'initialized')
+            ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('data.payment_method', 'edahab')
+            ->assertJsonPath('data.payment_stage', 'full')
             ->assertJsonPath('data.amount', '42.50')
-            ->assertJsonPath('data.currency', 'USD')
-            ->assertJsonPath('data.gateway', 'manual');
+            ->assertJsonPath('data.currency', 'USD');
 
         self::assertMatchesRegularExpression(
             '/^PAY-'.now()->format('Y').'-\d{6}$/',
@@ -55,19 +52,14 @@ class InitializeStoreOrderPaymentTest extends TestCase
             'customer_profile_id' => $profile->id,
             'payable_type' => StoreOrder::class,
             'payable_id' => $storeOrder->id,
-            'status' => 'initialized',
+            'status' => 'pending',
+            'payment_method' => 'edahab',
+            'payment_stage' => 'full',
             'amount' => 42.50,
             'currency' => 'USD',
-            'gateway' => 'manual',
-            'gateway_reference' => 'STO-INIT-001',
-        ]);
-        $this->assertDatabaseHas('payment_transactions', [
-            'gateway' => 'manual',
-            'transaction_reference' => 'STO-INIT-001',
-            'status' => 'initialized',
         ]);
         $this->assertDatabaseHas('payment_status_histories', [
-            'status' => 'initialized',
+            'status' => 'pending',
             'changed_by_type' => 'user',
             'changed_by_id' => $user->id,
         ]);
@@ -76,6 +68,54 @@ class InitializeStoreOrderPaymentTest extends TestCase
             'id' => $storeOrder->id,
             'status' => StoreOrderStatus::PendingPayment->value,
         ]);
+    }
+
+    public function test_store_order_payments_reject_a_non_full_stage(): void
+    {
+        $user = User::factory()->create();
+        $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
+        $storeOrder = StoreOrder::factory()->create([
+            'customer_profile_id' => $profile->id,
+            'status' => StoreOrderStatus::PendingPayment,
+        ]);
+
+        $this
+            ->withToken($user->createToken('customer-mobile')->plainTextToken)
+            ->postJson('/api/v1/payments/initialize', $this->payload($storeOrder, stage: 'deposit'))
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Store order payments support the full payment stage only.');
+    }
+
+    public function test_store_order_payments_reject_cash_on_service(): void
+    {
+        $user = User::factory()->create();
+        $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
+        $storeOrder = StoreOrder::factory()->create([
+            'customer_profile_id' => $profile->id,
+            'status' => StoreOrderStatus::PendingPayment,
+        ]);
+
+        $this
+            ->withToken($user->createToken('customer-mobile')->plainTextToken)
+            ->postJson('/api/v1/payments/initialize', $this->payload($storeOrder, method: 'cash_on_service'))
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Cash on service is available for cleaning services only.');
+    }
+
+    public function test_store_order_payments_reject_manual_cash_on_delivery_initialization(): void
+    {
+        $user = User::factory()->create();
+        $profile = CustomerProfile::factory()->create(['user_id' => $user->id]);
+        $storeOrder = StoreOrder::factory()->create([
+            'customer_profile_id' => $profile->id,
+            'status' => StoreOrderStatus::PendingPayment,
+        ]);
+
+        $this
+            ->withToken($user->createToken('customer-mobile')->plainTextToken)
+            ->postJson('/api/v1/payments/initialize', $this->payload($storeOrder, method: 'cash_on_delivery'))
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Cash on delivery payments are created with the store order.');
     }
 
     public function test_payment_initialization_returns_an_existing_active_payment_for_the_same_store_order(): void
@@ -89,11 +129,11 @@ class InitializeStoreOrderPaymentTest extends TestCase
 
         $firstResponse = $this->withToken($token)->postJson(
             '/api/v1/payments/initialize',
-            $this->payload($storeOrder),
+            $this->payload($storeOrder, idempotencyKey: 'sto-idem-1'),
         );
         $secondResponse = $this->withToken($token)->postJson(
             '/api/v1/payments/initialize',
-            $this->payload($storeOrder),
+            $this->payload($storeOrder, idempotencyKey: 'sto-idem-2'),
         );
 
         $firstResponse->assertCreated();
@@ -181,7 +221,7 @@ class InitializeStoreOrderPaymentTest extends TestCase
 
         $firstResponse = $this->withToken($token)->postJson(
             '/api/v1/payments/initialize',
-            $this->payload($storeOrder, 'STO-INIT-001'),
+            $this->payload($storeOrder, idempotencyKey: 'sto-idem-1'),
         );
         $firstResponse->assertCreated();
 
@@ -191,12 +231,12 @@ class InitializeStoreOrderPaymentTest extends TestCase
 
         $secondResponse = $this->withToken($token)->postJson(
             '/api/v1/payments/initialize',
-            $this->payload($storeOrder, 'STO-INIT-002'),
+            $this->payload($storeOrder, idempotencyKey: 'sto-idem-2'),
         );
 
         $secondResponse
             ->assertCreated()
-            ->assertJsonPath('data.status', 'initialized');
+            ->assertJsonPath('data.status', 'pending');
 
         $this->assertDatabaseCount('payments', 2);
         $this->assertDatabaseHas('store_orders', [
@@ -206,14 +246,20 @@ class InitializeStoreOrderPaymentTest extends TestCase
     }
 
     /**
-     * @return array{store_order_id: int, gateway: string, gateway_reference: string}
+     * @return array<string, mixed>
      */
-    private function payload(StoreOrder $storeOrder, string $gatewayReference = 'STO-INIT-001'): array
-    {
+    private function payload(
+        StoreOrder $storeOrder,
+        string $method = 'edahab',
+        string $stage = 'full',
+        string $idempotencyKey = 'sto-idem-001',
+    ): array {
         return [
-            'store_order_id' => $storeOrder->id,
-            'gateway' => 'manual',
-            'gateway_reference' => $gatewayReference,
+            'payable_type' => 'store_order',
+            'payable_id' => $storeOrder->id,
+            'payment_method' => $method,
+            'payment_stage' => $stage,
+            'idempotency_key' => $idempotencyKey,
         ];
     }
 }

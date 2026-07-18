@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ServicePaymentType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -25,6 +26,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'requires_address',
     'is_active',
     'sort_order',
+    'payment_type',
+    'deposit_percentage',
 ])]
 class Service extends Model
 {
@@ -79,11 +82,13 @@ class Service extends Model
     }
 
     /**
-     * @return array<string, string>
+     * @return array<string, string|class-string>
      */
     protected function casts(): array
     {
         return [
+            'payment_type' => ServicePaymentType::class,
+            'deposit_percentage' => 'integer',
             'starting_from_price' => 'decimal:2',
             'average_rating' => 'decimal:2',
             'reviews_count' => 'integer',
