@@ -461,11 +461,13 @@ Home may be loaded via a single aggregate endpoint and/or section endpoints. Bot
 | `GET` | `/api/v1/home/featured-services` | Featured Services |
 | `GET` | `/api/v1/home/store-products` | Store Products |
 | `GET` | `/api/v1/home/before-after` | Before & After Gallery |
-| `GET` | `/api/v1/home/reviews` | Reviews |
+| `GET` | `/api/v1/home/reviews` | Reviews (**deferred to Sprint 25** — Home module) |
 | `GET` | `/api/v1/home/faq` | FAQ |
 | `GET` | `/api/v1/home/contact` | Contact Information |
 
 All guest-accessible. Optional auth may enrich `is_favorite` flags on service/product teasers.
+
+> **Sprint boundary:** `GET /api/v1/home/reviews` is **deferred to Sprint 25** with the rest of the Home module. Sprint 24 delivers review submission, owner management, per-service published reviews, and admin moderation (§8A).
 
 ---
 
@@ -723,6 +725,80 @@ Supports `status` filter + pagination.
 ## 8.5 Booking Media
 
 Booking Media V1 is limited to **images** and **videos**. Documents are not accepted or returned as booking media. This API design intentionally does not define a separate Booking Media upload/storage endpoint in V1; any future endpoint must preserve these type restrictions and owner-scoped booking access.
+
+---
+
+# 8A. Review APIs (Sprint 24)
+
+Customer Reviews V1 covers **completed booking reviews only**. Product, order, and service-target reviews are out of V1 scope. Reviews begin in status `pending`; only admin moderation moves them to `published` or `hidden`. Public surfaces display `published` reviews only.
+
+**Reviewer identity (public payloads):** `reviewer_name` is rendered as **First Name + Initial** (e.g., `Hodan A.`). If the authoring customer is soft-deleted, `reviewer_name` is **`Verified Customer`**. Full names, phone numbers, emails, and customer codes are never exposed on public review payloads.
+
+## 8A.1 Submit Review
+
+| Item | Spec |
+| --- | --- |
+| **Method / Path** | `POST /api/v1/reviews` |
+| **Auth** | Required (authenticated customer; owner resolved server-side) |
+| **Body** | `booking_id` (required); `rating` (required, integer 1–5); `title` (optional, max 150); `comment` (optional — when provided, **10–1000 characters**) |
+| **Eligibility** | Booking must belong to the authenticated customer and have status `completed`; **one review per completed booking** (multiple completed bookings → multiple reviews). If a **pending** review is deleted (§8A.4), the customer may submit a new review for the same booking |
+| **Deadline** | None — no time window after completion |
+| **Result `201`** | Review created in status **`pending`**; records a `review_submitted` customer activity event |
+| **Errors** | `404` `NOT_FOUND` (unknown / not-owned booking); `409` `REVIEW_NOT_ELIGIBLE` (booking not completed); `409` `REVIEW_ALREADY_EXISTS` (booking already reviewed); `422` `VALIDATION_ERROR`; `429` `RATE_LIMITED` |
+| **Rate limit** | **5 review submissions per minute per customer** (§16.6) |
+
+## 8A.2 My Reviews
+
+| Method | Path | Auth |
+| --- | --- | --- |
+| `GET` | `/api/v1/reviews` | Required (owner) |
+
+Paginated (§3.4). Returns the customer's own reviews in all statuses (`pending`, `published`, `hidden`) with rating, title, comment, status, booking reference, and timestamps.
+
+## 8A.3 Update Review (Pending Only)
+
+| Method | Path | Auth |
+| --- | --- | --- |
+| `PUT` | `/api/v1/reviews/{id}` | Required (owner) |
+
+**Body:** `rating` (1–5), `title` (optional, max 150), `comment` (optional, 10–1000 characters when provided).
+**Rule:** a review may be edited **only while `pending`**. Once `published` or `hidden`, it can no longer be edited by the customer.
+**Errors:** `404` `NOT_FOUND` (unknown / not-owned review); `409` `REVIEW_LOCKED` (review is `published` or `hidden`); `422` `VALIDATION_ERROR`.
+
+## 8A.4 Delete Review (Pending Only)
+
+| Method | Path | Auth |
+| --- | --- | --- |
+| `DELETE` | `/api/v1/reviews/{id}` | Required (owner) |
+
+**Rule:** a review may be deleted **only while `pending`**. Once `published` or `hidden`, it can no longer be deleted by the customer.
+**After deletion:** the booking becomes reviewable again — the customer may submit another review for the same booking (§8A.1).
+**Errors:** `404` `NOT_FOUND`; `409` `REVIEW_LOCKED`.
+
+## 8A.5 Public Service Reviews
+
+| Item | Spec |
+| --- | --- |
+| **Method / Path** | `GET /api/v1/services/{slug}/reviews` |
+| **Auth** | Guest (no authentication) |
+| **Visibility** | **`published` reviews only**, newest first |
+| **Response `200`** | Paginated (§3.4): `rating`, `title`, `comment`, `reviewer_name` (First Name + Initial, or `Verified Customer` for soft-deleted authors), `created_at` |
+| **Errors** | `404` `NOT_FOUND` (unknown / inactive service slug); `429` `RATE_LIMITED` (per-IP public tier) |
+| **Rate limits** | Public per-IP throttle — 60 requests per minute per IP (§16.6) |
+
+## 8A.6 Rating Aggregates
+
+Services carry **cached aggregates**: `average_rating` and `reviews_count`, computed from `published` reviews only. Both values are **recalculated whenever a review is published or hidden** (admin moderation), never on submission. Catalog payloads (§6.1, §6.2) may include `average_rating` and `reviews_count` from these cached columns without additional queries.
+
+- `average_rating` is stored as DECIMAL(3,2) and returned as-is; **clients display it rounded to one decimal place** (e.g., `4.66` → `4.7`).
+- **No minimum review threshold**: ratings are visible starting from the **first published review**.
+
+## 8A.7 Moderation Summary
+
+Admin moderation (approve → `published`, hide → `hidden`) is specified in §18.8. Admins never edit review content and never reply to reviews in V1.
+
+- **Booking status reversion:** if a completed booking is reverted to a non-completed status, its review automatically becomes **`hidden`** (aggregates recalculate). The review is never deleted automatically.
+- **Moderation notifications:** notifying customers of publish/hide outcomes is **deferred until a future version** — no notification is sent in V1.
 
 ---
 
@@ -1226,13 +1302,24 @@ Do not leak existence of other customers’ private resources (prefer `404` over
 | Staged storage quota (500 MB) exceeded | `409` | `UPLOAD_STORAGE_LIMIT_EXCEEDED` |
 | Upload rate limit exceeded | `429` | `RATE_LIMITED` |
 
+## 16.4B Review Errors (§8A)
+
+| Case | Status | Code |
+| --- | --- | --- |
+| Booking not completed (review not allowed yet) | `409` | `REVIEW_NOT_ELIGIBLE` |
+| Booking already has a review | `409` | `REVIEW_ALREADY_EXISTS` |
+| Edit/delete attempted on a `published` or `hidden` review | `409` | `REVIEW_LOCKED` |
+| Unknown / not-owned booking or review | `404` | `NOT_FOUND` |
+| Rating outside 1–5, comment outside 10–1000 characters | `422` | `VALIDATION_ERROR` |
+| Review submission rate limit exceeded | `429` | `RATE_LIMITED` |
+
 ## 16.5 Server Error (500)
 
 Unexpected failures → `500` `SERVER_ERROR` with safe message; detailed diagnostics only in server logs.
 
 ## 16.6 Rate Limiting
 
-HTTP `429` `RATE_LIMITED` with `Retry-After` when possible. Stricter limits on auth, payment initialize, and uploads. Public guest catalog endpoints (services, categories, search) require a per-IP throttle even though no authentication is required: **public tier = 60 requests per minute per IP**. Unified upload endpoint: **20 uploads per minute per customer** (§14.5).
+HTTP `429` `RATE_LIMITED` with `Retry-After` when possible. Stricter limits on auth, payment initialize, and uploads. Public guest catalog endpoints (services, categories, search) require a per-IP throttle even though no authentication is required: **public tier = 60 requests per minute per IP**. Unified upload endpoint: **20 uploads per minute per customer** (§14.5). Review submission (`POST /api/v1/reviews`): **5 submissions per minute per customer** (§8A.1).
 
 ---
 
@@ -1408,7 +1495,7 @@ Future API and product enhancements may include the following. These items are *
 ## 20.1 Planned Future Enhancements
 
 - Live order tracking  
-- Customer ratings & reviews  
+- Product / order / service-target ratings & reviews (V1 ships **completed booking reviews only** — §8A)  
 - Loyalty & rewards program  
 - Promotional coupons  
 - Multi-language support  
@@ -1792,6 +1879,35 @@ Each note returns: `note`, `created_by` (staff name + role), `created_at`. Notes
 | `CUSTOMER_NOT_DELETED` | 422 | Restore requested on a customer that is not soft-deleted |
 | `VALIDATION_ERROR` | 422 | Field validation failure (standard §3.3 payload) |
 | 403 Forbidden | 403 | Missing `customers.*` permission or non–Super Admin on restore |
+
+## 18.8 Review Moderation (Sprint 24 — Documentation Only)
+
+Admin Panel APIs for Customer Reviews moderation (§8A). All endpoints require `auth:sanctum` + `admin` middleware.
+
+Permissions:
+
+| Permission | Grants |
+| --- | --- |
+| `reviews.view` | List and view reviews in any status |
+| `reviews.moderate` | Approve (publish) and hide reviews |
+
+### 18.8.1 Endpoints
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/v1/admin/reviews` | `reviews.view` | List with filters: `status` (`pending` / `published` / `hidden`), `service_id`, `rating`, date range; paginated |
+| GET | `/api/v1/admin/reviews/{review}` | `reviews.view` | Full detail incl. customer, booking reference, and service context |
+| PATCH | `/api/v1/admin/reviews/{review}/approve` | `reviews.moderate` | `pending` or `hidden` → `published`; recalculates the service's cached `average_rating` / `reviews_count` |
+| PATCH | `/api/v1/admin/reviews/{review}/hide` | `reviews.moderate` | `pending` or `published` → `hidden`; recalculates the service's cached `average_rating` / `reviews_count` |
+
+### 18.8.2 Rules
+
+- Admins **never edit** review content (rating, title, comment are read-only to staff).
+- Admins **never reply** to reviews in V1 (no reply/response structure exists).
+- Moderation never deletes reviews; abusive content is hidden via status (`hidden`), preserving audit value.
+- Every approve/hide recalculates the affected service's cached aggregates from `published` reviews only.
+- If a completed booking is reverted to a non-completed status, its review is **automatically hidden** (never automatically deleted); aggregates recalculate.
+- Moderation outcome notifications to customers are **deferred until a future version**.
 
 ---
 

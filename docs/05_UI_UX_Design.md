@@ -733,6 +733,9 @@ White surface, `#E5E7EB` border, 12–16 px radius, 12–16 px padding, Level 0�
 
 - Rating, optional title, comment excerpt, metadata
 - Published reviews only
+- Reviewer identity: **First Name + Initial** (e.g., "Hodan A."); soft-deleted customers display **"Verified Customer"**
+- V1 reviews come from **completed bookings only** (verified feedback)
+- Average rating displays to **one decimal place** (e.g., 4.7); shown from the first published review — no minimum threshold
 - Used on Home and Reviews List
 
 ## 5.7 Gallery

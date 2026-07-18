@@ -37,6 +37,7 @@ use App\Http\Controllers\Api\V1\Admin\Reports\ReportExportDownloadController;
 use App\Http\Controllers\Api\V1\Admin\Reports\RevenueReportSummaryController;
 use App\Http\Controllers\Api\V1\Admin\Reports\StoreOrderReportController;
 use App\Http\Controllers\Api\V1\Admin\Reports\SupplierReportController;
+use App\Http\Controllers\Api\V1\Admin\Reviews\ReviewController as AdminReviewController;
 use App\Http\Controllers\Api\V1\Admin\Settings\BackupController;
 use App\Http\Controllers\Api\V1\Admin\Settings\BranchController;
 use App\Http\Controllers\Api\V1\Admin\Settings\CompanyLogoController;
@@ -54,6 +55,7 @@ use App\Http\Controllers\Api\V1\Booking\BookingController;
 use App\Http\Controllers\Api\V1\Cart\CartController;
 use App\Http\Controllers\Api\V1\Catalog\ServiceCategoryController as CatalogServiceCategoryController;
 use App\Http\Controllers\Api\V1\Catalog\ServiceController as CatalogServiceController;
+use App\Http\Controllers\Api\V1\Catalog\ServiceReviewController as CatalogServiceReviewController;
 use App\Http\Controllers\Api\V1\Checkout\CheckoutController;
 use App\Http\Controllers\Api\V1\Customer\CustomerAddressController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
@@ -70,6 +72,7 @@ use App\Http\Controllers\Api\V1\PurchaseOrder\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationAcceptanceController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationDiscussionController;
+use App\Http\Controllers\Api\V1\Reviews\ReviewController;
 use App\Http\Controllers\Api\V1\StoreOrder\StoreOrderController;
 use App\Http\Controllers\Api\V1\Supplier\SupplierController;
 use App\Http\Controllers\Api\V1\Uploads\UploadController;
@@ -124,9 +127,51 @@ Route::prefix('v1')->middleware('throttle:public-catalog')->group(function (): v
     Route::get('services', [CatalogServiceController::class, 'index'])
         ->name('api.v1.catalog.services.index');
 
+    Route::get('services/{slug}/reviews', [CatalogServiceReviewController::class, 'index'])
+        ->name('api.v1.catalog.services.reviews');
+
     Route::get('services/{slug}', [CatalogServiceController::class, 'show'])
         ->name('api.v1.catalog.services.show');
 });
+
+Route::prefix('v1/reviews')
+    ->middleware('auth:sanctum')
+    ->group(function (): void {
+        Route::post('/', [ReviewController::class, 'store'])
+            ->middleware('throttle:reviews')
+            ->name('api.v1.reviews.store');
+        Route::get('/', [ReviewController::class, 'index'])
+            ->name('api.v1.reviews.index');
+        Route::put('{review}', [ReviewController::class, 'update'])
+            ->whereNumber('review')
+            ->name('api.v1.reviews.update');
+        Route::delete('{review}', [ReviewController::class, 'destroy'])
+            ->whereNumber('review')
+            ->name('api.v1.reviews.destroy');
+    });
+
+Route::prefix('v1/admin/reviews')
+    ->middleware(['auth:sanctum', 'admin'])
+    ->group(function (): void {
+        Route::get('', [AdminReviewController::class, 'index'])
+            ->middleware('permission:reviews.view')
+            ->name('api.v1.admin.reviews.index');
+
+        Route::get('{review}', [AdminReviewController::class, 'show'])
+            ->whereNumber('review')
+            ->middleware('permission:reviews.view')
+            ->name('api.v1.admin.reviews.show');
+
+        Route::patch('{review}/approve', [AdminReviewController::class, 'approve'])
+            ->whereNumber('review')
+            ->middleware('permission:reviews.moderate')
+            ->name('api.v1.admin.reviews.approve');
+
+        Route::patch('{review}/hide', [AdminReviewController::class, 'hide'])
+            ->whereNumber('review')
+            ->middleware('permission:reviews.moderate')
+            ->name('api.v1.admin.reviews.hide');
+    });
 
 Route::prefix('v1/admin/auth')->group(function (): void {
     Route::post('login', [AdminAuthController::class, 'login'])

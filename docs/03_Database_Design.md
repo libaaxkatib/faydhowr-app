@@ -37,7 +37,7 @@ It intentionally does **not** include:
 | Services, store, bookings, quotations, orders, payments, notifications | Multi-tenant SaaS tenancy |
 | Optional product quotations and service quotations | Marketplace / partner inventory |
 | Discuss Quotation messaging + additional file uploads on the **same** quotation | Multi-option parallel quote packages / e-signature |
-| Customer reviews of completed experiences | |
+| Customer reviews of completed bookings (V1) | Product/order/service-target reviews (future version) |
 
 **Business rules reflected in this design:**
 
@@ -119,7 +119,7 @@ Most transactional tables include:
 | **Payment Management** | Unified payment lifecycle, gateway transactions, and receipts | `payments`, `payment_transactions`, `receipts` |
 | **Order Management** | Store orders and line items | `orders`, `order_items`, `order_status_histories` |
 | **Notification Management** | Templates, translations, preferences, lifecycle delivery, archive | `notification_templates`, `notification_template_translations`, `notification_preferences`, `notifications`, `archived_notifications` |
-| **Review Management** | Customer reviews after eligible completed activity | `reviews` |
+| **Review Management** | Customer reviews of completed bookings (V1) | `reviews` |
 | **Settings** | System configuration and audit | `system_settings`, `branches`, `settings_audit_log`, `audit_logs` |
 
 ## 2.2 Module Notes
@@ -163,7 +163,8 @@ Most transactional tables include:
 
 ### Review Management
 
-- Lightweight customer feedback after completed bookings/orders (or on purchased products/services).
+- Lightweight customer feedback for **completed bookings only** in V1 (product/order/service-target reviews deferred to a future version).
+- Reviews begin `pending`; admin moderation publishes or hides them. Public surfaces show `published` reviews only.
 - Does not introduce workforce rating of employees (employees are out of scope).
 
 ### Settings
@@ -842,6 +843,8 @@ Legend for **Required**: `R` = required (NOT NULL), `O` = optional (NULL allowed
 | `requires_address` | BOOLEAN | R | |
 | `is_active` | BOOLEAN | R | |
 | `sort_order` | INT | R | |
+| `average_rating` | DECIMAL(3,2) | O | Cached aggregate from `published` reviews only; recalculated on review publish/hide (§3.9.1); NULL when no published reviews; clients display one decimal place; visible from the first published review (no minimum threshold) |
+| `reviews_count` | INT UNSIGNED | R | Cached count of `published` reviews; default 0; recalculated on review publish/hide |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
 | `deleted_at` | TIMESTAMP | O | |
@@ -2157,13 +2160,15 @@ Preserves recipient, type, channel, status, title, message, data, lifecycle time
 
 ### 3.9.1 `reviews`
 
+> **V1 scope (Sprint 24 — final):** Customer Reviews V1 supports **completed booking reviews only**. Product, order, and service-target reviews are out of V1 scope and may be reintroduced in a future version.
+
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `reviews` |
-| **Purpose** | Customer ratings/comments after eligible completed store or service experiences. |
+| **Purpose** | Customer ratings/comments for **completed bookings** (V1). |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id`; optional `order_id` / `booking_id`; optional `product_id` / `service_id` |
-| **Relationships** | N:1 customer profile; optionally linked to completed order/booking and catalog entity |
+| **Foreign Keys** | `customer_profile_id` → `customer_profiles.id`; `booking_id` → `bookings.id` (UNIQUE); `service_id` → `services.id` (denormalized from the booking) |
+| **Relationships** | N:1 customer profile; 1:1 booking (one review per completed booking); N:1 service (read/aggregate paths) |
 
 #### Columns
 
@@ -2171,32 +2176,44 @@ Preserves recipient, type, channel, status, title, message, data, lifecycle time
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
 | `customer_profile_id` | BIGINT UNSIGNED | R | FK |
-| `review_target_type` | VARCHAR(20) | R | `product`, `service`, `order`, `booking` |
-| `product_id` | BIGINT UNSIGNED | O | |
-| `service_id` | BIGINT UNSIGNED | O | |
-| `order_id` | BIGINT UNSIGNED | O | |
-| `booking_id` | BIGINT UNSIGNED | O | |
+| `booking_id` | BIGINT UNSIGNED | R | FK; UNIQUE — one review per completed booking |
+| `service_id` | BIGINT UNSIGNED | R | FK; copied from the booking's service at creation (denormalized for public listing and aggregates) |
 | `rating` | TINYINT | R | 1–5 |
 | `title` | VARCHAR(150) | O | |
-| `comment` | TEXT | O | |
-| `status` | VARCHAR(20) | R | `pending`, `published`, `hidden` |
+| `comment` | TEXT | O | When provided: 10–1000 characters |
+| `status` | VARCHAR(20) | R | `pending` (default on creation), `published`, `hidden` |
 | `created_at` | TIMESTAMP | R | |
 | `updated_at` | TIMESTAMP | R | |
 
 #### Constraints
 
 - `rating` between 1 and 5
-- Unique review per customer profile per target entity (e.g., unique (`customer_profile_id`, `order_id`) when order review)
+- UNIQUE(`booking_id`) — one review per completed booking; multiple completed bookings allow multiple reviews
+- `comment`, when provided, must be 10–1000 characters
+- `status` in: `pending`, `published`, `hidden`
+
+#### Status Lifecycle
+
+- Every review is created as **`pending`**.
+- Only admin moderation changes status: approve → `published`; hide → `hidden`.
+- Admin may re-moderate: `published` → `hidden` and `hidden` → `published`.
+- Customers may **edit or delete a review only while `pending`**; `published` and `hidden` reviews are immutable to the customer.
+- Deleting a `pending` review frees its `booking_id` — the customer may submit a new review for the same booking.
+- If a completed booking is reverted to a non-completed status, its review is **automatically set to `hidden`** (aggregates recalculate). Reviews are never deleted automatically.
+- There is **no review deadline** — a completed booking remains reviewable indefinitely.
+- Moderation outcome notifications to customers are deferred until a future version.
 
 #### Validation Rules
 
-- Only owning user may create review for their completed order/booking.
+- Only the owning customer may create a review, and only for their own booking with status `completed`.
 - No employee/technician review entity (workforce out of scope).
-- Admin may hide abusive content via `status`.
+- Admin moderation is approve/hide only — admins never edit review content and never reply (no reply structure in V1).
+- Public reviewer identity is rendered as **First Name + Initial**; soft-deleted customers display **Verified Customer**. Reviews are retained when the author is soft-deleted.
 
 #### Notes
 
 - Included to support customer feedback; does not invent a separate social network module.
+- Rating aggregates are **not** computed from this table at read time on hot paths — see the cached `average_rating` / `reviews_count` columns on `services` (§3.2.2), recalculated on publish/hide.
 
 ---
 
@@ -2305,14 +2322,14 @@ Unified File Upload Service (Sprint 23, approved). Customer-uploaded files are s
 | `users` | `customer_profiles`, `customer_devices`, `carts`, `notifications` | Sole customer authentication principal; authentication-adjacent children remain user-scoped |
 | `customer_profiles` | `customer_addresses`, `customer_payment_methods`, `customer_notes`, `uploads`, `bookings`, `quotation_requests`, `orders`, `payments`, `reviews` | Customer business/profile data and approved business-module ownership |
 | `service_categories` | `services` | Category catalog |
-| `services` | `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates`, `bookings`, `quotation_requests` | Service definition, availability, and usage |
+| `services` | `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates`, `bookings`, `quotation_requests`, `reviews` (denormalized `service_id`) | Service definition, availability, usage, and published review aggregates |
 | `product_categories` | `products` | Store taxonomy (V1: Chemicals, Tools, Accessories, PPE, Air Fresheners) |
 | `products` | `product_images`, `cart_items`, `store_order_items`, `quotation_requests`, `stock_ledgers`, `purchase_order_items`, `stock_adjustments` | Product definition, commerce, and on-hand stock |
 | `suppliers` | `purchase_orders` | Inventory procurement |
 | `purchase_orders` | `purchase_order_items`, `goods_receipts` | PO lifecycle; never changes stock alone |
 | `goods_receipts` | `goods_receipt_items`, `stock_ledgers` | Stock increase source |
 | `carts` | `cart_items` | Cart composition |
-| `bookings` | `booking_status_histories` | Status audit |
+| `bookings` | `booking_status_histories`, `reviews` (max one per booking) | Status audit; post-completion review |
 | `quotation_requests` | `quotation_request_attachments`, `quotations` | Request lifecycle |
 | `uploads` | `quotation_request_attachments`, `quotation_message_attachments` | Staged file references via `upload_id` FK (no metadata duplication) |
 | `quotations` | `quotation_items` | Quote breakdown |
@@ -2335,7 +2352,8 @@ Unified File Upload Service (Sprint 23, approved). Customer-uploaded files are s
 | `payments` | `payable_type` + `payable_id` | Service Orders and Store Orders | Unified payment ledger |
 | `quotation_requests` | `request_target_type` | `bookings` or `products` | Booking-origin service and optional product quotes |
 | `notifications` | `reference_type` + `reference_id` | booking/order/quote/payment/etc. | Deep links |
-| `reviews` | `review_target_type` | product/service/order/booking | Feedback targets |
+
+> `reviews` is **not** polymorphic in V1: it references `bookings` directly (completed booking reviews only). Polymorphic review targets (product/order/service) may return in a future version.
 
 ## 4.5 Relationship Diagram (Logical)
 
@@ -2464,8 +2482,10 @@ Indexes below are recommendations for common access paths. Exact index types dep
 
 | Table | Index | Purpose |
 | --- | --- | --- |
-| `reviews` | (`review_target_type`, `product_id`, `status`) | Product rating aggregate |
+| `reviews` | UNIQUE(`booking_id`) | One review per completed booking |
+| `reviews` | (`service_id`, `status`, `created_at`) | Public published listing per service; aggregate recalculation on publish/hide |
 | `reviews` | (`customer_profile_id`, `created_at`) | Customer history |
+| `reviews` | (`status`, `created_at`) | Admin moderation queue (pending first) |
 | `system_settings` | UNIQUE(`category`, `key`); INDEX(`category`) | Config lookup |
 | `branches` | UNIQUE(`code`); INDEX(`status`); partial UNIQUE(`is_default`) WHERE `is_default = TRUE` | Branch lookup, single default |
 | `audit_logs` | (`entity_type`, `entity_id`, `created_at`) | Entity audit trail |
@@ -2544,9 +2564,16 @@ Indexes below are recommendations for common access paths. Exact index types dep
 
 ## 6.8 Review Integrity
 
-1. Reviews tied to eligible completed customer activity.
-2. Rating range 1–5.
-3. Moderation via status without deleting audit value (prefer hide).
+1. Reviews are tied to **completed bookings only** (V1); the booking must belong to the reviewing customer.
+2. One review per completed booking — UNIQUE(`booking_id`); multiple completed bookings allow multiple reviews.
+3. Rating range 1–5; comment, when provided, 10–1000 characters.
+4. Reviews are created `pending`; only admin moderation transitions to `published` / `hidden`.
+5. Customer edit/delete is allowed **only while `pending`** — `published` and `hidden` reviews are immutable to the customer.
+6. Moderation via status without deleting audit value (prefer hide); admins never edit content or reply.
+7. Cached `services.average_rating` / `services.reviews_count` are recalculated from `published` reviews on every publish/hide.
+8. Reviews survive customer soft-deletion; public identity falls back to "Verified Customer".
+9. Reverting a completed booking to a non-completed status automatically sets its review to `hidden`; reviews are never deleted automatically.
+10. Deleting a `pending` review releases UNIQUE(`booking_id`) — the booking becomes reviewable again.
 
 ## 6.9 Referential Integrity
 

@@ -250,6 +250,8 @@ class AdminConsistencyPatchTest extends TestCase
             'products.update',
             'purchase_orders.manage',
             'reports.view',
+            'reviews.moderate',
+            'reviews.view',
             'roles.manage',
             'settings.manage',
             'settings.view',

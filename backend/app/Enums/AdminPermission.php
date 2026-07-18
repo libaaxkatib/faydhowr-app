@@ -33,6 +33,9 @@ enum AdminPermission: string
     case CustomersNotes = 'customers.notes';
     case CustomersAttachments = 'customers.attachments';
 
+    case ReviewsView = 'reviews.view';
+    case ReviewsModerate = 'reviews.moderate';
+
     public function label(): string
     {
         return match ($this) {
@@ -57,6 +60,8 @@ enum AdminPermission: string
             self::CustomersRestore => 'Restore Customers',
             self::CustomersNotes => 'Customer Notes',
             self::CustomersAttachments => 'Customer Attachments',
+            self::ReviewsView => 'View Reviews',
+            self::ReviewsModerate => 'Moderate Reviews',
         };
     }
 
@@ -84,6 +89,8 @@ enum AdminPermission: string
             self::CustomersRestore,
             self::CustomersNotes,
             self::CustomersAttachments => 'Customers',
+            self::ReviewsView,
+            self::ReviewsModerate => 'Reviews',
         };
     }
 

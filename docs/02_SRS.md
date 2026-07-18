@@ -1544,6 +1544,94 @@ The Customer Management module uses the following Hybrid RBAC permission keys:
 
 ---
 
+## 21. Customer Reviews Module
+
+### 21.1 Objective
+
+Allow registered customers to rate and comment on **completed bookings**, with admin moderation controlling public visibility, so that trust surfaces (service details, reviews lists) display genuine, verified feedback.
+
+### 21.2 Functional Requirements
+
+#### FR-093.1 V1 Scope
+
+Customer Reviews V1 supports **completed booking reviews only**. Product reviews, order reviews, and direct service-target reviews are **out of V1 scope** and may be introduced in a future version.
+
+#### FR-093.2 Review Submission & Eligibility
+
+- Only authenticated, registered customers may submit reviews (no guest reviews, per FR-092.1).
+- A review may be submitted only for a booking that belongs to the submitting customer and has status `Completed`.
+- **One completed booking → one review.** A second review for the same booking is rejected while a review exists. Multiple completed bookings allow multiple reviews (one each).
+- If a customer deletes their **pending** review, they may submit another review for the same booking.
+- There is **no review deadline**: a completed booking remains reviewable indefinitely.
+- Each submission records a `Review Submitted` activity timeline event (FR-092.7).
+
+#### FR-093.3 Review Content
+
+- `rating`: required integer 1–5.
+- `title`: optional, max 150 characters.
+- `comment`: **optional**; when provided, it must be **10–1000 characters**.
+
+#### FR-093.4 Moderation Lifecycle
+
+- Every review is created in status **`pending`**.
+- Only admin moderation changes status: **Approve** → `published`, **Hide** → `hidden`. Re-moderation between `published` and `hidden` is allowed.
+- Public surfaces (service details, reviews lists) display **`published` reviews only**.
+- Admins never edit review content and never reply to reviews in V1.
+- Moderation never deletes reviews; abusive content is hidden, preserving audit history.
+- If a completed booking is reverted to a non-completed status, its review automatically becomes **`hidden`**. The review is never deleted automatically.
+- Review moderation notifications (informing the customer of publish/hide outcomes) are **deferred until a future version**.
+
+#### FR-093.5 Customer Edit / Delete Policy
+
+- A customer may edit or delete their review **only while it is `pending`**.
+- Once a review is `published` or `hidden`, the customer can no longer edit or delete it.
+
+#### FR-093.6 Public Reviewer Identity
+
+- Public review payloads display the reviewer as **First Name + Initial** (e.g., "Hodan A.").
+- Reviews authored by soft-deleted customers remain visible (when `published`) and display **"Verified Customer"** instead of a name.
+- Full names, phone numbers, emails, and Customer Codes are never exposed on public review surfaces.
+
+#### FR-093.7 Rating Aggregates
+
+- Each service carries cached aggregates: `average_rating` and `reviews_count`, computed from `published` reviews only.
+- Aggregates are recalculated whenever a review is **published or hidden** — never on submission.
+- `average_rating` is stored as DECIMAL(3,2); clients display it rounded to **one decimal place**.
+- There is **no minimum review threshold**: ratings are visible starting from the first published review.
+
+#### FR-093.8 Rate Limiting
+
+Review submission is limited to **5 submissions per minute per customer**.
+
+#### FR-093.9 Home Reviews Section
+
+The Home reviews endpoint (`GET /api/v1/home/reviews`) is **deferred to Sprint 25** with the Home module.
+
+#### FR-093.10 Permissions
+
+| Permission | Grants |
+| --- | --- |
+| `reviews.view` | View reviews in any status (Admin Panel) |
+| `reviews.moderate` | Approve (publish) and hide reviews |
+
+### 21.3 Business Rules
+
+- BR-R01: V1 reviews target completed bookings only; no product/order/service-target reviews.
+- BR-R02: One review per completed booking; multiple completed bookings → multiple reviews.
+- BR-R03: Reviews begin `pending`; only admin moderation publishes or hides them.
+- BR-R04: Customers may edit/delete only `pending` reviews; `published`/`hidden` reviews are immutable to the customer.
+- BR-R05: No review deadline after booking completion.
+- BR-R06: Comments are optional; when provided, 10–1000 characters; ratings are always 1–5.
+- BR-R07: Public reviewer identity is First Name + Initial; soft-deleted authors display "Verified Customer".
+- BR-R08: Admins never edit review content and never reply to reviews in V1.
+- BR-R09: Service `average_rating` / `reviews_count` are cached and recalculated on publish/hide from `published` reviews only.
+- BR-R10: Reviews are permanently retained through customer soft-deletion (FR-092.12).
+- BR-R11: Reverting a completed booking to a non-completed status automatically hides its review; the review is never deleted automatically.
+- BR-R12: Deleting a pending review re-opens the booking for a new review submission.
+- BR-R13: Ratings display from the first published review (no minimum threshold); clients render the average to one decimal place.
+
+---
+
 ### 17.1 Out of Scope for This Document
 
 - UI/UX wireframes or visual design

@@ -539,6 +539,40 @@ Describes every customer-facing booking step for eligible bookable services.
 
 Booking History is available only when authenticated (Profile / Activity). Guests who booked after login can return later via login to view status.
 
+## 7.5 Post-Completion Review (Sprint 24)
+
+Reviews in V1 are written **only for completed bookings** — one review per completed booking.
+
+```text
+Booking reaches Completed
+        ↓
+Booking History / Booking Details shows "Rate this service"
+        ↓
+Review form: rating (1–5 required) + optional title + optional comment (10–1000 chars)
+        ↓
+Submit  →  Review created (Pending)
+        ↓
+"Thanks — your review is pending approval"
+        ↓
+Admin approves → Published (visible publicly)   |   Admin hides → Hidden (never shown)
+```
+
+| UX rule | Behavior |
+| --- | --- |
+| Entry point | Completed bookings only; already-reviewed bookings show the existing review instead of the form |
+| Rating | Required 1–5 star input |
+| Comment | Optional; when typed, enforce 10–1000 characters with live counter |
+| No deadline | The prompt remains available indefinitely after completion |
+| Pending state | Customer sees their review marked "Pending approval"; may **edit or delete only while pending** |
+| Delete & resubmit | Deleting a pending review re-opens the booking — the "Rate this service" entry point returns |
+| Published/Hidden | Review becomes read-only for the customer; no edit/delete affordances |
+| Public identity | Reviews display First Name + Initial (e.g., "Hodan A."); soft-deleted authors display "Verified Customer" |
+| Rating display | Average rating renders to **one decimal place** (e.g., 4.7); visible from the **first published review** — no minimum threshold |
+| Moderation outcome | No notification is sent when a review is published or hidden (deferred to a future version) |
+| Rate limit feedback | Excessive submissions (over 5/minute) show a friendly "try again shortly" message |
+
+Published reviews appear on the service details reviews section and reviews lists. The Home reviews section is deferred to Sprint 25.
+
 ---
 
 # 8. Payment Flow
@@ -984,6 +1018,34 @@ Every payment must originate from an existing Order via: Booking / Product Reque
 - Transaction Reference Copy button shows "Copied" confirmation — UI-only interaction.
 - Payment Method icons are displayed consistently across list and details.
 - Financial Audit Summary is read-only — derived from timeline events.
+
+---
+
+# 17A. Admin Reviews Moderation (Panel)
+
+## 17A.1 Objective
+
+Staff moderate customer booking reviews — approving genuine feedback for public display and hiding abusive content — without ever editing or deleting review data.
+
+## 17A.2 Primary Path
+
+1. Staff opens **Reviews**.
+2. Filters by status (**Pending** default queue), service, rating, or date range.
+3. Opens a review row: rating, title, comment, customer, booking reference, service context.
+4. Chooses **Approve** (→ Published) or **Hide** (→ Hidden).
+5. May re-moderate later: Published → Hidden or Hidden → Published.
+6. On every approve/hide, the service's cached average rating and reviews count refresh automatically.
+
+## 17A.3 Rules
+
+- Review content (rating, title, comment) is **read-only** to staff — no editing, ever.
+- No admin replies to reviews in V1.
+- No permanent delete; hiding preserves audit value.
+- Statuses: Pending · Published · Hidden (no custom values).
+- Reverting a completed booking to a non-completed status automatically hides its review (never deletes it).
+- Customers receive no moderation-outcome notifications in V1 (deferred to a future version).
+- Only `published` reviews appear on customer-facing surfaces.
+- Access requires `reviews.view`; moderation actions require `reviews.moderate`.
 
 ---
 

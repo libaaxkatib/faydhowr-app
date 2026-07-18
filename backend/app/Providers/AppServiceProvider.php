@@ -44,6 +44,8 @@ use App\Contracts\Reports\Services\CustomerReportServiceInterface;
 use App\Contracts\Reports\Services\InventoryReportServiceInterface;
 use App\Contracts\Reports\Services\RevenueReportServiceInterface;
 use App\Contracts\Reports\Storage\ReportStorageInterface;
+use App\Contracts\Review\Repositories\ReviewRepositoryInterface;
+use App\Contracts\Review\Services\ReviewServiceInterface;
 use App\Contracts\Settings\Repositories\BranchRepositoryInterface;
 use App\Contracts\Settings\Repositories\SettingsAuditRepositoryInterface;
 use App\Contracts\Settings\Repositories\SystemSettingRepositoryInterface;
@@ -59,6 +61,7 @@ use App\Models\Payment;
 use App\Models\Quotation;
 use App\Models\StoreOrder;
 use App\Observers\Customer\CustomerCommercialActivityObserver;
+use App\Observers\Review\BookingReviewObserver;
 use App\Repositories\Accounting\AccountingPeriodRepository;
 use App\Repositories\Accounting\AccountRepository;
 use App\Repositories\Accounting\FinancialReportRepository;
@@ -73,6 +76,7 @@ use App\Repositories\Customer\CustomerAddressRepository;
 use App\Repositories\Customer\CustomerAttachmentRepository;
 use App\Repositories\Customer\CustomerNoteRepository;
 use App\Repositories\Customer\CustomerRepository;
+use App\Repositories\Review\ReviewRepository;
 use App\Repositories\Settings\BranchRepository;
 use App\Repositories\Settings\SettingsAuditRepository;
 use App\Repositories\Settings\SystemSettingRepository;
@@ -130,6 +134,7 @@ use App\Services\Reports\Services\InventoryReportService;
 use App\Services\Reports\Services\RevenueReportService;
 use App\Services\Reports\Storage\LocalReportStorage;
 use App\Services\Reports\Storage\ReportStorageManager;
+use App\Services\Review\ReviewService;
 use App\Services\Settings\AuditService;
 use App\Services\Settings\BackupService;
 use App\Services\Settings\BranchService;
@@ -197,6 +202,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(UploadRepositoryInterface::class, UploadRepository::class);
 
         $this->app->singleton(UploadServiceInterface::class, UploadService::class);
+
+        $this->app->bind(ReviewRepositoryInterface::class, ReviewRepository::class);
+
+        $this->app->singleton(ReviewServiceInterface::class, ReviewService::class);
 
         $this->app->singleton(AccountRepositoryInterface::class, AccountRepository::class);
 
@@ -339,6 +348,8 @@ class AppServiceProvider extends ServiceProvider
         StoreOrder::observe($observer);
         Payment::observe($observer);
 
+        Booking::observe($this->app->make(BookingReviewObserver::class));
+
         RateLimiter::for('auth-register', function (Request $request): Limit {
             return Limit::perMinute(5)->by($request->ip());
         });
@@ -370,6 +381,13 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('uploads', function (Request $request): Limit {
             return Limit::perMinute((int) config('uploads.rate_limit_per_minute'))->by(
                 'uploads|'.($request->user()?->getAuthIdentifier() ?? $request->ip()),
+            );
+        });
+
+        // Review submission per API Design §8A.1: 5 submissions/minute/customer.
+        RateLimiter::for('reviews', function (Request $request): Limit {
+            return Limit::perMinute(5)->by(
+                'reviews|'.($request->user()?->getAuthIdentifier() ?? $request->ip()),
             );
         });
     }

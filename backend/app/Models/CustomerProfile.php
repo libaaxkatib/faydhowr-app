@@ -115,6 +115,14 @@ class CustomerProfile extends Model
     }
 
     /**
+     * @return HasMany<Review, $this>
+     */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+
+    /**
      * @param  Builder<CustomerProfile>  $query
      * @return Builder<CustomerProfile>
      */

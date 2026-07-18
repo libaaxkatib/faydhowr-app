@@ -63,12 +63,22 @@ class Service extends Model
     }
 
     /**
+     * @return HasMany<Review, $this>
+     */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
             'starting_from_price' => 'decimal:2',
+            'average_rating' => 'decimal:2',
+            'reviews_count' => 'integer',
             'duration_minutes' => 'integer',
             'min_lead_hours' => 'integer',
             'max_concurrent_bookings' => 'integer',
