@@ -571,7 +571,7 @@ Or `POST /api/v1/bookings` with `service_id`.
 | --- | --- | --- |
 | `POST` | `/api/v1/quotation-requests/{id}/attachments` | Required |
 
-Or pre-upload: `POST /api/v1/uploads` then reference IDs on create.  
+Or pre-upload: `POST /api/v1/uploads` then reference the returned upload UUIDs on create (§14).  
 
 See §14 for formats and limits. Ownership of quotation request required.
 
@@ -743,7 +743,7 @@ Covers **service** and **product** quotation requests and issued quotations.
 - `requirements` (required)
 - `description` (optional but highly recommended — free-text notes to explain the request, uploaded files, or special instructions)
 - `preferred_timing`, `location`, `quantity_hint`
-- `attachment_ids` (optional)
+- `attachment_ids` (optional — upload UUIDs returned by §14 staging)
 
 **Result:** Request with public reference aligning to Quotation Number family (`QT-YYYY-######`), status `pending_review`.
 
@@ -1017,21 +1017,47 @@ Require `auth:sanctum` + `admin` + `permission:notifications.manage`.
 
 # 14. File Upload APIs
 
-## 14.1 Single Upload Endpoint
+Unified File Upload Service (Sprint 23, approved). **Uploader: authenticated customers only** — admin uploads remain module-specific, and legacy upload implementations (customer attachments, product images, company logo) remain unchanged pending a future migration.
 
-Replace any previous multi-endpoint or image-only upload strategy with a **single** upload endpoint:
+## 14.1 Endpoints
 
-| Method | Path | Auth |
-| --- | --- | --- |
-| `POST` | `/api/v1/uploads` | Required |
+Replace any previous multi-endpoint or image-only upload strategy with a **single** unified upload service:
 
-Content-Type: `multipart/form-data`.
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/uploads` | Required (customer) | Stage one or more files before attaching them |
+| `GET` | `/api/v1/uploads` | Required (owner only) | List the owner's **unattached, non-expired** staged uploads |
+| `GET` | `/api/v1/uploads/{uuid}` | Required (owner only) | Stream the file content back to its owner |
+| `DELETE` | `/api/v1/uploads/{uuid}` | Required (owner only) | Delete an **unattached** staged upload |
+
+Upload Content-Type: `multipart/form-data`.
+
+**Public identifier:** UUID only. Numeric IDs remain internal and are never exposed in routes or payloads.
+
+**Ownership:** the owner is resolved server-side from the authenticated customer (ADR-001) and is never client-supplied.
 
 ### Purpose
 
 Upload files **before** submitting quotation requests.
 
-The upload endpoint returns **uploaded file IDs** that are later attached to quotation requests.
+The upload endpoint returns **uploaded file UUIDs** that are later attached to quotation requests.
+
+### List semantics (`GET /api/v1/uploads`)
+
+- Owner only: returns exclusively the authenticated customer's staged uploads.
+- Returns **unattached, non-expired** uploads only (attached and expired uploads are never listed).
+- Items use the §14.4 metadata shape (`uuid`, `file_name`, `mime_type`, `media_type`, `file_size_bytes`, `created_at`).
+- Paginated per §3.4: default **20** per page, maximum **100**.
+
+### Read semantics (`GET /api/v1/uploads/{uuid}`)
+
+- Owner only; other identities receive `404` (existence is not disclosed).
+- File bytes are **streamed by the backend**. Storage paths and disk details are never exposed.
+
+### Delete semantics (`DELETE /api/v1/uploads/{uuid}`)
+
+- Owner only; only **unattached** uploads may be deleted.
+- Deleting an upload that is already attached returns `409 Conflict` (`UPLOAD_ATTACHED`).
 
 ## 14.2 Supported File Types
 
@@ -1064,40 +1090,57 @@ Customers may upload one or more files. Supported quotation attachments include 
 
 ## 14.4 Response Contract
 
-Successful upload returns file metadata including **file IDs** used when creating quotation requests.
+Successful upload returns file metadata including **file UUIDs** used when creating quotation requests.
 
 Logical response shape (inside standard success envelope `data`):
 
-- One or more uploaded file objects, each with at least: `id`, `file_name`, `mime_type`, `file_size_bytes`, `file_url` (or storage key), `created_at`
+- One or more uploaded file objects, each with at least: `uuid`, `file_name`, `mime_type`, `media_type` (`image` / `video` / `document`), `file_size_bytes`, `created_at`
 
-## 14.5 Maximum Size
+Storage paths, disks, and numeric IDs are never returned. File content is read exclusively through `GET /api/v1/uploads/{uuid}`.
 
-| Limit | Guidance |
+## 14.5 Limits (Approved V1 Values)
+
+| Limit | Value |
 | --- | --- |
-| Per file | Configurable by type (images/documents vs larger video caps) |
-| Per request | Configurable max file count (one or more files allowed) |
+| Image, per file | **10 MB** |
+| PDF, per file | **20 MB** |
+| Video, per file | **100 MB** |
+| Maximum files per request | **10** |
+| Upload rate limit | **20 uploads/minute/customer** |
+| Staged storage quota per customer | **500 MB** (total unattached staged storage; exceeding it → `409` `UPLOAD_STORAGE_LIMIT_EXCEEDED`) |
 
-Exact caps live in settings; API documents effective limits in validation errors.
+Limits are **configuration-driven** (environment/config). There is **no Settings UI** for these limits in V1; the Storage Settings category (SRS FR-091.9) does not govern the Unified File Upload Service in V1. The API documents effective limits in validation errors.
 
 ## 14.6 Validation Rules
 
 1. MIME type and extension must match the allow-list (images, videos, PDF only).
 2. Reject executable or mismatched content sniffing failures.
 3. Authenticated customer required for all uploads.
-4. Strip/skip EXIF or similar metadata persistence policy as a security/privacy choice where applicable.
-5. Virus/malware scanning recommended at storage boundary.
+4. EXIF stripping: **deferred** (not in V1).
+5. Virus/malware scanning: **deferred** (not in V1); recommended at the storage boundary when introduced.
 
 ## 14.7 Storage Strategy
 
 | Concern | Approach |
 | --- | --- |
-| Storage | Private or signed object storage |
-| Staging | Uploaded files retained as reusable file records identified by returned IDs |
-| Attachment | File IDs referenced when creating quotation requests; persisted on `quotation_request_attachments` |
-| Access | Authenticated/signed URLs for reading sensitive uploads |
+| Storage (V1) | **Local/private disk** — never inside the public web root; S3-compatible object storage later via configuration only |
+| Staging | Uploaded files retained as reusable file records identified by returned UUIDs |
+| Attachment | File UUIDs referenced when creating quotation requests; persisted as **FK references** (`upload_id`) on `quotation_request_attachments` — upload metadata is never duplicated |
+| Access | Owner-only backend streaming (`GET /api/v1/uploads/{uuid}`); storage paths never exposed |
 | CDN | Optional for public catalog media (not required for private quotation uploads) |
 
 Catalog service/product media remain admin-managed (not customer upload APIs in v1).
+
+## 14.8 Retention & Cleanup
+
+- Unattached uploads **expire 7 days** after upload.
+- A **scheduled job** removes expired uploads (file content and metadata record).
+- Attached uploads follow the lifecycle of the record they are attached to and are not subject to staging expiry.
+- Expired or deleted UUIDs return `404` on read.
+
+## 14.9 Legacy Upload Implementations
+
+Existing module-specific uploads — customer attachments (admin), product images (admin), company logo (Settings) — **remain unchanged** in V1. Their migration onto the Unified File Upload Service is **deferred until after Backend V1** and is out of Sprint 23 scope.
 
 ---
 
@@ -1171,13 +1214,25 @@ HTTP `422` + field map (`error_code: VALIDATION_ERROR`).
 Unknown ids or inactive public catalog resources not exposed → `404` `NOT_FOUND`.  
 Do not leak existence of other customers’ private resources (prefer `404` over `403` where appropriate).
 
+## 16.4A Upload Errors (§14)
+
+| Case | Status | Code |
+| --- | --- | --- |
+| File type not in allow-list (MIME/extension mismatch included) | `422` | `VALIDATION_ERROR` |
+| File exceeds per-type size cap | `422` | `VALIDATION_ERROR` |
+| More than 10 files in one request | `422` | `VALIDATION_ERROR` |
+| Unknown, expired, or not-owned upload UUID | `404` | `NOT_FOUND` |
+| Delete attempted on an attached upload | `409` | `UPLOAD_ATTACHED` |
+| Staged storage quota (500 MB) exceeded | `409` | `UPLOAD_STORAGE_LIMIT_EXCEEDED` |
+| Upload rate limit exceeded | `429` | `RATE_LIMITED` |
+
 ## 16.5 Server Error (500)
 
 Unexpected failures → `500` `SERVER_ERROR` with safe message; detailed diagnostics only in server logs.
 
 ## 16.6 Rate Limiting
 
-HTTP `429` `RATE_LIMITED` with `Retry-After` when possible. Stricter limits on auth, payment initialize, and uploads. Public guest catalog endpoints (services, categories, search) require a per-IP throttle even though no authentication is required: **public tier = 60 requests per minute per IP**.
+HTTP `429` `RATE_LIMITED` with `Retry-After` when possible. Stricter limits on auth, payment initialize, and uploads. Public guest catalog endpoints (services, categories, search) require a per-IP throttle even though no authentication is required: **public tier = 60 requests per minute per IP**. Unified upload endpoint: **20 uploads per minute per customer** (§14.5).
 
 ---
 
@@ -1223,7 +1278,7 @@ Bearer-token mobile APIs are typically not cookie-session browser forms; CSRF ri
 
 ## 17.8 File Upload Security
 
-Allow-list MIME/extensions; size caps; content sniffing; store outside public web root or with signed access; no scriptable types in v1 images.
+Allow-list MIME/extensions; size caps; content sniffing; store outside public web root (local/private disk in V1); no scriptable types in v1 images. Uploads are owner-scoped, publicly identified by UUID only, and read exclusively via backend streaming — storage paths are never exposed. Virus scanning and EXIF stripping are deferred beyond V1.
 
 ## 17.9 Rate Limiting
 

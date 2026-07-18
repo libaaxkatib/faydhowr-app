@@ -52,6 +52,8 @@ use App\Contracts\Settings\Services\BackupServiceInterface;
 use App\Contracts\Settings\Services\BranchServiceInterface;
 use App\Contracts\Settings\Services\SettingsServiceInterface;
 use App\Contracts\Sms\SmsSenderInterface;
+use App\Contracts\Upload\Repositories\UploadRepositoryInterface;
+use App\Contracts\Upload\Services\UploadServiceInterface;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\Quotation;
@@ -74,6 +76,7 @@ use App\Repositories\Customer\CustomerRepository;
 use App\Repositories\Settings\BranchRepository;
 use App\Repositories\Settings\SettingsAuditRepository;
 use App\Repositories\Settings\SystemSettingRepository;
+use App\Repositories\Upload\UploadRepository;
 use App\Services\Accounting\AccountingManager;
 use App\Services\Accounting\Services\AccountingPeriodService;
 use App\Services\Accounting\Services\ChartOfAccountService;
@@ -134,6 +137,7 @@ use App\Services\Settings\SettingsService;
 use App\Services\Sms\LogSmsSender;
 use App\Services\Sms\NullSmsSender;
 use App\Services\Sms\SmsSenderManager;
+use App\Services\Upload\UploadService;
 use App\Support\Customer\CustomerCodeGenerator;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Foundation\Application;
@@ -189,6 +193,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(ServiceCatalogRepositoryInterface::class, ServiceCatalogRepository::class);
 
         $this->app->singleton(ServiceCatalogServiceInterface::class, ServiceCatalogService::class);
+
+        $this->app->bind(UploadRepositoryInterface::class, UploadRepository::class);
+
+        $this->app->singleton(UploadServiceInterface::class, UploadService::class);
 
         $this->app->singleton(AccountRepositoryInterface::class, AccountRepository::class);
 
@@ -356,6 +364,13 @@ class AppServiceProvider extends ServiceProvider
         // Public catalog tier per API Design §16.6: 60 requests/minute/IP.
         RateLimiter::for('public-catalog', function (Request $request): Limit {
             return Limit::perMinute(60)->by($request->ip());
+        });
+
+        // Unified upload staging per API Design §14.5: 20 uploads/minute/customer.
+        RateLimiter::for('uploads', function (Request $request): Limit {
+            return Limit::perMinute((int) config('uploads.rate_limit_per_minute'))->by(
+                'uploads|'.($request->user()?->getAuthIdentifier() ?? $request->ip()),
+            );
         });
     }
 }

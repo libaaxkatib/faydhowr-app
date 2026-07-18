@@ -72,6 +72,7 @@ use App\Http\Controllers\Api\V1\Quotation\QuotationController;
 use App\Http\Controllers\Api\V1\Quotation\QuotationDiscussionController;
 use App\Http\Controllers\Api\V1\StoreOrder\StoreOrderController;
 use App\Http\Controllers\Api\V1\Supplier\SupplierController;
+use App\Http\Controllers\Api\V1\Uploads\UploadController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -507,6 +508,22 @@ Route::prefix('v1/admin/report-exports')
         Route::get('{export}/download', [ReportExportDownloadController::class, 'show'])
             ->whereNumber('export')
             ->name('api.v1.admin.report-exports.download');
+    });
+
+Route::prefix('v1/uploads')
+    ->middleware('auth:sanctum')
+    ->group(function (): void {
+        Route::post('/', [UploadController::class, 'store'])
+            ->middleware('throttle:uploads')
+            ->name('api.v1.uploads.store');
+        Route::get('/', [UploadController::class, 'index'])
+            ->name('api.v1.uploads.index');
+        Route::get('{uuid}', [UploadController::class, 'show'])
+            ->whereUuid('uuid')
+            ->name('api.v1.uploads.show');
+        Route::delete('{uuid}', [UploadController::class, 'destroy'])
+            ->whereUuid('uuid')
+            ->name('api.v1.uploads.destroy');
     });
 
 Route::get('v1/customer/profile', [CustomerProfileController::class, 'show'])

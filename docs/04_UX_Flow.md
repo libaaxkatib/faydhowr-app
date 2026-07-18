@@ -465,11 +465,12 @@ If Accept (latest revision only) → Payment / order fulfillment path as applica
 
 ## 6.4 File Upload UX Rules (Quotation)
 
-1. Customer may add **one or more** files before submission and during Discuss Quotation.
-2. Show clear format guidance (images: JPG/JPEG/PNG/WebP; video: MP4/MOV/WebM; PDF as enabled).
-3. Allow remove/replace before submit; allow additional uploads in discussion.
-4. Block unsupported types with actionable error copy.
+1. Customer may add **one or more** files (up to 10 per upload request) before submission and during Discuss Quotation.
+2. Show clear format guidance (images: JPG/JPEG/PNG/WebP; video: MP4/MOV/WebM; PDF as enabled) and size limits (images 10 MB, PDF 20 MB, video 100 MB).
+3. Allow remove/replace before submit (staged uploads can be deleted until attached); allow additional uploads in discussion.
+4. Block unsupported or oversized files with actionable error copy.
 5. Submission remains possible per product policy if files are optional; when files materially help assessment, prompt without dead-ending unless business marks them required for that offering.
+6. Staged files not attached to a request expire after 7 days; the app should not rely on staged uploads persisting beyond that window.
 
 ## 6.5 Discuss Quotation (V1)
 

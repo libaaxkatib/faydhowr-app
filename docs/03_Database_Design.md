@@ -115,6 +115,7 @@ Most transactional tables include:
 | **Inventory Management** | Suppliers, purchase orders, goods receipts, stock ledger, adjustments, low-stock | `suppliers`, `purchase_orders`, `purchase_order_items`, `purchase_order_status_histories`, `goods_receipts`, `goods_receipt_items`, `stock_ledgers`, `stock_adjustments` |
 | **Booking Management** | Customer-profile-owned service bookings and status history | `bookings`, `booking_status_histories` |
 | **Quotation Management** | Quote requests, issued quote revisions, discussion messages, attachments, line items, timeline | `quotation_requests`, `quotation_request_attachments`, `quotations`, `quotation_items`, `quotation_messages`, `quotation_message_attachments`, `quotation_status_histories` |
+| **File Upload Service** | Unified customer file upload staging (Sprint 23): reusable, UUID-identified, owner-scoped file records uploaded before attachment to business records | `uploads` |
 | **Payment Management** | Unified payment lifecycle, gateway transactions, and receipts | `payments`, `payment_transactions`, `receipts` |
 | **Order Management** | Store orders and line items | `orders`, `order_items`, `order_status_histories` |
 | **Notification Management** | Templates, translations, preferences, lifecycle delivery, archive | `notification_templates`, `notification_template_translations`, `notification_preferences`, `notifications`, `archived_notifications` |
@@ -1559,9 +1560,9 @@ Supports:
 | Attribute | Detail |
 | --- | --- |
 | **Table Name** | `quotation_request_attachments` |
-| **Purpose** | Optional files supporting a quote request. |
+| **Purpose** | Optional files supporting a quote request. Links a quotation request to staged files in the Unified File Upload Service (`uploads`, §3.11.1). |
 | **Primary Key** | `id` |
-| **Foreign Keys** | `quotation_request_id` → `quotation_requests.id` |
+| **Foreign Keys** | `quotation_request_id` → `quotation_requests.id`; `upload_id` → `uploads.id` |
 
 #### Columns
 
@@ -1569,22 +1570,18 @@ Supports:
 | --- | --- | --- | --- |
 | `id` | BIGINT UNSIGNED | R | PK |
 | `quotation_request_id` | BIGINT UNSIGNED | R | FK |
-| `file_url` | VARCHAR(500) | R | |
-| `file_name` | VARCHAR(255) | R | |
-| `mime_type` | VARCHAR(100) | O | |
-| `file_size_bytes` | INT | O | |
+| `upload_id` | BIGINT UNSIGNED | R | FK → `uploads.id`; UNIQUE (an upload is attached to at most one request) |
 | `created_at` | TIMESTAMP | R | |
 
 #### Validation Rules
 
-- Allowed mime types and max size enforced by application policy.
-- Supported customer upload formats:
+- **Approved (Sprint 23):** attachments reference the `uploads` table via FK; upload metadata (name, mime type, size, path) is **not duplicated** here — it is read from the referenced `uploads` row.
+- The referenced upload must be owned by the requesting customer, unattached, and non-expired at attach time; attaching sets `uploads.attached_at`.
+- Allowed mime types and per-type size caps are enforced at upload time by the Unified File Upload Service (§3.11.1):
   - **Images:** JPG, JPEG, PNG, WebP
   - **Videos:** MP4, MOV, WebM
   - **Documents:** PDF
 - Customers may upload one or more files when requesting quotations.
-- Supported quotation attachments include images, videos, and PDF documents.
-- The table remains generic and stores all supported attachment types via existing columns (`file_url`, `file_name`, `mime_type`, `file_size_bytes`) without type-specific tables.
 
 #### Notes
 
@@ -1728,7 +1725,7 @@ These files help administrators accurately assess the requested work and prepare
 
 ### 3.5.3B `quotation_message_attachments`
 
-Additional images/videos/PDFs uploaded during Discuss Quotation (same allowed mime types as request attachments). Linked to `quotation_messages.id`.
+Additional images/videos/PDFs uploaded during Discuss Quotation (same allowed mime types as request attachments). Linked to `quotation_messages.id` and, following the same approved pattern as §3.5.2, referencing staged files via FK to `uploads.id` without duplicating upload metadata.
 
 ### 3.5.3C `quotation_status_histories`
 
@@ -2246,6 +2243,49 @@ Notes retained from the superseded spec:
 
 ---
 
+## 3.11 File Upload Service
+
+Unified File Upload Service (Sprint 23, approved). Customer-uploaded files are staged as reusable records identified publicly by **UUID only**; numeric IDs, storage disks, and paths remain internal and are never exposed through the API. Legacy module-specific upload tables (`customer_attachments`, `product_images`, `booking_media`, `service_media`) remain unchanged; their migration onto this service is **deferred until after Backend V1**.
+
+### 3.11.1 `uploads`
+
+| Attribute | Detail |
+| --- | --- |
+| **Table Name** | `uploads` |
+| **Purpose** | Staged customer file uploads (images / videos / PDF documents), uploaded before being attached to business records (first consumer: quotation requests). |
+| **Primary Key** | `id` (internal only) |
+| **Public Identifier** | `uuid` (the only identifier exposed in routes and payloads) |
+| **Owner** | `customer_profile_id`, resolved server-side from the authenticated customer (ADR-001); never client-supplied |
+| **Relationships** | N:1 → `customer_profiles`; referenced via FK (`upload_id`) by attachment tables (`quotation_request_attachments`, `quotation_message_attachments`) which never duplicate upload metadata |
+
+#### Columns
+
+| Column | Data Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | BIGINT UNSIGNED | R | PK, internal only — never exposed |
+| `uuid` | CHAR(36) | R | UNIQUE; public identifier |
+| `customer_profile_id` | BIGINT UNSIGNED | R | FK → `customer_profiles.id` (owner) |
+| `disk` | VARCHAR(100) | R | Storage disk (internal; local/private in V1, S3-compatible later) |
+| `path` | VARCHAR(500) | R | Storage path (internal; never exposed — files are streamed by the backend) |
+| `original_name` | VARCHAR(255) | R | Client file name (display only) |
+| `media_type` | VARCHAR(20) | R | `image` \| `video` \| `document` |
+| `mime_type` | VARCHAR(100) | R | Allow-list validated (JPG/JPEG/PNG/WebP; MP4/MOV/WebM; PDF) |
+| `file_size_bytes` | BIGINT UNSIGNED | R | Caps: image 10 MB, PDF 20 MB, video 100 MB |
+| `attached_at` | TIMESTAMP | O | NULL = staged (unattached); set when consumed by a business record |
+| `expires_at` | TIMESTAMP | O | Staging expiry (`created_at` + 7 days); not applicable once attached |
+| `created_at` / `updated_at` | TIMESTAMP | R | Standard |
+
+#### Validation Rules
+
+- Uploader: authenticated customers only (admin uploads remain module-specific).
+- MIME type and extension must match the allow-list; per-type size caps and max 10 files per request enforced at the application layer (configuration-driven; no Settings UI in V1).
+- **Staged storage quota:** total unattached staged storage per customer is capped at **500 MB**; uploads exceeding the quota are rejected with `409` `UPLOAD_STORAGE_LIMIT_EXCEEDED`.
+- Owner-only access: reads stream file content through the backend; deletes allowed only while unattached (attached → `409 Conflict`).
+- Unattached uploads expire after **7 days**; a scheduled job deletes expired file content and rows.
+- Attaching an upload sets `attached_at` and removes it from staging expiry; an upload may be attached only by its owner.
+
+---
+
 # 4. Relationships
 
 ## 4.1 One-to-One
@@ -2263,7 +2303,7 @@ Notes retained from the superseded spec:
 | Parent | Children | Description |
 | --- | --- | --- |
 | `users` | `customer_profiles`, `customer_devices`, `carts`, `notifications` | Sole customer authentication principal; authentication-adjacent children remain user-scoped |
-| `customer_profiles` | `customer_addresses`, `customer_payment_methods`, `customer_notes`, `bookings`, `quotation_requests`, `orders`, `payments`, `reviews` | Customer business/profile data and approved business-module ownership |
+| `customer_profiles` | `customer_addresses`, `customer_payment_methods`, `customer_notes`, `uploads`, `bookings`, `quotation_requests`, `orders`, `payments`, `reviews` | Customer business/profile data and approved business-module ownership |
 | `service_categories` | `services` | Category catalog |
 | `services` | `service_modes`, `service_coverage_cities`, `service_media`, `service_blackout_dates`, `bookings`, `quotation_requests` | Service definition, availability, and usage |
 | `product_categories` | `products` | Store taxonomy (V1: Chemicals, Tools, Accessories, PPE, Air Fresheners) |
@@ -2274,6 +2314,7 @@ Notes retained from the superseded spec:
 | `carts` | `cart_items` | Cart composition |
 | `bookings` | `booking_status_histories` | Status audit |
 | `quotation_requests` | `quotation_request_attachments`, `quotations` | Request lifecycle |
+| `uploads` | `quotation_request_attachments`, `quotation_message_attachments` | Staged file references via `upload_id` FK (no metadata duplication) |
 | `quotations` | `quotation_items` | Quote breakdown |
 | `orders` | `order_items`, `order_status_histories` | Order composition and audit |
 | `payments` | `payment_transactions`, `receipts` | Gateway transaction history and one successful-payment receipt |
@@ -2410,6 +2451,14 @@ Indexes below are recommendations for common access paths. Exact index types dep
 | `notifications` | (`recipient_type`, `recipient_id`, `status`) | Inbox |
 | `notifications` | (`recipient_type`, `recipient_id`, `channel`, `event_id`) UNIQUE | Dispatch idempotency |
 | `archived_notifications` | (`archived_at`), (`recipient_type`, `recipient_id`) | Admin archive browse |
+
+## 5.4A File Uploads
+
+| Table | Index | Purpose |
+| --- | --- | --- |
+| `uploads` | UNIQUE(`uuid`) | Public identifier lookup |
+| `uploads` | (`customer_profile_id`, `created_at`) | Owner-scoped access checks and listings |
+| `uploads` | (`attached_at`, `expires_at`) | Scheduled cleanup of expired unattached uploads |
 
 ## 5.5 Reviews / Settings / Audit
 
