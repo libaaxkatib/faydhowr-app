@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <!--
+    PLACEHOLDER — swap this file for the official Fayadhowr illustration
+    (a customer booking a cleaning service: smartphone, booking
+    confirmation, calendar, location pin, customer, the Fayadhowr team
+    arriving, success checkmark).
+
+    This placeholder is a contained abstract composition, not a
+    full-bleed rectangle — margin on every side so `BoxFit.contain`
+    frames it on the hero's white card exactly the way the real
+    illustration will be framed. No code/layout changes needed later.
+  -->
+  <circle cx="200" cy="180" r="110" fill="#0E339D" fill-opacity="0.85" />
+  <circle cx="295" cy="120" r="60" fill="#0694AC" fill-opacity="0.60" />
+  <circle cx="120" cy="285" r="44" fill="#F59E0B" fill-opacity="0.55" />
+</svg>

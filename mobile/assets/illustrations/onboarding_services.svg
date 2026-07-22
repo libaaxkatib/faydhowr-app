@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <!--
+    PLACEHOLDER — swap this file for the official Fayadhowr illustration
+    (a uniformed cleaner actively cleaning a modern living room: sofa,
+    coffee table, window, plants, vacuum, mop, supplies).
+
+    This placeholder is deliberately a contained abstract composition,
+    not a full-bleed rectangle — it sits on the transparent canvas with
+    margin on every side so `BoxFit.contain` frames it on the hero's
+    white card exactly the way the real illustration will be framed. No
+    code/layout changes are needed when it's replaced.
+  -->
+  <circle cx="150" cy="190" r="105" fill="#0E339D" fill-opacity="0.85" />
+  <circle cx="270" cy="140" r="80" fill="#0694AC" fill-opacity="0.65" />
+  <circle cx="255" cy="270" r="46" fill="#F59E0B" fill-opacity="0.55" />
+</svg>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <!--
+    PLACEHOLDER — swap this file for the official Fayadhowr illustration
+    (a premium cleaning-products catalogue shot: floor/glass/toilet/
+    kitchen cleaners, air freshener, detergent, spray, mop, bucket,
+    gloves, brush, vacuum, sponge, cloth, arranged like a shopping
+    catalogue).
+
+    This placeholder is a contained abstract composition, not a
+    full-bleed rectangle — margin on every side so `BoxFit.contain`
+    frames it on the hero's white card exactly the way the real
+    illustration will be framed. No code/layout changes needed later.
+  -->
+  <circle cx="130" cy="120" r="78" fill="#0E339D" fill-opacity="0.80" />
+  <circle cx="220" cy="210" r="100" fill="#0694AC" fill-opacity="0.65" />
+  <circle cx="300" cy="300" r="52" fill="#F59E0B" fill-opacity="0.55" />
+</svg>

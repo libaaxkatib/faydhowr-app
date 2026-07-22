@@ -1,0 +1,7 @@
+{
+  "@@locale": "en",
+  "appTitle": "Fayadhowr",
+  "@appTitle": {
+    "description": "The application title, shown in the OS task switcher and as the default MaterialApp title."
+  }
+}

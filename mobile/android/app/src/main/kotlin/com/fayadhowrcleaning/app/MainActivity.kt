@@ -1,4 +1,4 @@
-package com.example.faydhowr
+package com.fayadhowrcleaning.app
 
 import io.flutter.embedding.android.FlutterActivity
 
