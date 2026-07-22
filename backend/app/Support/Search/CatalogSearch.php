@@ -75,7 +75,11 @@ final class CatalogSearch
             ->orderBy('id');
     }
 
-    private static function escapeLike(string $term): string
+    /**
+     * Escape LIKE/ILIKE wildcards so user input is matched literally rather
+     * than as a pattern (defends against wildcard-stuffing / filter bypass).
+     */
+    public static function escapeLike(string $term): string
     {
         return addcslashes($term, '%_\\');
     }

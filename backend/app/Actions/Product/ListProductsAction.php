@@ -4,6 +4,7 @@ namespace App\Actions\Product;
 
 use App\Enums\ProductStatus;
 use App\Models\Product;
+use App\Support\Search\CatalogSearch;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class ListProductsAction
@@ -29,10 +30,11 @@ class ListProductsAction
             ->when($categoryId !== null, fn ($query) => $query->where('category_id', $categoryId))
             ->when($featured !== null, fn ($query) => $query->where('is_featured', $featured))
             ->when($search !== null && $search !== '', function ($query) use ($search): void {
-                $query->where(function ($nested) use ($search): void {
+                $term = '%'.CatalogSearch::escapeLike($search).'%';
+                $query->where(function ($nested) use ($term): void {
                     $nested
-                        ->where('sku', 'like', "%{$search}%")
-                        ->orWhere('name', 'like', "%{$search}%");
+                        ->where('sku', 'like', $term)
+                        ->orWhere('name', 'like', $term);
                 });
             })
             ->latest()

@@ -4,6 +4,7 @@ namespace App\Actions\Supplier;
 
 use App\Enums\SupplierStatus;
 use App\Models\Supplier;
+use App\Support\Search\CatalogSearch;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class ListSuppliersAction
@@ -19,10 +20,11 @@ class ListSuppliersAction
         return Supplier::query()
             ->when($status !== null, fn ($query) => $query->where('status', $status))
             ->when($search !== null && $search !== '', function ($query) use ($search): void {
-                $query->where(function ($nested) use ($search): void {
+                $term = '%'.CatalogSearch::escapeLike($search).'%';
+                $query->where(function ($nested) use ($term): void {
                     $nested
-                        ->where('name', 'like', "%{$search}%")
-                        ->orWhere('contact_person', 'like', "%{$search}%");
+                        ->where('name', 'like', $term)
+                        ->orWhere('contact_person', 'like', $term);
                 });
             })
             ->latest()

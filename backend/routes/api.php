@@ -992,8 +992,10 @@ Route::post('v1/payments/webhook', PaymentWebhookController::class)
     ->name('api.v1.payments.webhook');
 
 Route::get('v1/products', [ProductController::class, 'index'])
+    ->middleware('throttle:public-catalog')
     ->name('api.v1.products.index');
 Route::get('v1/products/{product}', [ProductController::class, 'show'])
+    ->middleware('throttle:public-catalog')
     ->whereNumber('product')
     ->name('api.v1.products.show');
 

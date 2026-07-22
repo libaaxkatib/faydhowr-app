@@ -106,7 +106,10 @@ class UploadService implements UploadServiceInterface
         return Storage::disk($upload->disk)->download(
             $upload->path,
             $upload->original_name,
-            ['Content-Type' => $upload->mime_type],
+            [
+                'Content-Type' => $upload->mime_type,
+                'X-Content-Type-Options' => 'nosniff',
+            ],
         );
     }
 

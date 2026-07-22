@@ -31,7 +31,14 @@ class ManualPaymentGateway implements PaymentGatewayInterface
             return false;
         }
 
-        $secret = (string) config('payments.gateways.manual.webhook_secret', 'test-webhook-secret');
+        $secret = (string) config('payments.gateways.manual.webhook_secret', '');
+
+        // Fail closed: never accept webhooks in production with an empty or the
+        // shipped development secret, so a missing env var cannot forge payments.
+        if ($secret === '' || (app()->isProduction() && $secret === 'test-webhook-secret')) {
+            return false;
+        }
+
         $expected = hash_hmac('sha256', $rawPayload, $secret);
 
         return hash_equals($expected, $signature);

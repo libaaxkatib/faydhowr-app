@@ -6,6 +6,7 @@ use App\DataTransferObjects\Payment\AdminPaymentFiltersData;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\StoreOrder;
+use App\Support\Search\CatalogSearch;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class ListAdminPaymentsAction
@@ -28,8 +29,9 @@ class ListAdminPaymentsAction
             ->when($filters->from, fn ($query) => $query->whereDate('created_at', '>=', $filters->from))
             ->when($filters->to, fn ($query) => $query->whereDate('created_at', '<=', $filters->to))
             ->when($filters->search, fn ($query) => $query->where(function ($query) use ($filters): void {
-                $query->where('payment_number', 'like', '%'.$filters->search.'%')
-                    ->orWhere('receipt_number', 'like', '%'.$filters->search.'%');
+                $term = '%'.CatalogSearch::escapeLike((string) $filters->search).'%';
+                $query->where('payment_number', 'like', $term)
+                    ->orWhere('receipt_number', 'like', $term);
             }))
             ->latest('id')
             ->paginate($filters->perPage);

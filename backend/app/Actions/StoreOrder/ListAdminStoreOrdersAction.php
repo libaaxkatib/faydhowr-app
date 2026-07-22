@@ -4,6 +4,7 @@ namespace App\Actions\StoreOrder;
 
 use App\DataTransferObjects\StoreOrder\AdminStoreOrderFiltersData;
 use App\Models\StoreOrder;
+use App\Support\Search\CatalogSearch;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class ListAdminStoreOrdersAction
@@ -23,7 +24,7 @@ class ListAdminStoreOrdersAction
             ->when($filters->customerProfileId, fn ($query) => $query->where('customer_profile_id', $filters->customerProfileId))
             ->when($filters->from, fn ($query) => $query->whereDate('created_at', '>=', $filters->from))
             ->when($filters->to, fn ($query) => $query->whereDate('created_at', '<=', $filters->to))
-            ->when($filters->search, fn ($query) => $query->where('store_order_number', 'like', '%'.$filters->search.'%'))
+            ->when($filters->search, fn ($query) => $query->where('store_order_number', 'like', '%'.CatalogSearch::escapeLike((string) $filters->search).'%'))
             ->latest('id')
             ->paginate($filters->perPage);
     }

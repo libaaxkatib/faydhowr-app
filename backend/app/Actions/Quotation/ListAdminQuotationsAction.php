@@ -4,6 +4,7 @@ namespace App\Actions\Quotation;
 
 use App\DataTransferObjects\Quotation\AdminQuotationFiltersData;
 use App\Models\Quotation;
+use App\Support\Search\CatalogSearch;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class ListAdminQuotationsAction
@@ -20,7 +21,7 @@ class ListAdminQuotationsAction
             ->when($filters->customerProfileId, fn ($query) => $query->where('customer_profile_id', $filters->customerProfileId))
             ->when($filters->from, fn ($query) => $query->whereDate('created_at', '>=', $filters->from))
             ->when($filters->to, fn ($query) => $query->whereDate('created_at', '<=', $filters->to))
-            ->when($filters->search, fn ($query) => $query->where('quotation_number', 'like', '%'.$filters->search.'%'))
+            ->when($filters->search, fn ($query) => $query->where('quotation_number', 'like', '%'.CatalogSearch::escapeLike((string) $filters->search).'%'))
             ->latest('id')
             ->paginate($filters->perPage);
     }

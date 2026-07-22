@@ -4,6 +4,7 @@ namespace App\Actions\Booking;
 
 use App\DataTransferObjects\Booking\AdminBookingFiltersData;
 use App\Models\Booking;
+use App\Support\Search\CatalogSearch;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class ListAdminBookingsAction
@@ -20,7 +21,7 @@ class ListAdminBookingsAction
             ->when($filters->customerProfileId, fn ($query) => $query->where('customer_profile_id', $filters->customerProfileId))
             ->when($filters->from, fn ($query) => $query->whereDate('requested_date', '>=', $filters->from))
             ->when($filters->to, fn ($query) => $query->whereDate('requested_date', '<=', $filters->to))
-            ->when($filters->search, fn ($query) => $query->where('booking_number', 'like', '%'.$filters->search.'%'))
+            ->when($filters->search, fn ($query) => $query->where('booking_number', 'like', '%'.CatalogSearch::escapeLike((string) $filters->search).'%'))
             ->latest('id')
             ->paginate($filters->perPage);
     }

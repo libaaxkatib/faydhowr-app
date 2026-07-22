@@ -8,6 +8,7 @@ use App\Enums\Customer\CustomerStatus;
 use App\Exceptions\Customer\CustomerNotFoundException;
 use App\Models\CustomerProfile;
 use App\Models\User;
+use App\Support\Search\CatalogSearch;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -50,7 +51,7 @@ class CustomerRepository implements CustomerRepositoryInterface
         }
 
         if ($filters->search !== null && $filters->search !== '') {
-            $search = '%'.$filters->search.'%';
+            $search = '%'.CatalogSearch::escapeLike($filters->search).'%';
             $query->where(function (Builder $builder) use ($search): void {
                 $builder
                     ->where('customer_number', 'like', $search)
