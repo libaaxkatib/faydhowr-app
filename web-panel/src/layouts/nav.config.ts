@@ -35,15 +35,14 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: 'Marketing',
-    comingSoon: true,
     items: [
-      { label: 'Dashboard', to: '/marketing', icon: 'megaphone', comingSoon: true },
-      { label: 'Xarun', to: '/marketing/xarun', icon: 'megaphone', comingSoon: true },
-      { label: 'Project', to: '/marketing/project', icon: 'briefcase', comingSoon: true },
-      { label: 'Follow-ups', to: '/marketing/follow-ups', icon: 'bell', comingSoon: true },
-      { label: 'Teams', to: '/marketing/teams', icon: 'users', comingSoon: true },
-      { label: 'Commission', to: '/marketing/commission', icon: 'credit-card', comingSoon: true },
-      { label: 'Reports', to: '/marketing/reports', icon: 'bar-chart', comingSoon: true },
+      { label: 'Dashboard', to: '/marketing', icon: 'megaphone' },
+      { label: 'Xarun', to: '/marketing/xarun', icon: 'megaphone' },
+      { label: 'Project', to: '/marketing/project', icon: 'briefcase' },
+      { label: 'Follow-ups', to: '/marketing/follow-ups', icon: 'bell' },
+      { label: 'Teams', to: '/marketing/teams', icon: 'users' },
+      { label: 'Commission', to: '/marketing/commission', icon: 'credit-card' },
+      { label: 'Reports', to: '/marketing/reports', icon: 'bar-chart' },
     ],
   },
   {

@@ -12,6 +12,13 @@ import { EmployeeDetailPage } from '@/features/hrm/EmployeeDetailPage';
 import { DepartmentsPage } from '@/features/hrm/DepartmentsPage';
 import { PositionsPage } from '@/features/hrm/PositionsPage';
 import { HrReportsPage } from '@/features/hrm/HrReportsPage';
+import { MarketingDashboardPage } from '@/features/marketing/MarketingDashboardPage';
+import { MarketingRecordsListPage } from '@/features/marketing/MarketingRecordsListPage';
+import { MarketingRecordDetailPage } from '@/features/marketing/MarketingRecordDetailPage';
+import { FollowUpsPage } from '@/features/marketing/FollowUpsPage';
+import { TeamsPage } from '@/features/marketing/TeamsPage';
+import { CommissionPage } from '@/features/marketing/CommissionPage';
+import { MarketingReportsPage } from '@/features/marketing/MarketingReportsPage';
 import { PageState } from '@/components/ui/PageState';
 
 export default function App() {
@@ -49,6 +56,16 @@ export default function App() {
         <Route path="/hr/departments" element={<DepartmentsPage />} />
         <Route path="/hr/positions" element={<PositionsPage />} />
         <Route path="/hr/reports" element={<HrReportsPage />} />
+
+        <Route path="/marketing" element={<MarketingDashboardPage />} />
+        <Route path="/marketing/xarun" element={<MarketingRecordsListPage type="xarun" title="Xarun" />} />
+        <Route path="/marketing/xarun/:id" element={<MarketingRecordDetailPage />} />
+        <Route path="/marketing/project" element={<MarketingRecordsListPage type="project" title="Project" />} />
+        <Route path="/marketing/project/:id" element={<MarketingRecordDetailPage />} />
+        <Route path="/marketing/follow-ups" element={<FollowUpsPage />} />
+        <Route path="/marketing/teams" element={<TeamsPage />} />
+        <Route path="/marketing/commission" element={<CommissionPage />} />
+        <Route path="/marketing/reports" element={<MarketingReportsPage />} />
 
         <Route
           path="*"
