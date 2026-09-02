@@ -76,12 +76,22 @@ export function MarketingRecordsListPage({ type, title }: MarketingRecordsListPa
       {
         header: 'Team',
         accessorKey: 'assigned_team_name',
-        cell: ({ row }) => <span className="text-ink">{row.original.assigned_team_name ?? '—'}</span>,
+        cell: ({ row }) =>
+          row.original.assigned_team_name ? (
+            <span className="text-ink">{row.original.assigned_team_name}</span>
+          ) : (
+            <span className="italic text-ink-faint">Unassigned</span>
+          ),
       },
       {
-        header: 'Assigned',
+        header: 'Employee',
         accessorKey: 'assigned_admin_name',
-        cell: ({ row }) => <span className="text-ink">{row.original.assigned_admin_name ?? 'Unassigned'}</span>,
+        cell: ({ row }) =>
+          row.original.assigned_admin_name ? (
+            <span className="text-ink">{row.original.assigned_admin_name}</span>
+          ) : (
+            <span className="italic text-ink-faint">Unassigned</span>
+          ),
       },
       {
         header: 'Status',

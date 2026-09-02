@@ -58,9 +58,9 @@ export default function App() {
         <Route path="/hr/reports" element={<HrReportsPage />} />
 
         <Route path="/marketing" element={<MarketingDashboardPage />} />
-        <Route path="/marketing/xarun" element={<MarketingRecordsListPage type="xarun" title="Xarun" />} />
+        <Route path="/marketing/xarun" element={<MarketingRecordsListPage type="xarun" title="XARUN" />} />
         <Route path="/marketing/xarun/:id" element={<MarketingRecordDetailPage />} />
-        <Route path="/marketing/project" element={<MarketingRecordsListPage type="project" title="Project" />} />
+        <Route path="/marketing/project" element={<MarketingRecordsListPage type="project" title="PROJECT" />} />
         <Route path="/marketing/project/:id" element={<MarketingRecordDetailPage />} />
         <Route path="/marketing/follow-ups" element={<FollowUpsPage />} />
         <Route path="/marketing/teams" element={<TeamsPage />} />

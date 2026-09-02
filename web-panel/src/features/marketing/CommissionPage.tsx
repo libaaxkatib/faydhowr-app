@@ -15,7 +15,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
-import { formatDate } from '@/utils/formatters';
+import { formatCurrency, formatDate } from '@/utils/formatters';
 import type { CommissionRateType } from '@/types/marketing';
 
 /**
@@ -93,7 +93,10 @@ export function CommissionPage() {
               <div key={rate.id} className="flex items-center justify-between px-5 py-3.5">
                 <div>
                   <p className="text-sm font-medium text-ink">
-                    {rate.rate_type === 'percentage' ? `${rate.rate_value}%` : rate.rate_value} — {rate.admin_name ?? 'Default (all employees)'}
+                    <span className="mr-2 inline-flex items-center rounded-full bg-secondary-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-secondary">
+                      Rate
+                    </span>
+                    {rate.rate_type === 'percentage' ? `${rate.rate_value}%` : formatCurrency(Number(rate.rate_value))} — {rate.admin_name ?? 'Default (all employees)'}
                   </p>
                   <p className="text-xs text-ink-muted">Effective from {formatDate(rate.effective_from)}</p>
                 </div>
@@ -120,7 +123,17 @@ export function CommissionPage() {
                   </p>
                   <p className="text-xs text-ink-muted">{formatDate(entry.reference_date)}</p>
                 </div>
-                <StatusBadge status={entry.status} label={entry.status === 'pending_calculation' ? 'Pending calculation' : entry.status} tone={entry.status === 'pending_calculation' ? 'neutral' : 'success'} />
+                <div className="text-right">
+                  <p className="mb-1 text-xs text-ink-faint">
+                    <span className="mr-1 font-semibold uppercase tracking-wide">Amount:</span>
+                    {entry.amount ? formatCurrency(Number(entry.amount)) : <span className="italic">Pending calculation</span>}
+                  </p>
+                  <StatusBadge
+                    status={entry.status}
+                    label={entry.status === 'pending_calculation' ? 'Pending calculation' : entry.status}
+                    tone={entry.status === 'pending_calculation' ? 'neutral' : 'success'}
+                  />
+                </div>
               </div>
             ))}
           </div>

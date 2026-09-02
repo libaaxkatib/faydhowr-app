@@ -27,6 +27,7 @@ export interface FollowUp {
   marketing_record_id: number;
   record_number?: string;
   record_type?: MarketingRecordType;
+  record_team_name?: string | null;
   follow_up_date: string;
   status: FollowUpStatus;
   assigned_admin: string | null;
@@ -160,6 +161,15 @@ export interface MarketingDashboardData {
   new_leads_today: number;
   todays_follow_ups: number;
   overdue_follow_ups: number;
+}
+
+export interface MarketingReportsSummaryParams {
+  from?: string;
+  to?: string;
+  assigned_team_id?: number;
+  assigned_admin_id?: number;
+  status?: MarketingRecordStatus;
+  type?: MarketingRecordType;
 }
 
 export interface MarketingReportsSummary {

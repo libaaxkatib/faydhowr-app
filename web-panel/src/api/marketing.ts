@@ -15,6 +15,7 @@ import type {
   MarketingRecord,
   MarketingRecordStatus,
   MarketingReportsSummary,
+  MarketingReportsSummaryParams,
   MarketingTeam,
   UpdateProjectPayload,
   UpdateXarunPayload,
@@ -23,8 +24,10 @@ import type {
 export const marketingApi = {
   dashboard: () => apiRequest<MarketingDashboardData>('admin/marketing/dashboard'),
 
-  reportsSummary: (params?: { from?: string; to?: string; assigned_team_id?: number }) =>
-    apiRequest<MarketingReportsSummary>('admin/marketing/reports/summary', { query: params }),
+  reportsSummary: (params?: MarketingReportsSummaryParams) =>
+    apiRequest<MarketingReportsSummary>('admin/marketing/reports/summary', {
+      query: params as Record<string, string | number | undefined>,
+    }),
 
   teams: {
     list: () => apiRequest<MarketingTeam[]>('admin/marketing/teams'),

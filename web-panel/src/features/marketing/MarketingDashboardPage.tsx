@@ -21,7 +21,7 @@ export function MarketingDashboardPage() {
       {data && (
         <>
           <div className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">Today</div>
-          <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <KpiCard label="Today's Follow-ups" value={data.todays_follow_ups} icon="calendar" color="bg-primary" />
             <KpiCard label="New Leads Today" value={data.new_leads_today} icon="plus" color="bg-secondary" />
             <KpiCard label="Overdue Follow-ups" value={data.overdue_follow_ups} icon="alert-triangle" color="bg-danger" />
@@ -29,7 +29,7 @@ export function MarketingDashboardPage() {
           </div>
 
           <div className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">Overview</div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <KpiCard label="Total Records" value={data.total_records} icon="megaphone" color="bg-primary" />
             <KpiCard label="XARUN" value={data.total_xarun} icon="megaphone" color="bg-secondary" />
             <KpiCard label="PROJECT" value={data.total_project} icon="briefcase" color="bg-purple-500" />
@@ -61,7 +61,7 @@ function KpiCard({
           <Icon name={icon} size={19} />
         </div>
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium text-ink-muted">{label}</p>
+          <p className="text-xs font-medium leading-snug text-ink-muted">{label}</p>
           <p className="font-display text-xl font-bold text-ink">{formatNumber(value)}</p>
         </div>
       </div>

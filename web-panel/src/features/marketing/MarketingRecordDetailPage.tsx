@@ -90,7 +90,7 @@ export function MarketingRecordDetailPage() {
         title={isXarun ? record.xarun?.facility_name ?? record.record_number : record.project?.responsible_person_name ?? record.record_number}
         breadcrumb={[
           { label: 'Marketing', to: '/marketing' },
-          { label: isXarun ? 'Xarun' : 'Project', to: isXarun ? '/marketing/xarun' : '/marketing/project' },
+          { label: isXarun ? 'XARUN' : 'PROJECT', to: isXarun ? '/marketing/xarun' : '/marketing/project' },
           { label: record.record_number },
         ]}
         actions={
@@ -133,8 +133,8 @@ export function MarketingRecordDetailPage() {
                   <Field label="Fayadhowr work date" value={formatDate(record.project?.fayadhowr_work_date)} />
                 </>
               )}
-              <Field label="Team" value={record.assigned_team_name ?? 'Unassigned'} />
-              <Field label="Marketing employee" value={record.assigned_admin_name ?? 'Unassigned'} />
+              <Field label="Team" value={record.assigned_team_name ?? 'Unassigned'} muted={!record.assigned_team_name} />
+              <Field label="Marketing employee" value={record.assigned_admin_name ?? 'Unassigned'} muted={!record.assigned_admin_name} />
               <Field label="Brought by" value={record.brought_by_admin_name ?? '—'} />
               <Field label="Registered" value={formatDateTime(record.created_at)} />
             </dl>
@@ -260,11 +260,11 @@ export function MarketingRecordDetailPage() {
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
     <div>
       <dt className="text-xs text-ink-faint">{label}</dt>
-      <dd className="text-ink">{value}</dd>
+      <dd className={muted ? 'italic text-ink-faint' : 'text-ink'}>{value}</dd>
     </div>
   );
 }

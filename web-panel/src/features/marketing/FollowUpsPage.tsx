@@ -83,15 +83,28 @@ export function FollowUpsPage() {
             {data.map((fu) => (
               <div key={fu.id} className="flex items-center justify-between px-5 py-4">
                 <div className="min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/marketing/${fu.record_type}/${fu.marketing_record_id}`)}
-                    className="text-left font-medium text-ink hover:text-primary"
-                  >
-                    {fu.record_number}
-                  </button>
-                  <p className="text-xs text-ink-muted">
-                    {fu.assigned_admin ?? 'Unassigned'} · {formatDate(fu.follow_up_date)}
+                  <div className="flex items-center gap-2">
+                    {fu.record_type && (
+                      <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                        {fu.record_type === 'xarun' ? 'XARUN' : 'PROJECT'}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/marketing/${fu.record_type}/${fu.marketing_record_id}`)}
+                      className="text-left font-medium text-ink hover:text-primary"
+                    >
+                      {fu.record_number}
+                    </button>
+                  </div>
+                  <p className="mt-0.5 text-xs text-ink-muted">
+                    <span className="text-ink-faint">Team:</span>{' '}
+                    <span className={fu.record_team_name ? '' : 'italic text-ink-faint'}>{fu.record_team_name ?? 'Unassigned'}</span>
+                    {' · '}
+                    <span className="text-ink-faint">Employee:</span>{' '}
+                    <span className={fu.assigned_admin ? '' : 'italic text-ink-faint'}>{fu.assigned_admin ?? 'Unassigned'}</span>
+                    {' · '}
+                    {formatDate(fu.follow_up_date)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
