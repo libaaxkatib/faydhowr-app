@@ -125,7 +125,7 @@ class NotificationFoundationTest extends TestCase
         );
 
         $this->assertSame(
-            ['booking', 'quotation', 'order', 'payment', 'store_order', 'inventory', 'system'],
+            ['booking', 'quotation', 'order', 'payment', 'store_order', 'inventory', 'system', 'follow_up'],
             array_column(NotificationType::cases(), 'value'),
         );
     }

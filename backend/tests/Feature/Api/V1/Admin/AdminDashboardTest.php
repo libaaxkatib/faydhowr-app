@@ -44,11 +44,13 @@ class AdminDashboardTest extends TestCase
                 'reports',
                 'system_settings',
                 'hr',
+                'marketing',
             ])
             ->assertJsonPath('data.visible_navigation.0.key', 'dashboard')
             ->assertJsonPath('data.visible_navigation.0.label', 'Dashboard')
             ->assertJsonPath('data.visible_navigation.12.key', 'system_settings')
             ->assertJsonPath('data.visible_navigation.13.key', 'hr')
+            ->assertJsonPath('data.visible_navigation.14.key', 'marketing')
             ->assertJsonMissingPath('data.charts');
     }
 

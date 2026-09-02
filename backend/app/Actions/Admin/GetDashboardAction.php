@@ -131,6 +131,14 @@ class GetDashboardAction
                     AdminPermission::HrManage->value,
                 ],
             ],
+            [
+                'key' => 'marketing',
+                'label' => 'Marketing',
+                'permissions' => [
+                    AdminPermission::MarketingView->value,
+                    AdminPermission::MarketingManage->value,
+                ],
+            ],
         ];
     }
 
