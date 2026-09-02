@@ -123,6 +123,14 @@ class GetDashboardAction
                 'label' => 'System Settings',
                 'permissions' => [],
             ],
+            [
+                'key' => 'hr',
+                'label' => 'Human Resources',
+                'permissions' => [
+                    AdminPermission::HrView->value,
+                    AdminPermission::HrManage->value,
+                ],
+            ],
         ];
     }
 
