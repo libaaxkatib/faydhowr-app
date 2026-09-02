@@ -32,6 +32,15 @@ use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeStatusController as AdminEmploy
 use App\Http\Controllers\Api\V1\Admin\Hr\HrDashboardController as AdminHrDashboardController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrReportsController as AdminHrReportsController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PositionController as AdminPositionController;
+use App\Http\Controllers\Api\V1\Admin\Marketing\CommissionController as AdminMarketingCommissionController;
+use App\Http\Controllers\Api\V1\Admin\Marketing\FollowUpController as AdminMarketingFollowUpController;
+use App\Http\Controllers\Api\V1\Admin\Marketing\MarketingDashboardController as AdminMarketingDashboardController;
+use App\Http\Controllers\Api\V1\Admin\Marketing\MarketingQuotationController as AdminMarketingQuotationController;
+use App\Http\Controllers\Api\V1\Admin\Marketing\MarketingRecordController as AdminMarketingRecordController;
+use App\Http\Controllers\Api\V1\Admin\Marketing\MarketingReportsController as AdminMarketingReportsController;
+use App\Http\Controllers\Api\V1\Admin\Marketing\MarketingTeamController as AdminMarketingTeamController;
+use App\Http\Controllers\Api\V1\Admin\Marketing\ProjectController as AdminMarketingProjectController;
+use App\Http\Controllers\Api\V1\Admin\Marketing\XarunController as AdminMarketingXarunController;
 use App\Http\Controllers\Api\V1\Admin\NotificationTemplateController;
 use App\Http\Controllers\Api\V1\Admin\NotificationTemplateTranslationController;
 use App\Http\Controllers\Api\V1\Admin\Payments\PaymentController as AdminPaymentController;
@@ -1150,6 +1159,94 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage'])->group(func
     Route::delete('v1/admin/hr/employees/{employee}/documents/{document}', [AdminEmployeeDocumentController::class, 'destroy'])
         ->whereNumber(['employee', 'document'])
         ->name('api.v1.admin.hr.employees.documents.destroy');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.view'])->group(function (): void {
+    Route::get('v1/admin/marketing/dashboard', [AdminMarketingDashboardController::class, 'show'])
+        ->name('api.v1.admin.marketing.dashboard');
+    Route::get('v1/admin/marketing/teams', [AdminMarketingTeamController::class, 'index'])
+        ->name('api.v1.admin.marketing.teams.index');
+    Route::get('v1/admin/marketing/records', [AdminMarketingRecordController::class, 'index'])
+        ->name('api.v1.admin.marketing.records.index');
+    Route::get('v1/admin/marketing/records/{record}', [AdminMarketingRecordController::class, 'show'])
+        ->whereNumber('record')
+        ->name('api.v1.admin.marketing.records.show');
+    Route::get('v1/admin/marketing/follow-ups', [AdminMarketingFollowUpController::class, 'index'])
+        ->name('api.v1.admin.marketing.follow-ups.index');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.commission.view'])->group(function (): void {
+    Route::get('v1/admin/marketing/commission/rates', [AdminMarketingCommissionController::class, 'rates'])
+        ->name('api.v1.admin.marketing.commission.rates.index');
+    Route::get('v1/admin/marketing/commission/records', [AdminMarketingCommissionController::class, 'records'])
+        ->name('api.v1.admin.marketing.commission.records.index');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.reports.view'])->group(function (): void {
+    Route::get('v1/admin/marketing/reports/summary', [AdminMarketingReportsController::class, 'summary'])
+        ->name('api.v1.admin.marketing.reports.summary');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.assign'])->group(function (): void {
+    Route::patch('v1/admin/marketing/records/{record}/assign', [AdminMarketingRecordController::class, 'assign'])
+        ->whereNumber('record')
+        ->name('api.v1.admin.marketing.records.assign');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.manage'])->group(function (): void {
+    Route::post('v1/admin/marketing/teams', [AdminMarketingTeamController::class, 'store'])
+        ->name('api.v1.admin.marketing.teams.store');
+    Route::put('v1/admin/marketing/teams/{team}', [AdminMarketingTeamController::class, 'update'])
+        ->whereNumber('team')
+        ->name('api.v1.admin.marketing.teams.update');
+    Route::delete('v1/admin/marketing/teams/{team}', [AdminMarketingTeamController::class, 'destroy'])
+        ->whereNumber('team')
+        ->name('api.v1.admin.marketing.teams.destroy');
+    Route::post('v1/admin/marketing/teams/{team}/members', [AdminMarketingTeamController::class, 'addMember'])
+        ->whereNumber('team')
+        ->name('api.v1.admin.marketing.teams.members.store');
+    Route::delete('v1/admin/marketing/teams/{team}/members/{admin}', [AdminMarketingTeamController::class, 'removeMember'])
+        ->whereNumber(['team', 'admin'])
+        ->name('api.v1.admin.marketing.teams.members.destroy');
+
+    Route::post('v1/admin/marketing/xarun', [AdminMarketingXarunController::class, 'store'])
+        ->name('api.v1.admin.marketing.xarun.store');
+    Route::put('v1/admin/marketing/xarun/{record}', [AdminMarketingXarunController::class, 'update'])
+        ->whereNumber('record')
+        ->name('api.v1.admin.marketing.xarun.update');
+
+    Route::post('v1/admin/marketing/project', [AdminMarketingProjectController::class, 'store'])
+        ->name('api.v1.admin.marketing.project.store');
+    Route::put('v1/admin/marketing/project/{record}', [AdminMarketingProjectController::class, 'update'])
+        ->whereNumber('record')
+        ->name('api.v1.admin.marketing.project.update');
+
+    Route::patch('v1/admin/marketing/records/{record}/status', [AdminMarketingRecordController::class, 'updateStatus'])
+        ->whereNumber('record')
+        ->name('api.v1.admin.marketing.records.status');
+
+    Route::post('v1/admin/marketing/records/{record}/follow-ups', [AdminMarketingFollowUpController::class, 'store'])
+        ->whereNumber('record')
+        ->name('api.v1.admin.marketing.records.follow-ups.store');
+    Route::patch('v1/admin/marketing/follow-ups/{followUp}/complete', [AdminMarketingFollowUpController::class, 'complete'])
+        ->whereNumber('followUp')
+        ->name('api.v1.admin.marketing.follow-ups.complete');
+    Route::patch('v1/admin/marketing/follow-ups/{followUp}/reschedule', [AdminMarketingFollowUpController::class, 'reschedule'])
+        ->whereNumber('followUp')
+        ->name('api.v1.admin.marketing.follow-ups.reschedule');
+
+    Route::post('v1/admin/marketing/records/{record}/quotations', [AdminMarketingQuotationController::class, 'store'])
+        ->whereNumber('record')
+        ->name('api.v1.admin.marketing.records.quotations.store');
+    Route::patch('v1/admin/marketing/quotations/{quotation}/status', [AdminMarketingQuotationController::class, 'updateStatus'])
+        ->whereNumber('quotation')
+        ->name('api.v1.admin.marketing.quotations.status');
+
+    Route::post('v1/admin/marketing/commission/rates', [AdminMarketingCommissionController::class, 'storeRate'])
+        ->name('api.v1.admin.marketing.commission.rates.store');
+    Route::post('v1/admin/marketing/records/{record}/commission', [AdminMarketingCommissionController::class, 'storeRecord'])
+        ->whereNumber('record')
+        ->name('api.v1.admin.marketing.records.commission.store');
 });
 
 Route::middleware('auth:sanctum')->prefix('v1/notifications')->group(function (): void {
