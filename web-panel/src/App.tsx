@@ -11,6 +11,7 @@ import { EmployeesListPage } from '@/features/hrm/EmployeesListPage';
 import { EmployeeDetailPage } from '@/features/hrm/EmployeeDetailPage';
 import { DepartmentsPage } from '@/features/hrm/DepartmentsPage';
 import { PositionsPage } from '@/features/hrm/PositionsPage';
+import { ClientCompaniesPage } from '@/features/hrm/ClientCompaniesPage';
 import { HrReportsPage } from '@/features/hrm/HrReportsPage';
 import { MarketingDashboardPage } from '@/features/marketing/MarketingDashboardPage';
 import { MarketingRecordsListPage } from '@/features/marketing/MarketingRecordsListPage';
@@ -55,6 +56,7 @@ export default function App() {
         />
         <Route path="/hr/departments" element={<DepartmentsPage />} />
         <Route path="/hr/positions" element={<PositionsPage />} />
+        <Route path="/hr/companies" element={<ClientCompaniesPage />} />
         <Route path="/hr/reports" element={<HrReportsPage />} />
 
         <Route path="/marketing" element={<MarketingDashboardPage />} />

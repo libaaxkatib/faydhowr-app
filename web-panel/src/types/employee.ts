@@ -49,6 +49,80 @@ export interface EmployeeDocument {
   created_at: string;
 }
 
+export type LocationType = 'client' | 'office';
+export type ClientStatus = 'active' | 'inactive';
+export type WorkAssignmentStatus = 'active' | 'ended' | 'cancelled';
+export type SalaryFrequency = 'monthly' | 'weekly' | 'daily';
+
+export interface ClientCompany {
+  id: number;
+  name: string;
+  contact_person: string | null;
+  phone: string | null;
+  location: string | null;
+  status: ClientStatus;
+  notes: string | null;
+  work_locations?: WorkLocation[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface WorkLocation {
+  id: number;
+  client_company_id: number | null;
+  client_company_name: string | null;
+  location_type: LocationType;
+  name: string;
+  location: string | null;
+  contact_person: string | null;
+  phone: string | null;
+  capacity: number | null;
+  active_assignments_count: number;
+  available_slots: number | null;
+  status: ClientStatus;
+  notes: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface WorkAssignment {
+  id: number;
+  employee_id: number;
+  work_location_id: number;
+  work_location_name: string;
+  location_type: LocationType;
+  client_company_name: string | null;
+  position_id: number | null;
+  position_name: string | null;
+  start_date: string;
+  end_date: string | null;
+  salary_amount: string;
+  salary_currency: string;
+  salary_frequency: SalaryFrequency;
+  status: WorkAssignmentStatus;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface CreateWorkAssignmentPayload {
+  work_location_id: number;
+  position_id?: number | null;
+  start_date: string;
+  end_date?: string | null;
+  salary_amount: number;
+  salary_currency: string;
+  salary_frequency: SalaryFrequency;
+  notes?: string | null;
+  override_capacity?: boolean;
+}
+
+export type UpdateWorkAssignmentPayload = Partial<Omit<CreateWorkAssignmentPayload, 'work_location_id' | 'override_capacity'>>;
+
+export interface EndWorkAssignmentPayload {
+  end_date: string;
+  note?: string | null;
+}
+
 export interface Employee {
   id: number;
   employee_number: string;
@@ -79,6 +153,8 @@ export interface Employee {
   status_histories?: EmployeeStatusHistoryEntry[];
   practical_assessments?: EmployeePracticalAssessment[];
   documents?: EmployeeDocument[];
+  active_work_assignments?: WorkAssignment[];
+  work_assignments?: WorkAssignment[];
 }
 
 export interface ListEmployeesParams {
@@ -130,4 +206,21 @@ export interface HrReportsSummary {
   status_breakdown: Partial<Record<EmployeeStatus, number>>;
   category_breakdown: { id: number; name: string; total: number }[];
   department_breakdown: { id: number; name: string; total: number }[];
+  workplace_breakdown: {
+    id: number;
+    name: string;
+    location_type: LocationType;
+    client_company_name: string | null;
+    capacity: number | null;
+    total: number;
+  }[];
+  company_salary_totals: { id: number; name: string; total_salary: string; total_assignments: number }[];
+}
+
+export interface HrReportsSummaryParams {
+  from?: string;
+  to?: string;
+  client_company_id?: number;
+  work_location_id?: number;
+  assignment_status?: WorkAssignmentStatus;
 }

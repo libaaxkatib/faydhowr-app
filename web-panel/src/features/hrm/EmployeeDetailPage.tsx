@@ -8,14 +8,18 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { Modal } from '@/components/ui/Modal';
+import { FormField, inputClasses } from '@/components/ui/FormField';
+import { Select } from '@/components/ui/Select';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
+import { useAuth } from '@/features/auth/useAuth';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { formatDate, formatDateTime, initialsOf } from '@/utils/formatters';
-import type { EmployeeStatus } from '@/types/employee';
+import type { EmployeeStatus, SalaryFrequency, WorkAssignment } from '@/types/employee';
 
 const STATUS_FLOW: EmployeeStatus[] = ['applicant', 'recruitment', 'practical', 'waiting', 'approved', 'active'];
 
@@ -29,6 +33,8 @@ export function EmployeeDetailPage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [assessmentResult, setAssessmentResult] = useState<'pass' | 'fail' | 'pending'>('pending');
   const [assessmentNotes, setAssessmentNotes] = useState('');
+  const [isAssignOpen, setIsAssignOpen] = useState(false);
+  const [endingAssignment, setEndingAssignment] = useState<WorkAssignment | null>(null);
 
   const { data: employee, isLoading, error, refetch } = useQuery({
     queryKey: ['employee', employeeId],
@@ -90,6 +96,17 @@ export function EmployeeDetailPage() {
       show('Document deleted.');
     },
     onError: (err) => show(err instanceof Error ? err.message : 'Could not delete document.', 'error'),
+  });
+
+  const endAssignmentMutation = useMutation({
+    mutationFn: (payload: { id: number; end_date: string; note?: string | null }) =>
+      hrApi.employees.workAssignments.end(payload.id, { end_date: payload.end_date, note: payload.note }),
+    onSuccess: () => {
+      invalidate();
+      setEndingAssignment(null);
+      show('Work assignment ended.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not end work assignment.', 'error'),
   });
 
   if (isLoading) return <LoadingState label="Loading employee…" />;
@@ -188,6 +205,72 @@ export function EmployeeDetailPage() {
         </Card>
 
         <div className="flex flex-col gap-4">
+          <Card>
+            <CardHeader>
+              <h3 className="font-display text-sm font-bold text-ink">Work Assignments</h3>
+              <PermissionGate module="hr">
+                <Button size="sm" variant="outline" onClick={() => setIsAssignOpen(true)}>
+                  <Icon name="plus" size={14} />
+                  Assign
+                </Button>
+              </PermissionGate>
+            </CardHeader>
+            <CardBody className="space-y-3">
+              {employee.active_work_assignments && employee.active_work_assignments.length > 0 ? (
+                employee.active_work_assignments.map((assignment) => (
+                  <div key={assignment.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-ink">
+                        {assignment.location_type === 'office' ? 'Fayadhowr Office' : assignment.client_company_name}
+                        {assignment.location_type === 'client' && ` · ${assignment.work_location_name}`}
+                      </p>
+                      <StatusBadge status={assignment.status} tone="success" />
+                    </div>
+                    <p className="mt-1 text-xs text-ink-muted">
+                      {assignment.position_name ?? 'No position set'} · {assignment.salary_amount} {assignment.salary_currency} / {assignment.salary_frequency}
+                    </p>
+                    <p className="mt-1 text-xs text-ink-faint">Since {formatDate(assignment.start_date)}</p>
+                    <PermissionGate module="hr">
+                      <button
+                        type="button"
+                        onClick={() => setEndingAssignment(assignment)}
+                        className="mt-1 text-xs font-medium text-danger hover:underline"
+                      >
+                        End assignment
+                      </button>
+                    </PermissionGate>
+                  </div>
+                ))
+              ) : (
+                <EmptyState icon="briefcase" title="No active work assignment" />
+              )}
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <h3 className="font-display text-sm font-bold text-ink">Assignment History</h3>
+            </CardHeader>
+            <CardBody className="space-y-3">
+              {employee.work_assignments && employee.work_assignments.filter((a) => a.status !== 'active').length > 0 ? (
+                employee.work_assignments
+                  .filter((a) => a.status !== 'active')
+                  .map((assignment) => (
+                    <div key={assignment.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                      <p className="text-sm text-ink">
+                        {assignment.location_type === 'office' ? 'Fayadhowr Office' : `${assignment.client_company_name} · ${assignment.work_location_name}`}
+                      </p>
+                      <p className="mt-1 text-xs text-ink-faint">
+                        {formatDate(assignment.start_date)} → {assignment.end_date ? formatDate(assignment.end_date) : 'Present'}
+                      </p>
+                    </div>
+                  ))
+              ) : (
+                <EmptyState icon="list" title="No past assignments" />
+              )}
+            </CardBody>
+          </Card>
+
           <Card>
             <CardHeader>
               <h3 className="font-display text-sm font-bold text-ink">Status History</h3>
@@ -308,6 +391,25 @@ export function EmployeeDetailPage() {
       </div>
 
       <EmployeeFormDialog isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} mode="edit" employee={employee} />
+
+      <AssignWorkLocationModal
+        isOpen={isAssignOpen}
+        employeeId={employeeId}
+        onClose={() => setIsAssignOpen(false)}
+        onSaved={() => {
+          invalidate();
+          setIsAssignOpen(false);
+        }}
+      />
+
+      {endingAssignment && (
+        <EndAssignmentModal
+          assignment={endingAssignment}
+          onClose={() => setEndingAssignment(null)}
+          onConfirm={(endDate, note) => endAssignmentMutation.mutate({ id: endingAssignment.id, end_date: endDate, note })}
+          isLoading={endAssignmentMutation.isPending}
+        />
+      )}
     </div>
   );
 }
@@ -318,5 +420,146 @@ function Field({ label, value }: { label: string; value: string }) {
       <dt className="text-xs text-ink-faint">{label}</dt>
       <dd className="text-ink">{value}</dd>
     </div>
+  );
+}
+
+const FREQUENCY_OPTIONS: { value: SalaryFrequency; label: string }[] = [
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'daily', label: 'Daily' },
+];
+
+function AssignWorkLocationModal({
+  isOpen,
+  employeeId,
+  onClose,
+  onSaved,
+}: {
+  isOpen: boolean;
+  employeeId: number;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { show } = useToast();
+  const { isSuperAdmin } = useAuth();
+  const { data: locations } = useQuery({ queryKey: ['work-locations'], queryFn: () => hrApi.workLocations.list(), enabled: isOpen });
+
+  const [workLocationId, setWorkLocationId] = useState('');
+  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [salaryAmount, setSalaryAmount] = useState('');
+  const [salaryCurrency, setSalaryCurrency] = useState('USD');
+  const [salaryFrequency, setSalaryFrequency] = useState<SalaryFrequency>('monthly');
+  const [notes, setNotes] = useState('');
+  const [overrideCapacity, setOverrideCapacity] = useState(false);
+
+  const assignMutation = useMutation({
+    mutationFn: () =>
+      hrApi.employees.workAssignments.create(employeeId, {
+        work_location_id: Number(workLocationId),
+        start_date: startDate,
+        salary_amount: Number(salaryAmount),
+        salary_currency: salaryCurrency,
+        salary_frequency: salaryFrequency,
+        notes: notes || null,
+        ...(isSuperAdmin && overrideCapacity ? { override_capacity: true } : {}),
+      }),
+    onSuccess: () => {
+      show('Work assignment created.');
+      onSaved();
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not create work assignment.', 'error'),
+  });
+
+  if (!isOpen) return null;
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Assign Work Location"
+      size="sm"
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" isLoading={assignMutation.isPending} onClick={() => assignMutation.mutate()}>Save</Button>
+        </>
+      }
+    >
+      <FormField label="Work location" htmlFor="wa-location" required>
+        <Select
+          id="wa-location"
+          value={workLocationId}
+          onChange={(e) => setWorkLocationId(e.target.value)}
+          placeholder="Select a location"
+          options={(locations ?? []).map((l) => ({
+            value: String(l.id),
+            label: l.location_type === 'office' ? l.name : `${l.client_company_name} · ${l.name}`,
+          }))}
+        />
+      </FormField>
+      <FormField label="Start date" htmlFor="wa-start" required>
+        <input id="wa-start" type="date" className={inputClasses} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+      </FormField>
+      <div className="grid grid-cols-3 gap-2">
+        <FormField label="Salary" htmlFor="wa-salary" required>
+          <input id="wa-salary" type="number" min={0} className={inputClasses} value={salaryAmount} onChange={(e) => setSalaryAmount(e.target.value)} />
+        </FormField>
+        <FormField label="Currency" htmlFor="wa-currency" required>
+          <input id="wa-currency" maxLength={3} className={inputClasses} value={salaryCurrency} onChange={(e) => setSalaryCurrency(e.target.value.toUpperCase())} />
+        </FormField>
+        <FormField label="Frequency" htmlFor="wa-frequency" required>
+          <Select id="wa-frequency" value={salaryFrequency} onChange={(e) => setSalaryFrequency(e.target.value as SalaryFrequency)} options={FREQUENCY_OPTIONS} />
+        </FormField>
+      </div>
+      <FormField label="Notes" htmlFor="wa-notes">
+        <textarea id="wa-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </FormField>
+      {isSuperAdmin && (
+        <label className="mt-2 flex items-center gap-2 text-xs text-ink-muted">
+          <input type="checkbox" checked={overrideCapacity} onChange={(e) => setOverrideCapacity(e.target.checked)} />
+          Override location capacity if full (Super Admin only)
+        </label>
+      )}
+    </Modal>
+  );
+}
+
+function EndAssignmentModal({
+  assignment,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  assignment: WorkAssignment;
+  onClose: () => void;
+  onConfirm: (endDate: string, note?: string) => void;
+  isLoading: boolean;
+}) {
+  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const [note, setNote] = useState('');
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="End Work Assignment"
+      size="sm"
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="danger" size="sm" isLoading={isLoading} onClick={() => onConfirm(endDate, note || undefined)}>End Assignment</Button>
+        </>
+      }
+    >
+      <p className="mb-3 text-sm text-ink-muted">
+        {assignment.location_type === 'office' ? 'Fayadhowr Office' : `${assignment.client_company_name} · ${assignment.work_location_name}`}
+      </p>
+      <FormField label="End date" htmlFor="end-date" required>
+        <input id="end-date" type="date" className={inputClasses} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+      </FormField>
+      <FormField label="Note" htmlFor="end-note">
+        <textarea id="end-note" rows={2} className={inputClasses + ' h-auto py-2'} value={note} onChange={(e) => setNote(e.target.value)} />
+      </FormField>
+    </Modal>
   );
 }

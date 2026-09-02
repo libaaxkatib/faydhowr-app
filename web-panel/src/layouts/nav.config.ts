@@ -63,6 +63,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Waiting', to: '/hr/waiting', icon: 'calendar' },
       { label: 'Departments', to: '/hr/departments', icon: 'box' },
       { label: 'Positions', to: '/hr/positions', icon: 'shield' },
+      { label: 'Companies & Locations', to: '/hr/companies', icon: 'briefcase' },
       { label: 'Reports', to: '/hr/reports', icon: 'bar-chart' },
     ],
   },

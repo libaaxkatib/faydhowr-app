@@ -84,6 +84,20 @@ export function EmployeesListPage({ fixedStatus, title = 'Employees', breadcrumb
         accessorKey: 'phone',
       },
       {
+        header: 'Workplace',
+        id: 'workplace',
+        cell: ({ row }) => {
+          const assignments = row.original.active_work_assignments ?? [];
+          if (assignments.length === 0) {
+            return <span className="italic text-ink-faint">Unassigned</span>;
+          }
+          const labels = assignments.map((a) =>
+            a.location_type === 'office' ? 'Fayadhowr Office' : (a.client_company_name ?? a.work_location_name),
+          );
+          return <span className="text-ink">{labels.join(', ')}</span>;
+        },
+      },
+      {
         header: 'Status',
         accessorKey: 'status',
         cell: ({ row }) => <StatusBadge status={row.original.status} />,
