@@ -15,6 +15,10 @@ class GetEmployeeAction
             'statusHistories.changedBy',
             'practicalAssessments.assessedBy',
             'documents.admin',
+            'activeWorkAssignments.workLocation.clientCompany',
+            'activeWorkAssignments.position',
+            'workAssignments.workLocation.clientCompany',
+            'workAssignments.position',
         ]);
     }
 }

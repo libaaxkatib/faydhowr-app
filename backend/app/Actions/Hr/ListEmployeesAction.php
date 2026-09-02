@@ -9,7 +9,7 @@ class ListEmployeesAction
 {
     public function handle(array $filters): LengthAwarePaginator
     {
-        $query = Employee::query()->with(['category', 'department', 'position']);
+        $query = Employee::query()->with(['category', 'department', 'position', 'activeWorkAssignments.workLocation.clientCompany']);
 
         if (! empty($filters['search'])) {
             $search = $filters['search'];

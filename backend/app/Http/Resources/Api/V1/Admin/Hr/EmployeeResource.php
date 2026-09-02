@@ -39,6 +39,8 @@ class EmployeeResource extends JsonResource
             'status_histories' => EmployeeStatusHistoryResource::collection($this->whenLoaded('statusHistories')),
             'practical_assessments' => EmployeePracticalAssessmentResource::collection($this->whenLoaded('practicalAssessments')),
             'documents' => EmployeeDocumentResource::collection($this->whenLoaded('documents')),
+            'active_work_assignments' => WorkAssignmentResource::collection($this->whenLoaded('activeWorkAssignments')),
+            'work_assignments' => WorkAssignmentResource::collection($this->whenLoaded('workAssignments')),
         ];
     }
 }

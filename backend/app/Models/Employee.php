@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\EmployeeStatus;
+use App\Enums\WorkAssignmentStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -82,5 +83,17 @@ class Employee extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(EmployeeDocument::class)->latest('created_at');
+    }
+
+    public function workAssignments(): HasMany
+    {
+        return $this->hasMany(EmployeeWorkAssignment::class)->latest('start_date');
+    }
+
+    public function activeWorkAssignments(): HasMany
+    {
+        return $this->hasMany(EmployeeWorkAssignment::class)
+            ->where('status', WorkAssignmentStatus::Active)
+            ->latest('start_date');
     }
 }

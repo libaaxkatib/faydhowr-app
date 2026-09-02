@@ -2,14 +2,14 @@
 
 namespace App\Http\Requests\Api\V1\Admin\Hr;
 
-use App\Enums\WorkAssignmentStatus;
+use App\Enums\ClientStatus;
 use App\Support\ApiResponse;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 
-class GetHrReportsSummaryRequest extends FormRequest
+class StoreClientCompanyRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -19,11 +19,12 @@ class GetHrReportsSummaryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'from' => ['sometimes', 'date'],
-            'to' => ['sometimes', 'date', 'after_or_equal:from'],
-            'client_company_id' => ['sometimes', 'integer', 'exists:client_companies,id'],
-            'work_location_id' => ['sometimes', 'integer', 'exists:work_locations,id'],
-            'assignment_status' => ['sometimes', 'string', Rule::in(WorkAssignmentStatus::values())],
+            'name' => ['required', 'string', 'max:150', 'unique:client_companies,name'],
+            'contact_person' => ['nullable', 'string', 'max:150'],
+            'phone' => ['nullable', 'string', 'max:40'],
+            'location' => ['nullable', 'string', 'max:150'],
+            'status' => ['sometimes', Rule::in(ClientStatus::values())],
+            'notes' => ['nullable', 'string'],
         ];
     }
 

@@ -12,7 +12,11 @@ class HrReportsController extends Controller
 {
     public function summary(GetHrReportsSummaryRequest $request, GetHrReportsSummaryAction $action): JsonResponse
     {
-        $summary = $action->handle($request->validated('from'), $request->validated('to'));
+        $summary = $action->handle(
+            $request->validated('from'),
+            $request->validated('to'),
+            $request->only(['client_company_id', 'work_location_id', 'assignment_status']),
+        );
 
         return ApiResponse::success('HR report summary retrieved successfully.', $summary);
     }

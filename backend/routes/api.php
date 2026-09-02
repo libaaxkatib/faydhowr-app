@@ -23,15 +23,18 @@ use App\Http\Controllers\Api\V1\Admin\Customers\CustomerAttachmentController as 
 use App\Http\Controllers\Api\V1\Admin\Customers\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Api\V1\Admin\Customers\CustomerNoteController as AdminCustomerNoteController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
+use App\Http\Controllers\Api\V1\Admin\Hr\ClientCompanyController as AdminClientCompanyController;
 use App\Http\Controllers\Api\V1\Admin\Hr\DepartmentController as AdminDepartmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeCategoryController as AdminEmployeeCategoryController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeController as AdminEmployeeController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeDocumentController as AdminEmployeeDocumentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeePracticalAssessmentController as AdminEmployeePracticalAssessmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeStatusController as AdminEmployeeStatusController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeWorkAssignmentController as AdminEmployeeWorkAssignmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrDashboardController as AdminHrDashboardController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrReportsController as AdminHrReportsController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PositionController as AdminPositionController;
+use App\Http\Controllers\Api\V1\Admin\Hr\WorkLocationController as AdminWorkLocationController;
 use App\Http\Controllers\Api\V1\Admin\Marketing\CommissionController as AdminMarketingCommissionController;
 use App\Http\Controllers\Api\V1\Admin\Marketing\FollowUpController as AdminMarketingFollowUpController;
 use App\Http\Controllers\Api\V1\Admin\Marketing\MarketingDashboardController as AdminMarketingDashboardController;
@@ -1105,6 +1108,10 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.view'])->group(functi
         ->name('api.v1.admin.hr.positions.index');
     Route::get('v1/admin/hr/employee-categories', [AdminEmployeeCategoryController::class, 'index'])
         ->name('api.v1.admin.hr.employee-categories.index');
+    Route::get('v1/admin/hr/client-companies', [AdminClientCompanyController::class, 'index'])
+        ->name('api.v1.admin.hr.client-companies.index');
+    Route::get('v1/admin/hr/work-locations', [AdminWorkLocationController::class, 'index'])
+        ->name('api.v1.admin.hr.work-locations.index');
     Route::get('v1/admin/hr/employees', [AdminEmployeeController::class, 'index'])
         ->name('api.v1.admin.hr.employees.index');
     Route::get('v1/admin/hr/employees/{employee}', [AdminEmployeeController::class, 'show'])
@@ -1159,6 +1166,34 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage'])->group(func
     Route::delete('v1/admin/hr/employees/{employee}/documents/{document}', [AdminEmployeeDocumentController::class, 'destroy'])
         ->whereNumber(['employee', 'document'])
         ->name('api.v1.admin.hr.employees.documents.destroy');
+
+    Route::post('v1/admin/hr/client-companies', [AdminClientCompanyController::class, 'store'])
+        ->name('api.v1.admin.hr.client-companies.store');
+    Route::put('v1/admin/hr/client-companies/{clientCompany}', [AdminClientCompanyController::class, 'update'])
+        ->whereNumber('clientCompany')
+        ->name('api.v1.admin.hr.client-companies.update');
+    Route::delete('v1/admin/hr/client-companies/{clientCompany}', [AdminClientCompanyController::class, 'destroy'])
+        ->whereNumber('clientCompany')
+        ->name('api.v1.admin.hr.client-companies.destroy');
+
+    Route::post('v1/admin/hr/work-locations', [AdminWorkLocationController::class, 'store'])
+        ->name('api.v1.admin.hr.work-locations.store');
+    Route::put('v1/admin/hr/work-locations/{workLocation}', [AdminWorkLocationController::class, 'update'])
+        ->whereNumber('workLocation')
+        ->name('api.v1.admin.hr.work-locations.update');
+    Route::delete('v1/admin/hr/work-locations/{workLocation}', [AdminWorkLocationController::class, 'destroy'])
+        ->whereNumber('workLocation')
+        ->name('api.v1.admin.hr.work-locations.destroy');
+
+    Route::post('v1/admin/hr/employees/{employee}/work-assignments', [AdminEmployeeWorkAssignmentController::class, 'store'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.work-assignments.store');
+    Route::put('v1/admin/hr/work-assignments/{workAssignment}', [AdminEmployeeWorkAssignmentController::class, 'update'])
+        ->whereNumber('workAssignment')
+        ->name('api.v1.admin.hr.work-assignments.update');
+    Route::patch('v1/admin/hr/work-assignments/{workAssignment}/end', [AdminEmployeeWorkAssignmentController::class, 'end'])
+        ->whereNumber('workAssignment')
+        ->name('api.v1.admin.hr.work-assignments.end');
 });
 
 Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.view'])->group(function (): void {
