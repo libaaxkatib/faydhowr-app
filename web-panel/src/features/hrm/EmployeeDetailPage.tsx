@@ -208,14 +208,21 @@ export function EmployeeDetailPage() {
           <Card>
             <CardHeader>
               <h3 className="font-display text-sm font-bold text-ink">Work Assignments</h3>
-              <PermissionGate module="hr">
-                <Button size="sm" variant="outline" onClick={() => setIsAssignOpen(true)}>
-                  <Icon name="plus" size={14} />
-                  Assign
-                </Button>
-              </PermissionGate>
+              {employee.status === 'active' && (
+                <PermissionGate module="hr">
+                  <Button size="sm" variant="outline" onClick={() => setIsAssignOpen(true)}>
+                    <Icon name="plus" size={14} />
+                    Assign
+                  </Button>
+                </PermissionGate>
+              )}
             </CardHeader>
             <CardBody className="space-y-3">
+              {employee.status !== 'active' && (
+                <p className="rounded-sm bg-surface-alt px-3 py-2 text-xs text-ink-muted">
+                  Work assignments are available only for Active employees.
+                </p>
+              )}
               {employee.active_work_assignments && employee.active_work_assignments.length > 0 ? (
                 employee.active_work_assignments.map((assignment) => (
                   <div key={assignment.id} className="border-b border-border pb-3 last:border-0 last:pb-0">

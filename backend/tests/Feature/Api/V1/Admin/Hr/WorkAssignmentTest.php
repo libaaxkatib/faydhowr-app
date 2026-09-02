@@ -18,16 +18,50 @@ class WorkAssignmentTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function makeEmployee(): Employee
+    /**
+     * Defaults to 'active' since most of this file's tests are about
+     * assignment mechanics, not the recruitment pipeline itself — pass an
+     * explicit status to exercise the pipeline-gating rule.
+     */
+    private function makeEmployee(string $status = 'active'): Employee
     {
         return Employee::query()->create([
             'employee_number' => 'EMP-'.fake()->unique()->numerify('######'),
             'full_name' => fake()->name(),
             'phone' => fake()->unique()->e164PhoneNumber(),
             'employee_category_id' => EmployeeCategory::query()->firstOrFail()->id,
-            'status' => 'applicant',
+            'status' => $status,
             'application_date' => now()->toDateString(),
         ]);
+    }
+
+    public function test_only_active_employees_may_receive_a_work_assignment(): void
+    {
+        $admin = Admin::factory()->superAdmin()->create();
+        $token = $admin->createToken('t')->plainTextToken;
+        $office = WorkLocation::query()->where('location_type', 'office')->firstOrFail();
+
+        $payload = [
+            'work_location_id' => $office->id,
+            'start_date' => now()->toDateString(),
+            'salary_amount' => 100,
+            'salary_currency' => 'USD',
+            'salary_frequency' => 'monthly',
+        ];
+
+        foreach (['applicant', 'recruitment', 'practical', 'waiting', 'approved'] as $status) {
+            $employee = $this->makeEmployee($status);
+
+            $this->withToken($token)
+                ->postJson("/api/v1/admin/hr/employees/{$employee->id}/work-assignments", $payload)
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('employee_status');
+        }
+
+        $activeEmployee = $this->makeEmployee('active');
+        $this->withToken($token)
+            ->postJson("/api/v1/admin/hr/employees/{$activeEmployee->id}/work-assignments", $payload)
+            ->assertStatus(201);
     }
 
     public function test_office_row_is_seeded_with_default_capacity(): void
