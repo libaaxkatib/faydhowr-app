@@ -53,6 +53,10 @@ enum AdminPermission: string
     case ContentView = 'content.view';
     case ContentManage = 'content.manage';
 
+    case HrView = 'hr.view';
+    case HrManage = 'hr.manage';
+    case HrReportsView = 'hr.reports.view';
+
     public function label(): string
     {
         return match ($this) {
@@ -91,6 +95,9 @@ enum AdminPermission: string
             self::QuotationsManage => 'Manage Quotations',
             self::ContentView => 'View Home Content',
             self::ContentManage => 'Manage Home Content',
+            self::HrView => 'View HR',
+            self::HrManage => 'Manage HR',
+            self::HrReportsView => 'View HR Reports',
         };
     }
 
@@ -132,6 +139,9 @@ enum AdminPermission: string
             self::QuotationsManage => 'Quotations',
             self::ContentView,
             self::ContentManage => 'Content',
+            self::HrView,
+            self::HrManage,
+            self::HrReportsView => 'HR',
         };
     }
 

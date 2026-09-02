@@ -9,6 +9,10 @@ enum AdminRole: string
     case Sales = 'sales';
     case Inventory = 'inventory';
     case Accountant = 'accountant';
+    case HrManager = 'hr_manager';
+    case HrEmployee = 'hr_employee';
+    case MarketingManager = 'marketing_manager';
+    case MarketingEmployee = 'marketing_employee';
 
     /**
      * Roles that may have persisted permission assignments.
