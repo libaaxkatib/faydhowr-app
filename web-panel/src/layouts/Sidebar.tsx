@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 
 import { Logo } from '@/components/Logo';
 import { Icon } from '@/components/ui/Icon';
@@ -11,7 +11,6 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
-  const location = useLocation();
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   return (
@@ -75,10 +74,11 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
                       <NavLink
                         key={item.to}
                         to={item.to}
+                        end={item.end}
                         onClick={onNavigate}
                         className={({ isActive }) =>
                           `flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition ${
-                            isActive || location.pathname.startsWith(item.to)
+                            isActive
                               ? 'bg-white/10 text-white'
                               : 'text-white/70 hover:bg-white/5 hover:text-white'
                           }`

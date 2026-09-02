@@ -6,6 +6,13 @@ export interface NavLeaf {
   icon?: IconName;
   /** When true the route isn't built yet (Marketing/HRM backends are a future phase) — renders disabled. */
   comingSoon?: boolean;
+  /**
+   * Exact-match only (React Router's NavLink `end`). Required whenever `to`
+   * is itself a path prefix of a sibling item's `to` in the same group (e.g.
+   * a group's own "Dashboard" at `/marketing` vs. `/marketing/xarun`) —
+   * without it, NavLink's default prefix matching marks both active at once.
+   */
+  end?: boolean;
 }
 
 export interface NavGroup {
@@ -36,9 +43,9 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Marketing',
     items: [
-      { label: 'Dashboard', to: '/marketing', icon: 'megaphone' },
-      { label: 'Xarun', to: '/marketing/xarun', icon: 'megaphone' },
-      { label: 'Project', to: '/marketing/project', icon: 'briefcase' },
+      { label: 'Dashboard', to: '/marketing', icon: 'megaphone', end: true },
+      { label: 'XARUN', to: '/marketing/xarun', icon: 'megaphone' },
+      { label: 'PROJECT', to: '/marketing/project', icon: 'briefcase' },
       { label: 'Follow-ups', to: '/marketing/follow-ups', icon: 'bell' },
       { label: 'Teams', to: '/marketing/teams', icon: 'users' },
       { label: 'Commission', to: '/marketing/commission', icon: 'credit-card' },
@@ -48,7 +55,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Human Resources',
     items: [
-      { label: 'Dashboard', to: '/hr', icon: 'briefcase' },
+      { label: 'Dashboard', to: '/hr', icon: 'briefcase', end: true },
       { label: 'Employee Registration', to: '/hr/employees', icon: 'plus' },
       { label: 'Employees', to: '/hr/employees', icon: 'users' },
       { label: 'Recruitment', to: '/hr/recruitment', icon: 'file-text' },
