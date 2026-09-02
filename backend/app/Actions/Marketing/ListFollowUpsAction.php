@@ -15,7 +15,12 @@ class ListFollowUpsAction
 {
     public function handle(array $filters): Collection
     {
-        $query = FollowUp::query()->with(['marketingRecord.xarunDetail', 'marketingRecord.projectDetail', 'assignedAdmin']);
+        $query = FollowUp::query()->with([
+            'marketingRecord.xarunDetail',
+            'marketingRecord.projectDetail',
+            'marketingRecord.assignedTeam',
+            'assignedAdmin',
+        ]);
 
         if (! empty($filters['assigned_admin_id'])) {
             $query->where('assigned_admin_id', $filters['assigned_admin_id']);

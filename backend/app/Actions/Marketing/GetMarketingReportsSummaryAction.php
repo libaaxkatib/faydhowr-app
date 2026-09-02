@@ -9,18 +9,32 @@ use Carbon\CarbonImmutable;
 /**
  * Backs docs/HRM_MARKETING_SRS.md §18-19: Team A/Team B/All Teams/
  * Individual Employee reports. Real Eloquent aggregation only.
+ *
+ * @param  array{from?: string, to?: string, assigned_team_id?: int, assigned_admin_id?: int, status?: string, type?: string}  $filters
  */
 class GetMarketingReportsSummaryAction
 {
-    public function handle(?string $from, ?string $to, ?int $teamId): array
+    public function handle(array $filters): array
     {
-        $from ??= CarbonImmutable::now()->subDays(30)->toDateString();
-        $to ??= CarbonImmutable::now()->toDateString();
+        $from = $filters['from'] ?? CarbonImmutable::now()->subDays(30)->toDateString();
+        $to = $filters['to'] ?? CarbonImmutable::now()->toDateString();
 
         $baseQuery = MarketingRecord::query()->whereBetween('created_at', ["{$from} 00:00:00", "{$to} 23:59:59"]);
 
-        if ($teamId !== null) {
-            $baseQuery->where('assigned_team_id', $teamId);
+        if (! empty($filters['assigned_team_id'])) {
+            $baseQuery->where('assigned_team_id', $filters['assigned_team_id']);
+        }
+
+        if (! empty($filters['assigned_admin_id'])) {
+            $baseQuery->where('assigned_admin_id', $filters['assigned_admin_id']);
+        }
+
+        if (! empty($filters['status'])) {
+            $baseQuery->where('status', $filters['status']);
+        }
+
+        if (! empty($filters['type'])) {
+            $baseQuery->where('type', $filters['type']);
         }
 
         $statusBreakdown = (clone $baseQuery)
@@ -34,8 +48,19 @@ class GetMarketingReportsSummaryAction
             ->pluck('total', 'type');
 
         $teamBreakdown = MarketingTeam::query()
-            ->withCount(['records' => function ($query) use ($from, $to) {
+            ->when(! empty($filters['assigned_team_id']), fn ($query) => $query->where('id', $filters['assigned_team_id']))
+            ->withCount(['records' => function ($query) use ($from, $to, $filters) {
                 $query->whereBetween('created_at', ["{$from} 00:00:00", "{$to} 23:59:59"]);
+
+                if (! empty($filters['assigned_admin_id'])) {
+                    $query->where('assigned_admin_id', $filters['assigned_admin_id']);
+                }
+                if (! empty($filters['status'])) {
+                    $query->where('status', $filters['status']);
+                }
+                if (! empty($filters['type'])) {
+                    $query->where('type', $filters['type']);
+                }
             }])
             ->orderBy('name')
             ->get()

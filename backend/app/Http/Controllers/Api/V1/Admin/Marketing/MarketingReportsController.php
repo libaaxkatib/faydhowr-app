@@ -12,11 +12,7 @@ class MarketingReportsController extends Controller
 {
     public function summary(GetMarketingReportsSummaryRequest $request, GetMarketingReportsSummaryAction $action): JsonResponse
     {
-        $summary = $action->handle(
-            $request->validated('from'),
-            $request->validated('to'),
-            $request->validated('assigned_team_id') ? (int) $request->validated('assigned_team_id') : null,
-        );
+        $summary = $action->handle($request->validated());
 
         return ApiResponse::success('Marketing report summary retrieved successfully.', $summary);
     }
