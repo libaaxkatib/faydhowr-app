@@ -57,6 +57,12 @@ enum AdminPermission: string
     case HrManage = 'hr.manage';
     case HrReportsView = 'hr.reports.view';
 
+    case MarketingView = 'marketing.view';
+    case MarketingManage = 'marketing.manage';
+    case MarketingAssign = 'marketing.assign';
+    case MarketingCommissionView = 'marketing.commission.view';
+    case MarketingReportsView = 'marketing.reports.view';
+
     public function label(): string
     {
         return match ($this) {
@@ -98,6 +104,11 @@ enum AdminPermission: string
             self::HrView => 'View HR',
             self::HrManage => 'Manage HR',
             self::HrReportsView => 'View HR Reports',
+            self::MarketingView => 'View Marketing',
+            self::MarketingManage => 'Manage Marketing',
+            self::MarketingAssign => 'Assign Marketing Work',
+            self::MarketingCommissionView => 'View Marketing Commission',
+            self::MarketingReportsView => 'View Marketing Reports',
         };
     }
 
@@ -142,6 +153,11 @@ enum AdminPermission: string
             self::HrView,
             self::HrManage,
             self::HrReportsView => 'HR',
+            self::MarketingView,
+            self::MarketingManage,
+            self::MarketingAssign,
+            self::MarketingCommissionView,
+            self::MarketingReportsView => 'Marketing',
         };
     }
 

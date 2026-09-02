@@ -11,4 +11,5 @@ enum NotificationType: string
     case StoreOrder = 'store_order';
     case Inventory = 'inventory';
     case System = 'system';
+    case FollowUp = 'follow_up';
 }
