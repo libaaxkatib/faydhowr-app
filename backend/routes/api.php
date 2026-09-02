@@ -23,6 +23,15 @@ use App\Http\Controllers\Api\V1\Admin\Customers\CustomerAttachmentController as 
 use App\Http\Controllers\Api\V1\Admin\Customers\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Api\V1\Admin\Customers\CustomerNoteController as AdminCustomerNoteController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
+use App\Http\Controllers\Api\V1\Admin\Hr\DepartmentController as AdminDepartmentController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeCategoryController as AdminEmployeeCategoryController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeController as AdminEmployeeController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeDocumentController as AdminEmployeeDocumentController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeePracticalAssessmentController as AdminEmployeePracticalAssessmentController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeStatusController as AdminEmployeeStatusController;
+use App\Http\Controllers\Api\V1\Admin\Hr\HrDashboardController as AdminHrDashboardController;
+use App\Http\Controllers\Api\V1\Admin\Hr\HrReportsController as AdminHrReportsController;
+use App\Http\Controllers\Api\V1\Admin\Hr\PositionController as AdminPositionController;
 use App\Http\Controllers\Api\V1\Admin\NotificationTemplateController;
 use App\Http\Controllers\Api\V1\Admin\NotificationTemplateTranslationController;
 use App\Http\Controllers\Api\V1\Admin\Payments\PaymentController as AdminPaymentController;
@@ -1076,6 +1085,71 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:goods_receipts.manage'])
         ->name('api.v1.goods-receipts.show');
     Route::post('v1/goods-receipts', [GoodsReceiptController::class, 'store'])
         ->name('api.v1.goods-receipts.store');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.view'])->group(function (): void {
+    Route::get('v1/admin/hr/dashboard', [AdminHrDashboardController::class, 'show'])
+        ->name('api.v1.admin.hr.dashboard');
+    Route::get('v1/admin/hr/departments', [AdminDepartmentController::class, 'index'])
+        ->name('api.v1.admin.hr.departments.index');
+    Route::get('v1/admin/hr/positions', [AdminPositionController::class, 'index'])
+        ->name('api.v1.admin.hr.positions.index');
+    Route::get('v1/admin/hr/employee-categories', [AdminEmployeeCategoryController::class, 'index'])
+        ->name('api.v1.admin.hr.employee-categories.index');
+    Route::get('v1/admin/hr/employees', [AdminEmployeeController::class, 'index'])
+        ->name('api.v1.admin.hr.employees.index');
+    Route::get('v1/admin/hr/employees/{employee}', [AdminEmployeeController::class, 'show'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.show');
+    Route::get('v1/admin/hr/employees/{employee}/documents/{document}/download', [AdminEmployeeDocumentController::class, 'download'])
+        ->whereNumber(['employee', 'document'])
+        ->name('api.v1.admin.hr.employees.documents.download');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.reports.view'])->group(function (): void {
+    Route::get('v1/admin/hr/reports/summary', [AdminHrReportsController::class, 'summary'])
+        ->name('api.v1.admin.hr.reports.summary');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage'])->group(function (): void {
+    Route::post('v1/admin/hr/departments', [AdminDepartmentController::class, 'store'])
+        ->name('api.v1.admin.hr.departments.store');
+    Route::put('v1/admin/hr/departments/{department}', [AdminDepartmentController::class, 'update'])
+        ->whereNumber('department')
+        ->name('api.v1.admin.hr.departments.update');
+    Route::delete('v1/admin/hr/departments/{department}', [AdminDepartmentController::class, 'destroy'])
+        ->whereNumber('department')
+        ->name('api.v1.admin.hr.departments.destroy');
+
+    Route::post('v1/admin/hr/positions', [AdminPositionController::class, 'store'])
+        ->name('api.v1.admin.hr.positions.store');
+    Route::put('v1/admin/hr/positions/{position}', [AdminPositionController::class, 'update'])
+        ->whereNumber('position')
+        ->name('api.v1.admin.hr.positions.update');
+    Route::delete('v1/admin/hr/positions/{position}', [AdminPositionController::class, 'destroy'])
+        ->whereNumber('position')
+        ->name('api.v1.admin.hr.positions.destroy');
+
+    Route::post('v1/admin/hr/employees', [AdminEmployeeController::class, 'store'])
+        ->name('api.v1.admin.hr.employees.store');
+    Route::put('v1/admin/hr/employees/{employee}', [AdminEmployeeController::class, 'update'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.update');
+    Route::patch('v1/admin/hr/employees/{employee}/status', [AdminEmployeeStatusController::class, 'update'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.status');
+    Route::patch('v1/admin/hr/employees/{employee}/guarantor-confirm', [AdminEmployeeStatusController::class, 'confirmGuarantor'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.guarantor-confirm');
+    Route::post('v1/admin/hr/employees/{employee}/practical-assessments', [AdminEmployeePracticalAssessmentController::class, 'store'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.practical-assessments.store');
+    Route::post('v1/admin/hr/employees/{employee}/documents', [AdminEmployeeDocumentController::class, 'store'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.documents.store');
+    Route::delete('v1/admin/hr/employees/{employee}/documents/{document}', [AdminEmployeeDocumentController::class, 'destroy'])
+        ->whereNumber(['employee', 'document'])
+        ->name('api.v1.admin.hr.employees.documents.destroy');
 });
 
 Route::middleware('auth:sanctum')->prefix('v1/notifications')->group(function (): void {
