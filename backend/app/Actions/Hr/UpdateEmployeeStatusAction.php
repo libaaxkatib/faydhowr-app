@@ -17,7 +17,12 @@ class UpdateEmployeeStatusAction
         return DB::transaction(function () use ($employee, $status, $note, $actor) {
             $from = $employee->status;
 
-            $employee->update(['status' => $status]);
+            $employee->update([
+                'status' => $status,
+                'waiting_since' => $from === EmployeeStatus::Waiting && $status !== EmployeeStatus::Waiting
+                    ? null
+                    : $employee->waiting_since,
+            ]);
 
             EmployeeStatusHistory::query()->create([
                 'employee_id' => $employee->id,

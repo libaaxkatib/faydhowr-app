@@ -18,6 +18,9 @@ class StoreEmployeeDocumentRequest extends FormRequest
     {
         return [
             'file' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,txt'],
+            'employee_document_category_id' => ['nullable', 'integer', 'exists:employee_document_categories,id'],
+            'document_number' => ['nullable', 'string', 'max:100'],
+            'expiry_date' => ['nullable', 'date'],
         ];
     }
 

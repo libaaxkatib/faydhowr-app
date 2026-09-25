@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\EmployeeGender;
+use App\Enums\EmployeePipelineStage;
 use App\Enums\EmployeeStatus;
 use App\Enums\WorkAssignmentStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -9,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
@@ -21,11 +24,17 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'marital_status',
     'lives_with',
     'reference_name',
+    'gender',
+    'profile_picture_document_id',
     'employee_category_id',
     'department_id',
     'position_id',
     'status',
+    'pipeline_stage',
     'guarantor_confirmed_at',
+    'waiting_since',
+    'is_supervisor',
+    'supervisor_since',
     'application_date',
     'joining_date',
     'experience',
@@ -42,8 +51,13 @@ class Employee extends Model
     protected function casts(): array
     {
         return [
+            'gender' => EmployeeGender::class,
             'status' => EmployeeStatus::class,
+            'pipeline_stage' => EmployeePipelineStage::class,
             'guarantor_confirmed_at' => 'datetime',
+            'waiting_since' => 'datetime',
+            'is_supervisor' => 'boolean',
+            'supervisor_since' => 'datetime',
             'application_date' => 'date',
             'joining_date' => 'date',
             'training_fee_amount' => 'decimal:2',
@@ -95,5 +109,80 @@ class Employee extends Model
         return $this->hasMany(EmployeeWorkAssignment::class)
             ->where('status', WorkAssignmentStatus::Active)
             ->latest('start_date');
+    }
+
+    public function guarantor(): HasOne
+    {
+        return $this->hasOne(EmployeeGuarantor::class);
+    }
+
+    public function contracts(): HasMany
+    {
+        return $this->hasMany(EmployeeContract::class)->latest('created_at');
+    }
+
+    public function currentContract(): HasOne
+    {
+        return $this->hasOne(EmployeeContract::class)->latestOfMany('created_at');
+    }
+
+    public function uniform(): HasOne
+    {
+        return $this->hasOne(EmployeeUniform::class);
+    }
+
+    public function profilePictureDocument(): BelongsTo
+    {
+        return $this->belongsTo(EmployeeDocument::class, 'profile_picture_document_id');
+    }
+
+    public function workforceRequestMatches(): HasMany
+    {
+        return $this->hasMany(WorkforceRequestMatch::class)->latest('created_at');
+    }
+
+    public function separations(): HasMany
+    {
+        return $this->hasMany(EmployeeSeparation::class)->latest('separation_date');
+    }
+
+    public function latestSeparation(): HasOne
+    {
+        return $this->hasOne(EmployeeSeparation::class)->latestOfMany('separation_date');
+    }
+
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(EmployeeAttendance::class)->latest('date');
+    }
+
+    public function leaves(): HasMany
+    {
+        return $this->hasMany(EmployeeLeave::class)->latest('start_date');
+    }
+
+    public function performanceReviews(): HasMany
+    {
+        return $this->hasMany(EmployeePerformanceReview::class)->latest('review_date');
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(EmployeePayment::class)->latest('payment_date');
+    }
+
+    public function penalties(): HasMany
+    {
+        return $this->hasMany(EmployeePenalty::class)->latest('penalty_date');
+    }
+
+    public function advances(): HasMany
+    {
+        return $this->hasMany(EmployeeAdvance::class)->latest('advance_date');
+    }
+
+    public function trainingParticipations(): HasMany
+    {
+        return $this->hasMany(TrainingBatchParticipant::class);
     }
 }

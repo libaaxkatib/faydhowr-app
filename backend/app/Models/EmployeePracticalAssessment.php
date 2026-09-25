@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['employee_id', 'assessed_by', 'assessment_date', 'result', 'notes'])]
+#[Fillable(['employee_id', 'practical_batch_id', 'attempt_number', 'assessed_by', 'assessment_date', 'result', 'notes'])]
 class EmployeePracticalAssessment extends Model
 {
     use HasFactory;
@@ -29,5 +29,10 @@ class EmployeePracticalAssessment extends Model
     public function assessedBy(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'assessed_by');
+    }
+
+    public function practicalBatch(): BelongsTo
+    {
+        return $this->belongsTo(PracticalBatch::class);
     }
 }

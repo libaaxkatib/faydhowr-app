@@ -26,18 +26,32 @@ use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\Hr\ClientCompanyController as AdminClientCompanyController;
 use App\Http\Controllers\Api\V1\Admin\Hr\DepartmentController as AdminDepartmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeCategoryController as AdminEmployeeCategoryController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeContractController as AdminEmployeeContractController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeController as AdminEmployeeController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeDocumentCategoryController as AdminEmployeeDocumentCategoryController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeDocumentController as AdminEmployeeDocumentController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeGuarantorController as AdminEmployeeGuarantorController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeePracticalAssessmentController as AdminEmployeePracticalAssessmentController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeProfilePictureController as AdminEmployeeProfilePictureController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeStatusController as AdminEmployeeStatusController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeUniformController as AdminEmployeeUniformController;
+use App\Http\Controllers\Api\V1\Admin\Hr\PracticalBatchController as AdminPracticalBatchController;
+use App\Http\Controllers\Api\V1\Admin\Hr\TrainingBatchController as AdminTrainingBatchController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeWorkAssignmentController as AdminEmployeeWorkAssignmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrDashboardController as AdminHrDashboardController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrReportsController as AdminHrReportsController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PositionController as AdminPositionController;
 use App\Http\Controllers\Api\V1\Admin\Hr\WorkLocationController as AdminWorkLocationController;
+use App\Http\Controllers\Api\V1\Admin\Hr\WorkforceRequestController as AdminWorkforceRequestController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeSeparationController as AdminEmployeeSeparationController;
+use App\Http\Controllers\Api\V1\Admin\Hr\TemporaryReplacementController as AdminTemporaryReplacementController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeAttendanceController as AdminEmployeeAttendanceController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeRecordsController as AdminEmployeeRecordsController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeePayrollController as AdminEmployeePayrollController;
 use App\Http\Controllers\Api\V1\Admin\Marketing\CommissionController as AdminMarketingCommissionController;
 use App\Http\Controllers\Api\V1\Admin\Marketing\FollowUpController as AdminMarketingFollowUpController;
 use App\Http\Controllers\Api\V1\Admin\Marketing\MarketingDashboardController as AdminMarketingDashboardController;
+use App\Http\Controllers\Api\V1\Admin\Marketing\MarketingEmployeeController as AdminMarketingEmployeeController;
 use App\Http\Controllers\Api\V1\Admin\Marketing\MarketingQuotationController as AdminMarketingQuotationController;
 use App\Http\Controllers\Api\V1\Admin\Marketing\MarketingRecordController as AdminMarketingRecordController;
 use App\Http\Controllers\Api\V1\Admin\Marketing\MarketingReportsController as AdminMarketingReportsController;
@@ -1099,7 +1113,7 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:goods_receipts.manage'])
         ->name('api.v1.goods-receipts.store');
 });
 
-Route::middleware(['auth:sanctum', 'admin', 'permission:hr.view'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.view', 'throttle:admin-operations'])->group(function (): void {
     Route::get('v1/admin/hr/dashboard', [AdminHrDashboardController::class, 'show'])
         ->name('api.v1.admin.hr.dashboard');
     Route::get('v1/admin/hr/departments', [AdminDepartmentController::class, 'index'])
@@ -1120,14 +1134,55 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.view'])->group(functi
     Route::get('v1/admin/hr/employees/{employee}/documents/{document}/download', [AdminEmployeeDocumentController::class, 'download'])
         ->whereNumber(['employee', 'document'])
         ->name('api.v1.admin.hr.employees.documents.download');
+    Route::get('v1/admin/hr/employees/{employee}/guarantor', [AdminEmployeeGuarantorController::class, 'show'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.guarantor.show');
+    Route::get('v1/admin/hr/employees/{employee}/contracts', [AdminEmployeeContractController::class, 'index'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.contracts.index');
+    Route::get('v1/admin/hr/employees/{employee}/uniform', [AdminEmployeeUniformController::class, 'show'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.uniform.show');
+    Route::get('v1/admin/hr/employee-document-categories', [AdminEmployeeDocumentCategoryController::class, 'index'])
+        ->name('api.v1.admin.hr.employee-document-categories.index');
+    Route::get('v1/admin/hr/training-batches', [AdminTrainingBatchController::class, 'index'])
+        ->name('api.v1.admin.hr.training-batches.index');
+    Route::get('v1/admin/hr/practical-batches', [AdminPracticalBatchController::class, 'index'])
+        ->name('api.v1.admin.hr.practical-batches.index');
+    Route::get('v1/admin/hr/workforce-requests', [AdminWorkforceRequestController::class, 'index'])
+        ->name('api.v1.admin.hr.workforce-requests.index');
+    Route::get('v1/admin/hr/workforce-requests/{workforceRequest}/candidates', [AdminWorkforceRequestController::class, 'candidates'])
+        ->whereNumber('workforceRequest')
+        ->name('api.v1.admin.hr.workforce-requests.candidates');
+    Route::get('v1/admin/hr/temporary-replacements', [AdminTemporaryReplacementController::class, 'index'])
+        ->name('api.v1.admin.hr.temporary-replacements.index');
+    Route::get('v1/admin/hr/attendance', [AdminEmployeeAttendanceController::class, 'forDate'])
+        ->name('api.v1.admin.hr.attendance.for-date');
+    Route::get('v1/admin/hr/employees/{employee}/payroll-summary', [AdminEmployeePayrollController::class, 'summary'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.payroll-summary');
 });
 
-Route::middleware(['auth:sanctum', 'admin', 'permission:hr.reports.view'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.reports.view', 'throttle:admin-operations'])->group(function (): void {
     Route::get('v1/admin/hr/reports/summary', [AdminHrReportsController::class, 'summary'])
         ->name('api.v1.admin.hr.reports.summary');
+    Route::get('v1/admin/hr/reports/waiting-roster', [AdminHrReportsController::class, 'waitingRoster'])
+        ->name('api.v1.admin.hr.reports.waiting-roster');
+    Route::get('v1/admin/hr/reports/workforce-requests', [AdminHrReportsController::class, 'workforceRequestHistory'])
+        ->name('api.v1.admin.hr.reports.workforce-requests');
+    Route::get('v1/admin/hr/reports/temporary-replacements', [AdminHrReportsController::class, 'temporaryReplacementHistory'])
+        ->name('api.v1.admin.hr.reports.temporary-replacements');
+    Route::get('v1/admin/hr/reports/leaves', [AdminHrReportsController::class, 'leaves'])
+        ->name('api.v1.admin.hr.reports.leaves');
+    Route::get('v1/admin/hr/reports/performance-reviews', [AdminHrReportsController::class, 'performanceReviews'])
+        ->name('api.v1.admin.hr.reports.performance-reviews');
+    Route::get('v1/admin/hr/reports/financial-ledger', [AdminHrReportsController::class, 'financialLedger'])
+        ->name('api.v1.admin.hr.reports.financial-ledger');
+    Route::get('v1/admin/hr/reports/payroll-rollup', [AdminHrReportsController::class, 'payrollRollup'])
+        ->name('api.v1.admin.hr.reports.payroll-rollup');
 });
 
-Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:admin-operations'])->group(function (): void {
     Route::post('v1/admin/hr/departments', [AdminDepartmentController::class, 'store'])
         ->name('api.v1.admin.hr.departments.store');
     Route::put('v1/admin/hr/departments/{department}', [AdminDepartmentController::class, 'update'])
@@ -1154,6 +1209,33 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage'])->group(func
     Route::patch('v1/admin/hr/employees/{employee}/status', [AdminEmployeeStatusController::class, 'update'])
         ->whereNumber('employee')
         ->name('api.v1.admin.hr.employees.status');
+    Route::patch('v1/admin/hr/employees/{employee}/separate', [AdminEmployeeSeparationController::class, 'separate'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.separate');
+    Route::patch('v1/admin/hr/employees/{employee}/rehire', [AdminEmployeeSeparationController::class, 'rehire'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.rehire');
+    Route::post('v1/admin/hr/employees/{employee}/attendance', [AdminEmployeeAttendanceController::class, 'mark'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.attendance.mark');
+    Route::post('v1/admin/hr/employees/{employee}/leaves', [AdminEmployeeRecordsController::class, 'storeLeave'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.leaves.store');
+    Route::post('v1/admin/hr/employees/{employee}/performance-reviews', [AdminEmployeeRecordsController::class, 'storePerformanceReview'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.performance-reviews.store');
+    Route::post('v1/admin/hr/employees/{employee}/payments', [AdminEmployeeRecordsController::class, 'storePayment'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.payments.store');
+    Route::post('v1/admin/hr/employees/{employee}/penalties', [AdminEmployeeRecordsController::class, 'storePenalty'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.penalties.store');
+    Route::post('v1/admin/hr/employees/{employee}/advances', [AdminEmployeeRecordsController::class, 'storeAdvance'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.advances.store');
+    Route::patch('v1/admin/hr/employees/{employee}/supervisor', [AdminEmployeeSeparationController::class, 'supervisor'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.supervisor');
     Route::patch('v1/admin/hr/employees/{employee}/guarantor-confirm', [AdminEmployeeStatusController::class, 'confirmGuarantor'])
         ->whereNumber('employee')
         ->name('api.v1.admin.hr.employees.guarantor-confirm');
@@ -1166,6 +1248,57 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage'])->group(func
     Route::delete('v1/admin/hr/employees/{employee}/documents/{document}', [AdminEmployeeDocumentController::class, 'destroy'])
         ->whereNumber(['employee', 'document'])
         ->name('api.v1.admin.hr.employees.documents.destroy');
+
+    Route::post('v1/admin/hr/employees/{employee}/guarantor', [AdminEmployeeGuarantorController::class, 'store'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.guarantor.store');
+    Route::patch('v1/admin/hr/employees/{employee}/guarantor/verify', [AdminEmployeeGuarantorController::class, 'verify'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.guarantor.verify');
+
+    Route::post('v1/admin/hr/employees/{employee}/contracts', [AdminEmployeeContractController::class, 'store'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.contracts.store');
+    Route::patch('v1/admin/hr/employees/{employee}/contracts/{contract}/sign', [AdminEmployeeContractController::class, 'sign'])
+        ->whereNumber(['employee', 'contract'])
+        ->name('api.v1.admin.hr.employees.contracts.sign');
+
+    Route::put('v1/admin/hr/employees/{employee}/uniform', [AdminEmployeeUniformController::class, 'update'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.uniform.update');
+    Route::patch('v1/admin/hr/employees/{employee}/uniform/confirm', [AdminEmployeeUniformController::class, 'confirm'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.uniform.confirm');
+
+    Route::post('v1/admin/hr/employee-document-categories', [AdminEmployeeDocumentCategoryController::class, 'store'])
+        ->name('api.v1.admin.hr.employee-document-categories.store');
+    Route::patch('v1/admin/hr/employees/{employee}/documents/{document}/verify', [AdminEmployeeDocumentController::class, 'verify'])
+        ->whereNumber(['employee', 'document'])
+        ->name('api.v1.admin.hr.employees.documents.verify');
+    Route::post('v1/admin/hr/employees/{employee}/profile-picture', [AdminEmployeeProfilePictureController::class, 'store'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.profile-picture.store');
+
+    Route::post('v1/admin/hr/training-batches', [AdminTrainingBatchController::class, 'store'])
+        ->name('api.v1.admin.hr.training-batches.store');
+    Route::put('v1/admin/hr/training-batches/{trainingBatch}', [AdminTrainingBatchController::class, 'update'])
+        ->whereNumber('trainingBatch')
+        ->name('api.v1.admin.hr.training-batches.update');
+    Route::post('v1/admin/hr/training-batches/{trainingBatch}/participants', [AdminTrainingBatchController::class, 'addParticipant'])
+        ->whereNumber('trainingBatch')
+        ->name('api.v1.admin.hr.training-batches.participants.store');
+    Route::delete('v1/admin/hr/training-batches/{trainingBatch}/participants/{participant}', [AdminTrainingBatchController::class, 'removeParticipant'])
+        ->whereNumber(['trainingBatch', 'participant'])
+        ->name('api.v1.admin.hr.training-batches.participants.destroy');
+    Route::patch('v1/admin/hr/training-batches/{trainingBatch}/complete', [AdminTrainingBatchController::class, 'complete'])
+        ->whereNumber('trainingBatch')
+        ->name('api.v1.admin.hr.training-batches.complete');
+
+    Route::post('v1/admin/hr/practical-batches', [AdminPracticalBatchController::class, 'store'])
+        ->name('api.v1.admin.hr.practical-batches.store');
+    Route::put('v1/admin/hr/practical-batches/{practicalBatch}', [AdminPracticalBatchController::class, 'update'])
+        ->whereNumber('practicalBatch')
+        ->name('api.v1.admin.hr.practical-batches.update');
 
     Route::post('v1/admin/hr/client-companies', [AdminClientCompanyController::class, 'store'])
         ->name('api.v1.admin.hr.client-companies.store');
@@ -1194,9 +1327,30 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage'])->group(func
     Route::patch('v1/admin/hr/work-assignments/{workAssignment}/end', [AdminEmployeeWorkAssignmentController::class, 'end'])
         ->whereNumber('workAssignment')
         ->name('api.v1.admin.hr.work-assignments.end');
+
+    Route::post('v1/admin/hr/workforce-requests', [AdminWorkforceRequestController::class, 'store'])
+        ->name('api.v1.admin.hr.workforce-requests.store');
+    Route::put('v1/admin/hr/workforce-requests/{workforceRequest}', [AdminWorkforceRequestController::class, 'update'])
+        ->whereNumber('workforceRequest')
+        ->name('api.v1.admin.hr.workforce-requests.update');
+    Route::patch('v1/admin/hr/workforce-requests/{workforceRequest}/cancel', [AdminWorkforceRequestController::class, 'cancel'])
+        ->whereNumber('workforceRequest')
+        ->name('api.v1.admin.hr.workforce-requests.cancel');
+    Route::post('v1/admin/hr/workforce-requests/{workforceRequest}/confirm', [AdminWorkforceRequestController::class, 'confirm'])
+        ->whereNumber('workforceRequest')
+        ->name('api.v1.admin.hr.workforce-requests.confirm');
+
+    Route::post('v1/admin/hr/temporary-replacements', [AdminTemporaryReplacementController::class, 'store'])
+        ->name('api.v1.admin.hr.temporary-replacements.store');
+    Route::patch('v1/admin/hr/temporary-replacements/{temporaryReplacement}/end', [AdminTemporaryReplacementController::class, 'end'])
+        ->whereNumber('temporaryReplacement')
+        ->name('api.v1.admin.hr.temporary-replacements.end');
+    Route::post('v1/admin/hr/temporary-replacements/{temporaryReplacement}/payments', [AdminTemporaryReplacementController::class, 'addPayment'])
+        ->whereNumber('temporaryReplacement')
+        ->name('api.v1.admin.hr.temporary-replacements.payments.store');
 });
 
-Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.view'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.view', 'throttle:admin-operations'])->group(function (): void {
     Route::get('v1/admin/marketing/dashboard', [AdminMarketingDashboardController::class, 'show'])
         ->name('api.v1.admin.marketing.dashboard');
     Route::get('v1/admin/marketing/teams', [AdminMarketingTeamController::class, 'index'])
@@ -1208,27 +1362,29 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.view'])->group
         ->name('api.v1.admin.marketing.records.show');
     Route::get('v1/admin/marketing/follow-ups', [AdminMarketingFollowUpController::class, 'index'])
         ->name('api.v1.admin.marketing.follow-ups.index');
+    Route::get('v1/admin/marketing/employees', [AdminMarketingEmployeeController::class, 'index'])
+        ->name('api.v1.admin.marketing.employees.index');
 });
 
-Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.commission.view'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.commission.view', 'throttle:admin-operations'])->group(function (): void {
     Route::get('v1/admin/marketing/commission/rates', [AdminMarketingCommissionController::class, 'rates'])
         ->name('api.v1.admin.marketing.commission.rates.index');
     Route::get('v1/admin/marketing/commission/records', [AdminMarketingCommissionController::class, 'records'])
         ->name('api.v1.admin.marketing.commission.records.index');
 });
 
-Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.reports.view'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.reports.view', 'throttle:admin-operations'])->group(function (): void {
     Route::get('v1/admin/marketing/reports/summary', [AdminMarketingReportsController::class, 'summary'])
         ->name('api.v1.admin.marketing.reports.summary');
 });
 
-Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.assign'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.assign', 'throttle:admin-operations'])->group(function (): void {
     Route::patch('v1/admin/marketing/records/{record}/assign', [AdminMarketingRecordController::class, 'assign'])
         ->whereNumber('record')
         ->name('api.v1.admin.marketing.records.assign');
 });
 
-Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.manage'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.manage', 'throttle:admin-operations'])->group(function (): void {
     Route::post('v1/admin/marketing/teams', [AdminMarketingTeamController::class, 'store'])
         ->name('api.v1.admin.marketing.teams.store');
     Route::put('v1/admin/marketing/teams/{team}', [AdminMarketingTeamController::class, 'update'])
@@ -1269,6 +1425,12 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.manage'])->gro
     Route::patch('v1/admin/marketing/follow-ups/{followUp}/reschedule', [AdminMarketingFollowUpController::class, 'reschedule'])
         ->whereNumber('followUp')
         ->name('api.v1.admin.marketing.follow-ups.reschedule');
+    Route::patch('v1/admin/marketing/follow-ups/{followUp}/feedback', [AdminMarketingFollowUpController::class, 'addFeedback'])
+        ->whereNumber('followUp')
+        ->name('api.v1.admin.marketing.follow-ups.feedback');
+    Route::patch('v1/admin/marketing/follow-ups/{followUp}/status', [AdminMarketingFollowUpController::class, 'updateRecordStatus'])
+        ->whereNumber('followUp')
+        ->name('api.v1.admin.marketing.follow-ups.status');
 
     Route::post('v1/admin/marketing/records/{record}/quotations', [AdminMarketingQuotationController::class, 'store'])
         ->whereNumber('record')

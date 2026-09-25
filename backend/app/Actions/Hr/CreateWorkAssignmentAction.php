@@ -20,12 +20,32 @@ use Illuminate\Support\Facades\DB;
  * passing override_capacity=true; no other role can, even if it sends the
  * flag. Done here (not in the FormRequest) because it needs the acting
  * admin's role, which the request layer doesn't carry.
+ *
+ * HRM Phase 3 hardening: blocks a second active assignment for the same
+ * employee at the SAME work location (a data-integrity guard). Concurrent
+ * active assignments at DIFFERENT locations remain valid by design - see the
+ * employee_work_assignments migration's comment - and are not affected.
  */
 class CreateWorkAssignmentAction
 {
     public function handle(Employee $employee, array $data, Admin $actor): EmployeeWorkAssignment
     {
         $workLocation = WorkLocation::query()->findOrFail($data['work_location_id']);
+
+        $alreadyAssignedHere = $employee->workAssignments()
+            ->where('work_location_id', $data['work_location_id'])
+            ->where('status', WorkAssignmentStatus::Active)
+            ->exists();
+
+        if ($alreadyAssignedHere) {
+            throw new HttpResponseException(
+                ApiResponse::error(
+                    "Employee '{$employee->full_name}' already has an active assignment at this work location.",
+                    'EMPLOYEE_ALREADY_ASSIGNED_AT_LOCATION',
+                    422,
+                ),
+            );
+        }
 
         if ($workLocation->capacity !== null) {
             $activeCount = $workLocation->workAssignments()->where('status', WorkAssignmentStatus::Active)->count();

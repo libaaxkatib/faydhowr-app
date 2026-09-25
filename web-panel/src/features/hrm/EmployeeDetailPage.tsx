@@ -19,9 +19,65 @@ import { useToast } from '@/components/ui/useToast';
 import { useAuth } from '@/features/auth/useAuth';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { formatDate, formatDateTime, initialsOf } from '@/utils/formatters';
-import type { EmployeeStatus, SalaryFrequency, WorkAssignment } from '@/types/employee';
+import type { AttendanceStatus, Employee, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, SalaryFrequency, WorkAssignment } from '@/types/employee';
 
-const STATUS_FLOW: EmployeeStatus[] = ['applicant', 'recruitment', 'practical', 'waiting', 'approved', 'active'];
+const SEPARATION_REASON_OPTIONS: { value: EmployeeSeparationReason; label: string }[] = [
+  { value: 'resigned', label: 'Resigned' },
+  { value: 'terminated', label: 'Terminated' },
+  { value: 'contract_ended', label: 'Contract Ended' },
+  { value: 'other', label: 'Other' },
+];
+
+const LEAVE_TYPE_OPTIONS: { value: LeaveType; label: string }[] = [
+  { value: 'annual', label: 'Annual' },
+  { value: 'sick', label: 'Sick' },
+  { value: 'unpaid', label: 'Unpaid' },
+  { value: 'other', label: 'Other' },
+];
+
+const PERFORMANCE_RATING_OPTIONS: { value: PerformanceRating; label: string }[] = [
+  { value: 'excellent', label: 'Excellent' },
+  { value: 'good', label: 'Good' },
+  { value: 'needs_improvement', label: 'Needs Improvement' },
+  { value: 'poor', label: 'Poor' },
+];
+
+/**
+ * Manual "Advance to {next}" progression. Waiting goes straight to Active -
+ * the authoritative HR workflow does not route a Waiting employee through a
+ * separate Approved status (Approved here refers to the Practical Assessment
+ * decision, which already moves status straight to Waiting - see
+ * RecordPracticalDecisionAction - not a distinct post-Waiting stage).
+ */
+const STATUS_FLOW: EmployeeStatus[] = ['applicant', 'recruitment', 'practical', 'waiting', 'active'];
+
+const ATTENDANCE_STATUS_TONE: Record<AttendanceStatus, 'success' | 'warning' | 'danger'> = {
+  present: 'success',
+  late: 'warning',
+  absent: 'danger',
+};
+
+const ATTENDANCE_STATUS_LABEL: Record<AttendanceStatus, string> = {
+  present: 'Present',
+  late: 'Late',
+  absent: 'Absent',
+};
+
+const PIPELINE_STAGE_LABELS: Record<string, string> = {
+  damiin_needed: 'Damiin Needed',
+  contract_pending: 'Contract Pending',
+  uniform_pending: 'Uniform Pending',
+  need_training: 'Need Training',
+  need_practical: 'Need Practical',
+  practical_repeat: 'Practical Repeat',
+  rejected: 'Rejected',
+};
+
+const DECISION_OPTIONS: { value: PracticalDecision; label: string; tone: 'success' | 'danger' | 'warning' }[] = [
+  { value: 'approved', label: 'Approved', tone: 'success' },
+  { value: 'ku_celis_practical', label: 'Ku Celis Practical', tone: 'warning' },
+  { value: 'rejected', label: 'Rejected', tone: 'danger' },
+];
 
 export function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -31,10 +87,23 @@ export function EmployeeDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [assessmentResult, setAssessmentResult] = useState<'pass' | 'fail' | 'pending'>('pending');
+  const [decisionResult, setDecisionResult] = useState<PracticalDecision>('approved');
   const [assessmentNotes, setAssessmentNotes] = useState('');
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [endingAssignment, setEndingAssignment] = useState<WorkAssignment | null>(null);
+  const [isSeparateOpen, setIsSeparateOpen] = useState(false);
+  const [isRehireOpen, setIsRehireOpen] = useState(false);
+  const [isLeaveOpen, setIsLeaveOpen] = useState(false);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [isPenaltyOpen, setIsPenaltyOpen] = useState(false);
+  const [isAdvanceOpen, setIsAdvanceOpen] = useState(false);
+  const pictureInputRef = useRef<HTMLInputElement>(null);
+
+  const [guarantorForm, setGuarantorForm] = useState({ guarantor_name: '', guarantor_phone: '', relationship: '' });
+  const [signedDate, setSignedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [documentCategoryId, setDocumentCategoryId] = useState('');
+  const [practicalBatchId, setPracticalBatchId] = useState('');
 
   const { data: employee, isLoading, error, refetch } = useQuery({
     queryKey: ['employee', employeeId],
@@ -45,6 +114,7 @@ export function EmployeeDetailPage() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['employee', employeeId] });
     queryClient.invalidateQueries({ queryKey: ['employees'] });
+    queryClient.invalidateQueries({ queryKey: ['payroll-summary', employeeId] });
   };
 
   const statusMutation = useMutation({
@@ -56,32 +126,169 @@ export function EmployeeDetailPage() {
     onError: (err) => show(err instanceof Error ? err.message : 'Could not update status.', 'error'),
   });
 
-  const guarantorMutation = useMutation({
-    mutationFn: () => hrApi.employees.confirmGuarantor(employeeId),
+  const separateMutation = useMutation({
+    mutationFn: (payload: { reason: EmployeeSeparationReason; separation_date: string; rehire_eligible: boolean; notes: string | null }) =>
+      hrApi.employees.separate(employeeId, payload),
     onSuccess: () => {
       invalidate();
-      show('Guarantor confirmed.');
+      show('Employee separated.');
+      setIsSeparateOpen(false);
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not confirm guarantor.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not separate employee.', 'error'),
   });
 
-  const assessmentMutation = useMutation({
+  const rehireMutation = useMutation({
+    mutationFn: (note: string) => hrApi.employees.rehire(employeeId, note || undefined),
+    onSuccess: () => {
+      invalidate();
+      show('Employee rehired.');
+      setIsRehireOpen(false);
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not rehire employee.', 'error'),
+  });
+
+  const supervisorMutation = useMutation({
+    mutationFn: (isSupervisor: boolean) => hrApi.employees.toggleSupervisor(employeeId, isSupervisor),
+    onSuccess: (_data, isSupervisor) => {
+      invalidate();
+      show(isSupervisor ? 'Added to the Supervisor Pool.' : 'Removed from the Supervisor Pool.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not update supervisor status.', 'error'),
+  });
+
+  const leaveMutation = useMutation({
+    mutationFn: (payload: { leave_type: LeaveType; start_date: string; end_date: string; notes: string | null }) =>
+      hrApi.employees.addLeave(employeeId, payload),
+    onSuccess: () => {
+      invalidate();
+      show('Leave recorded.');
+      setIsLeaveOpen(false);
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not record leave.', 'error'),
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: (payload: { review_date: string; rating: PerformanceRating; notes: string | null }) =>
+      hrApi.employees.addPerformanceReview(employeeId, payload),
+    onSuccess: () => {
+      invalidate();
+      show('Performance review recorded.');
+      setIsReviewOpen(false);
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not record performance review.', 'error'),
+  });
+
+  const paymentMutation = useMutation({
+    mutationFn: (payload: { payment_date: string; amount: number; currency: string; notes: string | null }) =>
+      hrApi.employees.addPayment(employeeId, payload),
+    onSuccess: () => {
+      invalidate();
+      show('Payment recorded.');
+      setIsPaymentOpen(false);
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not record payment.', 'error'),
+  });
+
+  const penaltyMutation = useMutation({
+    mutationFn: (payload: { penalty_date: string; reason: string; deduction_amount: number; currency: string; payroll_period: string; notes: string | null }) =>
+      hrApi.employees.addPenalty(employeeId, payload),
+    onSuccess: () => {
+      invalidate();
+      show('Penalty recorded.');
+      setIsPenaltyOpen(false);
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not record penalty.', 'error'),
+  });
+
+  const advanceMutation = useMutation({
+    mutationFn: (payload: { advance_date: string; amount: number; currency: string; payroll_period: string; reason: string; notes: string | null }) =>
+      hrApi.employees.addAdvance(employeeId, payload),
+    onSuccess: () => {
+      invalidate();
+      show('Salary advance recorded.');
+      setIsAdvanceOpen(false);
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not record salary advance.', 'error'),
+  });
+
+  const { data: documentCategories } = useQuery({ queryKey: ['employee-document-categories'], queryFn: hrApi.documentCategories.list });
+  const { data: practicalBatches } = useQuery({ queryKey: ['practical-batches'], queryFn: hrApi.practicalBatches.list });
+
+  const guarantorSaveMutation = useMutation({
+    mutationFn: () => hrApi.employees.guarantor.save(employeeId, guarantorForm),
+    onSuccess: () => {
+      invalidate();
+      show('Guarantor information saved.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not save guarantor information.', 'error'),
+  });
+
+  const guarantorVerifyMutation = useMutation({
+    mutationFn: () => hrApi.employees.guarantor.verify(employeeId),
+    onSuccess: () => {
+      invalidate();
+      show('Guarantor verified — advanced to Contract Pending.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not verify guarantor.', 'error'),
+  });
+
+  const contractCreateMutation = useMutation({
+    mutationFn: () => hrApi.employees.contracts.create(employeeId, {}),
+    onSuccess: () => {
+      invalidate();
+      show('Contract issued.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not issue contract.', 'error'),
+  });
+
+  const contractSignMutation = useMutation({
+    mutationFn: (contractId: number) => hrApi.employees.contracts.sign(employeeId, contractId, { signed_date: signedDate }),
+    onSuccess: () => {
+      invalidate();
+      show('Contract marked signed — advanced to Uniform Pending.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not mark contract signed.', 'error'),
+  });
+
+  const uniformUpdateMutation = useMutation({
+    mutationFn: (status: string) => hrApi.employees.uniform.update(employeeId, { status }),
+    onSuccess: () => {
+      invalidate();
+      show('Uniform status updated.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not update uniform status.', 'error'),
+  });
+
+  const uniformConfirmMutation = useMutation({
+    mutationFn: () => hrApi.employees.uniform.confirm(employeeId),
+    onSuccess: () => {
+      invalidate();
+      show('Uniform confirmed — advanced to Need Training.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not confirm uniform.', 'error'),
+  });
+
+  const decisionMutation = useMutation({
     mutationFn: () =>
       hrApi.employees.addPracticalAssessment(employeeId, {
         assessment_date: new Date().toISOString().slice(0, 10),
-        result: assessmentResult,
+        result: decisionResult,
+        practical_batch_id: practicalBatchId ? Number(practicalBatchId) : null,
         notes: assessmentNotes || null,
       }),
     onSuccess: () => {
       invalidate();
       setAssessmentNotes('');
-      show('Practical assessment recorded.');
+      show('Practical decision recorded.');
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not record assessment.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not record decision.', 'error'),
   });
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => hrApi.employees.uploadDocument(employeeId, file),
+    mutationFn: (file: File) =>
+      hrApi.employees.uploadDocument(employeeId, file, {
+        employee_document_category_id: documentCategoryId ? Number(documentCategoryId) : null,
+      }),
     onSuccess: () => {
       invalidate();
       show('Document uploaded.');
@@ -93,9 +300,27 @@ export function EmployeeDetailPage() {
     mutationFn: (documentId: number) => hrApi.employees.deleteDocument(employeeId, documentId),
     onSuccess: () => {
       invalidate();
-      show('Document deleted.');
+      show('Document removed.');
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not delete document.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not remove document.', 'error'),
+  });
+
+  const verifyDocumentMutation = useMutation({
+    mutationFn: (documentId: number) => hrApi.employees.verifyDocument(employeeId, documentId),
+    onSuccess: () => {
+      invalidate();
+      show('Document verified.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not verify document.', 'error'),
+  });
+
+  const profilePictureMutation = useMutation({
+    mutationFn: (file: File) => hrApi.employees.uploadProfilePicture(employeeId, file),
+    onSuccess: () => {
+      invalidate();
+      show('Profile picture updated.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not upload profile picture.', 'error'),
   });
 
   const endAssignmentMutation = useMutation({
@@ -112,7 +337,8 @@ export function EmployeeDetailPage() {
   if (isLoading) return <LoadingState label="Loading employee…" />;
   if (error || !employee) return <ErrorState error={error} onRetry={refetch} />;
 
-  const nextStatus = STATUS_FLOW[STATUS_FLOW.indexOf(employee.status) + 1];
+  const statusFlowIndex = STATUS_FLOW.indexOf(employee.status);
+  const nextStatus = statusFlowIndex === -1 ? undefined : STATUS_FLOW[statusFlowIndex + 1];
 
   return (
     <div>
@@ -137,16 +363,44 @@ export function EmployeeDetailPage() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <h3 className="font-display text-sm font-bold text-ink">Profile</h3>
-            <StatusBadge status={employee.status} />
+            <div className="flex items-center gap-2">
+              {employee.pipeline_stage && employee.status === 'applicant' && (
+                <StatusBadge status={employee.pipeline_stage} label={PIPELINE_STAGE_LABELS[employee.pipeline_stage]} tone={employee.pipeline_stage === 'rejected' ? 'danger' : 'warning'} />
+              )}
+              {employee.is_supervisor && <StatusBadge status="supervisor" label="Supervisor Pool" tone="info" />}
+              <StatusBadge status={employee.status} />
+            </div>
           </CardHeader>
           <CardBody>
             <div className="mb-5 flex items-center gap-4">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary-soft text-lg font-bold text-primary">
+              <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary-soft text-lg font-bold text-primary">
                 {initialsOf(employee.full_name)}
+                <PermissionGate module="hr">
+                  <button
+                    type="button"
+                    onClick={() => pictureInputRef.current?.click()}
+                    title={employee.profile_picture_document_id ? 'Replace profile picture' : 'Upload profile picture'}
+                    className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface text-ink-muted hover:text-primary"
+                  >
+                    <Icon name="image" size={12} />
+                  </button>
+                  <input
+                    ref={pictureInputRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) profilePictureMutation.mutate(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </PermissionGate>
               </div>
               <div>
                 <p className="font-display text-base font-bold text-ink">{employee.full_name}</p>
                 <p className="text-sm text-ink-muted">{employee.employee_number}</p>
+                {employee.profile_picture_document_id && <p className="text-xs text-ink-faint">Profile picture on file</p>}
               </div>
             </div>
 
@@ -154,19 +408,20 @@ export function EmployeeDetailPage() {
               <Field label="Phone" value={employee.phone} />
               <Field label="Alternate contact" value={employee.alternate_phone ?? '—'} />
               <Field label="Location" value={employee.location ?? '—'} />
+              <Field label="Gender" value={employee.gender ? employee.gender[0].toUpperCase() + employee.gender.slice(1) : '—'} />
               <Field label="Age" value={employee.age?.toString() ?? '—'} />
               <Field label="Marital status" value={employee.marital_status ?? '—'} />
               <Field label="Lives with" value={employee.lives_with ?? '—'} />
               <Field label="Reference / guarantor" value={employee.reference_name ?? '—'} />
-              <Field
-                label="Guarantor confirmed"
-                value={employee.guarantor_confirmed_at ? formatDateTime(employee.guarantor_confirmed_at) : 'Not yet'}
-              />
               <Field label="Category" value={employee.employee_category_name ?? '—'} />
               <Field label="Department" value={employee.department_name ?? '—'} />
               <Field label="Position" value={employee.position_name ?? '—'} />
               <Field label="Application date" value={formatDate(employee.application_date)} />
               <Field label="Source" value={employee.source ?? '—'} />
+              <Field
+                label="Current Salary"
+                value={employee.current_salary ? `${employee.current_salary.amount} ${employee.current_salary.currency} / ${employee.current_salary.frequency}` : '—'}
+              />
             </dl>
 
             {employee.experience && (
@@ -184,22 +439,37 @@ export function EmployeeDetailPage() {
 
             <PermissionGate module="hr">
               <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-border pt-5">
-                {nextStatus && (
+                {employee.status !== 'applicant' && nextStatus && (
                   <Button size="sm" isLoading={statusMutation.isPending} onClick={() => statusMutation.mutate(nextStatus)}>
                     Advance to {nextStatus[0].toUpperCase() + nextStatus.slice(1)}
                   </Button>
                 )}
+                {employee.status === 'active' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    isLoading={supervisorMutation.isPending}
+                    onClick={() => supervisorMutation.mutate(!employee.is_supervisor)}
+                  >
+                    {employee.is_supervisor ? 'Remove from Supervisor Pool' : 'Add to Supervisor Pool'}
+                  </Button>
+                )}
+                {employee.status === 'inactive' && (
+                  <Button size="sm" onClick={() => setIsRehireOpen(true)}>
+                    Rehire
+                  </Button>
+                )}
                 {employee.status !== 'inactive' && (
-                  <Button variant="danger" size="sm" isLoading={statusMutation.isPending} onClick={() => statusMutation.mutate('inactive')}>
+                  <Button variant="danger" size="sm" onClick={() => setIsSeparateOpen(true)}>
                     Mark Inactive
                   </Button>
                 )}
-                {!employee.guarantor_confirmed_at && (
-                  <Button variant="outline" size="sm" isLoading={guarantorMutation.isPending} onClick={() => guarantorMutation.mutate()}>
-                    Confirm Guarantor
-                  </Button>
-                )}
               </div>
+              {employee.status === 'applicant' && (
+                <p className="mt-3 border-t border-border pt-3 text-xs text-ink-faint">
+                  Progression through Damiin → Contract → Uniform → Training → Practical happens via the pipeline cards below, not a manual status change.
+                </p>
+              )}
             </PermissionGate>
           </CardBody>
         </Card>
@@ -299,10 +569,317 @@ export function EmployeeDetailPage() {
               )}
             </CardBody>
           </Card>
+
+          {employee.separations && employee.separations.length > 0 && (
+            <Card>
+              <CardHeader>
+                <h3 className="font-display text-sm font-bold text-ink">Separation History</h3>
+              </CardHeader>
+              <CardBody className="space-y-3">
+                {employee.separations.map((separation) => (
+                  <div key={separation.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={separation.reason} label={separation.reason_label} tone="danger" />
+                      <span className="text-xs text-ink-faint">{formatDate(separation.separation_date)}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-ink-muted">
+                      {separation.rehire_eligible ? 'Rehire eligible' : 'Not marked rehire eligible'}
+                    </p>
+                    {separation.notes && <p className="mt-1 text-xs text-ink-muted">{separation.notes}</p>}
+                    <p className="mt-1 text-xs text-ink-faint">by {separation.separated_by ?? '—'}</p>
+                  </div>
+                ))}
+              </CardBody>
+            </Card>
+          )}
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <h3 className="font-display text-sm font-bold text-ink">Attendance History</h3>
+          </CardHeader>
+          <CardBody className="space-y-3">
+            {employee.attendances && employee.attendances.length > 0 ? (
+              employee.attendances.map((attendance) => (
+                <div key={attendance.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-2">
+                    <StatusBadge
+                      status={attendance.status}
+                      label={ATTENDANCE_STATUS_LABEL[attendance.status]}
+                      tone={ATTENDANCE_STATUS_TONE[attendance.status]}
+                    />
+                    <span className="text-xs text-ink-faint">{formatDate(attendance.date)}</span>
+                  </div>
+                  {attendance.notes && <p className="mt-1 text-xs text-ink-muted">{attendance.notes}</p>}
+                </div>
+              ))
+            ) : (
+              <EmptyState icon="calendar" title="No attendance recorded" />
+            )}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <h3 className="font-display text-sm font-bold text-ink">Leave History</h3>
+            {employee.status === 'active' && (
+              <PermissionGate module="hr">
+                <Button size="sm" variant="outline" onClick={() => setIsLeaveOpen(true)}>
+                  <Icon name="plus" size={14} />
+                  Record Leave
+                </Button>
+              </PermissionGate>
+            )}
+          </CardHeader>
+          <CardBody className="space-y-3">
+            {employee.leaves && employee.leaves.length > 0 ? (
+              employee.leaves.map((leave) => (
+                <div key={leave.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={leave.leave_type} label={leave.leave_type_label} tone="warning" />
+                    <span className="text-xs text-ink-faint">
+                      {formatDate(leave.start_date)} → {formatDate(leave.end_date)}
+                    </span>
+                  </div>
+                  {leave.notes && <p className="mt-1 text-xs text-ink-muted">{leave.notes}</p>}
+                </div>
+              ))
+            ) : (
+              <EmptyState icon="calendar" title="No leave recorded" />
+            )}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <h3 className="font-display text-sm font-bold text-ink">Performance Reviews</h3>
+            {employee.status === 'active' && (
+              <PermissionGate module="hr">
+                <Button size="sm" variant="outline" onClick={() => setIsReviewOpen(true)}>
+                  <Icon name="plus" size={14} />
+                  Add Review
+                </Button>
+              </PermissionGate>
+            )}
+          </CardHeader>
+          <CardBody className="space-y-3">
+            {employee.performance_reviews && employee.performance_reviews.length > 0 ? (
+              employee.performance_reviews.map((review) => (
+                <div key={review.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-2">
+                    <StatusBadge
+                      status={review.rating}
+                      label={review.rating_label}
+                      tone={review.rating === 'excellent' || review.rating === 'good' ? 'success' : review.rating === 'poor' ? 'danger' : 'warning'}
+                    />
+                    <span className="text-xs text-ink-faint">{formatDate(review.review_date)}</span>
+                  </div>
+                  {review.notes && <p className="mt-1 text-xs text-ink-muted">{review.notes}</p>}
+                </div>
+              ))
+            ) : (
+              <EmptyState icon="star" title="No reviews yet" />
+            )}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <h3 className="font-display text-sm font-bold text-ink">Payments</h3>
+            {employee.status === 'active' && (
+              <PermissionGate module="hr">
+                <Button size="sm" variant="outline" onClick={() => setIsPaymentOpen(true)}>
+                  <Icon name="plus" size={14} />
+                  Record Payment
+                </Button>
+              </PermissionGate>
+            )}
+          </CardHeader>
+          <CardBody className="space-y-3">
+            {employee.payments && employee.payments.length > 0 ? (
+              employee.payments.map((payment) => (
+                <div key={payment.id} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
+                  <span className="text-xs text-ink-faint">{formatDate(payment.payment_date)}</span>
+                  <span className="text-sm text-ink">{payment.amount} {payment.currency}</span>
+                </div>
+              ))
+            ) : (
+              <EmptyState icon="credit-card" title="No payments recorded" />
+            )}
+          </CardBody>
+        </Card>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <h3 className="font-display text-sm font-bold text-ink">Penalty / Salary Deduction History</h3>
+            {employee.status === 'active' && (
+              <PermissionGate module="hr">
+                <Button size="sm" variant="outline" onClick={() => setIsPenaltyOpen(true)}>
+                  <Icon name="plus" size={14} />
+                  Record Penalty
+                </Button>
+              </PermissionGate>
+            )}
+          </CardHeader>
+          <CardBody className="space-y-3">
+            {employee.penalties && employee.penalties.length > 0 ? (
+              employee.penalties.map((penalty) => (
+                <div key={penalty.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-ink-faint">{formatDate(penalty.penalty_date)}</span>
+                    <span className="text-sm text-ink">{penalty.deduction_amount} {penalty.currency}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-ink-muted">{penalty.reason}</p>
+                  <p className="mt-0.5 text-[11px] text-ink-faint">Payroll period {penalty.payroll_period}</p>
+                </div>
+              ))
+            ) : (
+              <EmptyState icon="x" title="No penalties recorded" />
+            )}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <h3 className="font-display text-sm font-bold text-ink">Salary Advance History</h3>
+            {employee.status === 'active' && (
+              <PermissionGate module="hr">
+                <Button size="sm" variant="outline" onClick={() => setIsAdvanceOpen(true)}>
+                  <Icon name="plus" size={14} />
+                  Record Advance
+                </Button>
+              </PermissionGate>
+            )}
+          </CardHeader>
+          <CardBody className="space-y-3">
+            {employee.advances && employee.advances.length > 0 ? (
+              employee.advances.map((advance) => (
+                <div key={advance.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-ink-faint">{formatDate(advance.advance_date)}</span>
+                    <span className="text-sm text-ink">{advance.amount} {advance.currency}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-ink-muted">{advance.reason}</p>
+                  <p className="mt-0.5 text-[11px] text-ink-faint">Payroll period {advance.payroll_period}</p>
+                </div>
+              ))
+            ) : (
+              <EmptyState icon="credit-card" title="No advances recorded" />
+            )}
+          </CardBody>
+        </Card>
+
+        <PayrollSummaryCard employeeId={employeeId} employee={employee} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <h3 className="font-display text-sm font-bold text-ink">Damiin / Guarantor</h3>
+              {employee.guarantor?.verified_at && <StatusBadge status="verified" tone="success" />}
+            </CardHeader>
+            <CardBody className="space-y-3">
+              {employee.guarantor ? (
+                <dl className="space-y-2 text-sm">
+                  <Field label="Name" value={employee.guarantor.guarantor_name ?? '—'} />
+                  <Field label="Phone" value={employee.guarantor.guarantor_phone ?? '—'} />
+                  <Field label="Relationship" value={employee.guarantor.relationship ?? '—'} />
+                  <Field label="Verified" value={employee.guarantor.verified_at ? formatDateTime(employee.guarantor.verified_at) : 'Not yet'} />
+                </dl>
+              ) : (
+                <EmptyState icon="users" title="No guarantor recorded yet" />
+              )}
+              <PermissionGate module="hr">
+                {!employee.guarantor?.verified_at && employee.pipeline_stage === 'damiin_needed' && (
+                  <div className="space-y-2 border-t border-border pt-3">
+                    <input placeholder="Guarantor name" className={inputClasses} value={guarantorForm.guarantor_name} onChange={(e) => setGuarantorForm({ ...guarantorForm, guarantor_name: e.target.value })} />
+                    <input placeholder="Guarantor phone" className={inputClasses} value={guarantorForm.guarantor_phone} onChange={(e) => setGuarantorForm({ ...guarantorForm, guarantor_phone: e.target.value })} />
+                    <input placeholder="Relationship" className={inputClasses} value={guarantorForm.relationship} onChange={(e) => setGuarantorForm({ ...guarantorForm, relationship: e.target.value })} />
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" isLoading={guarantorSaveMutation.isPending} disabled={!guarantorForm.guarantor_name || !guarantorForm.guarantor_phone} onClick={() => guarantorSaveMutation.mutate()}>
+                        Save
+                      </Button>
+                      {employee.guarantor && (
+                        <Button size="sm" isLoading={guarantorVerifyMutation.isPending} onClick={() => guarantorVerifyMutation.mutate()}>
+                          Verify
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </PermissionGate>
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <h3 className="font-display text-sm font-bold text-ink">Contract / Agreement</h3>
+              {employee.current_contract && <StatusBadge status={employee.current_contract.status} />}
+            </CardHeader>
+            <CardBody className="space-y-3">
+              {employee.current_contract ? (
+                <dl className="space-y-2 text-sm">
+                  <Field label="Type" value={employee.current_contract.contract_type} />
+                  <Field label="Signed date" value={employee.current_contract.signed_date ? formatDate(employee.current_contract.signed_date) : 'Not signed'} />
+                </dl>
+              ) : (
+                <EmptyState icon="file-text" title="No contract issued yet" />
+              )}
+              <PermissionGate module="hr">
+                {!employee.current_contract && employee.pipeline_stage === 'contract_pending' && (
+                  <Button size="sm" isLoading={contractCreateMutation.isPending} onClick={() => contractCreateMutation.mutate()}>
+                    Issue Contract
+                  </Button>
+                )}
+                {employee.current_contract && employee.current_contract.status === 'issued' && (
+                  <div className="space-y-2 border-t border-border pt-3">
+                    <input type="date" className={inputClasses} value={signedDate} onChange={(e) => setSignedDate(e.target.value)} />
+                    <Button size="sm" isLoading={contractSignMutation.isPending} onClick={() => contractSignMutation.mutate(employee.current_contract!.id)}>
+                      Mark Signed
+                    </Button>
+                  </div>
+                )}
+              </PermissionGate>
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <h3 className="font-display text-sm font-bold text-ink">Uniform</h3>
+              {employee.uniform && <StatusBadge status={employee.uniform.status} tone={employee.uniform.status === 'confirmed' ? 'success' : 'warning'} />}
+            </CardHeader>
+            <CardBody className="space-y-3">
+              {employee.uniform ? (
+                <dl className="space-y-2 text-sm">
+                  <Field label="Confirmed" value={employee.uniform.confirmed_at ? formatDateTime(employee.uniform.confirmed_at) : 'Not yet'} />
+                </dl>
+              ) : (
+                <EmptyState icon="box" title="No uniform record yet" />
+              )}
+              <PermissionGate module="hr">
+                {employee.pipeline_stage === 'uniform_pending' && (
+                  <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+                    <Button size="sm" variant="outline" isLoading={uniformUpdateMutation.isPending} onClick={() => uniformUpdateMutation.mutate('purchased')}>
+                      Mark Purchased
+                    </Button>
+                    <Button size="sm" variant="outline" isLoading={uniformUpdateMutation.isPending} onClick={() => uniformUpdateMutation.mutate('received')}>
+                      Mark Received
+                    </Button>
+                    <Button size="sm" isLoading={uniformConfirmMutation.isPending} onClick={() => uniformConfirmMutation.mutate()}>
+                      Confirm Uniform
+                    </Button>
+                  </div>
+                )}
+              </PermissionGate>
+            </CardBody>
+          </Card>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <h3 className="font-display text-sm font-bold text-ink">Practical Assessments</h3>
@@ -310,42 +887,99 @@ export function EmployeeDetailPage() {
           <CardBody>
             {employee.practical_assessments && employee.practical_assessments.length > 0 ? (
               <div className="mb-4 space-y-3">
-                {employee.practical_assessments.map((a) => (
+                {[...employee.practical_assessments].reverse().map((a) => (
                   <div key={a.id} className="flex items-start justify-between border-b border-border pb-3 last:border-0">
                     <div>
-                      <StatusBadge status={a.result} tone={a.result === 'pass' ? 'success' : a.result === 'fail' ? 'danger' : 'warning'} />
-                      <p className="mt-1 text-xs text-ink-muted">{a.notes}</p>
+                      <div className="flex items-center gap-2">
+                        {a.attempt_number && <span className="text-xs font-semibold text-ink-faint">Attempt #{a.attempt_number}</span>}
+                        <StatusBadge
+                          status={a.result}
+                          tone={a.result === 'approved' || a.result === 'pass' ? 'success' : a.result === 'rejected' || a.result === 'fail' ? 'danger' : 'warning'}
+                        />
+                      </div>
+                      {a.notes && <p className="mt-1 text-xs text-ink-muted">{a.notes}</p>}
                     </div>
                     <span className="text-xs text-ink-faint">{formatDate(a.assessment_date)}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <EmptyState icon="check" title="No assessments recorded" />
+              <EmptyState icon="check" title="No practical decisions recorded" />
             )}
             <PermissionGate module="hr">
-              <div className="flex items-center gap-2 border-t border-border pt-4">
-                <select
-                  value={assessmentResult}
-                  onChange={(e) => setAssessmentResult(e.target.value as typeof assessmentResult)}
-                  className="h-9 rounded-sm border border-border bg-surface px-2 text-sm"
-                >
-                  <option value="pending">Pending</option>
-                  <option value="pass">Pass</option>
-                  <option value="fail">Fail</option>
-                </select>
-                <input
-                  type="text"
-                  placeholder="Notes (optional)"
-                  value={assessmentNotes}
-                  onChange={(e) => setAssessmentNotes(e.target.value)}
-                  className="h-9 flex-1 rounded-sm border border-border bg-surface px-2 text-sm"
-                />
-                <Button size="sm" isLoading={assessmentMutation.isPending} onClick={() => assessmentMutation.mutate()}>
-                  Add
-                </Button>
-              </div>
+              {(employee.pipeline_stage === 'need_practical' || employee.pipeline_stage === 'practical_repeat') && (
+                <div className="space-y-2 border-t border-border pt-4">
+                  <Select
+                    value={practicalBatchId}
+                    onChange={(e) => setPracticalBatchId(e.target.value)}
+                    placeholder="Practical batch (optional)"
+                    options={(practicalBatches ?? []).map((b) => ({ value: String(b.id), label: `${b.batch_number} — ${formatDate(b.batch_date)}` }))}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Notes (optional)"
+                    value={assessmentNotes}
+                    onChange={(e) => setAssessmentNotes(e.target.value)}
+                    className={inputClasses}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {DECISION_OPTIONS.map((option) => (
+                      <Button
+                        key={option.value}
+                        size="sm"
+                        variant={decisionResult === option.value ? 'primary' : 'outline'}
+                        isLoading={decisionMutation.isPending && decisionResult === option.value}
+                        onClick={() => {
+                          setDecisionResult(option.value);
+                          decisionMutation.mutate();
+                        }}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </PermissionGate>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <h3 className="font-display text-sm font-bold text-ink">Training History</h3>
+          </CardHeader>
+          <CardBody>
+            {employee.training_history && employee.training_history.length > 0 ? (
+              <div className="space-y-3">
+                {employee.training_history.map((t) => (
+                  <div key={t.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-ink">{t.batch_number ?? `Batch #${t.training_batch_id}`}</span>
+                      <StatusBadge
+                        status={t.result}
+                        label={t.result[0].toUpperCase() + t.result.slice(1)}
+                        tone={t.result === 'completed' ? 'success' : t.result === 'absent' ? 'danger' : 'warning'}
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-ink-faint">
+                      {formatDate(t.batch_date)}
+                      {t.start_time && t.end_time ? ` · ${t.start_time}–${t.end_time}` : ''}
+                      {t.team_or_group ? ` · ${t.team_or_group}` : ''}
+                    </p>
+                    {(t.trainer_name || t.location) && (
+                      <p className="text-xs text-ink-faint">
+                        {t.trainer_name ? `Trainer: ${t.trainer_name}` : ''}
+                        {t.trainer_name && t.location ? ' · ' : ''}
+                        {t.location ? `Location: ${t.location}` : ''}
+                      </p>
+                    )}
+                    {t.notes && <p className="mt-1 text-xs text-ink-muted">{t.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState icon="list" title="No training recorded" />
+            )}
           </CardBody>
         </Card>
 
@@ -370,22 +1004,49 @@ export function EmployeeDetailPage() {
             </PermissionGate>
           </CardHeader>
           <CardBody>
+            <PermissionGate module="hr">
+              <Select
+                value={documentCategoryId}
+                onChange={(e) => setDocumentCategoryId(e.target.value)}
+                placeholder="Category for next upload…"
+                options={(documentCategories ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
+                className="mb-3"
+              />
+            </PermissionGate>
             {employee.documents && employee.documents.length > 0 ? (
               <div className="space-y-2">
                 {employee.documents.map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between rounded-sm border border-border px-3 py-2">
-                    <div className="flex items-center gap-2 text-sm text-ink">
-                      <Icon name="file-text" size={15} className="text-ink-faint" />
-                      {doc.file_name}
+                  <div key={doc.id} className={`flex items-center justify-between rounded-sm border px-3 py-2 ${doc.is_current ? 'border-border' : 'border-border/50 opacity-60'}`}>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-sm text-ink">
+                        <Icon name="file-text" size={15} className="text-ink-faint" />
+                        <span className="truncate">{doc.file_name}</span>
+                        {!doc.is_current && <span className="text-[10px] uppercase text-ink-faint">Superseded</span>}
+                      </div>
+                      <div className="ml-6 mt-0.5 flex items-center gap-1.5 text-xs text-ink-faint">
+                        {doc.category_name && <span>{doc.category_name}</span>}
+                        <StatusBadge
+                          status={doc.verification_status}
+                          tone={doc.verification_status === 'verified' ? 'success' : doc.verification_status === 'rejected' ? 'danger' : 'neutral'}
+                        />
+                      </div>
                     </div>
                     <PermissionGate module="hr">
-                      <button
-                        type="button"
-                        onClick={() => deleteDocumentMutation.mutate(doc.id)}
-                        className="text-ink-faint hover:text-danger"
-                      >
-                        <Icon name="trash" size={14} />
-                      </button>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {doc.is_current && doc.verification_status === 'pending' && (
+                          <button type="button" onClick={() => verifyDocumentMutation.mutate(doc.id)} className="text-xs font-medium text-primary hover:underline">
+                            Verify
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          title="Remove (mistaken upload)"
+                          onClick={() => deleteDocumentMutation.mutate(doc.id)}
+                          className="text-ink-faint hover:text-danger"
+                        >
+                          <Icon name="trash" size={14} />
+                        </button>
+                      </div>
                     </PermissionGate>
                   </div>
                 ))}
@@ -417,6 +1078,55 @@ export function EmployeeDetailPage() {
           isLoading={endAssignmentMutation.isPending}
         />
       )}
+
+      <MarkSeparatedModal
+        isOpen={isSeparateOpen}
+        onClose={() => setIsSeparateOpen(false)}
+        onConfirm={(payload) => separateMutation.mutate(payload)}
+        isLoading={separateMutation.isPending}
+      />
+
+      <RehireModal
+        isOpen={isRehireOpen}
+        onClose={() => setIsRehireOpen(false)}
+        onConfirm={(note) => rehireMutation.mutate(note)}
+        isLoading={rehireMutation.isPending}
+      />
+
+      <RecordLeaveModal
+        isOpen={isLeaveOpen}
+        onClose={() => setIsLeaveOpen(false)}
+        onConfirm={(payload) => leaveMutation.mutate(payload)}
+        isLoading={leaveMutation.isPending}
+      />
+
+      <RecordPerformanceReviewModal
+        isOpen={isReviewOpen}
+        onClose={() => setIsReviewOpen(false)}
+        onConfirm={(payload) => reviewMutation.mutate(payload)}
+        isLoading={reviewMutation.isPending}
+      />
+
+      <RecordEmployeePaymentModal
+        isOpen={isPaymentOpen}
+        onClose={() => setIsPaymentOpen(false)}
+        onConfirm={(payload) => paymentMutation.mutate(payload)}
+        isLoading={paymentMutation.isPending}
+      />
+
+      <RecordPenaltyModal
+        isOpen={isPenaltyOpen}
+        onClose={() => setIsPenaltyOpen(false)}
+        onConfirm={(payload) => penaltyMutation.mutate(payload)}
+        isLoading={penaltyMutation.isPending}
+      />
+
+      <RecordAdvanceModal
+        isOpen={isAdvanceOpen}
+        onClose={() => setIsAdvanceOpen(false)}
+        onConfirm={(payload) => advanceMutation.mutate(payload)}
+        isLoading={advanceMutation.isPending}
+      />
     </div>
   );
 }
@@ -568,5 +1278,478 @@ function EndAssignmentModal({
         <textarea id="end-note" rows={2} className={inputClasses + ' h-auto py-2'} value={note} onChange={(e) => setNote(e.target.value)} />
       </FormField>
     </Modal>
+  );
+}
+
+function MarkSeparatedModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (payload: { reason: EmployeeSeparationReason; separation_date: string; rehire_eligible: boolean; notes: string | null }) => void;
+  isLoading: boolean;
+}) {
+  const [reason, setReason] = useState<EmployeeSeparationReason>('resigned');
+  const [separationDate, setSeparationDate] = useState(new Date().toISOString().slice(0, 10));
+  const [rehireEligible, setRehireEligible] = useState(true);
+  const [notes, setNotes] = useState('');
+
+  if (!isOpen) return null;
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Mark Inactive"
+      size="sm"
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="danger"
+            size="sm"
+            isLoading={isLoading}
+            onClick={() => onConfirm({ reason, separation_date: separationDate, rehire_eligible: rehireEligible, notes: notes || null })}
+          >
+            Mark Inactive
+          </Button>
+        </>
+      }
+    >
+      <FormField label="Reason" htmlFor="sep-reason" required>
+        <Select id="sep-reason" value={reason} onChange={(e) => setReason(e.target.value as EmployeeSeparationReason)} options={SEPARATION_REASON_OPTIONS} />
+      </FormField>
+      <FormField label="Separation date" htmlFor="sep-date" required>
+        <input id="sep-date" type="date" className={inputClasses} value={separationDate} onChange={(e) => setSeparationDate(e.target.value)} />
+      </FormField>
+      <FormField label="Rehire eligible" htmlFor="sep-rehire">
+        <label className="flex items-center gap-2 text-sm text-ink">
+          <input id="sep-rehire" type="checkbox" checked={rehireEligible} onChange={(e) => setRehireEligible(e.target.checked)} />
+          Eligible for rehire in the future
+        </label>
+      </FormField>
+      <FormField label="Notes" htmlFor="sep-notes">
+        <textarea id="sep-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </FormField>
+    </Modal>
+  );
+}
+
+function RehireModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (note: string) => void;
+  isLoading: boolean;
+}) {
+  const [note, setNote] = useState('');
+
+  if (!isOpen) return null;
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Rehire Employee"
+      size="sm"
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" isLoading={isLoading} onClick={() => onConfirm(note)}>Rehire</Button>
+        </>
+      }
+    >
+      <p className="mb-3 text-sm text-ink-muted">This reactivates the employee directly to Active. No pipeline steps are repeated.</p>
+      <FormField label="Note" htmlFor="rehire-note">
+        <textarea id="rehire-note" rows={2} className={inputClasses + ' h-auto py-2'} value={note} onChange={(e) => setNote(e.target.value)} />
+      </FormField>
+    </Modal>
+  );
+}
+
+function RecordLeaveModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (payload: { leave_type: LeaveType; start_date: string; end_date: string; notes: string | null }) => void;
+  isLoading: boolean;
+}) {
+  const [leaveType, setLeaveType] = useState<LeaveType>('annual');
+  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const [notes, setNotes] = useState('');
+
+  if (!isOpen) return null;
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Record Leave"
+      size="sm"
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            size="sm"
+            isLoading={isLoading}
+            onClick={() => onConfirm({ leave_type: leaveType, start_date: startDate, end_date: endDate, notes: notes || null })}
+          >
+            Record
+          </Button>
+        </>
+      }
+    >
+      <FormField label="Leave type" htmlFor="leave-type" required>
+        <Select id="leave-type" value={leaveType} onChange={(e) => setLeaveType(e.target.value as LeaveType)} options={LEAVE_TYPE_OPTIONS} />
+      </FormField>
+      <FormField label="Start date" htmlFor="leave-start" required>
+        <input id="leave-start" type="date" className={inputClasses} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+      </FormField>
+      <FormField label="End date" htmlFor="leave-end" required>
+        <input id="leave-end" type="date" className={inputClasses} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+      </FormField>
+      <FormField label="Notes" htmlFor="leave-notes">
+        <textarea id="leave-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </FormField>
+    </Modal>
+  );
+}
+
+function RecordPerformanceReviewModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (payload: { review_date: string; rating: PerformanceRating; notes: string | null }) => void;
+  isLoading: boolean;
+}) {
+  const [reviewDate, setReviewDate] = useState(new Date().toISOString().slice(0, 10));
+  const [rating, setRating] = useState<PerformanceRating>('good');
+  const [notes, setNotes] = useState('');
+
+  if (!isOpen) return null;
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Add Performance Review"
+      size="sm"
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" isLoading={isLoading} onClick={() => onConfirm({ review_date: reviewDate, rating, notes: notes || null })}>
+            Record
+          </Button>
+        </>
+      }
+    >
+      <FormField label="Review date" htmlFor="review-date" required>
+        <input id="review-date" type="date" className={inputClasses} value={reviewDate} onChange={(e) => setReviewDate(e.target.value)} />
+      </FormField>
+      <FormField label="Rating" htmlFor="review-rating" required>
+        <Select id="review-rating" value={rating} onChange={(e) => setRating(e.target.value as PerformanceRating)} options={PERFORMANCE_RATING_OPTIONS} />
+      </FormField>
+      <FormField label="Notes" htmlFor="review-notes">
+        <textarea id="review-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </FormField>
+    </Modal>
+  );
+}
+
+function RecordEmployeePaymentModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (payload: { payment_date: string; amount: number; currency: string; notes: string | null }) => void;
+  isLoading: boolean;
+}) {
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [amount, setAmount] = useState('');
+  const [currency, setCurrency] = useState('USD');
+  const [notes, setNotes] = useState('');
+
+  if (!isOpen) return null;
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Record Payment"
+      size="sm"
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            size="sm"
+            isLoading={isLoading}
+            disabled={!amount}
+            onClick={() => onConfirm({ payment_date: paymentDate, amount: Number(amount), currency, notes: notes || null })}
+          >
+            Record
+          </Button>
+        </>
+      }
+    >
+      <FormField label="Payment date" htmlFor="pay-date" required>
+        <input id="pay-date" type="date" className={inputClasses} value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+      </FormField>
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Amount" htmlFor="pay-amount" required>
+          <input id="pay-amount" type="number" min={0} step="0.01" className={inputClasses} value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </FormField>
+        <FormField label="Currency" htmlFor="pay-currency" required>
+          <input id="pay-currency" className={inputClasses} value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} maxLength={3} />
+        </FormField>
+      </div>
+      <FormField label="Notes" htmlFor="pay-notes">
+        <textarea id="pay-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </FormField>
+    </Modal>
+  );
+}
+
+function RecordPenaltyModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (payload: { penalty_date: string; reason: string; deduction_amount: number; currency: string; payroll_period: string; notes: string | null }) => void;
+  isLoading: boolean;
+}) {
+  const [penaltyDate, setPenaltyDate] = useState(new Date().toISOString().slice(0, 10));
+  const [reason, setReason] = useState('');
+  const [amount, setAmount] = useState('');
+  const [currency, setCurrency] = useState('USD');
+  const [payrollPeriod, setPayrollPeriod] = useState(new Date().toISOString().slice(0, 7));
+  const [notes, setNotes] = useState('');
+
+  if (!isOpen) return null;
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Record Penalty"
+      size="sm"
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            size="sm"
+            isLoading={isLoading}
+            disabled={!amount || !reason}
+            onClick={() =>
+              onConfirm({
+                penalty_date: penaltyDate,
+                reason,
+                deduction_amount: Number(amount),
+                currency,
+                payroll_period: payrollPeriod,
+                notes: notes || null,
+              })
+            }
+          >
+            Record
+          </Button>
+        </>
+      }
+    >
+      <FormField label="Penalty date" htmlFor="pen-date" required>
+        <input id="pen-date" type="date" className={inputClasses} value={penaltyDate} onChange={(e) => setPenaltyDate(e.target.value)} />
+      </FormField>
+      <FormField label="Reason" htmlFor="pen-reason" required>
+        <input id="pen-reason" className={inputClasses} value={reason} onChange={(e) => setReason(e.target.value)} />
+      </FormField>
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Deduction amount" htmlFor="pen-amount" required>
+          <input id="pen-amount" type="number" min={0} step="0.01" className={inputClasses} value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </FormField>
+        <FormField label="Currency" htmlFor="pen-currency" required>
+          <input id="pen-currency" className={inputClasses} value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} maxLength={3} />
+        </FormField>
+      </div>
+      <FormField label="Payroll period" htmlFor="pen-period" required>
+        <input id="pen-period" type="month" className={inputClasses} value={payrollPeriod} onChange={(e) => setPayrollPeriod(e.target.value)} />
+      </FormField>
+      <FormField label="Notes" htmlFor="pen-notes">
+        <textarea id="pen-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </FormField>
+    </Modal>
+  );
+}
+
+function RecordAdvanceModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (payload: { advance_date: string; amount: number; currency: string; payroll_period: string; reason: string; notes: string | null }) => void;
+  isLoading: boolean;
+}) {
+  const [advanceDate, setAdvanceDate] = useState(new Date().toISOString().slice(0, 10));
+  const [amount, setAmount] = useState('');
+  const [currency, setCurrency] = useState('USD');
+  const [payrollPeriod, setPayrollPeriod] = useState(new Date().toISOString().slice(0, 7));
+  const [reason, setReason] = useState('');
+  const [notes, setNotes] = useState('');
+
+  if (!isOpen) return null;
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Record Salary Advance"
+      size="sm"
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            size="sm"
+            isLoading={isLoading}
+            disabled={!amount || !reason}
+            onClick={() =>
+              onConfirm({
+                advance_date: advanceDate,
+                amount: Number(amount),
+                currency,
+                payroll_period: payrollPeriod,
+                reason,
+                notes: notes || null,
+              })
+            }
+          >
+            Record
+          </Button>
+        </>
+      }
+    >
+      <FormField label="Advance date" htmlFor="adv-date" required>
+        <input id="adv-date" type="date" className={inputClasses} value={advanceDate} onChange={(e) => setAdvanceDate(e.target.value)} />
+      </FormField>
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Amount" htmlFor="adv-amount" required>
+          <input id="adv-amount" type="number" min={0} step="0.01" className={inputClasses} value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </FormField>
+        <FormField label="Currency" htmlFor="adv-currency" required>
+          <input id="adv-currency" className={inputClasses} value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} maxLength={3} />
+        </FormField>
+      </div>
+      <FormField label="Payroll period" htmlFor="adv-period" required>
+        <input id="adv-period" type="month" className={inputClasses} value={payrollPeriod} onChange={(e) => setPayrollPeriod(e.target.value)} />
+      </FormField>
+      <FormField label="Reason" htmlFor="adv-reason" required>
+        <input id="adv-reason" className={inputClasses} value={reason} onChange={(e) => setReason(e.target.value)} />
+      </FormField>
+      <FormField label="Notes" htmlFor="adv-notes">
+        <textarea id="adv-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </FormField>
+    </Modal>
+  );
+}
+
+/**
+ * docs/HRM_MARKETING_SRS.md HR Phase 5: a read-only computed breakdown, no
+ * save action of its own - HR still records the actual payment via the
+ * existing "Record Payment" button. Overtime is never a number here: an
+ * office-location assignment shows a static pending note, a client-location
+ * assignment shows no overtime line at all.
+ */
+function PayrollSummaryCard({ employeeId, employee }: { employeeId: number; employee: Employee }) {
+  const activeAssignments = employee.active_work_assignments ?? [];
+  const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
+  const [workAssignmentId, setWorkAssignmentId] = useState(activeAssignments[0] ? String(activeAssignments[0].id) : '');
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['payroll-summary', employeeId, workAssignmentId, period],
+    queryFn: () => hrApi.payroll.summary(employeeId, Number(workAssignmentId), period),
+    enabled: workAssignmentId !== '',
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <h3 className="font-display text-sm font-bold text-ink">Payroll Summary</h3>
+      </CardHeader>
+      <CardBody className="space-y-3">
+        {activeAssignments.length === 0 ? (
+          <EmptyState icon="credit-card" title="No active work assignment" description="Payroll can only be calculated for an active assignment." />
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              {activeAssignments.length > 1 && (
+                <Select
+                  value={workAssignmentId}
+                  onChange={(e) => setWorkAssignmentId(e.target.value)}
+                  className="h-8 flex-1 text-xs"
+                  options={activeAssignments.map((a) => ({
+                    value: String(a.id),
+                    label: a.location_type === 'office' ? 'Fayadhowr Office' : (a.client_company_name ?? a.work_location_name),
+                  }))}
+                />
+              )}
+              <input type="month" className={`${inputClasses} h-8 text-xs`} value={period} onChange={(e) => setPeriod(e.target.value)} />
+            </div>
+
+            {isLoading && <p className="text-xs text-ink-faint">Calculating…</p>}
+            {error && <p className="text-xs text-danger">Could not load payroll summary.</p>}
+
+            {data && (
+              <dl className="space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-ink-muted">Monthly Salary</dt>
+                  <dd className="text-ink">{data.monthly_salary} {data.currency}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-ink-muted">Absence Deduction ({data.absent_days}d)</dt>
+                  <dd className="text-danger">−{data.absence_deduction}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-ink-muted">Penalty Deduction</dt>
+                  <dd className="text-danger">−{data.penalty_deduction}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-ink-muted">Salary Advance</dt>
+                  <dd className="text-danger">−{data.advance_deduction}</dd>
+                </div>
+                <div className="flex justify-between border-t border-border pt-1.5 font-semibold">
+                  <dt className="text-ink">Net Payable</dt>
+                  <dd className="text-ink">{data.net_payable} {data.currency}</dd>
+                </div>
+                {data.location_type === 'office' && (
+                  <p className="pt-1 text-[11px] italic text-ink-faint">Overtime: pending management decision</p>
+                )}
+              </dl>
+            )}
+          </>
+        )}
+      </CardBody>
+    </Card>
   );
 }

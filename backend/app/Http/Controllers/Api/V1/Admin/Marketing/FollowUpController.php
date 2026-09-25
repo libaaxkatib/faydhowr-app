@@ -2,15 +2,20 @@
 
 namespace App\Http\Controllers\Api\V1\Admin\Marketing;
 
+use App\Actions\Marketing\AddFollowUpFeedbackAction;
 use App\Actions\Marketing\CompleteFollowUpAction;
 use App\Actions\Marketing\CreateFollowUpAction;
 use App\Actions\Marketing\ListFollowUpsAction;
 use App\Actions\Marketing\RescheduleFollowUpAction;
+use App\Actions\Marketing\UpdateFollowUpRecordStatusAction;
+use App\Enums\Marketing\MarketingRecordStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\Admin\Marketing\AddFollowUpFeedbackRequest;
 use App\Http\Requests\Api\V1\Admin\Marketing\CompleteFollowUpRequest;
 use App\Http\Requests\Api\V1\Admin\Marketing\ListFollowUpsRequest;
 use App\Http\Requests\Api\V1\Admin\Marketing\RescheduleFollowUpRequest;
 use App\Http\Requests\Api\V1\Admin\Marketing\StoreFollowUpRequest;
+use App\Http\Requests\Api\V1\Admin\Marketing\UpdateFollowUpRecordStatusRequest;
 use App\Http\Resources\Api\V1\Admin\Marketing\FollowUpResource;
 use App\Models\FollowUp;
 use App\Models\MarketingRecord;
@@ -43,5 +48,19 @@ class FollowUpController extends Controller
         $followUp = $action->handle($followUp, $request->validated('follow_up_date'), $request->validated('note'), $request->user());
 
         return ApiResponse::success('Follow-up rescheduled successfully.', new FollowUpResource($followUp));
+    }
+
+    public function addFeedback(AddFollowUpFeedbackRequest $request, FollowUp $followUp, AddFollowUpFeedbackAction $action): JsonResponse
+    {
+        $followUp = $action->handle($followUp, $request->validated('feedback'), $request->user());
+
+        return ApiResponse::success('Feedback added successfully.', new FollowUpResource($followUp));
+    }
+
+    public function updateRecordStatus(UpdateFollowUpRecordStatusRequest $request, FollowUp $followUp, UpdateFollowUpRecordStatusAction $action): JsonResponse
+    {
+        $followUp = $action->handle($followUp, MarketingRecordStatus::from($request->validated('status')), $request->user());
+
+        return ApiResponse::success('Marketing record status updated successfully.', new FollowUpResource($followUp));
     }
 }

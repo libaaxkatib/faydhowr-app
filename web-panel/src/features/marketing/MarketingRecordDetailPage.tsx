@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { Select } from '@/components/ui/Select';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -16,9 +17,15 @@ import { useToast } from '@/components/ui/useToast';
 import { XarunFormDialog } from '@/features/marketing/XarunFormDialog';
 import { ProjectFormDialog } from '@/features/marketing/ProjectFormDialog';
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/formatters';
-import type { MarketingRecordStatus } from '@/types/marketing';
+import type { MarketingQuotationStatus, MarketingRecordStatus } from '@/types/marketing';
 
 const STATUS_OPTIONS: MarketingRecordStatus[] = ['pending', 'quotation', 'done', 'cancelled'];
+const QUOTATION_STATUS_OPTIONS: { value: MarketingQuotationStatus; label: string }[] = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'sent', label: 'Sent' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'declined', label: 'Declined' },
+];
 
 export function MarketingRecordDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -29,12 +36,34 @@ export function MarketingRecordDetailPage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [followUpDate, setFollowUpDate] = useState('');
   const [quotationAmount, setQuotationAmount] = useState('');
+  const [assignTeamId, setAssignTeamId] = useState('');
+  const [assignAdminId, setAssignAdminId] = useState('');
+  const [expandedFollowUpIds, setExpandedFollowUpIds] = useState<Set<number>>(new Set());
+
+  function toggleFollowUpHistory(id: number) {
+    setExpandedFollowUpIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const { data: record, isLoading, error, refetch } = useQuery({
     queryKey: ['marketing-record', recordId],
     queryFn: () => marketingApi.records.get(recordId),
     enabled: Number.isFinite(recordId),
   });
+
+  const { data: teams } = useQuery({ queryKey: ['marketing-teams'], queryFn: marketingApi.teams.list });
+  const { data: employees } = useQuery({ queryKey: ['marketing-employees'], queryFn: marketingApi.employees.list });
+
+  useEffect(() => {
+    if (record) {
+      setAssignTeamId(record.assigned_team_id ? String(record.assigned_team_id) : '');
+      setAssignAdminId(record.assigned_admin_id ? String(record.assigned_admin_id) : '');
+    }
+  }, [record]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['marketing-record', recordId] });
@@ -77,6 +106,28 @@ export function MarketingRecordDetailPage() {
       show('Quotation added.');
     },
     onError: (err) => show(err instanceof Error ? err.message : 'Could not add quotation.', 'error'),
+  });
+
+  const quotationStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: MarketingQuotationStatus }) => marketingApi.quotations.updateStatus(id, status),
+    onSuccess: () => {
+      invalidate();
+      show('Quotation status updated.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not update quotation status.', 'error'),
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: () =>
+      marketingApi.records.assign(recordId, {
+        assigned_team_id: assignTeamId ? Number(assignTeamId) : null,
+        assigned_admin_id: assignAdminId ? Number(assignAdminId) : null,
+      }),
+    onSuccess: () => {
+      invalidate();
+      show('Assignment updated.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not update assignment.', 'error'),
   });
 
   if (isLoading) return <LoadingState label="Loading record…" />;
@@ -133,8 +184,6 @@ export function MarketingRecordDetailPage() {
                   <Field label="Fayadhowr work date" value={formatDate(record.project?.fayadhowr_work_date)} />
                 </>
               )}
-              <Field label="Team" value={record.assigned_team_name ?? 'Unassigned'} muted={!record.assigned_team_name} />
-              <Field label="Marketing employee" value={record.assigned_admin_name ?? 'Unassigned'} muted={!record.assigned_admin_name} />
               <Field label="Brought by" value={record.brought_by_admin_name ?? '—'} />
               <Field label="Registered" value={formatDateTime(record.created_at)} />
             </dl>
@@ -175,6 +224,40 @@ export function MarketingRecordDetailPage() {
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader>
+              <h3 className="font-display text-sm font-bold text-ink">Assignment</h3>
+            </CardHeader>
+            <CardBody className="space-y-3">
+              <PermissionGate
+                module="marketing"
+                fallback={
+                  <dl className="grid grid-cols-1 gap-3 text-sm">
+                    <Field label="Team" value={record.assigned_team_name ?? 'Unassigned'} muted={!record.assigned_team_name} />
+                    <Field label="Marketing employee" value={record.assigned_admin_name ?? 'Unassigned'} muted={!record.assigned_admin_name} />
+                  </dl>
+                }
+              >
+                <FieldSelect label="Team" value={assignTeamId} onChange={setAssignTeamId} placeholder="Unassigned" options={(teams ?? []).map((t) => ({ value: String(t.id), label: t.name }))} />
+                <FieldSelect
+                  label="Marketing employee"
+                  value={assignAdminId}
+                  onChange={setAssignAdminId}
+                  placeholder="Unassigned"
+                  options={(employees ?? []).map((e) => ({ value: String(e.id), label: e.full_name }))}
+                />
+                <Button
+                  size="sm"
+                  isLoading={assignMutation.isPending}
+                  disabled={assignTeamId === (record.assigned_team_id ? String(record.assigned_team_id) : '') && assignAdminId === (record.assigned_admin_id ? String(record.assigned_admin_id) : '')}
+                  onClick={() => assignMutation.mutate()}
+                >
+                  Save Assignment
+                </Button>
+              </PermissionGate>
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <h3 className="font-display text-sm font-bold text-ink">Follow-ups</h3>
             </CardHeader>
             <CardBody className="space-y-3">
@@ -185,18 +268,36 @@ export function MarketingRecordDetailPage() {
                       <StatusBadge status={fu.status} tone={fu.status === 'completed' ? 'success' : 'warning'} />
                       <span className="text-xs text-ink-faint">{formatDate(fu.follow_up_date)}</span>
                     </div>
-                    {fu.status !== 'completed' && (
-                      <PermissionGate module="marketing">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="mt-1 h-6 px-1 text-xs"
-                          isLoading={completeFollowUpMutation.isPending}
-                          onClick={() => completeFollowUpMutation.mutate(fu.id)}
-                        >
-                          Mark complete
-                        </Button>
-                      </PermissionGate>
+                    <div className="mt-1 flex items-center gap-2">
+                      {fu.status !== 'completed' && (
+                        <PermissionGate module="marketing">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-1 text-xs"
+                            isLoading={completeFollowUpMutation.isPending}
+                            onClick={() => completeFollowUpMutation.mutate(fu.id)}
+                          >
+                            Mark complete
+                          </Button>
+                        </PermissionGate>
+                      )}
+                      {fu.histories && fu.histories.length > 0 && (
+                        <button type="button" className="text-xs text-primary hover:underline" onClick={() => toggleFollowUpHistory(fu.id)}>
+                          {expandedFollowUpIds.has(fu.id) ? 'Hide history' : 'History'}
+                        </button>
+                      )}
+                    </div>
+                    {expandedFollowUpIds.has(fu.id) && fu.histories && (
+                      <ul className="mt-2 space-y-1.5 border-l border-border pl-3">
+                        {fu.histories.map((h) => (
+                          <li key={h.id} className="text-xs text-ink-muted">
+                            <span className="font-medium text-ink">{h.action.replace('_', ' ')}</span>
+                            {h.note && <span> — {h.note}</span>}
+                            <span className="text-ink-faint"> · {h.performed_by ?? 'System'} · {formatDateTime(h.created_at)}</span>
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </div>
                 ))
@@ -224,7 +325,14 @@ export function MarketingRecordDetailPage() {
                   <div key={q.id} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
                     <div>
                       <p className="text-sm font-semibold text-ink">{q.amount ? formatCurrency(Number(q.amount)) : '—'}</p>
-                      <StatusBadge status={q.status} />
+                      <PermissionGate module="marketing" fallback={<StatusBadge status={q.status} />}>
+                        <Select
+                          value={q.status}
+                          onChange={(e) => quotationStatusMutation.mutate({ id: q.id, status: e.target.value as MarketingQuotationStatus })}
+                          options={QUOTATION_STATUS_OPTIONS}
+                          className="mt-1 h-7 w-28 text-xs"
+                        />
+                      </PermissionGate>
                     </div>
                     <span className="text-xs text-ink-faint">{formatDate(q.sent_at)}</span>
                   </div>
@@ -265,6 +373,27 @@ function Field({ label, value, muted }: { label: string; value: string; muted?: 
     <div>
       <dt className="text-xs text-ink-faint">{label}</dt>
       <dd className={muted ? 'italic text-ink-faint' : 'text-ink'}>{value}</dd>
+    </div>
+  );
+}
+
+function FieldSelect({
+  label,
+  value,
+  onChange,
+  placeholder,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div>
+      <label className="mb-1 block text-xs text-ink-faint">{label}</label>
+      <Select value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} options={options} />
     </div>
   );
 }

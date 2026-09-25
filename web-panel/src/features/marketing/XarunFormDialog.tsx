@@ -29,6 +29,7 @@ const emptyForm = {
   description: '',
   feedback: '',
   assigned_team_id: '',
+  assigned_admin_id: '',
 };
 
 /** XARUN-only form, per docs/HRM_MARKETING_SRS.md §7-8 — never shared with PROJECT. */
@@ -39,6 +40,7 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
   const { data: teams } = useQuery({ queryKey: ['marketing-teams'], queryFn: marketingApi.teams.list });
+  const { data: employees } = useQuery({ queryKey: ['marketing-employees'], queryFn: marketingApi.employees.list });
 
   useEffect(() => {
     if (isOpen) {
@@ -55,6 +57,7 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
               description: record.description ?? '',
               feedback: record.feedback ?? '',
               assigned_team_id: record.assigned_team_id ? String(record.assigned_team_id) : '',
+              assigned_admin_id: record.assigned_admin_id ? String(record.assigned_admin_id) : '',
             }
           : emptyForm,
       );
@@ -73,7 +76,11 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
         description: form.description || null,
       };
       if (mode === 'create') {
-        return marketingApi.xarun.create({ ...base, assigned_team_id: form.assigned_team_id ? Number(form.assigned_team_id) : null });
+        return marketingApi.xarun.create({
+          ...base,
+          assigned_team_id: form.assigned_team_id ? Number(form.assigned_team_id) : null,
+          assigned_admin_id: form.assigned_admin_id ? Number(form.assigned_admin_id) : null,
+        });
       }
       return marketingApi.xarun.update(record!.id, { ...base, feedback: form.feedback || null });
     },
@@ -160,15 +167,26 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
         </FormField>
 
         {mode === 'create' && (
-          <FormField label="Assigned team" htmlFor="assigned_team_id">
-            <Select
-              id="assigned_team_id"
-              value={form.assigned_team_id}
-              onChange={(e) => setForm({ ...form, assigned_team_id: e.target.value })}
-              placeholder="Unassigned"
-              options={(teams ?? []).map((t) => ({ value: String(t.id), label: t.name }))}
-            />
-          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Assigned team" htmlFor="assigned_team_id">
+              <Select
+                id="assigned_team_id"
+                value={form.assigned_team_id}
+                onChange={(e) => setForm({ ...form, assigned_team_id: e.target.value })}
+                placeholder="Unassigned"
+                options={(teams ?? []).map((t) => ({ value: String(t.id), label: t.name }))}
+              />
+            </FormField>
+            <FormField label="Marketing employee" htmlFor="assigned_admin_id">
+              <Select
+                id="assigned_admin_id"
+                value={form.assigned_admin_id}
+                onChange={(e) => setForm({ ...form, assigned_admin_id: e.target.value })}
+                placeholder="Unassigned"
+                options={(employees ?? []).map((e) => ({ value: String(e.id), label: e.full_name }))}
+              />
+            </FormField>
+          </div>
         )}
 
         <FormField label="Description" htmlFor="description" error={fieldErrors.description?.[0]}>

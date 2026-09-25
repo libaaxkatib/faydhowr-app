@@ -11,6 +11,10 @@ class EmployeePracticalAssessmentResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'employee_id' => $this->employee_id,
+            'employee_name' => $this->whenLoaded('employee', fn () => $this->employee?->full_name),
+            'practical_batch_id' => $this->practical_batch_id,
+            'attempt_number' => $this->attempt_number,
             'assessed_by' => $this->whenLoaded('assessedBy', fn () => $this->assessedBy?->full_name),
             'assessment_date' => $this->assessment_date?->toDateString(),
             'result' => $this->result->value,

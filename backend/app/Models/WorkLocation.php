@@ -35,6 +35,11 @@ class WorkLocation extends Model
         return $this->hasMany(EmployeeWorkAssignment::class);
     }
 
+    public function workforceRequests(): HasMany
+    {
+        return $this->hasMany(WorkforceRequest::class);
+    }
+
     public function activeAssignmentsCount(): int
     {
         return $this->workAssignments()->where('status', WorkAssignmentStatus::Active)->count();

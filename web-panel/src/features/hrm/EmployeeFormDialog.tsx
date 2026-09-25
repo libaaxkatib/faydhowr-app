@@ -8,7 +8,7 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
-import type { CreateEmployeePayload, Employee, UpdateEmployeePayload } from '@/types/employee';
+import type { CreateEmployeePayload, Employee, EmployeeGender, UpdateEmployeePayload } from '@/types/employee';
 
 interface EmployeeFormDialogProps {
   isOpen: boolean;
@@ -17,11 +17,17 @@ interface EmployeeFormDialogProps {
   employee?: Employee;
 }
 
+const GENDER_OPTIONS: { value: EmployeeGender; label: string }[] = [
+  { value: 'female', label: 'Female' },
+  { value: 'male', label: 'Male' },
+];
+
 const emptyForm = {
   full_name: '',
   phone: '',
   alternate_phone: '',
   location: '',
+  gender: '' as EmployeeGender | '',
   age: '',
   marital_status: '',
   lives_with: '',
@@ -55,6 +61,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
               phone: employee.phone,
               alternate_phone: employee.alternate_phone ?? '',
               location: employee.location ?? '',
+              gender: employee.gender ?? '',
               age: employee.age?.toString() ?? '',
               marital_status: employee.marital_status ?? '',
               lives_with: employee.lives_with ?? '',
@@ -79,7 +86,8 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
           full_name: form.full_name,
           phone: form.phone,
           alternate_phone: form.alternate_phone || null,
-          location: form.location || null,
+          location: form.location,
+          gender: form.gender as EmployeeGender,
           age: form.age ? Number(form.age) : null,
           marital_status: form.marital_status || null,
           lives_with: form.lives_with || null,
@@ -98,7 +106,8 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
         full_name: form.full_name,
         phone: form.phone,
         alternate_phone: form.alternate_phone || null,
-        location: form.location || null,
+        location: form.location,
+        gender: form.gender ? (form.gender as EmployeeGender) : undefined,
         age: form.age ? Number(form.age) : null,
         marital_status: form.marital_status || null,
         lives_with: form.lives_with || null,
@@ -168,10 +177,22 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
           </FormField>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <FormField label="Location" htmlFor="location" error={fieldErrors.location?.[0]}>
-            <input id="location" className={inputClasses} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Location" htmlFor="location" required hint="Residential/home location — used for future Waiting-list matching." error={fieldErrors.location?.[0]}>
+            <input id="location" required className={inputClasses} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
           </FormField>
+          <FormField label="Gender" htmlFor="gender" required error={fieldErrors.gender?.[0]}>
+            <Select
+              id="gender"
+              value={form.gender}
+              onChange={(e) => setForm({ ...form, gender: e.target.value as EmployeeGender })}
+              placeholder="Select gender"
+              options={GENDER_OPTIONS}
+            />
+          </FormField>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
           <FormField label="Age" htmlFor="age" error={fieldErrors.age?.[0]}>
             <input id="age" type="number" min={14} max={100} className={inputClasses} value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} />
           </FormField>

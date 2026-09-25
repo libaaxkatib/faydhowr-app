@@ -14,6 +14,16 @@ export interface MarketingTeam {
   members?: { id: number; full_name: string }[];
 }
 
+export type MarketingEmployeeRole = 'marketing_manager' | 'marketing_employee';
+
+export interface MarketingEmployee {
+  id: number;
+  full_name: string;
+  email: string;
+  role: MarketingEmployeeRole;
+  teams?: { id: number; name: string }[];
+}
+
 export interface FollowUpHistoryEntry {
   id: number;
   action: 'created' | 'rescheduled' | 'completed' | 'feedback_updated' | 'status_updated';
@@ -28,6 +38,8 @@ export interface FollowUp {
   record_number?: string;
   record_type?: MarketingRecordType;
   record_team_name?: string | null;
+  phone?: string | null;
+  location?: string | null;
   follow_up_date: string;
   status: FollowUpStatus;
   assigned_admin: string | null;

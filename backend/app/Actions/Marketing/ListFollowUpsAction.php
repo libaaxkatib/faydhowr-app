@@ -20,6 +20,7 @@ class ListFollowUpsAction
             'marketingRecord.projectDetail',
             'marketingRecord.assignedTeam',
             'assignedAdmin',
+            'histories.performedBy',
         ]);
 
         if (! empty($filters['assigned_admin_id'])) {

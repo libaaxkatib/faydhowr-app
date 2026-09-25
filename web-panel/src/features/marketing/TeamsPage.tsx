@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Modal } from '@/components/ui/Modal';
+import { Select } from '@/components/ui/Select';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -20,8 +21,10 @@ export function TeamsPage() {
   const [isOpen, setIsOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [pendingMemberByTeam, setPendingMemberByTeam] = useState<Record<number, string>>({});
 
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['marketing-teams'], queryFn: marketingApi.teams.list });
+  const { data: employees } = useQuery({ queryKey: ['marketing-employees'], queryFn: marketingApi.employees.list });
 
   const createMutation = useMutation({
     mutationFn: () => marketingApi.teams.create({ name, description: description || null }),
@@ -42,6 +45,25 @@ export function TeamsPage() {
       show('Team deleted.');
     },
     onError: (err) => show(err instanceof Error ? err.message : 'Could not delete team.', 'error'),
+  });
+
+  const addMemberMutation = useMutation({
+    mutationFn: ({ teamId, adminId }: { teamId: number; adminId: number }) => marketingApi.teams.addMember(teamId, adminId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['marketing-teams'] });
+      setPendingMemberByTeam((prev) => ({ ...prev, [variables.teamId]: '' }));
+      show('Member added.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not add member.', 'error'),
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: ({ teamId, adminId }: { teamId: number; adminId: number }) => marketingApi.teams.removeMember(teamId, adminId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['marketing-teams'] });
+      show('Member removed.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not remove member.', 'error'),
   });
 
   return (
@@ -85,8 +107,17 @@ export function TeamsPage() {
                 {team.members && team.members.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {team.members.map((m) => (
-                      <span key={m.id} className="rounded-full bg-primary-soft px-2.5 py-1 text-xs font-medium text-primary">
+                      <span key={m.id} className="flex items-center gap-1 rounded-full bg-primary-soft py-1 pl-2.5 pr-1 text-xs font-medium text-primary">
                         {m.full_name}
+                        <PermissionGate module="marketing">
+                          <button
+                            type="button"
+                            onClick={() => removeMemberMutation.mutate({ teamId: team.id, adminId: m.id })}
+                            className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-primary/20"
+                          >
+                            <Icon name="x" size={10} />
+                          </button>
+                        </PermissionGate>
                       </span>
                     ))}
                   </div>
@@ -94,6 +125,28 @@ export function TeamsPage() {
                   <p className="text-xs text-ink-faint">No members assigned yet.</p>
                 )}
               </div>
+              <PermissionGate module="marketing">
+                <div className="mt-3 flex items-center gap-1.5 border-t border-border pt-3">
+                  <Select
+                    value={pendingMemberByTeam[team.id] ?? ''}
+                    onChange={(e) => setPendingMemberByTeam((prev) => ({ ...prev, [team.id]: e.target.value }))}
+                    placeholder="Add employee…"
+                    options={(employees ?? [])
+                      .filter((e) => !team.members?.some((m) => m.id === e.id))
+                      .map((e) => ({ value: String(e.id), label: e.full_name }))}
+                    className="h-8 flex-1 text-xs"
+                  />
+                  <Button
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    disabled={!pendingMemberByTeam[team.id]}
+                    isLoading={addMemberMutation.isPending}
+                    onClick={() => addMemberMutation.mutate({ teamId: team.id, adminId: Number(pendingMemberByTeam[team.id]) })}
+                  >
+                    Add
+                  </Button>
+                </div>
+              </PermissionGate>
             </Card>
           ))}
         </div>

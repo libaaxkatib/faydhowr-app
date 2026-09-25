@@ -15,6 +15,8 @@ class FollowUpResource extends JsonResource
             'record_number' => $this->whenLoaded('marketingRecord', fn () => $this->marketingRecord?->record_number),
             'record_type' => $this->whenLoaded('marketingRecord', fn () => $this->marketingRecord?->type?->value),
             'record_team_name' => $this->whenLoaded('marketingRecord', fn () => $this->marketingRecord?->assignedTeam?->name),
+            'phone' => $this->whenLoaded('marketingRecord', fn () => $this->marketingRecord?->xarunDetail?->phone ?? $this->marketingRecord?->projectDetail?->phone),
+            'location' => $this->whenLoaded('marketingRecord', fn () => $this->marketingRecord?->xarunDetail?->location ?? $this->marketingRecord?->projectDetail?->location),
             'follow_up_date' => $this->follow_up_date?->toDateString(),
             'status' => $this->status->value,
             'assigned_admin' => $this->whenLoaded('assignedAdmin', fn () => $this->assignedAdmin?->full_name),

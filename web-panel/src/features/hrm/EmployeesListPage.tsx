@@ -17,7 +17,7 @@ import { PermissionGate } from '@/components/ui/PermissionGate';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { formatDate, initialsOf } from '@/utils/formatters';
-import type { Employee, EmployeeStatus } from '@/types/employee';
+import type { Employee, EmployeePipelineStage, EmployeeStatus } from '@/types/employee';
 
 const STATUS_OPTIONS: { value: EmployeeStatus; label: string }[] = [
   { value: 'applicant', label: 'Applicant' },
@@ -29,14 +29,37 @@ const STATUS_OPTIONS: { value: EmployeeStatus; label: string }[] = [
   { value: 'inactive', label: 'Inactive' },
 ];
 
+const PIPELINE_STAGE_LABELS: Record<string, string> = {
+  damiin_needed: 'Damiin Needed',
+  contract_pending: 'Contract Pending',
+  uniform_pending: 'Uniform Pending',
+  need_training: 'Need Training',
+  need_practical: 'Need Practical',
+  practical_repeat: 'Practical Repeat',
+  rejected: 'Rejected',
+};
+
 interface EmployeesListPageProps {
-  /** When set (Recruitment/Practical/Waiting nav entries), locks the list to one status and hides the status filter. */
+  /** When set (Waiting nav entry), locks the list to one status and hides the status filter. */
   fixedStatus?: EmployeeStatus;
+  /** When set (pipeline-queue nav entries), locks the list to one pipeline stage. */
+  fixedPipelineStage?: EmployeePipelineStage;
+  /** When set (Supervisor Pool nav entry), locks the list to is_supervisor=true. */
+  filterIsSupervisor?: boolean;
+  /** When set (Office Staff nav entry), locks the list to employees with an active office work assignment. */
+  filterOfficeOnly?: boolean;
   title?: string;
   breadcrumbLabel?: string;
 }
 
-export function EmployeesListPage({ fixedStatus, title = 'Employees', breadcrumbLabel = 'Employees' }: EmployeesListPageProps) {
+export function EmployeesListPage({
+  fixedStatus,
+  fixedPipelineStage,
+  filterIsSupervisor,
+  filterOfficeOnly,
+  title = 'Employees',
+  breadcrumbLabel = 'Employees',
+}: EmployeesListPageProps) {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<EmployeeStatus | ''>('');
@@ -46,11 +69,17 @@ export function EmployeesListPage({ fixedStatus, title = 'Employees', breadcrumb
   const effectiveStatus = fixedStatus ?? (status || undefined);
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['employees', { search: debouncedSearch, status: effectiveStatus, page }],
+    queryKey: [
+      'employees',
+      { search: debouncedSearch, status: effectiveStatus, pipeline_stage: fixedPipelineStage, is_supervisor: filterIsSupervisor, office_only: filterOfficeOnly, page },
+    ],
     queryFn: () =>
       hrApi.employees.list({
         search: debouncedSearch || undefined,
         status: effectiveStatus,
+        pipeline_stage: fixedPipelineStage,
+        is_supervisor: filterIsSupervisor || undefined,
+        office_only: filterOfficeOnly || undefined,
         page,
         per_page: 15,
       }),
@@ -100,7 +129,18 @@ export function EmployeesListPage({ fixedStatus, title = 'Employees', breadcrumb
       {
         header: 'Status',
         accessorKey: 'status',
-        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+        cell: ({ row }) => (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StatusBadge status={row.original.status} />
+            {row.original.pipeline_stage && (
+              <StatusBadge
+                status={row.original.pipeline_stage}
+                label={PIPELINE_STAGE_LABELS[row.original.pipeline_stage]}
+                tone={row.original.pipeline_stage === 'rejected' ? 'danger' : 'warning'}
+              />
+            )}
+          </div>
+        ),
       },
       {
         header: 'Applied',
@@ -133,12 +173,14 @@ export function EmployeesListPage({ fixedStatus, title = 'Employees', breadcrumb
         title={title}
         breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: breadcrumbLabel }]}
         actions={
-          <PermissionGate module="hr">
-            <Button onClick={() => setIsCreateOpen(true)}>
-              <Icon name="plus" size={15} />
-              Register Employee
-            </Button>
-          </PermissionGate>
+          !fixedStatus && !fixedPipelineStage && !filterIsSupervisor && !filterOfficeOnly ? (
+            <PermissionGate module="hr">
+              <Button onClick={() => setIsCreateOpen(true)}>
+                <Icon name="plus" size={15} />
+                Register Employee
+              </Button>
+            </PermissionGate>
+          ) : undefined
         }
       />
 
@@ -153,7 +195,7 @@ export function EmployeesListPage({ fixedStatus, title = 'Employees', breadcrumb
             placeholder="Search by name, phone, or employee number…"
             className="w-full max-w-xs"
           />
-          {!fixedStatus && (
+          {!fixedStatus && !fixedPipelineStage && !filterIsSupervisor && !filterOfficeOnly && (
             <Select
               value={status}
               onChange={(event) => {

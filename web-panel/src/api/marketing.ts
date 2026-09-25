@@ -10,6 +10,7 @@ import type {
   FollowUpFilter,
   ListMarketingRecordsParams,
   MarketingDashboardData,
+  MarketingEmployee,
   MarketingQuotation,
   MarketingQuotationStatus,
   MarketingRecord,
@@ -28,6 +29,10 @@ export const marketingApi = {
     apiRequest<MarketingReportsSummary>('admin/marketing/reports/summary', {
       query: params as Record<string, string | number | undefined>,
     }),
+
+  employees: {
+    list: () => apiRequest<MarketingEmployee[]>('admin/marketing/employees'),
+  },
 
   teams: {
     list: () => apiRequest<MarketingTeam[]>('admin/marketing/teams'),
@@ -80,6 +85,10 @@ export const marketingApi = {
         method: 'PATCH',
         body: { follow_up_date: followUpDate, note },
       }),
+    addFeedback: (id: number, feedback: string) =>
+      apiRequest<FollowUp>(`admin/marketing/follow-ups/${id}/feedback`, { method: 'PATCH', body: { feedback } }),
+    updateRecordStatus: (id: number, status: MarketingRecordStatus) =>
+      apiRequest<FollowUp>(`admin/marketing/follow-ups/${id}/status`, { method: 'PATCH', body: { status } }),
   },
 
   quotations: {

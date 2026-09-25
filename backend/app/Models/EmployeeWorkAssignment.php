@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'employee_id',
@@ -55,5 +56,10 @@ class EmployeeWorkAssignment extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'created_by');
+    }
+
+    public function temporaryReplacements(): HasMany
+    {
+        return $this->hasMany(TemporaryReplacement::class);
     }
 }

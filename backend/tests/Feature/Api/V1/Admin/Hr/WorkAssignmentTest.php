@@ -139,6 +139,30 @@ class WorkAssignmentTest extends TestCase
         $this->assertCount(2, $response->json('data.active_work_assignments'));
     }
 
+    public function test_employee_cannot_receive_two_active_assignments_at_the_same_location(): void
+    {
+        $admin = Admin::factory()->superAdmin()->create();
+        $token = $admin->createToken('t')->plainTextToken;
+        $employee = $this->makeEmployee();
+        $office = WorkLocation::query()->where('location_type', 'office')->firstOrFail();
+
+        $this->withToken($token)->postJson("/api/v1/admin/hr/employees/{$employee->id}/work-assignments", [
+            'work_location_id' => $office->id,
+            'start_date' => now()->toDateString(),
+            'salary_amount' => 100,
+            'salary_currency' => 'USD',
+            'salary_frequency' => 'monthly',
+        ])->assertStatus(201);
+
+        $this->withToken($token)->postJson("/api/v1/admin/hr/employees/{$employee->id}/work-assignments", [
+            'work_location_id' => $office->id,
+            'start_date' => now()->toDateString(),
+            'salary_amount' => 100,
+            'salary_currency' => 'USD',
+            'salary_frequency' => 'monthly',
+        ])->assertStatus(422)->assertJsonPath('error_code', 'EMPLOYEE_ALREADY_ASSIGNED_AT_LOCATION');
+    }
+
     public function test_ending_an_assignment_preserves_history_instead_of_deleting_it(): void
     {
         $admin = Admin::factory()->superAdmin()->create();

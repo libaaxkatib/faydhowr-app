@@ -50,7 +50,12 @@ return [
     |
     */
 
-    'expiration' => null,
+    // HRM Phase 7 (Security/Hardening audit, P7-02): tokens previously never
+    // expired. 30 days, per owner decision - admins stay logged in for
+    // normal daily use but a leaked token's blast radius is now bounded.
+    // Multiple concurrent sessions per admin remain allowed (P7-03 - not
+    // implemented, per owner decision to keep multi-device login working).
+    'expiration' => env('SANCTUM_TOKEN_EXPIRATION_MINUTES', 60 * 24 * 30),
 
     /*
     |--------------------------------------------------------------------------

@@ -38,7 +38,11 @@ export type IconName =
   | 'filter'
   | 'megaphone'
   | 'briefcase'
-  | 'inbox';
+  | 'inbox'
+  | 'phone'
+  | 'message-circle'
+  | 'map-pin'
+  | 'flag';
 
 interface IconProps extends SVGProps<SVGSVGElement> {
   name: IconName;
@@ -348,6 +352,32 @@ export function Icon({ name, size = 18, ...rest }: IconProps) {
         <svg {...common}>
           <path d="M3.5 12h5l1.5 3h4l1.5-3h5" />
           <path d="M6 5h12l2.5 7v6a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1v-6Z" />
+        </svg>
+      );
+    case 'phone':
+      return (
+        <svg {...common}>
+          <path d="M5 4h3.2l1.3 4-2 1.3a11 11 0 0 0 5.2 5.2l1.3-2 4 1.3V17a2 2 0 0 1-2.2 2A16 16 0 0 1 3 5.2 2 2 0 0 1 5 4Z" />
+        </svg>
+      );
+    case 'message-circle':
+      return (
+        <svg {...common}>
+          <path d="M12 3.5c-4.7 0-8.5 3.2-8.5 7.2 0 2.3 1.3 4.4 3.3 5.7-.1 1-.5 2.1-1.3 3 1.5-.2 2.8-.8 3.8-1.6a10 10 0 0 0 2.7.4c4.7 0 8.5-3.2 8.5-7.2S16.7 3.5 12 3.5Z" />
+        </svg>
+      );
+    case 'map-pin':
+      return (
+        <svg {...common}>
+          <path d="M12 21.5S5 15 5 9.8a7 7 0 0 1 14 0C19 15 12 21.5 12 21.5Z" />
+          <circle cx="12" cy="9.7" r="2.4" />
+        </svg>
+      );
+    case 'flag':
+      return (
+        <svg {...common}>
+          <path d="M5 3.5v17" />
+          <path d="M5 4.5h11l-2.5 4L16 12.5H5" />
         </svg>
       );
     default:

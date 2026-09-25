@@ -2,10 +2,12 @@
 
 namespace App\Http\Requests\Api\V1\Admin\Hr;
 
+use App\Enums\EmployeeGender;
 use App\Support\ApiResponse;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Validation\Rule;
 
 class UpdateEmployeeRequest extends FormRequest
 {
@@ -21,6 +23,7 @@ class UpdateEmployeeRequest extends FormRequest
             'phone' => ['sometimes', 'string', 'max:40'],
             'alternate_phone' => ['sometimes', 'nullable', 'string', 'max:40'],
             'location' => ['sometimes', 'nullable', 'string', 'max:150'],
+            'gender' => ['sometimes', Rule::in(EmployeeGender::values())],
             'age' => ['sometimes', 'nullable', 'integer', 'min:14', 'max:100'],
             'marital_status' => ['sometimes', 'nullable', 'string', 'max:50'],
             'lives_with' => ['sometimes', 'nullable', 'string', 'max:150'],

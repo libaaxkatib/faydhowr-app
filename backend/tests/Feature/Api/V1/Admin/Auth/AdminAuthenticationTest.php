@@ -118,6 +118,39 @@ class AdminAuthenticationTest extends TestCase
             ->assertJsonMissingPath('data.access_token');
     }
 
+    public function test_a_token_older_than_the_configured_expiration_is_rejected(): void
+    {
+        // HRM Phase 7 (Security/Hardening audit, P7-02): admin tokens now
+        // expire after config('sanctum.expiration') minutes (30 days by
+        // default). Sanctum's guard compares the token's created_at against
+        // now() - expiration, so backdating created_at simulates an old
+        // token without waiting or mocking the clock.
+        $admin = Admin::factory()->create();
+        $token = $admin->createToken('admin-panel')->plainTextToken;
+
+        $admin->tokens()->update([
+            'created_at' => now()->subMinutes((int) config('sanctum.expiration') + 10),
+        ]);
+
+        $this->withToken($token)
+            ->getJson('/api/v1/admin/auth/me')
+            ->assertStatus(401);
+    }
+
+    public function test_a_token_within_the_configured_expiration_still_works(): void
+    {
+        $admin = Admin::factory()->create();
+        $token = $admin->createToken('admin-panel')->plainTextToken;
+
+        $admin->tokens()->update([
+            'created_at' => now()->subMinutes((int) config('sanctum.expiration') - 10),
+        ]);
+
+        $this->withToken($token)
+            ->getJson('/api/v1/admin/auth/me')
+            ->assertOk();
+    }
+
     public function test_authenticated_admin_can_logout_and_revoke_current_token(): void
     {
         $admin = Admin::factory()->create();
