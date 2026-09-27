@@ -22,4 +22,12 @@ export const adminsApi = {
 
   update: (id: number, payload: UpdateAdminPayload) =>
     apiRequest<Admin>(`admin/admins/${id}`, { method: 'PUT', body: payload }),
+
+  /** Self-service: change the caller's own password. Requires their current password. */
+  changeOwnPassword: (payload: { current_password: string; password: string; password_confirmation: string }) =>
+    apiRequest<null>('admin/auth/password', { method: 'PUT', body: payload }),
+
+  /** Super Admin only: reset another admin's password. No current-password check — the actor isn't the target. */
+  resetPassword: (id: number, payload: { password: string; password_confirmation: string }) =>
+    apiRequest<null>(`admin/admins/${id}/password`, { method: 'PUT', body: payload }),
 };

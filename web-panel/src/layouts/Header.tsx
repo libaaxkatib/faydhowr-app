@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { Icon } from '@/components/ui/Icon';
 import { useAuth } from '@/features/auth/useAuth';
+import { ChangePasswordDialog } from '@/features/auth/ChangePasswordDialog';
 import { initialsOf } from '@/utils/formatters';
 
 interface HeaderProps {
@@ -13,6 +14,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const { admin, logout } = useAuth();
   const navigate = useNavigate();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-surface px-4 lg:px-6">
@@ -101,6 +103,17 @@ export function Header({ onMenuClick }: HeaderProps) {
                 </button>
                 <button
                   type="button"
+                  onClick={() => {
+                    setIsProfileOpen(false);
+                    setIsChangePasswordOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm text-ink hover:bg-surface-alt"
+                >
+                  <Icon name="shield" size={15} />
+                  Change password
+                </button>
+                <button
+                  type="button"
                   onClick={logout}
                   className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm text-danger hover:bg-danger-soft"
                 >
@@ -112,6 +125,8 @@ export function Header({ onMenuClick }: HeaderProps) {
           )}
         </div>
       </div>
+
+      <ChangePasswordDialog isOpen={isChangePasswordOpen} onClose={() => setIsChangePasswordOpen(false)} />
     </header>
   );
 }

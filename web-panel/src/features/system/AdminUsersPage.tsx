@@ -14,13 +14,14 @@ import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { useAuth } from '@/features/auth/useAuth';
 import { formatDateTime } from '@/utils/formatters';
 import { ADMIN_ROLE_LABELS, ASSIGNABLE_ADMIN_ROLES } from '@/types/system';
 import { AdminFormDialog } from '@/features/system/AdminFormDialog';
+import { ResetPasswordDialog } from '@/features/system/ResetPasswordDialog';
 import type { Admin, AdminRole, AdminStatus } from '@/types/admin';
 
 const ROLE_OPTIONS = [{ value: 'super_admin', label: 'Super Admin' }, ...ASSIGNABLE_ADMIN_ROLES];
@@ -33,6 +34,8 @@ export function AdminUsersPage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
   const { admin: currentAdmin } = useAuth();
+  const { hasPermission } = useEffectivePermissions();
+  const canManageAdmins = hasPermission('admins.manage');
 
   const [search, setSearch] = useState('');
   const [role, setRole] = useState<AdminRole | ''>('');
@@ -43,6 +46,7 @@ export function AdminUsersPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Admin | undefined>(undefined);
   const [statusTarget, setStatusTarget] = useState<Admin | null>(null);
+  const [resetTarget, setResetTarget] = useState<Admin | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['admins', { search: debouncedSearch, role, status, page }],
@@ -106,8 +110,8 @@ export function AdminUsersPage() {
       {
         header: '',
         id: 'actions',
-        cell: ({ row }) => (
-          <PermissionGate module="admin_management">
+        cell: ({ row }) =>
+          canManageAdmins && (
             <div className="flex items-center justify-end gap-1">
               <button
                 type="button"
@@ -125,6 +129,17 @@ export function AdminUsersPage() {
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
+                  setResetTarget(row.original);
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary"
+                title="Reset password"
+              >
+                <Icon name="shield" size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
                   setStatusTarget(row.original);
                 }}
                 className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger"
@@ -133,11 +148,10 @@ export function AdminUsersPage() {
                 <Icon name={row.original.status === 'active' ? 'x' : 'check'} size={14} />
               </button>
             </div>
-          </PermissionGate>
-        ),
+          ),
       },
     ],
-    [],
+    [canManageAdmins],
   );
 
   return (
@@ -146,7 +160,7 @@ export function AdminUsersPage() {
         title="Admin Users"
         breadcrumb={[{ label: 'System', to: '/system/admins' }, { label: 'Admin Users' }]}
         actions={
-          <PermissionGate module="admin_management">
+          canManageAdmins && (
             <Button
               onClick={() => {
                 setEditing(undefined);
@@ -156,7 +170,7 @@ export function AdminUsersPage() {
               <Icon name="plus" size={15} />
               Add Admin
             </Button>
-          </PermissionGate>
+          )
         }
       />
 
@@ -212,6 +226,8 @@ export function AdminUsersPage() {
         mode={editing ? 'edit' : 'create'}
         admin={editing}
       />
+
+      <ResetPasswordDialog isOpen={resetTarget !== null} onClose={() => setResetTarget(null)} admin={resetTarget} />
 
       <ConfirmDialog
         isOpen={statusTarget !== null}

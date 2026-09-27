@@ -12,8 +12,8 @@ import { Select } from '@/components/ui/Select';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
+import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { ADMIN_ROLE_LABELS, ASSIGNABLE_ADMIN_ROLES } from '@/types/system';
 import type { AdminRole } from '@/types/admin';
 import type { Permission } from '@/types/system';
@@ -68,6 +68,7 @@ function PermissionChecklist({ groups, selected, onToggle, disabled }: Permissio
 function RoleTab() {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { hasPermission } = useEffectivePermissions();
   const [selectedRole, setSelectedRole] = useState<AdminRole>(ASSIGNABLE_ADMIN_ROLES[0].value);
   const [draft, setDraft] = useState<Set<string>>(new Set());
 
@@ -121,11 +122,11 @@ function RoleTab() {
       <Card className="p-5">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-display text-base font-bold text-ink">{ADMIN_ROLE_LABELS[selectedRole]} permissions</h3>
-          <PermissionGate module="roles_permissions">
+          {hasPermission('roles.manage') && (
             <Button size="sm" isLoading={saveMutation.isPending} disabled={!isDirty} onClick={() => saveMutation.mutate()}>
               Save changes
             </Button>
-          </PermissionGate>
+          )}
         </div>
 
         {(catalog.isLoading || rolePermissions.isLoading) && <LoadingState label="Loading permissions…" />}
@@ -156,6 +157,7 @@ function RoleTab() {
 function AdminOverridesTab() {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { hasPermission } = useEffectivePermissions();
   const [adminId, setAdminId] = useState<number | ''>('');
   const [draft, setDraft] = useState<Set<string>>(new Set());
 
@@ -224,11 +226,11 @@ function AdminOverridesTab() {
 
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="font-display text-base font-bold text-ink">Direct overrides</h3>
-                <PermissionGate module="roles_permissions">
+                {hasPermission('roles.manage') && (
                   <Button size="sm" isLoading={saveMutation.isPending} disabled={!isDirty} onClick={() => saveMutation.mutate()}>
                     Save changes
                   </Button>
-                </PermissionGate>
+                )}
               </div>
 
               {groups.length > 0 && (

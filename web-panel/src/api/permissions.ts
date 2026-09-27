@@ -3,6 +3,13 @@ import type { AdminRole } from '@/types/admin';
 import type { AdminPermissionsDetail, Permission, RolePermissions } from '@/types/system';
 
 export const permissionsApi = {
+  /**
+   * The CALLING admin's own effective permissions (role-derived plus any direct
+   * overrides, or every permission for Super Admin). Self-only — no `roles.manage`
+   * needed, unlike `list()` below.
+   */
+  getMine: () => apiRequest<Permission[]>('admin/auth/permissions'),
+
   /** The full permission catalog (key/name/group), not scoped to any role or admin. */
   list: () => apiRequest<Permission[]>('admin/permissions'),
 
