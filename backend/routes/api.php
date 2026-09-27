@@ -25,29 +25,29 @@ use App\Http\Controllers\Api\V1\Admin\Customers\CustomerNoteController as AdminC
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\Hr\ClientCompanyController as AdminClientCompanyController;
 use App\Http\Controllers\Api\V1\Admin\Hr\DepartmentController as AdminDepartmentController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeAttendanceController as AdminEmployeeAttendanceController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeCategoryController as AdminEmployeeCategoryController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeContractController as AdminEmployeeContractController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeController as AdminEmployeeController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeDocumentCategoryController as AdminEmployeeDocumentCategoryController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeDocumentController as AdminEmployeeDocumentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeGuarantorController as AdminEmployeeGuarantorController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeePayrollController as AdminEmployeePayrollController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeePracticalAssessmentController as AdminEmployeePracticalAssessmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeProfilePictureController as AdminEmployeeProfilePictureController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeRecordsController as AdminEmployeeRecordsController;
+use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeSeparationController as AdminEmployeeSeparationController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeStatusController as AdminEmployeeStatusController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeUniformController as AdminEmployeeUniformController;
-use App\Http\Controllers\Api\V1\Admin\Hr\PracticalBatchController as AdminPracticalBatchController;
-use App\Http\Controllers\Api\V1\Admin\Hr\TrainingBatchController as AdminTrainingBatchController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeWorkAssignmentController as AdminEmployeeWorkAssignmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrDashboardController as AdminHrDashboardController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrReportsController as AdminHrReportsController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PositionController as AdminPositionController;
-use App\Http\Controllers\Api\V1\Admin\Hr\WorkLocationController as AdminWorkLocationController;
-use App\Http\Controllers\Api\V1\Admin\Hr\WorkforceRequestController as AdminWorkforceRequestController;
-use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeSeparationController as AdminEmployeeSeparationController;
+use App\Http\Controllers\Api\V1\Admin\Hr\PracticalBatchController as AdminPracticalBatchController;
 use App\Http\Controllers\Api\V1\Admin\Hr\TemporaryReplacementController as AdminTemporaryReplacementController;
-use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeAttendanceController as AdminEmployeeAttendanceController;
-use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeRecordsController as AdminEmployeeRecordsController;
-use App\Http\Controllers\Api\V1\Admin\Hr\EmployeePayrollController as AdminEmployeePayrollController;
+use App\Http\Controllers\Api\V1\Admin\Hr\TrainingBatchController as AdminTrainingBatchController;
+use App\Http\Controllers\Api\V1\Admin\Hr\WorkforceRequestController as AdminWorkforceRequestController;
+use App\Http\Controllers\Api\V1\Admin\Hr\WorkLocationController as AdminWorkLocationController;
 use App\Http\Controllers\Api\V1\Admin\Marketing\CommissionController as AdminMarketingCommissionController;
 use App\Http\Controllers\Api\V1\Admin\Marketing\FollowUpController as AdminMarketingFollowUpController;
 use App\Http\Controllers\Api\V1\Admin\Marketing\MarketingDashboardController as AdminMarketingDashboardController;
@@ -442,6 +442,10 @@ Route::prefix('v1/admin')
         Route::get('permissions', [PermissionController::class, 'index'])
             ->middleware('permission:roles.manage')
             ->name('api.v1.admin.permissions.index');
+
+        Route::get('roles/{role}/permissions', [PermissionController::class, 'showRolePermissions'])
+            ->middleware('permission:roles.manage')
+            ->name('api.v1.admin.roles.permissions.show');
 
         Route::put('roles/{role}/permissions', [PermissionController::class, 'updateRolePermissions'])
             ->middleware('permission:roles.manage')

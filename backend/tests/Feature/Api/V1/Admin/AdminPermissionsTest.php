@@ -48,6 +48,60 @@ class AdminPermissionsTest extends TestCase
         );
     }
 
+    public function test_authenticated_admin_can_view_a_roles_current_permissions(): void
+    {
+        $admin = Admin::factory()->create();
+        $this->grantPermissions($admin, [AdminPermission::RolesManage]);
+
+        DB::table('admin_role_permissions')->insert([
+            'role' => AdminRole::Manager->value,
+            'permission_id' => Permission::query()->where('key', AdminPermission::ProductsCreate->value)->value('id'),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
+            ->getJson('/api/v1/admin/roles/manager/permissions');
+
+        // The dashboard.view migration seeds a role grant for every operations
+        // role, so the Manager role already carries that one permission before
+        // this test grants a second — see assertOnlySeededRolePermissionsExist().
+        $response
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('message', 'Role permissions retrieved successfully.')
+            ->assertJsonPath('data.role', AdminRole::Manager->value)
+            ->assertJsonCount(2, 'data.permissions')
+            ->assertJsonFragment(['key' => AdminPermission::ProductsCreate->value])
+            ->assertJsonFragment(['key' => AdminPermission::DashboardView->value]);
+    }
+
+    public function test_viewing_super_admin_role_permissions_returns_every_permission(): void
+    {
+        $admin = Admin::factory()->superAdmin()->create();
+
+        $response = $this
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
+            ->getJson('/api/v1/admin/roles/super_admin/permissions');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.role', AdminRole::SuperAdmin->value)
+            ->assertJsonCount(count(AdminPermission::cases()), 'data.permissions');
+    }
+
+    public function test_viewing_permissions_for_an_unknown_role_returns_404(): void
+    {
+        $admin = Admin::factory()->superAdmin()->create();
+
+        $this
+            ->withToken($admin->createToken('admin-panel')->plainTextToken)
+            ->getJson('/api/v1/admin/roles/unknown_role/permissions')
+            ->assertNotFound()
+            ->assertJsonPath('error_code', 'ROLE_NOT_FOUND');
+    }
+
     public function test_super_admin_can_update_role_permissions(): void
     {
         $admin = Admin::factory()->superAdmin()->create();
@@ -172,6 +226,10 @@ class AdminPermissionsTest extends TestCase
             ->assertUnauthorized()
             ->assertJsonPath('error_code', 'UNAUTHENTICATED');
 
+        $this->getJson('/api/v1/admin/roles/manager/permissions')
+            ->assertUnauthorized()
+            ->assertJsonPath('error_code', 'UNAUTHENTICATED');
+
         $this->putJson('/api/v1/admin/roles/manager/permissions', [
             'permissions' => [AdminPermission::ProductsCreate->value],
         ])
@@ -187,6 +245,12 @@ class AdminPermissionsTest extends TestCase
         $this
             ->withToken($token)
             ->getJson('/api/v1/admin/permissions')
+            ->assertUnauthorized()
+            ->assertJsonPath('error_code', 'UNAUTHENTICATED');
+
+        $this
+            ->withToken($token)
+            ->getJson('/api/v1/admin/roles/manager/permissions')
             ->assertUnauthorized()
             ->assertJsonPath('error_code', 'UNAUTHENTICATED');
 
