@@ -91,8 +91,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'System',
     items: [
-      { label: 'Admin Users', to: '/system/admins', icon: 'users', comingSoon: true },
-      { label: 'Roles & Permissions', to: '/system/roles', icon: 'shield', comingSoon: true },
+      { label: 'Admin Users', to: '/system/admins', icon: 'users' },
+      { label: 'Roles & Permissions', to: '/system/roles', icon: 'shield' },
       { label: 'Settings', to: '/system/settings', icon: 'settings', comingSoon: true },
       { label: 'Audit Log', to: '/system/audit-log', icon: 'list', comingSoon: true },
     ],

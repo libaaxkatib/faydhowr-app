@@ -35,6 +35,8 @@ import { TeamsPage } from '@/features/marketing/TeamsPage';
 import { MarketingEmployeesPage } from '@/features/marketing/MarketingEmployeesPage';
 import { CommissionPage } from '@/features/marketing/CommissionPage';
 import { MarketingReportsPage } from '@/features/marketing/MarketingReportsPage';
+import { AdminUsersPage } from '@/features/system/AdminUsersPage';
+import { RolesPermissionsPage } from '@/features/system/RolesPermissionsPage';
 import { PageState } from '@/components/ui/PageState';
 
 export default function App() {
@@ -116,6 +118,9 @@ export default function App() {
         <Route path="/marketing/employees" element={<MarketingEmployeesPage />} />
         <Route path="/marketing/commission" element={<CommissionPage />} />
         <Route path="/marketing/reports" element={<MarketingReportsPage />} />
+
+        <Route path="/system/admins" element={<AdminUsersPage />} />
+        <Route path="/system/roles" element={<RolesPermissionsPage />} />
 
         <Route
           path="*"
