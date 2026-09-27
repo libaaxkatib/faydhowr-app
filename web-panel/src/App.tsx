@@ -37,6 +37,8 @@ import { CommissionPage } from '@/features/marketing/CommissionPage';
 import { MarketingReportsPage } from '@/features/marketing/MarketingReportsPage';
 import { AdminUsersPage } from '@/features/system/AdminUsersPage';
 import { RolesPermissionsPage } from '@/features/system/RolesPermissionsPage';
+import { SettingsPage } from '@/features/system/SettingsPage';
+import { AuditLogPage } from '@/features/system/AuditLogPage';
 import { PageState } from '@/components/ui/PageState';
 
 export default function App() {
@@ -121,6 +123,8 @@ export default function App() {
 
         <Route path="/system/admins" element={<AdminUsersPage />} />
         <Route path="/system/roles" element={<RolesPermissionsPage />} />
+        <Route path="/system/settings" element={<SettingsPage />} />
+        <Route path="/system/audit-log" element={<AuditLogPage />} />
 
         <Route
           path="*"
