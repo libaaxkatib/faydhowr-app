@@ -10,7 +10,7 @@ import type { SettingCategory, SettingFieldSchema } from '@/types/settings';
 export const SETTINGS_FIELD_SCHEMA: Partial<Record<SettingCategory, SettingFieldSchema[]>> = {
   company: [
     { key: 'name', label: 'Company name', type: 'text' },
-    { key: 'logo', label: 'Logo URL', type: 'url', hint: 'Set via the logo upload above, or paste a URL directly.' },
+    { key: 'logo', label: 'Logo URL', type: 'url', hint: 'Paste a direct link to the logo image.' },
     { key: 'email', label: 'Email', type: 'email' },
     { key: 'phone', label: 'Phone', type: 'text' },
     { key: 'website', label: 'Website', type: 'url' },

@@ -1,4 +1,4 @@
-import { apiRequest } from '@/api/client';
+import { apiRequest, apiRequestRaw } from '@/api/client';
 import type { Backup, Branch, SettingCategory, SettingsAuditLogEntry, SettingsCategoryData } from '@/types/settings';
 
 export const settingsApi = {
@@ -44,9 +44,14 @@ export const settingsApi = {
   backups: {
     list: () => apiRequest<Backup[]>('admin/backups'),
     create: () => apiRequest<Backup>('admin/backups', { method: 'POST' }),
-    /** Streams a binary file (not JSON) — apiRequest returns the raw Response for non-JSON bodies; trigger a browser save from it. */
+    /**
+     * Streams the backup as a `.json` file, so the server sends
+     * `content-type: application/json` — apiRequest would misread that as the
+     * `{success, data}` envelope and try to parse the snapshot body as one, so
+     * this uses apiRequestRaw to force the raw Response through untouched.
+     */
     async download(id: string, fileName: string) {
-      const response = await apiRequest<Response>(`admin/backups/${encodeURIComponent(id)}/download`);
+      const response = await apiRequestRaw(`admin/backups/${encodeURIComponent(id)}/download`);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');

@@ -75,6 +75,14 @@ interface RequestOptions {
   /** Skip attaching the bearer token — only the login endpoint needs this. */
   skipAuth?: boolean;
   signal?: AbortSignal;
+  /**
+   * Always return the raw Response, even when the server sends
+   * `content-type: application/json` — for endpoints that stream a JSON FILE
+   * (e.g. a backup snapshot) rather than the `{success, data}` envelope. The
+   * default content-type sniff in `performRequest` would otherwise try to
+   * parse the file body as that envelope.
+   */
+  raw?: boolean;
 }
 
 function buildUrl(path: string, query?: RequestOptions['query']): string {
@@ -102,7 +110,7 @@ async function parseErrorResponse(response: Response): Promise<ApiClientError> {
 }
 
 async function performRequest<T>(path: string, options: RequestOptions): Promise<Response | ApiSuccessEnvelope<T>> {
-  const { method = 'GET', query, body, isFormData, skipAuth, signal } = options;
+  const { method = 'GET', query, body, isFormData, skipAuth, signal, raw } = options;
 
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (!isFormData) {
@@ -130,6 +138,10 @@ async function performRequest<T>(path: string, options: RequestOptions): Promise
     throw error;
   }
 
+  if (raw) {
+    return response;
+  }
+
   if (response.status === 204) {
     return { success: true, message: '', data: undefined as T };
   }
@@ -147,6 +159,18 @@ async function performRequest<T>(path: string, options: RequestOptions): Promise
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const result = await performRequest<T>(path, options);
   return result instanceof Response ? (result as unknown as T) : result.data;
+}
+
+/**
+ * Like `apiRequest`, but always returns the raw `Response` — for endpoints
+ * that stream a file whose content-type happens to be `application/json`
+ * (a JSON snapshot file, not the `{success, data}` envelope). Use `apiRequest`
+ * for every other binary download; it already returns the raw Response for
+ * any non-JSON content-type.
+ */
+export async function apiRequestRaw(path: string, options: RequestOptions = {}): Promise<Response> {
+  const result = await performRequest<never>(path, { ...options, raw: true });
+  return result as Response;
 }
 
 /** Same as `apiRequest`, but also returns `meta` — needed by hand-rolled-pagination list endpoints. */
