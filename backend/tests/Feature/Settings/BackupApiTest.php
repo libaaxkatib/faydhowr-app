@@ -23,7 +23,6 @@ class BackupApiTest extends TestCase
     {
         parent::setUp();
 
-        Storage::fake('local');
         $this->seed(BranchSeeder::class);
         $this->seed(SystemSettingsSeeder::class);
     }
@@ -43,7 +42,7 @@ class BackupApiTest extends TestCase
 
         $id = $response->json('data.id');
         $this->assertNotNull($id);
-        Storage::disk('local')->assertExists('settings-backups/'.$id.'.json');
+        $this->assertDatabaseHas('settings_backups', ['id' => $id]);
 
         $lastRun = SystemSetting::query()->category('backup')->where('key', 'last_run_at')->sole();
         $this->assertNotNull($lastRun->value);
@@ -81,6 +80,50 @@ class BackupApiTest extends TestCase
             ->get("/api/v1/admin/backups/{$id}/download")
             ->assertOk()
             ->assertDownload($id.'.json');
+    }
+
+    public function test_a_downloaded_backup_contains_the_stored_snapshot(): void
+    {
+        $token = $this->superAdminToken();
+
+        $this->withToken($token)
+            ->putJson('/api/v1/admin/settings/currency', ['currency.default' => 'EUR'])
+            ->assertOk();
+
+        $id = $this->withToken($token)->postJson('/api/v1/admin/backups')->json('data.id');
+
+        $content = $this
+            ->withToken($token)
+            ->get("/api/v1/admin/backups/{$id}/download")
+            ->assertOk()
+            ->assertDownload($id.'.json')
+            ->streamedContent();
+
+        $decoded = json_decode($content, true);
+        $this->assertSame($id, $decoded['id']);
+        $this->assertContains(
+            ['category' => 'currency', 'key' => 'default', 'value' => 'EUR'],
+            $decoded['settings'],
+        );
+    }
+
+    /**
+     * Regression test for the Phase 5 fix: backups previously lived on
+     * Railway's non-persistent local disk and were lost on every redeploy.
+     * They are now rows in settings_backups (the same Postgres database
+     * everything else already persists to), so creating a backup must not
+     * depend on the filesystem at all.
+     */
+    public function test_a_backup_is_stored_in_the_database_not_on_disk(): void
+    {
+        Storage::fake('local');
+
+        $id = $this->withToken($this->superAdminToken())
+            ->postJson('/api/v1/admin/backups')
+            ->json('data.id');
+
+        $this->assertDatabaseHas('settings_backups', ['id' => $id]);
+        Storage::disk('local')->assertDirectoryEmpty('settings-backups');
     }
 
     public function test_downloading_an_unknown_backup_returns_404(): void
@@ -167,7 +210,9 @@ class BackupApiTest extends TestCase
         $this->assertNotSame('original-secret', $stored->value);
         $this->assertSame('original-secret', Crypt::decrypt($stored->value));
 
-        $snapshot = Storage::disk('local')->get('settings-backups/'.$id.'.json');
+        // Sensitive values in a stored snapshot are the ciphertext already on
+        // the setting row, never the plaintext.
+        $snapshot = (string) DB::table('settings_backups')->where('id', $id)->value('snapshot');
         $this->assertStringNotContainsString('original-secret', $snapshot);
     }
 
@@ -175,7 +220,16 @@ class BackupApiTest extends TestCase
     {
         $token = $this->superAdminToken();
 
-        Storage::disk('local')->put('settings-backups/backup-corrupt.json', 'not-json');
+        // A row whose snapshot doesn't have the expected shape (no "id" key) —
+        // simulates corruption without needing a genuinely invalid JSON
+        // column value, which Postgres/SQLite reject at insert time anyway.
+        DB::table('settings_backups')->insert([
+            'id' => 'backup-corrupt',
+            'snapshot' => json_encode(['not' => 'a valid snapshot']),
+            'size_bytes' => 10,
+            'created_by' => null,
+            'created_at' => now(),
+        ]);
 
         $this->withToken($token)
             ->putJson('/api/v1/admin/settings/currency', ['currency.default' => 'EUR'])

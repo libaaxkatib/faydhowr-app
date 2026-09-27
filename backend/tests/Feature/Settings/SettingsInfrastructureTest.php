@@ -4,6 +4,7 @@ namespace Tests\Feature\Settings;
 
 use App\Contracts\Settings\Repositories\BranchRepositoryInterface;
 use App\Contracts\Settings\Repositories\SettingsAuditRepositoryInterface;
+use App\Contracts\Settings\Repositories\SettingsBackupRepositoryInterface;
 use App\Contracts\Settings\Repositories\SystemSettingRepositoryInterface;
 use App\Contracts\Settings\Services\AuditServiceInterface;
 use App\Contracts\Settings\Services\BackupServiceInterface;
@@ -14,9 +15,11 @@ use App\Enums\Settings\SettingCategory;
 use App\Models\Admin;
 use App\Models\Branch;
 use App\Models\SettingsAuditLog;
+use App\Models\SettingsBackup;
 use App\Models\SystemSetting;
 use App\Repositories\Settings\BranchRepository;
 use App\Repositories\Settings\SettingsAuditRepository;
+use App\Repositories\Settings\SettingsBackupRepository;
 use App\Repositories\Settings\SystemSettingRepository;
 use App\Services\Settings\AuditService;
 use App\Services\Settings\BackupService;
@@ -38,6 +41,7 @@ class SettingsInfrastructureTest extends TestCase
         $this->assertTrue(Schema::hasTable('system_settings'));
         $this->assertTrue(Schema::hasTable('branches'));
         $this->assertTrue(Schema::hasTable('settings_audit_logs'));
+        $this->assertTrue(Schema::hasTable('settings_backups'));
     }
 
     public function test_contracts_are_bound_to_their_implementations(): void
@@ -46,6 +50,7 @@ class SettingsInfrastructureTest extends TestCase
             SystemSettingRepositoryInterface::class => SystemSettingRepository::class,
             BranchRepositoryInterface::class => BranchRepository::class,
             SettingsAuditRepositoryInterface::class => SettingsAuditRepository::class,
+            SettingsBackupRepositoryInterface::class => SettingsBackupRepository::class,
             AuditServiceInterface::class => AuditService::class,
             SettingsServiceInterface::class => SettingsService::class,
             BranchServiceInterface::class => BranchService::class,
@@ -103,6 +108,31 @@ class SettingsInfrastructureTest extends TestCase
 
         $this->assertSame(5, $setting->refresh()->value);
         $this->assertSame($admin->id, $setting->updated_by);
+    }
+
+    public function test_settings_backup_repository_creates_finds_and_lists_newest_first(): void
+    {
+        $repository = $this->app->make(SettingsBackupRepositoryInterface::class);
+
+        $first = $repository->create('backup-1', ['id' => 'backup-1', 'settings' => [], 'branches' => []], 42, 'Asad', now());
+        $this->travel(1)->minutes();
+        $second = $repository->create('backup-2', ['id' => 'backup-2', 'settings' => [], 'branches' => []], 84, 'Asad', now());
+
+        $this->assertSame(['backup-2', 'backup-1'], $repository->all()->pluck('id')->all());
+        $this->assertSame($first->id, $repository->find('backup-1')?->id);
+        $this->assertNull($repository->find('backup-missing'));
+
+        $this->assertSame(['id' => 'backup-2', 'settings' => [], 'branches' => []], $second->snapshot);
+        $this->assertSame(84, $second->size_bytes);
+    }
+
+    public function test_settings_backup_model_is_a_string_keyed_immutable_row(): void
+    {
+        $backup = SettingsBackup::factory()->create(['id' => 'backup-fixed']);
+
+        $this->assertSame('backup-fixed', $backup->id);
+        $this->assertIsArray($backup->snapshot);
+        $this->assertArrayNotHasKey('updated_at', $backup->getAttributes());
     }
 
     public function test_branch_repository_manages_default_and_activation(): void

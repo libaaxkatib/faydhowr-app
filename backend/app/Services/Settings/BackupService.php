@@ -3,6 +3,7 @@
 namespace App\Services\Settings;
 
 use App\Contracts\Settings\Repositories\BranchRepositoryInterface;
+use App\Contracts\Settings\Repositories\SettingsBackupRepositoryInterface;
 use App\Contracts\Settings\Repositories\SystemSettingRepositoryInterface;
 use App\Contracts\Settings\Services\AuditServiceInterface;
 use App\Contracts\Settings\Services\BackupServiceInterface;
@@ -11,53 +12,41 @@ use App\Enums\Settings\SettingCategory;
 use App\Exceptions\Settings\BackupNotFoundException;
 use App\Models\Admin;
 use App\Models\Branch;
+use App\Models\SettingsBackup;
 use App\Models\SystemSetting;
 use App\Support\Settings\SettingsCache;
-use Illuminate\Contracts\Filesystem\Filesystem;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Configuration snapshots (system settings + branches) stored as JSON
- * archives on the local disk. The system_settings table only tracks backup
- * metadata (backup.last_run_at).
+ * Configuration snapshots (system settings + branches), stored as rows in
+ * the settings_backups table rather than files on disk so they survive
+ * redeploys/restarts on hosts without a persistent filesystem (e.g. Railway's
+ * ephemeral container disk). The system_settings table separately tracks
+ * backup metadata (backup.last_run_at).
  */
 class BackupService implements BackupServiceInterface
 {
-    private const string DIRECTORY = 'settings-backups';
-
     public function __construct(
         private SystemSettingRepositoryInterface $settings,
         private BranchRepositoryInterface $branches,
+        private SettingsBackupRepositoryInterface $backups,
         private AuditServiceInterface $audit,
         private SettingsCache $cache,
     ) {}
 
     public function all(): array
     {
-        $backups = [];
-
-        foreach ($this->disk()->files(self::DIRECTORY) as $path) {
-            $snapshot = json_decode($this->disk()->get($path), true);
-
-            if (! is_array($snapshot) || ! isset($snapshot['id'], $snapshot['created_at'])) {
-                continue;
-            }
-
-            $backups[] = new BackupData(
-                id: $snapshot['id'],
-                sizeBytes: $this->disk()->size($path),
-                createdBy: $snapshot['created_by'] ?? null,
-                createdAt: Carbon::parse($snapshot['created_at']),
-            );
-        }
-
-        usort($backups, fn (BackupData $a, BackupData $b): int => $b->createdAt <=> $a->createdAt);
-
-        return $backups;
+        return $this->backups->all()
+            ->map(fn (SettingsBackup $backup): BackupData => new BackupData(
+                id: $backup->id,
+                sizeBytes: $backup->size_bytes,
+                createdBy: $backup->created_by,
+                createdAt: $backup->created_at,
+            ))
+            ->all();
     }
 
     public function create(Admin $admin, ?string $ipAddress): BackupData
@@ -87,7 +76,9 @@ class BackupService implements BackupServiceInterface
                 ->all(),
         ];
 
-        $this->disk()->put($this->path($id), (string) json_encode($snapshot, JSON_PRETTY_PRINT));
+        $sizeBytes = strlen((string) json_encode($snapshot, JSON_PRETTY_PRINT));
+
+        $this->backups->create($id, $snapshot, $sizeBytes, $admin->full_name, $createdAt);
 
         DB::transaction(function () use ($admin, $ipAddress, $createdAt, $id): void {
             $lastRun = $this->settings->find(SettingCategory::Backup, 'last_run_at');
@@ -110,7 +101,7 @@ class BackupService implements BackupServiceInterface
 
         return new BackupData(
             id: $id,
-            sizeBytes: $this->disk()->size($this->path($id)),
+            sizeBytes: $sizeBytes,
             createdBy: $admin->full_name,
             createdAt: $createdAt,
         );
@@ -118,16 +109,30 @@ class BackupService implements BackupServiceInterface
 
     public function download(string $id): StreamedResponse
     {
-        $this->assertExists($id);
+        $backup = $this->backups->find($id);
 
-        return $this->disk()->download($this->path($id), $id.'.json');
+        if ($backup === null) {
+            throw BackupNotFoundException::forId($id);
+        }
+
+        $contents = (string) json_encode($backup->snapshot, JSON_PRETTY_PRINT);
+
+        return Response::streamDownload(
+            fn () => print $contents,
+            $id.'.json',
+            ['Content-Type' => 'application/json'],
+        );
     }
 
     public function restore(string $id, Admin $admin, ?string $ipAddress): void
     {
-        $this->assertExists($id);
+        $backup = $this->backups->find($id);
 
-        $snapshot = json_decode($this->disk()->get($this->path($id)), true);
+        if ($backup === null) {
+            throw BackupNotFoundException::forId($id);
+        }
+
+        $snapshot = $backup->snapshot;
 
         if (! is_array($snapshot) || ! isset($snapshot['id'])) {
             throw BackupNotFoundException::corrupt($id);
@@ -174,22 +179,5 @@ class BackupService implements BackupServiceInterface
         });
 
         $this->cache->forgetAll();
-    }
-
-    private function assertExists(string $id): void
-    {
-        if (! $this->disk()->exists($this->path($id))) {
-            throw BackupNotFoundException::forId($id);
-        }
-    }
-
-    private function path(string $id): string
-    {
-        return self::DIRECTORY.'/'.$id.'.json';
-    }
-
-    private function disk(): Filesystem
-    {
-        return Storage::disk('local');
     }
 }

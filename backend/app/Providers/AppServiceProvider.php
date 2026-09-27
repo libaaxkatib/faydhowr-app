@@ -60,6 +60,7 @@ use App\Contracts\Review\Services\ReviewServiceInterface;
 use App\Contracts\Search\Services\GlobalSearchServiceInterface;
 use App\Contracts\Settings\Repositories\BranchRepositoryInterface;
 use App\Contracts\Settings\Repositories\SettingsAuditRepositoryInterface;
+use App\Contracts\Settings\Repositories\SettingsBackupRepositoryInterface;
 use App\Contracts\Settings\Repositories\SystemSettingRepositoryInterface;
 use App\Contracts\Settings\Services\AuditServiceInterface;
 use App\Contracts\Settings\Services\BackupServiceInterface;
@@ -105,6 +106,7 @@ use App\Repositories\Home\HeroBannerRepository;
 use App\Repositories\Review\ReviewRepository;
 use App\Repositories\Settings\BranchRepository;
 use App\Repositories\Settings\SettingsAuditRepository;
+use App\Repositories\Settings\SettingsBackupRepository;
 use App\Repositories\Settings\SystemSettingRepository;
 use App\Repositories\Upload\UploadRepository;
 use App\Services\Accounting\AccountingManager;
@@ -296,6 +298,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(BranchRepositoryInterface::class, BranchRepository::class);
 
         $this->app->bind(SettingsAuditRepositoryInterface::class, SettingsAuditRepository::class);
+
+        $this->app->bind(SettingsBackupRepositoryInterface::class, SettingsBackupRepository::class);
 
         $this->app->singleton(AuditServiceInterface::class, AuditService::class);
 

@@ -72,6 +72,7 @@ class SettingsService implements SettingsServiceInterface
     {
         DB::transaction(function () use ($category, $values, $admin, $ipAddress): void {
             $settings = $this->settings->byCategory($category);
+            $definitions = SettingsRegistry::definitionsFor($category);
 
             foreach ($values as $qualifiedKey => $newValue) {
                 $key = $this->keySegment($qualifiedKey);
@@ -79,7 +80,23 @@ class SettingsService implements SettingsServiceInterface
                 $setting = $settings->get($key);
 
                 if ($setting === null) {
-                    continue;
+                    // No row yet (e.g. production was never seeded) — the
+                    // request is already validated against
+                    // SettingsRegistry::editableKeysFor(), so $key is always
+                    // a registered definition here; the null-safe lookup is
+                    // defensive only.
+                    $definition = $definitions[$key] ?? null;
+
+                    if ($definition === null) {
+                        continue;
+                    }
+
+                    $setting = $this->settings->findOrCreate(
+                        $category,
+                        $key,
+                        $definition['sensitive'],
+                        $definition['default'],
+                    );
                 }
 
                 $currentValue = $setting->is_sensitive

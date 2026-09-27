@@ -26,6 +26,15 @@ interface SystemSettingRepositoryInterface
     public function find(SettingCategory $category, string $key): ?SystemSetting;
 
     /**
+     * The row for a registered key, creating it from its registry factory
+     * default first if it does not exist yet (mirrors SystemSettingsSeeder).
+     * Safe under concurrent calls for the same category/key: a unique-
+     * constraint race is resolved by re-fetching the row the other request
+     * just created rather than failing.
+     */
+    public function findOrCreate(SettingCategory $category, string $key, bool $isSensitive, mixed $default): SystemSetting;
+
+    /**
      * Persist a new value. Sensitive settings are encrypted before saving.
      */
     public function setValue(SystemSetting $setting, mixed $value, int $adminId): SystemSetting;
