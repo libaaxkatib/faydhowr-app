@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Admin\Accounting\JournalEntryController;
 use App\Http\Controllers\Api\V1\Admin\Accounting\LedgerBalanceController;
 use App\Http\Controllers\Api\V1\Admin\Accounting\TrialBalanceController;
 use App\Http\Controllers\Api\V1\Admin\AdminController;
+use App\Http\Controllers\Api\V1\Admin\AdminPasswordController;
 use App\Http\Controllers\Api\V1\Admin\AdminPermissionController;
 use App\Http\Controllers\Api\V1\Admin\ArchivedNotificationController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
@@ -426,6 +427,14 @@ Route::prefix('v1/admin/auth')->group(function (): void {
     Route::get('me', [AdminAuthController::class, 'me'])
         ->middleware(['auth:sanctum', 'admin'])
         ->name('api.v1.admin.auth.me');
+
+    Route::get('permissions', [AdminAuthController::class, 'permissions'])
+        ->middleware(['auth:sanctum', 'admin'])
+        ->name('api.v1.admin.auth.permissions');
+
+    Route::put('password', [AdminPasswordController::class, 'updateOwn'])
+        ->middleware(['auth:sanctum', 'admin'])
+        ->name('api.v1.admin.auth.password.update');
 });
 
 Route::prefix('v1/admin')
@@ -470,6 +479,10 @@ Route::prefix('v1/admin')
         Route::delete('admins/{admin}', [AdminController::class, 'destroy'])
             ->middleware('permission:admins.manage')
             ->name('api.v1.admin.admins.destroy');
+
+        Route::put('admins/{admin}/password', [AdminPasswordController::class, 'reset'])
+            ->middleware('permission:admins.manage')
+            ->name('api.v1.admin.admins.password.reset');
 
         Route::get('admins/{admin}/permissions', [AdminPermissionController::class, 'show'])
             ->middleware('permission:roles.manage')

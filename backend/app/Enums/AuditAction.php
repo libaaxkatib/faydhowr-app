@@ -14,6 +14,8 @@ enum AuditAction: string
     case Payment = 'payment';
     case PermissionUpdate = 'permission_update';
     case RoleUpdate = 'role_update';
+    case PasswordChange = 'password_change';
+    case PasswordReset = 'password_reset';
     case PaymentConfirm = 'payment_confirm';
     case PaymentReject = 'payment_reject';
     case BookingSchedule = 'booking_schedule';
