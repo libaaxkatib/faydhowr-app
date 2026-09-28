@@ -20,11 +20,13 @@ class ListEmployeesAction
         }
 
         if (! empty($filters['search'])) {
-            $search = $filters['search'];
+            $search = '%'.mb_strtolower($filters['search']).'%';
             $query->where(function ($q) use ($search) {
-                $q->where('full_name', 'ilike', "%{$search}%")
-                    ->orWhere('phone', 'ilike', "%{$search}%")
-                    ->orWhere('employee_number', 'ilike', "%{$search}%");
+                // LOWER(...) LIKE, not ILIKE: portable across Postgres (production) and
+                // SQLite (the test suite's DB driver) rather than a Postgres-only operator.
+                $q->whereRaw('LOWER(full_name) LIKE ?', [$search])
+                    ->orWhereRaw('LOWER(phone) LIKE ?', [$search])
+                    ->orWhereRaw('LOWER(employee_number) LIKE ?', [$search]);
             });
         }
 
@@ -48,12 +50,42 @@ class ListEmployeesAction
             $query->where('position_id', $filters['position_id']);
         }
 
+        if (! empty($filters['location'])) {
+            $query->whereRaw('LOWER(location) LIKE ?', ['%'.mb_strtolower($filters['location']).'%']);
+        }
+
         if (! empty($filters['is_supervisor'])) {
             $query->where('is_supervisor', true);
         }
 
         if (! empty($filters['office_only'])) {
             $query->whereHas('activeWorkAssignments.workLocation', fn ($q) => $q->where('location_type', 'office'));
+        }
+
+        // array_key_exists, not empty(): both true and false are meaningful filter
+        // values here (e.g. "Profile Incomplete" must be queryable, not just "Complete").
+        if (array_key_exists('profile_complete', $filters)) {
+            $query->where('profile_complete', $filters['profile_complete']);
+        }
+
+        if (array_key_exists('guarantor_needed', $filters)) {
+            $query->where('guarantor_needed', $filters['guarantor_needed']);
+        }
+
+        if (! empty($filters['application_date_from'])) {
+            $query->whereDate('application_date', '>=', $filters['application_date_from']);
+        }
+
+        if (! empty($filters['application_date_to'])) {
+            $query->whereDate('application_date', '<=', $filters['application_date_to']);
+        }
+
+        if (! empty($filters['joining_date_from'])) {
+            $query->whereDate('joining_date', '>=', $filters['joining_date_from']);
+        }
+
+        if (! empty($filters['joining_date_to'])) {
+            $query->whereDate('joining_date', '<=', $filters['joining_date_to']);
         }
 
         return $query

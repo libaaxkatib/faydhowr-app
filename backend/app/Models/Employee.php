@@ -27,11 +27,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'gender',
     'profile_picture_document_id',
     'employee_category_id',
+    'category_specialization',
     'department_id',
     'position_id',
     'status',
     'pipeline_stage',
     'guarantor_confirmed_at',
+    'guarantor_needed',
     'waiting_since',
     'is_supervisor',
     'supervisor_since',
@@ -42,6 +44,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'training_fee_status',
     'source',
     'notes',
+    'profile_complete',
     'created_by',
 ])]
 class Employee extends Model
@@ -55,12 +58,14 @@ class Employee extends Model
             'status' => EmployeeStatus::class,
             'pipeline_stage' => EmployeePipelineStage::class,
             'guarantor_confirmed_at' => 'datetime',
+            'guarantor_needed' => 'boolean',
             'waiting_since' => 'datetime',
             'is_supervisor' => 'boolean',
             'supervisor_since' => 'datetime',
             'application_date' => 'date',
             'joining_date' => 'date',
             'training_fee_amount' => 'decimal:2',
+            'profile_complete' => 'boolean',
         ];
     }
 

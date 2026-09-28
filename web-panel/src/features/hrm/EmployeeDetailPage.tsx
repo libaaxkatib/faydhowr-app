@@ -73,6 +73,29 @@ const PIPELINE_STAGE_LABELS: Record<string, string> = {
   rejected: 'Rejected',
 };
 
+/**
+ * Presentation-only (per approved Phase 1 Decision 1) - never writes back to
+ * `employee.profile_complete`, never fabricates a value for a missing field.
+ * Deliberately excludes phone/application_date from being treated as a data
+ * error (both are legitimately null for many migrated employees) while still
+ * listing them here, since "on record" vs. "missing" is still worth showing -
+ * their absence just never blocks anything elsewhere in the app.
+ */
+const PROFILE_COMPLETENESS_FIELDS: { label: string; isPresent: (e: Employee) => boolean }[] = [
+  { label: 'Full Name', isPresent: (e) => Boolean(e.full_name) },
+  { label: 'Phone', isPresent: (e) => Boolean(e.phone) },
+  { label: 'Gender', isPresent: (e) => Boolean(e.gender) },
+  { label: 'Age', isPresent: (e) => e.age !== null },
+  { label: 'Marital Status', isPresent: (e) => Boolean(e.marital_status) },
+  { label: 'Location', isPresent: (e) => Boolean(e.location) },
+  { label: 'Employee Category', isPresent: (e) => Boolean(e.employee_category_id) },
+  { label: 'Department', isPresent: (e) => Boolean(e.department_id) },
+  { label: 'Reference Name', isPresent: (e) => Boolean(e.reference_name) },
+  { label: 'Application Date', isPresent: (e) => Boolean(e.application_date) },
+  { label: 'Joining Date', isPresent: (e) => Boolean(e.joining_date) },
+  { label: 'Experience', isPresent: (e) => Boolean(e.experience) },
+];
+
 const DECISION_OPTIONS: { value: PracticalDecision; label: string; tone: 'success' | 'danger' | 'warning' }[] = [
   { value: 'approved', label: 'Approved', tone: 'success' },
   { value: 'ku_celis_practical', label: 'Ku Celis Practical', tone: 'warning' },
@@ -339,6 +362,7 @@ export function EmployeeDetailPage() {
 
   const statusFlowIndex = STATUS_FLOW.indexOf(employee.status);
   const nextStatus = statusFlowIndex === -1 ? undefined : STATUS_FLOW[statusFlowIndex + 1];
+  const missingProfileFields = PROFILE_COMPLETENESS_FIELDS.filter((field) => !field.isPresent(employee)).map((field) => field.label);
 
   return (
     <div>
@@ -368,6 +392,12 @@ export function EmployeeDetailPage() {
                 <StatusBadge status={employee.pipeline_stage} label={PIPELINE_STAGE_LABELS[employee.pipeline_stage]} tone={employee.pipeline_stage === 'rejected' ? 'danger' : 'warning'} />
               )}
               {employee.is_supervisor && <StatusBadge status="supervisor" label="Supervisor Pool" tone="info" />}
+              {employee.guarantor_needed && <StatusBadge status="damiin-needed" label="Damiin Needed" tone="danger" />}
+              {employee.profile_complete ? (
+                <StatusBadge status="profile-complete" label="Profile Complete" tone="success" />
+              ) : (
+                <StatusBadge status="profile-incomplete" label="Profile Incomplete" tone="warning" />
+              )}
               <StatusBadge status={employee.status} />
             </div>
           </CardHeader>
@@ -405,7 +435,7 @@ export function EmployeeDetailPage() {
             </div>
 
             <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
-              <Field label="Phone" value={employee.phone} />
+              <Field label="Phone" value={employee.phone ?? '—'} />
               <Field label="Alternate contact" value={employee.alternate_phone ?? '—'} />
               <Field label="Location" value={employee.location ?? '—'} />
               <Field label="Gender" value={employee.gender ? employee.gender[0].toUpperCase() + employee.gender.slice(1) : '—'} />
@@ -414,6 +444,7 @@ export function EmployeeDetailPage() {
               <Field label="Lives with" value={employee.lives_with ?? '—'} />
               <Field label="Reference / guarantor" value={employee.reference_name ?? '—'} />
               <Field label="Category" value={employee.employee_category_name ?? '—'} />
+              <Field label="Category specialization" value={employee.category_specialization ?? '—'} />
               <Field label="Department" value={employee.department_name ?? '—'} />
               <Field label="Position" value={employee.position_name ?? '—'} />
               <Field label="Application date" value={formatDate(employee.application_date)} />
@@ -436,6 +467,25 @@ export function EmployeeDetailPage() {
                 <p className="text-sm text-ink">{employee.notes}</p>
               </div>
             )}
+
+            <div className="mt-4 border-t border-border pt-4">
+              <div className="mb-1.5 flex items-center gap-2">
+                <p className="text-xs font-medium text-ink-faint">Profile Completeness</p>
+                {employee.profile_complete ? (
+                  <StatusBadge status="complete" tone="success" label="Complete" />
+                ) : (
+                  <StatusBadge status="incomplete" tone="warning" label="Incomplete" />
+                )}
+              </div>
+              {missingProfileFields.length > 0 ? (
+                <p className="text-sm text-ink-muted">Missing: {missingProfileFields.join(', ')}</p>
+              ) : (
+                <p className="text-sm text-ink-muted">
+                  All core profile fields are on record.
+                  {!employee.profile_complete && ' Not yet marked complete.'}
+                </p>
+              )}
+            </div>
 
             <PermissionGate module="hr">
               <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-border pt-5">
@@ -780,7 +830,10 @@ export function EmployeeDetailPage() {
           <Card>
             <CardHeader>
               <h3 className="font-display text-sm font-bold text-ink">Damiin / Guarantor</h3>
-              {employee.guarantor?.verified_at && <StatusBadge status="verified" tone="success" />}
+              <div className="flex items-center gap-2">
+                {employee.guarantor_needed && !employee.guarantor?.verified_at && <StatusBadge status="damiin-needed" label="Needed" tone="danger" />}
+                {employee.guarantor?.verified_at && <StatusBadge status="verified" tone="success" />}
+              </div>
             </CardHeader>
             <CardBody className="space-y-3">
               {employee.guarantor ? (
@@ -791,7 +844,7 @@ export function EmployeeDetailPage() {
                   <Field label="Verified" value={employee.guarantor.verified_at ? formatDateTime(employee.guarantor.verified_at) : 'Not yet'} />
                 </dl>
               ) : (
-                <EmptyState icon="users" title="No guarantor recorded yet" />
+                <EmptyState icon="users" title="No guarantor information recorded." />
               )}
               <PermissionGate module="hr">
                 {!employee.guarantor?.verified_at && employee.pipeline_stage === 'damiin_needed' && (

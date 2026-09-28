@@ -32,6 +32,14 @@ class ListEmployeesRequest extends FormRequest
         if ($this->has('office_only')) {
             $this->merge(['office_only' => filter_var($this->query('office_only'), FILTER_VALIDATE_BOOLEAN)]);
         }
+
+        if ($this->has('profile_complete')) {
+            $this->merge(['profile_complete' => filter_var($this->query('profile_complete'), FILTER_VALIDATE_BOOLEAN)]);
+        }
+
+        if ($this->has('guarantor_needed')) {
+            $this->merge(['guarantor_needed' => filter_var($this->query('guarantor_needed'), FILTER_VALIDATE_BOOLEAN)]);
+        }
     }
 
     public function rules(): array
@@ -43,8 +51,15 @@ class ListEmployeesRequest extends FormRequest
             'employee_category_id' => ['sometimes', 'integer', 'exists:employee_categories,id'],
             'department_id' => ['sometimes', 'integer', 'exists:departments,id'],
             'position_id' => ['sometimes', 'integer', 'exists:positions,id'],
+            'location' => ['sometimes', 'string', 'max:150'],
             'is_supervisor' => ['sometimes', 'boolean'],
             'office_only' => ['sometimes', 'boolean'],
+            'profile_complete' => ['sometimes', 'boolean'],
+            'guarantor_needed' => ['sometimes', 'boolean'],
+            'application_date_from' => ['sometimes', 'date'],
+            'application_date_to' => ['sometimes', 'date', 'after_or_equal:application_date_from'],
+            'joining_date_from' => ['sometimes', 'date'],
+            'joining_date_to' => ['sometimes', 'date', 'after_or_equal:joining_date_from'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
             'page' => ['sometimes', 'integer', 'min:1'],
         ];

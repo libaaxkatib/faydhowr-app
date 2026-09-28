@@ -20,7 +20,10 @@ class UpdateEmployeeRequest extends FormRequest
     {
         return [
             'full_name' => ['sometimes', 'string', 'max:150'],
-            'phone' => ['sometimes', 'string', 'max:40'],
+            // Nullable: 242 real production employees legitimately have no phone on
+            // record (Excel HR migration) — the HR Manager must be able to save an
+            // otherwise-unrelated edit without being forced to fabricate one.
+            'phone' => ['sometimes', 'nullable', 'string', 'max:40'],
             'alternate_phone' => ['sometimes', 'nullable', 'string', 'max:40'],
             'location' => ['sometimes', 'nullable', 'string', 'max:150'],
             'gender' => ['sometimes', Rule::in(EmployeeGender::values())],
@@ -29,8 +32,12 @@ class UpdateEmployeeRequest extends FormRequest
             'lives_with' => ['sometimes', 'nullable', 'string', 'max:150'],
             'reference_name' => ['sometimes', 'nullable', 'string', 'max:150'],
             'employee_category_id' => ['sometimes', 'integer', 'exists:employee_categories,id'],
+            'category_specialization' => ['sometimes', 'nullable', 'string', 'max:60'],
             'department_id' => ['sometimes', 'nullable', 'integer', 'exists:departments,id'],
             'position_id' => ['sometimes', 'nullable', 'integer', 'exists:positions,id'],
+            // Nullable: 234 real production employees legitimately have no application
+            // date on record (Excel HR migration) — never fabricated.
+            'application_date' => ['sometimes', 'nullable', 'date'],
             'joining_date' => ['sometimes', 'nullable', 'date'],
             'experience' => ['sometimes', 'nullable', 'string'],
             'training_fee_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],

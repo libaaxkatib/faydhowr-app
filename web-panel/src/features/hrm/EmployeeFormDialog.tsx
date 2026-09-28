@@ -33,10 +33,14 @@ const emptyForm = {
   lives_with: '',
   reference_name: '',
   employee_category_id: '',
+  category_specialization: '',
   department_id: '',
   position_id: '',
   application_date: new Date().toISOString().slice(0, 10),
+  joining_date: '',
   experience: '',
+  training_fee_amount: '',
+  training_fee_status: '',
   source: '',
   notes: '',
 };
@@ -58,7 +62,8 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
         employee
           ? {
               full_name: employee.full_name,
-              phone: employee.phone,
+              // Legitimately null for migrated employees — never fabricated, just left blank to edit.
+              phone: employee.phone ?? '',
               alternate_phone: employee.alternate_phone ?? '',
               location: employee.location ?? '',
               gender: employee.gender ?? '',
@@ -67,10 +72,14 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
               lives_with: employee.lives_with ?? '',
               reference_name: employee.reference_name ?? '',
               employee_category_id: String(employee.employee_category_id),
+              category_specialization: employee.category_specialization ?? '',
               department_id: employee.department_id ? String(employee.department_id) : '',
               position_id: employee.position_id ? String(employee.position_id) : '',
-              application_date: employee.application_date,
+              application_date: employee.application_date ?? '',
+              joining_date: employee.joining_date ?? '',
               experience: employee.experience ?? '',
+              training_fee_amount: employee.training_fee_amount ?? '',
+              training_fee_status: employee.training_fee_status ?? '',
               source: employee.source ?? '',
               notes: employee.notes ?? '',
             }
@@ -97,6 +106,8 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
           position_id: form.position_id ? Number(form.position_id) : null,
           application_date: form.application_date,
           experience: form.experience || null,
+          training_fee_amount: form.training_fee_amount ? Number(form.training_fee_amount) : null,
+          training_fee_status: form.training_fee_status || null,
           source: form.source || null,
           notes: form.notes || null,
         };
@@ -104,18 +115,24 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
       }
       const payload: UpdateEmployeePayload = {
         full_name: form.full_name,
-        phone: form.phone,
+        // Never fabricated: an empty field is saved as null, not as a placeholder string.
+        phone: form.phone || null,
         alternate_phone: form.alternate_phone || null,
-        location: form.location,
+        location: form.location || null,
         gender: form.gender ? (form.gender as EmployeeGender) : undefined,
         age: form.age ? Number(form.age) : null,
         marital_status: form.marital_status || null,
         lives_with: form.lives_with || null,
         reference_name: form.reference_name || null,
         employee_category_id: Number(form.employee_category_id),
+        category_specialization: form.category_specialization || null,
         department_id: form.department_id ? Number(form.department_id) : null,
         position_id: form.position_id ? Number(form.position_id) : null,
+        application_date: form.application_date || null,
+        joining_date: form.joining_date || null,
         experience: form.experience || null,
+        training_fee_amount: form.training_fee_amount ? Number(form.training_fee_amount) : null,
+        training_fee_status: form.training_fee_status || null,
         source: form.source || null,
         notes: form.notes || null,
       };
@@ -163,8 +180,14 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
           <FormField label="Full name" htmlFor="full_name" required error={fieldErrors.full_name?.[0]}>
             <input id="full_name" required className={inputClasses} value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
           </FormField>
-          <FormField label="Phone" htmlFor="phone" required error={fieldErrors.phone?.[0]}>
-            <input id="phone" required className={inputClasses} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <FormField
+            label="Phone"
+            htmlFor="phone"
+            required={mode === 'create'}
+            hint={mode === 'edit' ? 'May be left blank — some migrated employees have no phone on record.' : undefined}
+            error={fieldErrors.phone?.[0]}
+          >
+            <input id="phone" required={mode === 'create'} className={inputClasses} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </FormField>
         </div>
 
@@ -178,10 +201,22 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Location" htmlFor="location" required hint="Residential/home location — used for future Waiting-list matching." error={fieldErrors.location?.[0]}>
-            <input id="location" required className={inputClasses} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+          <FormField
+            label="Location"
+            htmlFor="location"
+            required={mode === 'create'}
+            hint={mode === 'create' ? 'Residential/home location — used for future Waiting-list matching.' : 'May be left blank — some migrated employees have no location on record.'}
+            error={fieldErrors.location?.[0]}
+          >
+            <input id="location" required={mode === 'create'} className={inputClasses} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
           </FormField>
-          <FormField label="Gender" htmlFor="gender" required error={fieldErrors.gender?.[0]}>
+          <FormField
+            label="Gender"
+            htmlFor="gender"
+            required={mode === 'create'}
+            hint={mode === 'edit' ? 'May be left unset — some migrated employees have no gender on record.' : undefined}
+            error={fieldErrors.gender?.[0]}
+          >
             <Select
               id="gender"
               value={form.gender}
@@ -235,15 +270,71 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
           </FormField>
         </div>
 
-        {mode === 'create' && (
-          <FormField label="Application date" htmlFor="application_date" required error={fieldErrors.application_date?.[0]}>
-            <input id="application_date" type="date" required className={inputClasses} value={form.application_date} onChange={(e) => setForm({ ...form, application_date: e.target.value })} />
+        {mode === 'edit' && (
+          <FormField
+            label="Category specialization"
+            htmlFor="category_specialization"
+            hint="Home Team: Work Type (e.g. Full Time – Jiif). Cooking: Specialization (e.g. Cook)."
+            error={fieldErrors.category_specialization?.[0]}
+          >
+            <input
+              id="category_specialization"
+              className={inputClasses}
+              value={form.category_specialization}
+              onChange={(e) => setForm({ ...form, category_specialization: e.target.value })}
+            />
           </FormField>
         )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <FormField
+            label="Application date"
+            htmlFor="application_date"
+            required={mode === 'create'}
+            hint={mode === 'edit' ? 'May be left blank — some migrated employees have no application date on record.' : undefined}
+            error={fieldErrors.application_date?.[0]}
+          >
+            <input
+              id="application_date"
+              type="date"
+              required={mode === 'create'}
+              className={inputClasses}
+              value={form.application_date}
+              onChange={(e) => setForm({ ...form, application_date: e.target.value })}
+            />
+          </FormField>
+          {mode === 'edit' && (
+            <FormField label="Joining date" htmlFor="joining_date" error={fieldErrors.joining_date?.[0]}>
+              <input id="joining_date" type="date" className={inputClasses} value={form.joining_date} onChange={(e) => setForm({ ...form, joining_date: e.target.value })} />
+            </FormField>
+          )}
+        </div>
 
         <FormField label="Experience" htmlFor="experience" error={fieldErrors.experience?.[0]}>
           <textarea id="experience" rows={2} className={inputClasses + ' h-auto py-2'} value={form.experience} onChange={(e) => setForm({ ...form, experience: e.target.value })} />
         </FormField>
+
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Training fee amount" htmlFor="training_fee_amount" error={fieldErrors.training_fee_amount?.[0]}>
+            <input
+              id="training_fee_amount"
+              type="number"
+              min={0}
+              step="0.01"
+              className={inputClasses}
+              value={form.training_fee_amount}
+              onChange={(e) => setForm({ ...form, training_fee_amount: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Training fee status" htmlFor="training_fee_status" error={fieldErrors.training_fee_status?.[0]}>
+            <input
+              id="training_fee_status"
+              className={inputClasses}
+              value={form.training_fee_status}
+              onChange={(e) => setForm({ ...form, training_fee_status: e.target.value })}
+            />
+          </FormField>
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Source" htmlFor="source" error={fieldErrors.source?.[0]}>

@@ -574,7 +574,8 @@ export interface Employee {
   id: number;
   employee_number: string;
   full_name: string;
-  phone: string;
+  /** Legitimately null for 242 employees migrated from the Excel HR source - never fabricate a value. */
+  phone: string | null;
   alternate_phone: string | null;
   location: string | null;
   age: number | null;
@@ -585,6 +586,8 @@ export interface Employee {
   profile_picture_document_id: number | null;
   employee_category_id: number;
   employee_category_name: string | null;
+  /** Home Team: Work Type ("Full Time - Jiif" / "Part Time - Maalin"). Cooking: Specialization ("Cook" / "Cunto & Nadaafad"). Null for every other category. */
+  category_specialization: string | null;
   department_id: number | null;
   department_name: string | null;
   position_id: number | null;
@@ -592,16 +595,21 @@ export interface Employee {
   status: EmployeeStatus;
   pipeline_stage: EmployeePipelineStage | null;
   guarantor_confirmed_at: string | null;
+  /** Independent of guarantor_confirmed_at / pipeline_stage - whether this employee currently needs a Damiin/guarantor at all. */
+  guarantor_needed: boolean;
   waiting_since: string | null;
   is_supervisor: boolean;
   supervisor_since: string | null;
-  application_date: string;
+  /** Legitimately null for 234 employees migrated from the Excel HR source - never fabricate a value. */
+  application_date: string | null;
   joining_date: string | null;
   experience: string | null;
   training_fee_amount: string | null;
   training_fee_status: string | null;
   source: string | null;
   notes: string | null;
+  /** A stored flag, not auto-derived - see the Employee Profile "Profile Completeness" section for the presentation-only missing-fields breakdown. */
+  profile_complete: boolean;
   created_at: string;
   status_histories?: EmployeeStatusHistoryEntry[];
   practical_assessments?: EmployeePracticalAssessment[];
@@ -632,8 +640,15 @@ export interface ListEmployeesParams {
   employee_category_id?: number;
   department_id?: number;
   position_id?: number;
+  location?: string;
   is_supervisor?: boolean;
   office_only?: boolean;
+  profile_complete?: boolean;
+  guarantor_needed?: boolean;
+  application_date_from?: string;
+  application_date_to?: string;
+  joining_date_from?: string;
+  joining_date_to?: string;
   page?: number;
   per_page?: number;
 }
@@ -659,7 +674,16 @@ export interface CreateEmployeePayload {
   notes?: string | null;
 }
 
-export type UpdateEmployeePayload = Partial<Omit<CreateEmployeePayload, 'application_date'>>;
+export type UpdateEmployeePayload = Partial<Omit<CreateEmployeePayload, 'phone' | 'location' | 'application_date'>> & {
+  /** Nullable on update only - 242 real employees legitimately have none; never fabricated. */
+  phone?: string | null;
+  /** Nullable on update only - some migrated employees legitimately have none; never fabricated. */
+  location?: string | null;
+  /** Nullable on update only - 234 real employees legitimately have none; never fabricated. */
+  application_date?: string | null;
+  category_specialization?: string | null;
+  joining_date?: string | null;
+};
 
 export interface HrDashboardData {
   total_employees: number;
