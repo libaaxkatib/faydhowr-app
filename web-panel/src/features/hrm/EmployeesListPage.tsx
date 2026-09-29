@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -174,11 +174,14 @@ export function EmployeesListPage({
   // actually came from (Need Training, Damiin, Waiting, etc.), not always the
   // generic Employees list. Carried via router state rather than the URL, since
   // this page's own filters live in component state, not query params.
-  function goToEmployee(employeeId: number) {
-    navigate(`/hr/employees/${employeeId}`, {
-      state: { fromPath: `${window.location.pathname}${window.location.search}`, fromLabel: breadcrumbLabel },
-    });
-  }
+  const goToEmployee = useCallback(
+    (employeeId: number) => {
+      navigate(`/hr/employees/${employeeId}`, {
+        state: { fromPath: `${window.location.pathname}${window.location.search}`, fromLabel: breadcrumbLabel },
+      });
+    },
+    [navigate, breadcrumbLabel],
+  );
 
   const columns = useMemo<ColumnDef<Employee, unknown>[]>(
     () => [
@@ -298,7 +301,7 @@ export function EmployeesListPage({
         ),
       },
     ],
-    [navigate],
+    [goToEmployee],
   );
 
   return (

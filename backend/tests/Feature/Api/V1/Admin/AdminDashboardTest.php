@@ -45,6 +45,7 @@ class AdminDashboardTest extends TestCase
                 'system_settings',
                 'hr',
                 'marketing',
+                'reconciliation',
             ])
             ->assertJsonPath('data.visible_navigation.0.key', 'dashboard')
             ->assertJsonPath('data.visible_navigation.0.label', 'Dashboard')

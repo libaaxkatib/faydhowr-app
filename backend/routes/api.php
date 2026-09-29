@@ -64,6 +64,7 @@ use App\Http\Controllers\Api\V1\Admin\NotificationTemplateTranslationController;
 use App\Http\Controllers\Api\V1\Admin\Payments\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Api\V1\Admin\PermissionController;
 use App\Http\Controllers\Api\V1\Admin\Quotations\QuotationController as AdminQuotationController;
+use App\Http\Controllers\Api\V1\Admin\Reconciliation\DataIssueController;
 use App\Http\Controllers\Api\V1\Admin\Reports\BookingReportController;
 use App\Http\Controllers\Api\V1\Admin\Reports\BookingReportSummaryController;
 use App\Http\Controllers\Api\V1\Admin\Reports\CustomerReportController;
@@ -1365,6 +1366,33 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::post('v1/admin/hr/temporary-replacements/{temporaryReplacement}/payments', [AdminTemporaryReplacementController::class, 'addPayment'])
         ->whereNumber('temporaryReplacement')
         ->name('api.v1.admin.hr.temporary-replacements.payments.store');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:reconciliation.view', 'throttle:admin-operations'])->group(function (): void {
+    Route::get('v1/admin/reconciliation/data-issues', [DataIssueController::class, 'index'])
+        ->name('api.v1.admin.reconciliation.data-issues.index');
+    Route::get('v1/admin/reconciliation/data-issues/summary', [DataIssueController::class, 'summary'])
+        ->name('api.v1.admin.reconciliation.data-issues.summary');
+    Route::get('v1/admin/reconciliation/data-issues/{dataIssue}', [DataIssueController::class, 'show'])
+        ->whereNumber('dataIssue')
+        ->name('api.v1.admin.reconciliation.data-issues.show');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:reconciliation.create', 'throttle:admin-operations'])->group(function (): void {
+    Route::post('v1/admin/reconciliation/data-issues', [DataIssueController::class, 'store'])
+        ->name('api.v1.admin.reconciliation.data-issues.store');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:reconciliation.update', 'throttle:admin-operations'])->group(function (): void {
+    Route::put('v1/admin/reconciliation/data-issues/{dataIssue}', [DataIssueController::class, 'update'])
+        ->whereNumber('dataIssue')
+        ->name('api.v1.admin.reconciliation.data-issues.update');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:reconciliation.resolve', 'throttle:admin-operations'])->group(function (): void {
+    Route::patch('v1/admin/reconciliation/data-issues/{dataIssue}/resolve', [DataIssueController::class, 'resolve'])
+        ->whereNumber('dataIssue')
+        ->name('api.v1.admin.reconciliation.data-issues.resolve');
 });
 
 Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.view', 'throttle:admin-operations'])->group(function (): void {

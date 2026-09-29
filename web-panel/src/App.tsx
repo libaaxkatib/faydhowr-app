@@ -39,6 +39,8 @@ import { AdminUsersPage } from '@/features/system/AdminUsersPage';
 import { RolesPermissionsPage } from '@/features/system/RolesPermissionsPage';
 import { SettingsPage } from '@/features/system/SettingsPage';
 import { AuditLogPage } from '@/features/system/AuditLogPage';
+import { ReconciliationListPage } from '@/features/system/ReconciliationListPage';
+import { ReconciliationDetailPage } from '@/features/system/ReconciliationDetailPage';
 import { PageState } from '@/components/ui/PageState';
 
 export default function App() {
@@ -129,6 +131,8 @@ export default function App() {
         <Route path="/system/roles" element={<RolesPermissionsPage />} />
         <Route path="/system/settings" element={<SettingsPage />} />
         <Route path="/system/audit-log" element={<AuditLogPage />} />
+        <Route path="/system/data-issues" element={<ReconciliationListPage />} />
+        <Route path="/system/data-issues/:id" element={<ReconciliationDetailPage />} />
 
         <Route
           path="*"

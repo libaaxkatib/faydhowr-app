@@ -63,6 +63,11 @@ enum AdminPermission: string
     case MarketingCommissionView = 'marketing.commission.view';
     case MarketingReportsView = 'marketing.reports.view';
 
+    case ReconciliationView = 'reconciliation.view';
+    case ReconciliationCreate = 'reconciliation.create';
+    case ReconciliationUpdate = 'reconciliation.update';
+    case ReconciliationResolve = 'reconciliation.resolve';
+
     public function label(): string
     {
         return match ($this) {
@@ -109,6 +114,10 @@ enum AdminPermission: string
             self::MarketingAssign => 'Assign Marketing Work',
             self::MarketingCommissionView => 'View Marketing Commission',
             self::MarketingReportsView => 'View Marketing Reports',
+            self::ReconciliationView => 'View Data Issues',
+            self::ReconciliationCreate => 'Create Data Issues',
+            self::ReconciliationUpdate => 'Update Data Issues',
+            self::ReconciliationResolve => 'Resolve Data Issues',
         };
     }
 
@@ -158,6 +167,10 @@ enum AdminPermission: string
             self::MarketingAssign,
             self::MarketingCommissionView,
             self::MarketingReportsView => 'Marketing',
+            self::ReconciliationView,
+            self::ReconciliationCreate,
+            self::ReconciliationUpdate,
+            self::ReconciliationResolve => 'Data Issues & Reconciliation',
         };
     }
 

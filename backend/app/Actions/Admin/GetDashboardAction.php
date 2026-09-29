@@ -139,6 +139,13 @@ class GetDashboardAction
                     AdminPermission::MarketingManage->value,
                 ],
             ],
+            [
+                'key' => 'reconciliation',
+                'label' => 'Data Issues & Reconciliation',
+                'permissions' => [
+                    AdminPermission::ReconciliationView->value,
+                ],
+            ],
         ];
     }
 

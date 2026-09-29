@@ -71,6 +71,7 @@ use App\Contracts\Upload\Repositories\UploadRepositoryInterface;
 use App\Contracts\Upload\Services\UploadServiceInterface;
 use App\Models\BeforeAfterItem;
 use App\Models\Booking;
+use App\Models\Employee;
 use App\Models\Faq;
 use App\Models\HeroBanner;
 use App\Models\Payment;
@@ -180,6 +181,7 @@ use App\Services\Upload\UploadService;
 use App\Support\Customer\CustomerCodeGenerator;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -402,6 +404,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Stable morph type string for the Data Issues & Reconciliation
+        // Center's affected-records link — never the raw class name, so a
+        // future namespace change can't silently orphan stored
+        // data_issue_affected_records rows. Non-enforcing: other existing
+        // polymorphic relations in the app keep using their raw class name.
+        Relation::morphMap([
+            'employee' => Employee::class,
+        ]);
+
         $observer = $this->app->make(CustomerCommercialActivityObserver::class);
         Booking::observe($observer);
         Quotation::observe($observer);
