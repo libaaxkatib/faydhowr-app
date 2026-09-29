@@ -11,6 +11,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAdvance;
 use App\Models\EmployeeAttendance;
 use App\Models\EmployeeCategory;
+use App\Models\EmployeeHistoricalCompletion;
 use App\Models\EmployeePayment;
 use App\Models\EmployeePenalty;
 use App\Models\TemporaryReplacement;
@@ -71,6 +72,19 @@ class GetHrDashboardAction
             'need_practical' => (int) ($pipelineCounts[EmployeePipelineStage::NeedPractical->value] ?? 0),
             'practical_repeat' => (int) ($pipelineCounts[EmployeePipelineStage::PracticalRepeat->value] ?? 0),
             'rejected' => (int) ($pipelineCounts[EmployeePipelineStage::Rejected->value] ?? 0),
+            // Historical Rejected (Issue #7) — the people migrated from the CANCELED
+            // sheet / RED REGISTRATION rows. Deliberately never overlaps with
+            // 'rejected' above (a live pipeline_stage outcome) — see
+            // ListEmployeesAction::handle's 'historical_rejected' filter for the
+            // same marker check.
+            'historical_rejected' => Employee::query()
+                ->whereHas('separations', fn ($q) => $q->where('notes', 'like', '%Migrated cancellation from Excel HR workbook%'))
+                ->count(),
+            // Historical HR completion (Issue #12) — reporting only, distinct from
+            // every live pipeline_stage count above. See employee_historical_completions.
+            'historical_completion_employees' => (int) EmployeeHistoricalCompletion::query()
+                ->distinct('employee_id')
+                ->count('employee_id'),
             'open_workforce_requests' => WorkforceRequest::query()
                 ->whereIn('status', [WorkforceRequestStatus::Open, WorkforceRequestStatus::PartiallyFilled])
                 ->count(),

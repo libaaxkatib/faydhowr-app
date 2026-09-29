@@ -27,6 +27,7 @@ class GetEmployeeAction
             'contracts.signedDocument',
             'uniform.confirmedBy',
             'separations.separatedBy',
+            'historicalCompletions',
             'attendances.recordedBy',
             'leaves.recordedBy',
             'performanceReviews.reviewedBy',

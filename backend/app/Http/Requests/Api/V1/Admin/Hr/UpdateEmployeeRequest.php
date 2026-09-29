@@ -31,6 +31,8 @@ class UpdateEmployeeRequest extends FormRequest
             'marital_status' => ['sometimes', 'nullable', 'string', 'max:50'],
             'lives_with' => ['sometimes', 'nullable', 'string', 'max:150'],
             'reference_name' => ['sometimes', 'nullable', 'string', 'max:150'],
+            'secondary_contact_name' => ['sometimes', 'nullable', 'string', 'max:150'],
+            'secondary_contact_phone' => ['sometimes', 'nullable', 'string', 'max:40'],
             'employee_category_id' => ['sometimes', 'integer', 'exists:employee_categories,id'],
             'category_specialization' => ['sometimes', 'nullable', 'string', 'max:60'],
             'department_id' => ['sometimes', 'nullable', 'integer', 'exists:departments,id'],

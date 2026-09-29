@@ -32,6 +32,8 @@ const emptyForm = {
   marital_status: '',
   lives_with: '',
   reference_name: '',
+  secondary_contact_name: '',
+  secondary_contact_phone: '',
   employee_category_id: '',
   category_specialization: '',
   department_id: '',
@@ -71,6 +73,8 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
               marital_status: employee.marital_status ?? '',
               lives_with: employee.lives_with ?? '',
               reference_name: employee.reference_name ?? '',
+              secondary_contact_name: employee.secondary_contact_name ?? '',
+              secondary_contact_phone: employee.secondary_contact_phone ?? '',
               employee_category_id: String(employee.employee_category_id),
               category_specialization: employee.category_specialization ?? '',
               department_id: employee.department_id ? String(employee.department_id) : '',
@@ -101,6 +105,8 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
           marital_status: form.marital_status || null,
           lives_with: form.lives_with || null,
           reference_name: form.reference_name || null,
+          secondary_contact_name: form.secondary_contact_name || null,
+          secondary_contact_phone: form.secondary_contact_phone || null,
           employee_category_id: Number(form.employee_category_id),
           department_id: form.department_id ? Number(form.department_id) : null,
           position_id: form.position_id ? Number(form.position_id) : null,
@@ -124,6 +130,8 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
         marital_status: form.marital_status || null,
         lives_with: form.lives_with || null,
         reference_name: form.reference_name || null,
+        secondary_contact_name: form.secondary_contact_name || null,
+        secondary_contact_phone: form.secondary_contact_phone || null,
         employee_category_id: Number(form.employee_category_id),
         category_specialization: form.category_specialization || null,
         department_id: form.department_id ? Number(form.department_id) : null,
@@ -192,11 +200,20 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Alternate contact" htmlFor="alternate_phone" error={fieldErrors.alternate_phone?.[0]}>
+          <FormField label="Alternate phone (employee's own)" htmlFor="alternate_phone" error={fieldErrors.alternate_phone?.[0]}>
             <input id="alternate_phone" className={inputClasses} value={form.alternate_phone} onChange={(e) => setForm({ ...form, alternate_phone: e.target.value })} />
           </FormField>
           <FormField label="Reference / guarantor name" htmlFor="reference_name" error={fieldErrors.reference_name?.[0]}>
             <input id="reference_name" className={inputClasses} value={form.reference_name} onChange={(e) => setForm({ ...form, reference_name: e.target.value })} />
+          </FormField>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Secondary/emergency contact name" htmlFor="secondary_contact_name" error={fieldErrors.secondary_contact_name?.[0]}>
+            <input id="secondary_contact_name" className={inputClasses} value={form.secondary_contact_name} onChange={(e) => setForm({ ...form, secondary_contact_name: e.target.value })} />
+          </FormField>
+          <FormField label="Secondary/emergency contact phone" htmlFor="secondary_contact_phone" error={fieldErrors.secondary_contact_phone?.[0]}>
+            <input id="secondary_contact_phone" className={inputClasses} value={form.secondary_contact_phone} onChange={(e) => setForm({ ...form, secondary_contact_phone: e.target.value })} />
           </FormField>
         </div>
 

@@ -66,6 +66,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Need Practical', to: '/hr/pipeline/practical', icon: 'eye' },
       { label: 'Practical Repeat', to: '/hr/pipeline/practical-repeat', icon: 'refresh' },
       { label: 'Rejected', to: '/hr/pipeline/rejected', icon: 'x' },
+      { label: 'Rejected (Historical)', to: '/hr/pipeline/rejected-historical', icon: 'x' },
       { label: 'Waiting', to: '/hr/waiting', icon: 'calendar' },
       { label: 'Workforce Requests', to: '/hr/workforce-requests', icon: 'briefcase' },
       { label: 'Training Batches', to: '/hr/training-batches', icon: 'list' },

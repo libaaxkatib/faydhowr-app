@@ -37,6 +37,8 @@ class StoreEmployeeRequest extends FormRequest
             'marital_status' => ['nullable', 'string', 'max:50'],
             'lives_with' => ['nullable', 'string', 'max:150'],
             'reference_name' => ['nullable', 'string', 'max:150'],
+            'secondary_contact_name' => ['nullable', 'string', 'max:150'],
+            'secondary_contact_phone' => ['nullable', 'string', 'max:40'],
             'employee_category_id' => ['required', 'integer', 'exists:employee_categories,id'],
             'department_id' => ['nullable', 'integer', 'exists:departments,id'],
             'position_id' => ['nullable', 'integer', 'exists:positions,id'],

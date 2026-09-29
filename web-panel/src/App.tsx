@@ -63,7 +63,7 @@ export default function App() {
         <Route path="/hr/employees/:id" element={<EmployeeDetailPage />} />
         <Route
           path="/hr/pipeline/damiin"
-          element={<EmployeesListPage fixedPipelineStage="damiin_needed" title="Damiin Needed" breadcrumbLabel="Damiin Needed" />}
+          element={<EmployeesListPage filterDamiinActive title="Damiin Needed" breadcrumbLabel="Damiin Needed" />}
         />
         <Route
           path="/hr/pipeline/contracts"
@@ -88,6 +88,10 @@ export default function App() {
         <Route
           path="/hr/pipeline/rejected"
           element={<EmployeesListPage fixedPipelineStage="rejected" title="Rejected" breadcrumbLabel="Rejected" />}
+        />
+        <Route
+          path="/hr/pipeline/rejected-historical"
+          element={<EmployeesListPage filterHistoricalRejected title="Rejected (Historical)" breadcrumbLabel="Rejected (Historical)" />}
         />
         <Route path="/hr/waiting" element={<WaitingQueuePage />} />
         <Route path="/hr/workforce-requests" element={<WorkforceRequestsPage />} />

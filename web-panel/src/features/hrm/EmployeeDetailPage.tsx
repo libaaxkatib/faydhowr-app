@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { hrApi } from '@/api/hr';
@@ -105,6 +105,14 @@ const DECISION_OPTIONS: { value: PracticalDecision; label: string; tone: 'succes
 export function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const employeeId = Number(id);
+  const navigate = useNavigate();
+  const location = useLocation();
+  // Issue #10: return to wherever the HR user actually opened this record from
+  // (Need Training, Damiin, Waiting, etc.) instead of always the generic
+  // Employees list. Falls back to the generic list for a direct/deep link.
+  const origin = location.state as { fromPath?: string; fromLabel?: string } | null;
+  const fromPath = origin?.fromPath ?? '/hr/employees';
+  const fromLabel = origin?.fromLabel ?? 'Employees';
   const queryClient = useQueryClient();
   const { show } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -370,16 +378,22 @@ export function EmployeeDetailPage() {
         title={employee.full_name}
         breadcrumb={[
           { label: 'Human Resources', to: '/hr' },
-          { label: 'Employees', to: '/hr/employees' },
+          { label: fromLabel, to: fromPath },
           { label: employee.employee_number },
         ]}
         actions={
-          <PermissionGate module="hr">
-            <Button variant="outline" size="sm" onClick={() => setIsEditOpen(true)}>
-              <Icon name="pencil" size={14} />
-              Edit
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate(fromPath)}>
+              <Icon name="chevron-left" size={14} />
+              Back to {fromLabel}
             </Button>
-          </PermissionGate>
+            <PermissionGate module="hr">
+              <Button variant="outline" size="sm" onClick={() => setIsEditOpen(true)}>
+                <Icon name="pencil" size={14} />
+                Edit
+              </Button>
+            </PermissionGate>
+          </div>
         }
       />
 
@@ -392,7 +406,7 @@ export function EmployeeDetailPage() {
                 <StatusBadge status={employee.pipeline_stage} label={PIPELINE_STAGE_LABELS[employee.pipeline_stage]} tone={employee.pipeline_stage === 'rejected' ? 'danger' : 'warning'} />
               )}
               {employee.is_supervisor && <StatusBadge status="supervisor" label="Supervisor Pool" tone="info" />}
-              {employee.guarantor_needed && <StatusBadge status="damiin-needed" label="Damiin Needed" tone="danger" />}
+              {employee.guarantor_needed && !employee.damiin_completed && <StatusBadge status="damiin-needed" label="Damiin Needed" tone="danger" />}
               {employee.profile_complete ? (
                 <StatusBadge status="profile-complete" label="Profile Complete" tone="success" />
               ) : (
@@ -436,13 +450,15 @@ export function EmployeeDetailPage() {
 
             <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
               <Field label="Phone" value={employee.phone ?? '—'} />
-              <Field label="Alternate contact" value={employee.alternate_phone ?? '—'} />
+              <Field label="Alternate phone (employee's own)" value={employee.alternate_phone ?? '—'} />
               <Field label="Location" value={employee.location ?? '—'} />
-              <Field label="Gender" value={employee.gender ? employee.gender[0].toUpperCase() + employee.gender.slice(1) : '—'} />
+              <Field label="Gender" value={employee.gender ? employee.gender[0].toUpperCase() + employee.gender.slice(1) : 'Not recorded'} />
               <Field label="Age" value={employee.age?.toString() ?? '—'} />
               <Field label="Marital status" value={employee.marital_status ?? '—'} />
               <Field label="Lives with" value={employee.lives_with ?? '—'} />
               <Field label="Reference / guarantor" value={employee.reference_name ?? '—'} />
+              <Field label="Secondary/emergency contact name" value={employee.secondary_contact_name ?? '—'} />
+              <Field label="Secondary/emergency contact phone" value={employee.secondary_contact_phone ?? '—'} />
               <Field label="Category" value={employee.employee_category_name ?? '—'} />
               <Field label="Category specialization" value={employee.category_specialization ?? '—'} />
               <Field label="Department" value={employee.department_name ?? '—'} />
@@ -831,7 +847,7 @@ export function EmployeeDetailPage() {
             <CardHeader>
               <h3 className="font-display text-sm font-bold text-ink">Damiin / Guarantor</h3>
               <div className="flex items-center gap-2">
-                {employee.guarantor_needed && !employee.guarantor?.verified_at && <StatusBadge status="damiin-needed" label="Needed" tone="danger" />}
+                {employee.guarantor_needed && !employee.damiin_completed && <StatusBadge status="damiin-needed" label="Needed" tone="danger" />}
                 {employee.guarantor?.verified_at && <StatusBadge status="verified" tone="success" />}
               </div>
             </CardHeader>
@@ -847,7 +863,7 @@ export function EmployeeDetailPage() {
                 <EmptyState icon="users" title="No guarantor information recorded." />
               )}
               <PermissionGate module="hr">
-                {!employee.guarantor?.verified_at && employee.pipeline_stage === 'damiin_needed' && (
+                {!employee.guarantor?.verified_at && (employee.guarantor_needed || employee.pipeline_stage === 'damiin_needed') && (
                   <div className="space-y-2 border-t border-border pt-3">
                     <input placeholder="Guarantor name" className={inputClasses} value={guarantorForm.guarantor_name} onChange={(e) => setGuarantorForm({ ...guarantorForm, guarantor_name: e.target.value })} />
                     <input placeholder="Guarantor phone" className={inputClasses} value={guarantorForm.guarantor_phone} onChange={(e) => setGuarantorForm({ ...guarantorForm, guarantor_phone: e.target.value })} />
@@ -931,6 +947,33 @@ export function EmployeeDetailPage() {
             </CardBody>
           </Card>
       </div>
+
+      {employee.historical_completions && employee.historical_completions.length > 0 && (
+        <div className="mt-4">
+          <Card className="border-secondary/30 bg-secondary-soft/40">
+            <CardHeader>
+              <h3 className="font-display text-sm font-bold text-ink">Historical HR Completion</h3>
+              <span className="rounded-full bg-secondary-soft px-2.5 py-1 text-xs font-semibold text-secondary">Historical — not live workflow</span>
+            </CardHeader>
+            <CardBody>
+              <p className="mb-3 text-xs text-ink-muted">
+                Recorded from Excel HR migration evidence, not a current operational queue. This never affects live status, pipeline
+                stage, or the active Damiin/Contract/Uniform/Training/Practical/Waiting workflow.
+              </p>
+              <ul className="space-y-1.5 text-sm">
+                {employee.historical_completions.map((completion) => (
+                  <li key={completion.id} className="flex items-center gap-2 text-ink">
+                    <Icon name="check" size={14} className="text-secondary" />
+                    <span className="font-medium capitalize">{completion.stage}</span>
+                    <span className="text-ink-muted">— Completed Historically</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-xs text-ink-faint">Source: {employee.historical_completions[0]?.source_reference ?? 'Excel Migration'}</p>
+            </CardBody>
+          </Card>
+        </div>
+      )}
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>

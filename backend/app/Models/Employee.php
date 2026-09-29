@@ -24,6 +24,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'marital_status',
     'lives_with',
     'reference_name',
+    'secondary_contact_name',
+    'secondary_contact_phone',
     'gender',
     'profile_picture_document_id',
     'employee_category_id',
@@ -149,6 +151,11 @@ class Employee extends Model
     public function separations(): HasMany
     {
         return $this->hasMany(EmployeeSeparation::class)->latest('separation_date');
+    }
+
+    public function historicalCompletions(): HasMany
+    {
+        return $this->hasMany(EmployeeHistoricalCompletion::class);
     }
 
     public function latestSeparation(): HasOne

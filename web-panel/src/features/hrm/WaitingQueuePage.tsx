@@ -111,7 +111,11 @@ export function WaitingQueuePage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          onRowClick={(employee) => navigate(`/hr/employees/${employee.id}`)}
+          onRowClick={(employee) =>
+            navigate(`/hr/employees/${employee.id}`, {
+              state: { fromPath: `${window.location.pathname}${window.location.search}`, fromLabel: 'Waiting' },
+            })
+          }
           emptyTitle="No one is waiting"
           emptyDescription="Employees appear here once Practical is Approved."
         />

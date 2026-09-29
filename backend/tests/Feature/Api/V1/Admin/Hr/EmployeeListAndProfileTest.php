@@ -8,6 +8,9 @@ use App\Models\Admin;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeCategory;
+use App\Models\EmployeeDocument;
+use App\Models\EmployeeDocumentCategory;
+use App\Models\EmployeeGuarantor;
 use App\Models\Permission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -360,5 +363,210 @@ class EmployeeListAndProfileTest extends TestCase
             ->putJson("/api/v1/admin/hr/employees/{$employee->id}", ['application_date' => '2026-01-15'])
             ->assertOk()
             ->assertJsonPath('data.application_date', '2026-01-15');
+    }
+
+    // --- damiin_completed (computed) and the damiin_active queue filter ---
+    // Deliberately NOT the generic guarantor_needed filter, which must keep
+    // showing the raw historical migration population unfiltered.
+
+    private function addGuarantor(Employee $employee, bool $verified): void
+    {
+        EmployeeGuarantor::query()->create([
+            'employee_id' => $employee->id,
+            'guarantor_name' => 'Test Guarantor',
+            'guarantor_phone' => '615000000',
+            'verified_at' => $verified ? now() : null,
+        ]);
+    }
+
+    private function addGuarantorDocument(Employee $employee, bool $verified, string $categoryName = 'Guarantor Documents'): void
+    {
+        $admin = Admin::factory()->create();
+        $category = EmployeeDocumentCategory::query()->firstOrCreate(['name' => $categoryName]);
+
+        EmployeeDocument::query()->create([
+            'employee_id' => $employee->id,
+            'admin_id' => $admin->id,
+            'employee_document_category_id' => $category->id,
+            'file_name' => 'id.pdf',
+            'file_type' => 'application/pdf',
+            'file_size' => 100,
+            'file_path' => 'employees/'.$employee->id.'/documents/id.pdf',
+            'verification_status' => $verified ? 'verified' : 'pending',
+            'is_current' => true,
+        ]);
+    }
+
+    public function test_damiin_completed_is_false_when_neither_guarantor_nor_document_is_verified(): void
+    {
+        $token = $this->actingToken();
+        $employee = $this->makeEmployee(['guarantor_needed' => true]);
+
+        $this->withToken($token)->getJson("/api/v1/admin/hr/employees/{$employee->id}")
+            ->assertOk()
+            ->assertJsonPath('data.damiin_completed', false);
+    }
+
+    public function test_damiin_completed_is_false_when_only_guarantor_is_verified(): void
+    {
+        $token = $this->actingToken();
+        $employee = $this->makeEmployee(['guarantor_needed' => true]);
+        $this->addGuarantor($employee, verified: true);
+
+        $this->withToken($token)->getJson("/api/v1/admin/hr/employees/{$employee->id}")
+            ->assertOk()
+            ->assertJsonPath('data.damiin_completed', false);
+    }
+
+    public function test_damiin_completed_is_false_when_only_document_is_verified(): void
+    {
+        $token = $this->actingToken();
+        $employee = $this->makeEmployee(['guarantor_needed' => true]);
+        $this->addGuarantorDocument($employee, verified: true);
+
+        $this->withToken($token)->getJson("/api/v1/admin/hr/employees/{$employee->id}")
+            ->assertOk()
+            ->assertJsonPath('data.damiin_completed', false);
+    }
+
+    public function test_damiin_completed_is_true_only_when_both_guarantor_and_document_are_verified(): void
+    {
+        $token = $this->actingToken();
+        $employee = $this->makeEmployee(['guarantor_needed' => true]);
+        $this->addGuarantor($employee, verified: true);
+        $this->addGuarantorDocument($employee, verified: true);
+
+        $this->withToken($token)->getJson("/api/v1/admin/hr/employees/{$employee->id}")
+            ->assertOk()
+            ->assertJsonPath('data.damiin_completed', true);
+    }
+
+    public function test_damiin_completed_is_false_when_document_is_verified_but_in_the_wrong_category(): void
+    {
+        $token = $this->actingToken();
+        $employee = $this->makeEmployee(['guarantor_needed' => true]);
+        $this->addGuarantor($employee, verified: true);
+        $this->addGuarantorDocument($employee, verified: true, categoryName: 'Identity Documents');
+
+        $this->withToken($token)->getJson("/api/v1/admin/hr/employees/{$employee->id}")
+            ->assertOk()
+            ->assertJsonPath('data.damiin_completed', false);
+    }
+
+    public function test_damiin_active_queue_excludes_completed_employees(): void
+    {
+        $token = $this->actingToken();
+        $incomplete = $this->makeEmployee(['guarantor_needed' => true, 'full_name' => 'Incomplete Person']);
+        $complete = $this->makeEmployee(['guarantor_needed' => true, 'full_name' => 'Complete Person']);
+        $this->addGuarantor($complete, verified: true);
+        $this->addGuarantorDocument($complete, verified: true);
+        $this->makeEmployee(['guarantor_needed' => false, 'full_name' => 'Never Needed Person']);
+
+        $response = $this->withToken($token)->getJson('/api/v1/admin/hr/employees?damiin_active=true')->assertOk();
+
+        $names = array_column($response->json('data'), 'full_name');
+        self::assertContains('Incomplete Person', $names);
+        self::assertNotContains('Complete Person', $names);
+        self::assertNotContains('Never Needed Person', $names);
+    }
+
+    public function test_damiin_active_queue_keeps_employees_with_only_one_of_the_two_conditions_met(): void
+    {
+        $token = $this->actingToken();
+        $guarantorOnly = $this->makeEmployee(['guarantor_needed' => true, 'full_name' => 'Guarantor Only Person']);
+        $this->addGuarantor($guarantorOnly, verified: true);
+        $documentOnly = $this->makeEmployee(['guarantor_needed' => true, 'full_name' => 'Document Only Person']);
+        $this->addGuarantorDocument($documentOnly, verified: true);
+
+        $response = $this->withToken($token)->getJson('/api/v1/admin/hr/employees?damiin_active=true')->assertOk();
+
+        $names = array_column($response->json('data'), 'full_name');
+        self::assertContains('Guarantor Only Person', $names);
+        self::assertContains('Document Only Person', $names);
+    }
+
+    public function test_generic_guarantor_needed_filter_still_shows_completed_employees(): void
+    {
+        $token = $this->actingToken();
+        $complete = $this->makeEmployee(['guarantor_needed' => true, 'full_name' => 'Completed But Historical']);
+        $this->addGuarantor($complete, verified: true);
+        $this->addGuarantorDocument($complete, verified: true);
+
+        $response = $this->withToken($token)->getJson('/api/v1/admin/hr/employees?guarantor_needed=true')->assertOk();
+
+        $names = array_column($response->json('data'), 'full_name');
+        self::assertContains('Completed But Historical', $names);
+    }
+
+    // --- Issue #7: Historical Rejected (CANCELED sheet / RED REGISTRATION) ---
+
+    public function test_is_historical_rejected_is_true_for_a_migrated_cancellation(): void
+    {
+        $token = $this->actingToken();
+        $employee = $this->makeEmployee(['status' => 'inactive', 'full_name' => 'Historically Cancelled Person']);
+        $employee->separations()->create([
+            'reason' => 'other',
+            'separation_date' => null,
+            'notes' => 'Migrated cancellation from Excel HR workbook (RED fill in REGISTRATION (row 9)).',
+        ]);
+
+        $this->withToken($token)->getJson("/api/v1/admin/hr/employees/{$employee->id}")
+            ->assertOk()
+            ->assertJsonPath('data.is_historical_rejected', true);
+    }
+
+    public function test_is_historical_rejected_is_false_for_a_live_workflow_separation(): void
+    {
+        $token = $this->actingToken();
+        $employee = $this->makeEmployee(['status' => 'inactive', 'full_name' => 'Live Separated Person']);
+        $employee->separations()->create([
+            'reason' => 'other',
+            'separation_date' => now(),
+            'notes' => 'Resigned voluntarily.',
+        ]);
+
+        $this->withToken($token)->getJson("/api/v1/admin/hr/employees/{$employee->id}")
+            ->assertOk()
+            ->assertJsonPath('data.is_historical_rejected', false);
+    }
+
+    public function test_is_historical_rejected_is_false_for_an_employee_with_no_separation(): void
+    {
+        $token = $this->actingToken();
+        $employee = $this->makeEmployee(['full_name' => 'Never Separated Person']);
+
+        $this->withToken($token)->getJson("/api/v1/admin/hr/employees/{$employee->id}")
+            ->assertOk()
+            ->assertJsonPath('data.is_historical_rejected', false);
+    }
+
+    public function test_historical_rejected_filter_never_overlaps_with_live_pipeline_rejected(): void
+    {
+        $token = $this->actingToken();
+
+        $historical = $this->makeEmployee(['status' => 'inactive', 'full_name' => 'Historical Rejected Person']);
+        $historical->separations()->create([
+            'reason' => 'other',
+            'separation_date' => null,
+            'notes' => 'Migrated cancellation from Excel HR workbook (CANCELED sheet (row 12)).',
+        ]);
+
+        $liveRejected = $this->makeEmployee([
+            'status' => 'inactive',
+            'pipeline_stage' => 'rejected',
+            'full_name' => 'Live Rejected Person',
+        ]);
+
+        $historicalResponse = $this->withToken($token)
+            ->getJson('/api/v1/admin/hr/employees?historical_rejected=true')->assertOk();
+        $historicalNames = array_column($historicalResponse->json('data'), 'full_name');
+        self::assertContains('Historical Rejected Person', $historicalNames);
+        self::assertNotContains('Live Rejected Person', $historicalNames);
+
+        $liveResponse = $this->withToken($token)
+            ->getJson('/api/v1/admin/hr/employees?pipeline_stage=rejected')->assertOk();
+        $liveNames = array_column($liveResponse->json('data'), 'full_name');
+        self::assertContains('Live Rejected Person', $liveNames);
+        self::assertNotContains('Historical Rejected Person', $liveNames);
     }
 }

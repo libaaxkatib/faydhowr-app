@@ -9,7 +9,13 @@ class ListEmployeesAction
 {
     public function handle(array $filters): LengthAwarePaginator
     {
-        $query = Employee::query()->with(['category', 'department', 'position', 'activeWorkAssignments.workLocation.clientCompany']);
+        $query = Employee::query()->with([
+            'category', 'department', 'position', 'activeWorkAssignments.workLocation.clientCompany',
+            // Needed for EmployeeResource::damiin_completed on every row, not just when filtered.
+            'guarantor', 'documents.category',
+            // Needed for EmployeeResource::is_historical_rejected on every row — see Issue #7.
+            'separations',
+        ]);
 
         if (($filters['status'] ?? null) === 'waiting') {
             $query->with('workforceRequestMatches');
@@ -68,8 +74,37 @@ class ListEmployeesAction
             $query->where('profile_complete', $filters['profile_complete']);
         }
 
+        // The generic "Damiin: Yes/No" filter — deliberately unchanged. It shows the
+        // raw historical guarantor_needed population for audit/reporting, including
+        // employees who have since completed the Damiin requirement.
         if (array_key_exists('guarantor_needed', $filters)) {
             $query->where('guarantor_needed', $filters['guarantor_needed']);
+        }
+
+        // The dedicated "Damiin Needed" active-work-queue filter — a different
+        // question from the one above: guarantor_needed=true AND NOT damiin_completed
+        // (guarantor verified AND at least one verified "Guarantor Documents" upload).
+        // Never touches guarantor_needed itself.
+        if (! empty($filters['damiin_active'])) {
+            $query->where('guarantor_needed', true)->where(function ($q) {
+                $q->whereDoesntHave('guarantor', fn ($g) => $g->whereNotNull('verified_at'))
+                    ->orWhereDoesntHave('documents', function ($d) {
+                        $d->where('verification_status', 'verified')
+                            ->whereHas('category', fn ($c) => $c->where('name', 'Guarantor Documents'));
+                    });
+            });
+        }
+
+        // Historical Rejected (Issue #7) — the 598 people migrated from the CANCELED
+        // sheet / RED REGISTRATION rows. Deliberately NEVER pipeline_stage='rejected'
+        // (that's the live workflow's own outcome, set only by RecordPracticalDecisionAction)
+        // — this filters on the existing EmployeeSeparation migration marker instead, so it
+        // can never collide with or be confused for a live-workflow rejection.
+        if (! empty($filters['historical_rejected'])) {
+            $query->whereHas(
+                'separations',
+                fn ($q) => $q->where('notes', 'like', '%Migrated cancellation from Excel HR workbook%'),
+            );
         }
 
         if (! empty($filters['application_date_from'])) {

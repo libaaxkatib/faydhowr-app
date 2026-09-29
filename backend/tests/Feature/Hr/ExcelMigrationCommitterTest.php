@@ -74,6 +74,44 @@ class ExcelMigrationCommitterTest extends TestCase
         self::assertSame(EmployeeStatus::Applicant, $history->to_status);
     }
 
+    public function test_secondary_contact_is_written_to_dedicated_columns_not_appended_to_notes(): void
+    {
+        $report = new ExcelMigrationReport;
+        $report->readyToImport = [
+            $this->buildPerson([
+                'normalizedPhone' => '615000888',
+                'fullName' => 'Has Secondary Contact',
+                'secondaryContactName' => 'Hooyo Muna',
+                'secondaryContactPhone' => '616605866',
+            ]),
+        ];
+
+        app(ExcelMigrationCommitter::class)->commit($report, null, 'x.xlsx');
+
+        $employee = Employee::query()->sole();
+        self::assertSame('Hooyo Muna', $employee->secondary_contact_name);
+        self::assertSame('616605866', $employee->secondary_contact_phone);
+        self::assertStringNotContainsString('Secondary/emergency contact', $employee->notes);
+        self::assertStringNotContainsString('616605866', $employee->notes);
+    }
+
+    public function test_person_without_secondary_contact_gets_null_dedicated_columns(): void
+    {
+        $report = new ExcelMigrationReport;
+        $report->readyToImport = [
+            $this->buildPerson([
+                'normalizedPhone' => '615000999',
+                'fullName' => 'No Secondary Contact',
+            ]),
+        ];
+
+        app(ExcelMigrationCommitter::class)->commit($report, null, 'x.xlsx');
+
+        $employee = Employee::query()->sole();
+        self::assertNull($employee->secondary_contact_name);
+        self::assertNull($employee->secondary_contact_phone);
+    }
+
     public function test_person_with_no_reliable_phone_is_written_with_null_phone_not_the_sentinel(): void
     {
         $report = new ExcelMigrationReport;

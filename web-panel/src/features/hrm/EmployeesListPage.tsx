@@ -54,6 +54,25 @@ interface EmployeesListPageProps {
   filterIsSupervisor?: boolean;
   /** When set (Office Staff nav entry), locks the list to employees with an active office work assignment. */
   filterOfficeOnly?: boolean;
+  /**
+   * When set (Damiin Needed nav entry), locks the list to the active-work-queue
+   * definition: guarantor_needed=true AND damiin_completed=false. Deliberately
+   * NOT the same as the generic "Damiin: Yes" filter (guarantor_needed alone,
+   * see the interactive `guarantorNeeded` state below) — that one intentionally
+   * keeps showing the full historical population for audit/reporting even after
+   * someone completes Damiin. Also deliberately NOT pipeline_stage='damiin_needed'
+   * — that's a separate, pre-Excel-migration workflow value, independent of
+   * guarantor_needed, with 0 migrated employees on it.
+   */
+  filterDamiinActive?: boolean;
+  /**
+   * When set (Rejected (Historical) nav entry), locks the list to employees
+   * migrated from the CANCELED sheet / RED REGISTRATION rows — see Issue #7.
+   * Deliberately NOT pipeline_stage='rejected' (the live workflow's own
+   * outcome from RecordPracticalDecisionAction) — the two never overlap and
+   * must never be shown as the same thing.
+   */
+  filterHistoricalRejected?: boolean;
   title?: string;
   breadcrumbLabel?: string;
 }
@@ -63,6 +82,8 @@ export function EmployeesListPage({
   fixedPipelineStage,
   filterIsSupervisor,
   filterOfficeOnly,
+  filterDamiinActive,
+  filterHistoricalRejected,
   title = 'Employees',
   breadcrumbLabel = 'Employees',
 }: EmployeesListPageProps) {
@@ -84,8 +105,13 @@ export function EmployeesListPage({
   const debouncedSearch = useDebouncedValue(search);
   const debouncedLocation = useDebouncedValue(location);
   const effectiveStatus = fixedStatus ?? (status || undefined);
-  const isLockedNavView = Boolean(fixedStatus || fixedPipelineStage || filterIsSupervisor || filterOfficeOnly);
+  const isLockedNavView = Boolean(
+    fixedStatus || fixedPipelineStage || filterIsSupervisor || filterOfficeOnly || filterDamiinActive || filterHistoricalRejected,
+  );
   const effectiveIsSupervisor = filterIsSupervisor ?? (isSupervisorFilter === '' ? undefined : isSupervisorFilter === 'true');
+  // Deliberately independent of filterDamiinActive — this is the generic "Damiin:
+  // Yes/No" dropdown's own raw guarantor_needed filter, unaffected by the queue.
+  const effectiveGuarantorNeeded = guarantorNeeded === '' ? undefined : guarantorNeeded === 'true';
 
   const { data: categories } = useQuery({ queryKey: ['employee-categories'], queryFn: hrApi.employeeCategories.list });
   const { data: departments } = useQuery({ queryKey: ['departments'], queryFn: hrApi.departments.list });
@@ -103,7 +129,9 @@ export function EmployeesListPage({
         is_supervisor: effectiveIsSupervisor,
         office_only: filterOfficeOnly,
         profile_complete: profileComplete,
-        guarantor_needed: guarantorNeeded,
+        guarantor_needed: effectiveGuarantorNeeded,
+        damiin_active: filterDamiinActive,
+        historical_rejected: filterHistoricalRejected,
         application_date_from: applicationDateFrom,
         application_date_to: applicationDateTo,
         joining_date_from: joiningDateFrom,
@@ -122,7 +150,9 @@ export function EmployeesListPage({
         is_supervisor: effectiveIsSupervisor,
         office_only: filterOfficeOnly || undefined,
         profile_complete: profileComplete === '' ? undefined : profileComplete === 'true',
-        guarantor_needed: guarantorNeeded === '' ? undefined : guarantorNeeded === 'true',
+        guarantor_needed: effectiveGuarantorNeeded,
+        damiin_active: filterDamiinActive || undefined,
+        historical_rejected: filterHistoricalRejected || undefined,
         application_date_from: applicationDateFrom || undefined,
         application_date_to: applicationDateTo || undefined,
         joining_date_from: joiningDateFrom || undefined,
@@ -138,6 +168,16 @@ export function EmployeesListPage({
       setter(value);
       setPage(1);
     };
+  }
+
+  // Issue #10: Employee Detail should be able to return to wherever the HR user
+  // actually came from (Need Training, Damiin, Waiting, etc.), not always the
+  // generic Employees list. Carried via router state rather than the URL, since
+  // this page's own filters live in component state, not query params.
+  function goToEmployee(employeeId: number) {
+    navigate(`/hr/employees/${employeeId}`, {
+      state: { fromPath: `${window.location.pathname}${window.location.search}`, fromLabel: breadcrumbLabel },
+    });
   }
 
   const columns = useMemo<ColumnDef<Employee, unknown>[]>(
@@ -171,6 +211,15 @@ export function EmployeesListPage({
         header: 'Department',
         accessorKey: 'department_name',
         cell: ({ row }) => <span className="text-ink">{row.original.department_name ?? '—'}</span>,
+      },
+      {
+        header: 'Gender',
+        accessorKey: 'gender',
+        cell: ({ row }) => (
+          <span className="text-ink">
+            {row.original.gender ? row.original.gender[0].toUpperCase() + row.original.gender.slice(1) : 'Not recorded'}
+          </span>
+        ),
       },
       {
         header: 'Phone',
@@ -240,7 +289,7 @@ export function EmployeesListPage({
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              navigate(`/hr/employees/${row.original.id}`);
+              goToEmployee(row.original.id);
             }}
             className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary"
           >
@@ -268,6 +317,14 @@ export function EmployeesListPage({
           ) : undefined
         }
       />
+
+      {filterHistoricalRejected && (
+        <div className="mb-4 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-ink-muted">
+          These employees were migrated as already cancelled/rejected from historical Excel records (CANCELED sheet / RED
+          REGISTRATION rows). This list is separate from the live recruitment workflow's own <strong>Rejected</strong> queue and
+          never affects it.
+        </div>
+      )}
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
@@ -374,7 +431,7 @@ export function EmployeesListPage({
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          onRowClick={(employee) => navigate(`/hr/employees/${employee.id}`)}
+          onRowClick={(employee) => goToEmployee(employee.id)}
           emptyTitle="No employees found"
           emptyDescription="Try adjusting your search or filters."
         />

@@ -353,6 +353,18 @@ export interface MarkEmployeeSeparatedPayload {
   notes?: string | null;
 }
 
+export type EmployeeHistoricalCompletionStage = 'training' | 'practical' | 'uniform';
+
+/** Issue #12 — historical evidence/context only, never live operational workflow state. */
+export interface EmployeeHistoricalCompletion {
+  id: number;
+  stage: EmployeeHistoricalCompletionStage;
+  source: string;
+  source_reference: string | null;
+  source_notes: string | null;
+  completed_at: string | null;
+}
+
 export type TemporaryReplacementStatus = 'active' | 'ended';
 
 export interface TemporaryReplacementPayment {
@@ -582,6 +594,8 @@ export interface Employee {
   marital_status: string | null;
   lives_with: string | null;
   reference_name: string | null;
+  secondary_contact_name: string | null;
+  secondary_contact_phone: string | null;
   gender: EmployeeGender | null;
   profile_picture_document_id: number | null;
   employee_category_id: number;
@@ -595,8 +609,12 @@ export interface Employee {
   status: EmployeeStatus;
   pipeline_stage: EmployeePipelineStage | null;
   guarantor_confirmed_at: string | null;
-  /** Independent of guarantor_confirmed_at / pipeline_stage - whether this employee currently needs a Damiin/guarantor at all. */
+  /** Historical migration data - the population that originally needed Damiin. Never rewritten when Damiin is completed; see damiin_completed for the active-work-queue state. */
   guarantor_needed: boolean;
+  /** Computed, never stored: true only when the guarantor is verified AND at least one verified "Guarantor Documents" upload exists. */
+  damiin_completed: boolean;
+  /** Computed, never stored: true for the 598 people migrated from the CANCELED sheet / RED REGISTRATION rows. Never the same as pipeline_stage === 'rejected' (the live workflow's own outcome) — see Issue #7. */
+  is_historical_rejected: boolean;
   waiting_since: string | null;
   is_supervisor: boolean;
   supervisor_since: string | null;
@@ -623,6 +641,8 @@ export interface Employee {
   workforce_request_matches_count?: number;
   separations?: EmployeeSeparation[];
   latest_separation?: EmployeeSeparation | null;
+  /** Issue #12 — historical evidence/context only, never live operational workflow state. Empty for anyone without a Green/Waiting List migration source. */
+  historical_completions?: EmployeeHistoricalCompletion[];
   current_salary?: CurrentSalary | null;
   attendances?: EmployeeAttendance[];
   leaves?: EmployeeLeave[];
@@ -645,6 +665,9 @@ export interface ListEmployeesParams {
   office_only?: boolean;
   profile_complete?: boolean;
   guarantor_needed?: boolean;
+  /** The dedicated Damiin Needed active-work-queue filter - distinct from guarantor_needed. */
+  damiin_active?: boolean;
+  historical_rejected?: boolean;
   application_date_from?: string;
   application_date_to?: string;
   joining_date_from?: string;
@@ -663,6 +686,8 @@ export interface CreateEmployeePayload {
   marital_status?: string | null;
   lives_with?: string | null;
   reference_name?: string | null;
+  secondary_contact_name?: string | null;
+  secondary_contact_phone?: string | null;
   employee_category_id: number;
   department_id?: number | null;
   position_id?: number | null;
@@ -701,6 +726,8 @@ export interface HrDashboardData {
   need_practical: number;
   practical_repeat: number;
   rejected: number;
+  historical_rejected: number;
+  historical_completion_employees: number;
   open_workforce_requests: number;
   supervisor_pool_count: number;
   active_temporary_replacements: number;

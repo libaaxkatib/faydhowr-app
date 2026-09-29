@@ -5,14 +5,16 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Approved Fayadhowr brand colors (Issue #11): Primary #0E339B, Secondary
+        // #00B9B3, White #FFFFFF (already matched by surface.DEFAULT below).
         primary: {
-          DEFAULT: '#0E339D',
+          DEFAULT: '#0E339B',
           ink: '#0A2678',
           soft: '#E7ECF9',
         },
         secondary: {
-          DEFAULT: '#0694AC',
-          soft: '#E1F4F7',
+          DEFAULT: '#00B9B3',
+          soft: '#E0F7F5',
         },
         surface: {
           DEFAULT: '#FFFFFF',

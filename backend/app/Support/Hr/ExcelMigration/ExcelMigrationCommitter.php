@@ -106,6 +106,8 @@ final class ExcelMigrationCommitter
                     'experience' => $person->experience,
                     'training_fee_status' => $person->trainingFeeStatus,
                     'source' => $person->source,
+                    'secondary_contact_name' => $person->secondaryContactName,
+                    'secondary_contact_phone' => $person->secondaryContactPhone,
                     'notes' => $this->buildEmployeeNotes($person, $sourceFile),
                     'profile_complete' => false,
                     'created_by' => $actor?->id,
@@ -180,14 +182,6 @@ final class ExcelMigrationCommitter
 
         if ($person->otherInfo !== null) {
             $parts[] = "Other info: {$person->otherInfo}";
-        }
-
-        if ($person->secondaryContactName !== null || $person->secondaryContactPhone !== null) {
-            // CONFIRMED: this is the employee's own secondary/emergency contact, never the
-            // guarantor — see ResolvedPerson::$secondaryContactPhone. No dedicated column
-            // exists for it, so it is preserved here rather than discarded.
-            $parts[] = 'Secondary/emergency contact: '.
-                trim(($person->secondaryContactName ?? '').' '.($person->secondaryContactPhone ?? ''));
         }
 
         if ($person->applicationDateInferred && $person->applicationDateInferenceNote !== null) {

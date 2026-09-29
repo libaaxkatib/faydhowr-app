@@ -40,6 +40,14 @@ class ListEmployeesRequest extends FormRequest
         if ($this->has('guarantor_needed')) {
             $this->merge(['guarantor_needed' => filter_var($this->query('guarantor_needed'), FILTER_VALIDATE_BOOLEAN)]);
         }
+
+        if ($this->has('damiin_active')) {
+            $this->merge(['damiin_active' => filter_var($this->query('damiin_active'), FILTER_VALIDATE_BOOLEAN)]);
+        }
+
+        if ($this->has('historical_rejected')) {
+            $this->merge(['historical_rejected' => filter_var($this->query('historical_rejected'), FILTER_VALIDATE_BOOLEAN)]);
+        }
     }
 
     public function rules(): array
@@ -56,6 +64,8 @@ class ListEmployeesRequest extends FormRequest
             'office_only' => ['sometimes', 'boolean'],
             'profile_complete' => ['sometimes', 'boolean'],
             'guarantor_needed' => ['sometimes', 'boolean'],
+            'damiin_active' => ['sometimes', 'boolean'],
+            'historical_rejected' => ['sometimes', 'boolean'],
             'application_date_from' => ['sometimes', 'date'],
             'application_date_to' => ['sometimes', 'date', 'after_or_equal:application_date_from'],
             'joining_date_from' => ['sometimes', 'date'],

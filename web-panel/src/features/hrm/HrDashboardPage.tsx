@@ -72,6 +72,14 @@ export function HrDashboardPage() {
               <KpiCard label="Need Practical" value={data.need_practical} icon="eye" color="bg-primary" to="/hr/pipeline/practical" />
               <KpiCard label="Practical Repeat" value={data.practical_repeat} icon="refresh" color="bg-warning" to="/hr/pipeline/practical-repeat" />
               <KpiCard label="Rejected" value={data.rejected} icon="x" color="bg-danger" to="/hr/pipeline/rejected" />
+              <KpiCard
+                label="Rejected (Historical)"
+                value={data.historical_rejected}
+                icon="x"
+                color="bg-ink-muted"
+                to="/hr/pipeline/rejected-historical"
+              />
+              <KpiCard label="Historical HR Completion" value={data.historical_completion_employees} icon="check" color="bg-secondary" to="/hr/employees" />
             </CardBody>
           </Card>
 

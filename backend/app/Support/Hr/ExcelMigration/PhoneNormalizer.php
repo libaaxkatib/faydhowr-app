@@ -67,8 +67,14 @@ final class PhoneNormalizer
         return $digits;
     }
 
+    /**
+     * Real Somali mobile operator prefixes (9 digits total), not just "6" —
+     * see Issue #8: the old `^6\d{8}$`-only check rejected a large number of
+     * genuinely valid numbers. Hormuud=61,77; Somtel=62,65,66; Telesom=63;
+     * SomLink=64; SomNet=68; NationLink=69; Amtel=71; Golis=90.
+     */
     private static function isSomaliMobileFormat(string $digits): bool
     {
-        return (bool) preg_match('/^6\d{8}$/', $digits);
+        return (bool) preg_match('/^(?:6[0-9]|71|77|90)\d{7}$/', $digits);
     }
 }
