@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
+import { RequirePermission } from '@/features/auth/RequirePermission';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { AppLayout } from '@/layouts/AppLayout';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
@@ -55,84 +56,146 @@ export default function App() {
           </ProtectedRoute>
         }
       >
+        {/* No permission guard: every authenticated admin, of any role, sees this
+            page — matches the backend's 'dashboard' module, which has permissions: null. */}
         <Route path="/dashboard" element={<DashboardPage />} />
 
-        <Route path="/mobile-app/customers" element={<CustomersListPage />} />
-        <Route path="/mobile-app/customers/:id" element={<CustomerDetailPage />} />
+        <Route path="/mobile-app/customers" element={<RequirePermission permission="customers.view"><CustomersListPage /></RequirePermission>} />
+        <Route path="/mobile-app/customers/:id" element={<RequirePermission permission="customers.view"><CustomerDetailPage /></RequirePermission>} />
 
-        <Route path="/hr" element={<HrDashboardPage />} />
-        <Route path="/hr/employees" element={<EmployeesListPage />} />
-        <Route path="/hr/employees/:id" element={<EmployeeDetailPage />} />
+        <Route path="/hr" element={<RequirePermission permission="hr.view"><HrDashboardPage /></RequirePermission>} />
+        <Route path="/hr/employees" element={<RequirePermission permission="hr.view"><EmployeesListPage /></RequirePermission>} />
+        <Route path="/hr/employees/:id" element={<RequirePermission permission="hr.view"><EmployeeDetailPage /></RequirePermission>} />
         <Route
           path="/hr/pipeline/damiin"
-          element={<EmployeesListPage filterDamiinActive title="Damiin Needed" breadcrumbLabel="Damiin Needed" />}
+          element={
+            <RequirePermission permission="hr.view">
+              <EmployeesListPage filterDamiinActive title="Damiin Needed" breadcrumbLabel="Damiin Needed" />
+            </RequirePermission>
+          }
         />
         <Route
           path="/hr/pipeline/contracts"
-          element={<EmployeesListPage fixedPipelineStage="contract_pending" title="Contract Pending" breadcrumbLabel="Contract Pending" />}
+          element={
+            <RequirePermission permission="hr.view">
+              <EmployeesListPage fixedPipelineStage="contract_pending" title="Contract Pending" breadcrumbLabel="Contract Pending" />
+            </RequirePermission>
+          }
         />
         <Route
           path="/hr/pipeline/uniform"
-          element={<EmployeesListPage fixedPipelineStage="uniform_pending" title="Uniform Pending" breadcrumbLabel="Uniform Pending" />}
+          element={
+            <RequirePermission permission="hr.view">
+              <EmployeesListPage fixedPipelineStage="uniform_pending" title="Uniform Pending" breadcrumbLabel="Uniform Pending" />
+            </RequirePermission>
+          }
         />
         <Route
           path="/hr/pipeline/training"
-          element={<EmployeesListPage fixedPipelineStage="need_training" title="Need Training" breadcrumbLabel="Need Training" />}
+          element={
+            <RequirePermission permission="hr.view">
+              <EmployeesListPage fixedPipelineStage="need_training" title="Need Training" breadcrumbLabel="Need Training" />
+            </RequirePermission>
+          }
         />
         <Route
           path="/hr/pipeline/practical"
-          element={<EmployeesListPage fixedPipelineStage="need_practical" title="Need Practical" breadcrumbLabel="Need Practical" />}
+          element={
+            <RequirePermission permission="hr.view">
+              <EmployeesListPage fixedPipelineStage="need_practical" title="Need Practical" breadcrumbLabel="Need Practical" />
+            </RequirePermission>
+          }
         />
         <Route
           path="/hr/pipeline/practical-repeat"
-          element={<EmployeesListPage fixedPipelineStage="practical_repeat" title="Practical Repeat" breadcrumbLabel="Practical Repeat" />}
+          element={
+            <RequirePermission permission="hr.view">
+              <EmployeesListPage fixedPipelineStage="practical_repeat" title="Practical Repeat" breadcrumbLabel="Practical Repeat" />
+            </RequirePermission>
+          }
         />
         <Route
           path="/hr/pipeline/rejected"
-          element={<EmployeesListPage fixedPipelineStage="rejected" title="Rejected" breadcrumbLabel="Rejected" />}
+          element={
+            <RequirePermission permission="hr.view">
+              <EmployeesListPage fixedPipelineStage="rejected" title="Rejected" breadcrumbLabel="Rejected" />
+            </RequirePermission>
+          }
         />
         <Route
           path="/hr/pipeline/rejected-historical"
-          element={<EmployeesListPage filterHistoricalRejected title="Rejected (Historical)" breadcrumbLabel="Rejected (Historical)" />}
+          element={
+            <RequirePermission permission="hr.view">
+              <EmployeesListPage filterHistoricalRejected title="Rejected (Historical)" breadcrumbLabel="Rejected (Historical)" />
+            </RequirePermission>
+          }
         />
-        <Route path="/hr/waiting" element={<WaitingQueuePage />} />
-        <Route path="/hr/workforce-requests" element={<WorkforceRequestsPage />} />
-        <Route path="/hr/training-batches" element={<TrainingBatchesPage />} />
-        <Route path="/hr/practical-batches" element={<PracticalBatchesPage />} />
-        <Route path="/hr/temporary-replacements" element={<TemporaryReplacementsPage />} />
-        <Route path="/hr/former-employees" element={<FormerEmployeesPage />} />
-        <Route path="/hr/supervisor-pool" element={<EmployeesListPage filterIsSupervisor title="Supervisor Pool" breadcrumbLabel="Supervisor Pool" />} />
-        <Route path="/hr/office-staff" element={<EmployeesListPage filterOfficeOnly title="Office Staff" breadcrumbLabel="Office Staff" />} />
-        <Route path="/hr/attendance" element={<AttendancePage />} />
-        <Route path="/hr/departments" element={<DepartmentsPage />} />
-        <Route path="/hr/positions" element={<PositionsPage />} />
-        <Route path="/hr/companies" element={<ClientCompaniesPage />} />
-        <Route path="/hr/reports" element={<HrReportsPage />} />
-        <Route path="/hr/reports/waiting-analytics" element={<WaitingAnalyticsPage />} />
-        <Route path="/hr/reports/workforce-requests" element={<WorkforceRequestHistoryPage />} />
-        <Route path="/hr/reports/temporary-replacements" element={<TemporaryReplacementHistoryPage />} />
-        <Route path="/hr/reports/leaves" element={<LeaveReportPage />} />
-        <Route path="/hr/reports/performance-reviews" element={<PerformanceReportPage />} />
-        <Route path="/hr/reports/financial-ledger" element={<FinancialLedgerPage />} />
-        <Route path="/hr/reports/payroll-rollup" element={<PayrollRollupPage />} />
+        <Route path="/hr/waiting" element={<RequirePermission permission="hr.view"><WaitingQueuePage /></RequirePermission>} />
+        <Route path="/hr/workforce-requests" element={<RequirePermission permission="hr.view"><WorkforceRequestsPage /></RequirePermission>} />
+        <Route path="/hr/training-batches" element={<RequirePermission permission="hr.view"><TrainingBatchesPage /></RequirePermission>} />
+        <Route path="/hr/practical-batches" element={<RequirePermission permission="hr.view"><PracticalBatchesPage /></RequirePermission>} />
+        <Route path="/hr/temporary-replacements" element={<RequirePermission permission="hr.view"><TemporaryReplacementsPage /></RequirePermission>} />
+        <Route path="/hr/former-employees" element={<RequirePermission permission="hr.view"><FormerEmployeesPage /></RequirePermission>} />
+        <Route
+          path="/hr/supervisor-pool"
+          element={
+            <RequirePermission permission="hr.view">
+              <EmployeesListPage filterIsSupervisor title="Supervisor Pool" breadcrumbLabel="Supervisor Pool" />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/hr/office-staff"
+          element={
+            <RequirePermission permission="hr.view">
+              <EmployeesListPage filterOfficeOnly title="Office Staff" breadcrumbLabel="Office Staff" />
+            </RequirePermission>
+          }
+        />
+        <Route path="/hr/attendance" element={<RequirePermission permission="hr.view"><AttendancePage /></RequirePermission>} />
+        <Route path="/hr/departments" element={<RequirePermission permission="hr.view"><DepartmentsPage /></RequirePermission>} />
+        <Route path="/hr/positions" element={<RequirePermission permission="hr.view"><PositionsPage /></RequirePermission>} />
+        <Route path="/hr/companies" element={<RequirePermission permission="hr.view"><ClientCompaniesPage /></RequirePermission>} />
+        <Route path="/hr/reports" element={<RequirePermission permission="hr.reports.view"><HrReportsPage /></RequirePermission>} />
+        <Route path="/hr/reports/waiting-analytics" element={<RequirePermission permission="hr.reports.view"><WaitingAnalyticsPage /></RequirePermission>} />
+        <Route path="/hr/reports/workforce-requests" element={<RequirePermission permission="hr.reports.view"><WorkforceRequestHistoryPage /></RequirePermission>} />
+        <Route path="/hr/reports/temporary-replacements" element={<RequirePermission permission="hr.reports.view"><TemporaryReplacementHistoryPage /></RequirePermission>} />
+        <Route path="/hr/reports/leaves" element={<RequirePermission permission="hr.reports.view"><LeaveReportPage /></RequirePermission>} />
+        <Route path="/hr/reports/performance-reviews" element={<RequirePermission permission="hr.reports.view"><PerformanceReportPage /></RequirePermission>} />
+        <Route path="/hr/reports/financial-ledger" element={<RequirePermission permission="hr.reports.view"><FinancialLedgerPage /></RequirePermission>} />
+        <Route path="/hr/reports/payroll-rollup" element={<RequirePermission permission="hr.reports.view"><PayrollRollupPage /></RequirePermission>} />
 
-        <Route path="/marketing" element={<MarketingDashboardPage />} />
-        <Route path="/marketing/xarun" element={<MarketingRecordsListPage type="xarun" title="XARUN" />} />
-        <Route path="/marketing/xarun/:id" element={<MarketingRecordDetailPage />} />
-        <Route path="/marketing/project" element={<MarketingRecordsListPage type="project" title="PROJECT" />} />
-        <Route path="/marketing/project/:id" element={<MarketingRecordDetailPage />} />
-        <Route path="/marketing/follow-ups" element={<FollowUpsPage />} />
-        <Route path="/marketing/teams" element={<TeamsPage />} />
-        <Route path="/marketing/employees" element={<MarketingEmployeesPage />} />
-        <Route path="/marketing/commission" element={<CommissionPage />} />
-        <Route path="/marketing/reports" element={<MarketingReportsPage />} />
+        <Route path="/marketing" element={<RequirePermission permission="marketing.view"><MarketingDashboardPage /></RequirePermission>} />
+        <Route
+          path="/marketing/xarun"
+          element={
+            <RequirePermission permission="marketing.view">
+              <MarketingRecordsListPage type="xarun" title="XARUN" />
+            </RequirePermission>
+          }
+        />
+        <Route path="/marketing/xarun/:id" element={<RequirePermission permission="marketing.view"><MarketingRecordDetailPage /></RequirePermission>} />
+        <Route
+          path="/marketing/project"
+          element={
+            <RequirePermission permission="marketing.view">
+              <MarketingRecordsListPage type="project" title="PROJECT" />
+            </RequirePermission>
+          }
+        />
+        <Route path="/marketing/project/:id" element={<RequirePermission permission="marketing.view"><MarketingRecordDetailPage /></RequirePermission>} />
+        <Route path="/marketing/follow-ups" element={<RequirePermission permission="marketing.view"><FollowUpsPage /></RequirePermission>} />
+        <Route path="/marketing/teams" element={<RequirePermission permission="marketing.view"><TeamsPage /></RequirePermission>} />
+        <Route path="/marketing/employees" element={<RequirePermission permission="marketing.view"><MarketingEmployeesPage /></RequirePermission>} />
+        <Route path="/marketing/commission" element={<RequirePermission permission="marketing.commission.view"><CommissionPage /></RequirePermission>} />
+        <Route path="/marketing/reports" element={<RequirePermission permission="marketing.reports.view"><MarketingReportsPage /></RequirePermission>} />
 
-        <Route path="/system/admins" element={<AdminUsersPage />} />
-        <Route path="/system/roles" element={<RolesPermissionsPage />} />
-        <Route path="/system/settings" element={<SettingsPage />} />
-        <Route path="/system/audit-log" element={<AuditLogPage />} />
-        <Route path="/system/data-issues" element={<ReconciliationListPage />} />
-        <Route path="/system/data-issues/:id" element={<ReconciliationDetailPage />} />
+        <Route path="/system/admins" element={<RequirePermission permission="admins.manage"><AdminUsersPage /></RequirePermission>} />
+        <Route path="/system/roles" element={<RequirePermission permission="roles.manage"><RolesPermissionsPage /></RequirePermission>} />
+        <Route path="/system/settings" element={<RequirePermission permission="settings.view"><SettingsPage /></RequirePermission>} />
+        <Route path="/system/audit-log" element={<RequirePermission permission="admins.manage"><AuditLogPage /></RequirePermission>} />
+        <Route path="/system/data-issues" element={<RequirePermission permission="reconciliation.view"><ReconciliationListPage /></RequirePermission>} />
+        <Route path="/system/data-issues/:id" element={<RequirePermission permission="reconciliation.view"><ReconciliationDetailPage /></RequirePermission>} />
 
         <Route
           path="*"

@@ -3,7 +3,9 @@ import { NavLink } from 'react-router-dom';
 
 import { Logo } from '@/components/Logo';
 import { Icon } from '@/components/ui/Icon';
+import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { NAV_GROUPS } from '@/layouts/nav.config';
+import { isGroupVisible, isItemRenderable } from '@/layouts/navVisibility';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const { hasPermission, isSuperAdmin, isLoading } = useEffectivePermissions();
 
   return (
     <aside
@@ -38,62 +41,67 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
           Dashboard
         </NavLink>
 
-        {NAV_GROUPS.map((group) => {
-          const isCollapsed = collapsedGroups[group.label];
-          return (
-            <div key={group.label} className="mb-1">
-              <button
-                type="button"
-                onClick={() => setCollapsedGroups((prev) => ({ ...prev, [group.label]: !prev[group.label] }))}
-                className="flex w-full items-center justify-between px-3 py-2 text-[10.5px] font-bold uppercase tracking-wider text-white/40"
-              >
-                <span className="flex items-center gap-1.5">
-                  {group.label}
-                  {group.comingSoon && (
-                    <span className="rounded-full bg-secondary/25 px-1.5 py-0.5 text-[9px] font-bold text-secondary-soft normal-case tracking-normal">
-                      Planned
-                    </span>
-                  )}
-                </span>
-                <Icon name={isCollapsed ? 'chevron-right' : 'chevron-down'} size={12} />
-              </button>
+        {/* Permissions haven't resolved yet — render nothing below Dashboard rather than
+            flashing every group (or none) before the real effective-permission set loads. */}
+        {!isLoading &&
+          NAV_GROUPS.filter((group) => isGroupVisible(group, hasPermission, isSuperAdmin)).map((group) => {
+            const isCollapsed = collapsedGroups[group.label];
+            const visibleItems = group.items.filter((item) => isItemRenderable(item, hasPermission, isSuperAdmin));
 
-              {!isCollapsed && (
-                <div>
-                  {group.items.map((item) =>
-                    item.comingSoon ? (
-                      <div
-                        key={item.to}
-                        title="Backend for this module isn't built yet"
-                        className="flex cursor-not-allowed items-center gap-2.5 rounded-md px-3 py-2 text-[13px] text-white/30"
-                      >
-                        {item.icon && <Icon name={item.icon} size={15} />}
-                        {item.label}
-                      </div>
-                    ) : (
-                      <NavLink
-                        key={item.to}
-                        to={item.to}
-                        end={item.end}
-                        onClick={onNavigate}
-                        className={({ isActive }) =>
-                          `flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition ${
-                            isActive
-                              ? 'bg-white/10 text-white'
-                              : 'text-white/70 hover:bg-white/5 hover:text-white'
-                          }`
-                        }
-                      >
-                        {item.icon && <Icon name={item.icon} size={15} />}
-                        {item.label}
-                      </NavLink>
-                    ),
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
+            return (
+              <div key={group.label} className="mb-1">
+                <button
+                  type="button"
+                  onClick={() => setCollapsedGroups((prev) => ({ ...prev, [group.label]: !prev[group.label] }))}
+                  className="flex w-full items-center justify-between px-3 py-2 text-[10.5px] font-bold uppercase tracking-wider text-white/40"
+                >
+                  <span className="flex items-center gap-1.5">
+                    {group.label}
+                    {group.comingSoon && (
+                      <span className="rounded-full bg-secondary/25 px-1.5 py-0.5 text-[9px] font-bold text-secondary-soft normal-case tracking-normal">
+                        Planned
+                      </span>
+                    )}
+                  </span>
+                  <Icon name={isCollapsed ? 'chevron-right' : 'chevron-down'} size={12} />
+                </button>
+
+                {!isCollapsed && (
+                  <div>
+                    {visibleItems.map((item) =>
+                      item.comingSoon ? (
+                        <div
+                          key={item.to}
+                          title="Backend for this module isn't built yet"
+                          className="flex cursor-not-allowed items-center gap-2.5 rounded-md px-3 py-2 text-[13px] text-white/30"
+                        >
+                          {item.icon && <Icon name={item.icon} size={15} />}
+                          {item.label}
+                        </div>
+                      ) : (
+                        <NavLink
+                          key={item.to}
+                          to={item.to}
+                          end={item.end}
+                          onClick={onNavigate}
+                          className={({ isActive }) =>
+                            `flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition ${
+                              isActive
+                                ? 'bg-white/10 text-white'
+                                : 'text-white/70 hover:bg-white/5 hover:text-white'
+                            }`
+                          }
+                        >
+                          {item.icon && <Icon name={item.icon} size={15} />}
+                          {item.label}
+                        </NavLink>
+                      ),
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
       </nav>
 
       <div className="flex items-center gap-2.5 border-t border-white/10 px-5 py-4">
