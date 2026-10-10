@@ -120,7 +120,7 @@ class HrReportsController extends Controller
             $request->only(['client_company_id', 'department_id']),
         );
 
-        return ApiResponse::success('Payroll rollup retrieved successfully.', $rollup);
+        return ApiResponse::success('Payroll rollup retrieved successfully.', $rollup['rows'], 200, $rollup['meta']);
     }
 
     private function paginationMeta(LengthAwarePaginator $paginator): array
