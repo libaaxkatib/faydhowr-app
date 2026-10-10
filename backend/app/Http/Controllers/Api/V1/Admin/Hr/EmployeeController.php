@@ -13,7 +13,9 @@ use App\Http\Requests\Api\V1\Admin\Hr\UpdateEmployeeRequest;
 use App\Http\Resources\Api\V1\Admin\Hr\EmployeeResource;
 use App\Models\Employee;
 use App\Support\ApiResponse;
+use App\Support\Hr\EmployeeDuplicateFinder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class EmployeeController extends Controller
 {
@@ -31,6 +33,26 @@ class EmployeeController extends Controller
                 'total' => $paginator->total(),
                 'last_page' => $paginator->lastPage(),
             ],
+        );
+    }
+
+    /**
+     * Preview used by the registration form before saving: lists existing
+     * people (archived included) who share the typed phone number or the exact
+     * full name. Read-only.
+     */
+    public function duplicateCheck(Request $request, EmployeeDuplicateFinder $finder): JsonResponse
+    {
+        $data = $request->validate([
+            'phone' => ['nullable', 'string', 'max:40'],
+            'alternate_phone' => ['nullable', 'string', 'max:40'],
+            'full_name' => ['nullable', 'string', 'max:150'],
+            'ignore_employee_id' => ['nullable', 'integer'],
+        ]);
+
+        return ApiResponse::success(
+            'Duplicate check completed.',
+            $finder->find($data, isset($data['ignore_employee_id']) ? (int) $data['ignore_employee_id'] : null)->all(),
         );
     }
 

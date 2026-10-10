@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api\V1\Admin\Hr;
 
+use App\Actions\Hr\CancelWorkAssignmentAction;
 use App\Actions\Hr\CreateWorkAssignmentAction;
 use App\Actions\Hr\EndWorkAssignmentAction;
 use App\Actions\Hr\UpdateWorkAssignmentAction;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\Admin\Hr\CancelWorkAssignmentRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\EndWorkAssignmentRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\StoreWorkAssignmentRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\UpdateWorkAssignmentRequest;
@@ -36,5 +38,12 @@ class EmployeeWorkAssignmentController extends Controller
         $assignment = $action->handle($workAssignment, $request->validated(), $request->user());
 
         return ApiResponse::success('Work assignment ended successfully.', new WorkAssignmentResource($assignment));
+    }
+
+    public function cancel(CancelWorkAssignmentRequest $request, EmployeeWorkAssignment $workAssignment, CancelWorkAssignmentAction $action): JsonResponse
+    {
+        $assignment = $action->handle($workAssignment, $request->validated('reason'), $request->user());
+
+        return ApiResponse::success('Work assignment cancelled.', new WorkAssignmentResource($assignment));
     }
 }

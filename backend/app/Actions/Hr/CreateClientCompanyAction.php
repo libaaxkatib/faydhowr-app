@@ -3,6 +3,7 @@
 namespace App\Actions\Hr;
 
 use App\Enums\AuditAction;
+use App\Enums\ClientCategory;
 use App\Enums\ClientStatus;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
@@ -15,6 +16,7 @@ class CreateClientCompanyAction
         $clientCompany = ClientCompany::query()->create([
             ...$data,
             'status' => $data['status'] ?? ClientStatus::Active,
+            'category' => $data['category'] ?? ClientCategory::Company,
             'created_by' => $actor->id,
         ]);
 

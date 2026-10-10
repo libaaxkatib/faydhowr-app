@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Api\V1\Admin\Hr;
 
+use App\Support\Hr\PositionSuccession;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -13,11 +14,20 @@ class WorkAssignmentResource extends JsonResource
             'id' => $this->id,
             'employee_id' => $this->employee_id,
             'work_location_id' => $this->work_location_id,
+            'client_company_id' => $this->client_company_id,
             'work_location_name' => $this->whenLoaded('workLocation', fn () => $this->workLocation?->name),
-            'location_type' => $this->whenLoaded('workLocation', fn () => $this->workLocation?->location_type->value),
-            'client_company_name' => $this->whenLoaded(
-                'workLocation',
-                fn () => $this->workLocation?->clientCompany?->name,
+            'location_type' => $this->when(
+                $this->relationLoaded('workLocation'),
+                fn () => $this->workLocation?->location_type->value ?? 'client',
+            ),
+            'client_company_name' => $this->when(
+                $this->relationLoaded('clientCompany') || $this->relationLoaded('workLocation'),
+                fn () => $this->clientCompany?->name ?? $this->workLocation?->clientCompany?->name,
+            ),
+            'replaces_assignment_id' => $this->replaces_assignment_id,
+            'succession_gap_days' => $this->when(
+                $this->relationLoaded('replaces') && $this->replaces?->end_date !== null,
+                fn () => PositionSuccession::gapDays($this->replaces->end_date, $this->start_date),
             ),
             'position_id' => $this->position_id,
             'position_name' => $this->whenLoaded('position', fn () => $this->position?->name),

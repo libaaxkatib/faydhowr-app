@@ -9,6 +9,6 @@ class ListClientCompaniesAction
 {
     public function handle(): Collection
     {
-        return ClientCompany::query()->with('workLocations')->orderBy('name')->get();
+        return ClientCompany::query()->with(['workLocations', 'aliases'])->withCount('agreements')->orderBy('name')->get();
     }
 }

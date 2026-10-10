@@ -14,10 +14,11 @@ class WorkforceRequestResource extends JsonResource
         return [
             'id' => $this->id,
             'work_location_id' => $this->work_location_id,
+            'client_company_id' => $this->client_company_id,
             'work_location_name' => $this->whenLoaded('workLocation', fn () => $this->workLocation?->name),
-            'client_company_name' => $this->whenLoaded(
-                'workLocation',
-                fn () => $this->workLocation?->clientCompany?->name,
+            'client_company_name' => $this->when(
+                $this->relationLoaded('clientCompany') || $this->relationLoaded('workLocation'),
+                fn () => $this->clientCompany?->name ?? $this->workLocation?->clientCompany?->name,
             ),
             'employee_category_id' => $this->employee_category_id,
             'employee_category_name' => $this->whenLoaded('employeeCategory', fn () => $this->employeeCategory?->name),

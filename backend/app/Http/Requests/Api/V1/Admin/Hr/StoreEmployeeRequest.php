@@ -30,6 +30,9 @@ class StoreEmployeeRequest extends FormRequest
         return [
             'full_name' => ['required', 'string', 'max:150'],
             'phone' => ['required', 'string', 'max:40'],
+            'employment_type' => ['sometimes', Rule::in(['permanent', 'temporary'])],
+            'confirm_duplicate' => ['sometimes', 'boolean'],
+            'duplicate_reason' => ['nullable', 'string', 'min:10', 'max:500', 'required_if_accepted:confirm_duplicate'],
             'alternate_phone' => ['nullable', 'string', 'max:40'],
             'location' => ['required', 'string', 'max:150'],
             'gender' => ['required', Rule::in(EmployeeGender::values())],

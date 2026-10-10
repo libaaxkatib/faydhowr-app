@@ -16,6 +16,13 @@ return [
     'default' => env('FILESYSTEM_DISK', 'local'),
 
     /*
+    | Disk used for HR attachments such as client-company agreements. Defaults to
+    | the private local disk; point it at an S3-compatible disk in production
+    | (HR_ATTACHMENTS_DISK=s3) once storage has been approved and configured.
+    */
+    'hr_attachments_disk' => env('HR_ATTACHMENTS_DISK', 'local'),
+
+    /*
     |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------

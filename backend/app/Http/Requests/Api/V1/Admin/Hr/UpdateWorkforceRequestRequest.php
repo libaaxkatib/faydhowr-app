@@ -17,6 +17,7 @@ class UpdateWorkforceRequestRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'work_location_id' => ['sometimes', 'integer', 'exists:work_locations,id'],
             'employee_category_id' => ['sometimes', 'nullable', 'integer', 'exists:employee_categories,id'],
             'position_id' => ['sometimes', 'nullable', 'integer', 'exists:positions,id'],
             'gender_requirement' => ['sometimes', 'nullable', 'string', 'in:male,female'],

@@ -33,6 +33,7 @@ class EmployeeResource extends JsonResource
             'position_id' => $this->position_id,
             'position_name' => $this->whenLoaded('position', fn () => $this->position?->name),
             'status' => $this->status->value,
+            'employment_type' => $this->employment_type ?? 'permanent',
             'pipeline_stage' => $this->pipeline_stage?->value,
             'guarantor_confirmed_at' => $this->guarantor_confirmed_at?->toIso8601String(),
             'guarantor_needed' => $this->guarantor_needed,

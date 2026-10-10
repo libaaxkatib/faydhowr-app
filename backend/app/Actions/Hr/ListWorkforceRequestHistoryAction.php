@@ -15,10 +15,10 @@ class ListWorkforceRequestHistoryAction
     public function handle(array $filters): LengthAwarePaginator
     {
         $query = WorkforceRequest::query()
-            ->with(['workLocation.clientCompany', 'employeeCategory', 'position', 'createdBy', 'matches.employee']);
+            ->with(['workLocation.clientCompany', 'clientCompany', 'employeeCategory', 'position', 'createdBy', 'matches.employee']);
 
         if (! empty($filters['client_company_id'])) {
-            $query->whereHas('workLocation', fn ($q) => $q->where('client_company_id', $filters['client_company_id']));
+            $query->where('client_company_id', $filters['client_company_id']);
         }
 
         if (! empty($filters['status'])) {

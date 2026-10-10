@@ -73,10 +73,7 @@ class GetHrReportsSummaryAction
         $assignmentQuery = EmployeeWorkAssignment::query();
 
         if (! empty($filters['client_company_id'])) {
-            $assignmentQuery->whereHas(
-                'workLocation',
-                fn ($q) => $q->where('client_company_id', $filters['client_company_id']),
-            );
+            $assignmentQuery->where('employee_work_assignments.client_company_id', $filters['client_company_id']);
         }
 
         if (! empty($filters['work_location_id'])) {
@@ -95,6 +92,8 @@ class GetHrReportsSummaryAction
             ->get()
             ->keyBy('work_location_id');
 
+        $assignmentsWithoutWorkplace = (clone $assignmentQuery)->whereNull('employee_work_assignments.work_location_id')->count();
+
         $workplaceBreakdown = WorkLocation::query()
             ->with('clientCompany')
             ->orderBy('name')
@@ -109,8 +108,7 @@ class GetHrReportsSummaryAction
             ]);
 
         $companySalaryTotals = (clone $assignmentQuery)
-            ->join('work_locations', 'work_locations.id', '=', 'employee_work_assignments.work_location_id')
-            ->join('client_companies', 'client_companies.id', '=', 'work_locations.client_company_id')
+            ->join('client_companies', 'client_companies.id', '=', 'employee_work_assignments.client_company_id')
             ->selectRaw('client_companies.id, client_companies.name, sum(employee_work_assignments.salary_amount) as total_salary, count(*) as total_assignments')
             ->groupBy('client_companies.id', 'client_companies.name')
             ->orderBy('client_companies.name')
@@ -216,8 +214,7 @@ class GetHrReportsSummaryAction
 
         // --- Workforce Request Reporting ---
         $workforceRequestsByCompany = WorkforceRequest::query()
-            ->join('work_locations', 'work_locations.id', '=', 'workforce_requests.work_location_id')
-            ->leftJoin('client_companies', 'client_companies.id', '=', 'work_locations.client_company_id')
+            ->leftJoin('client_companies', 'client_companies.id', '=', 'workforce_requests.client_company_id')
             ->selectRaw("coalesce(client_companies.name, 'Fayadhowr Office') as name, count(*) as total")
             ->groupBy('client_companies.id', 'client_companies.name')
             ->orderBy('name')
@@ -261,8 +258,7 @@ class GetHrReportsSummaryAction
         // --- Temporary Replacement Reporting ---
         $replacementTotalsByCompany = TemporaryReplacement::query()
             ->join('employee_work_assignments', 'employee_work_assignments.id', '=', 'temporary_replacements.work_assignment_id')
-            ->join('work_locations', 'work_locations.id', '=', 'employee_work_assignments.work_location_id')
-            ->leftJoin('client_companies', 'client_companies.id', '=', 'work_locations.client_company_id')
+            ->leftJoin('client_companies', 'client_companies.id', '=', 'employee_work_assignments.client_company_id')
             ->leftJoin('temporary_replacement_payments', 'temporary_replacement_payments.temporary_replacement_id', '=', 'temporary_replacements.id')
             ->selectRaw("coalesce(client_companies.name, 'Fayadhowr Office') as name, count(distinct temporary_replacements.id) as total_replacements, coalesce(sum(temporary_replacement_payments.amount), 0) as total_paid")
             ->groupBy('client_companies.id', 'client_companies.name')
@@ -345,6 +341,7 @@ class GetHrReportsSummaryAction
             'category_breakdown' => $categoryCounts,
             'department_breakdown' => $departmentCounts,
             'workplace_breakdown' => $workplaceBreakdown,
+            'assignments_without_workplace' => $assignmentsWithoutWorkplace,
             'company_salary_totals' => $companySalaryTotals,
             'workforce_request_breakdown' => $workforceRequestBreakdown,
             'payment_totals_by_department' => $paymentTotalsByDepartment,

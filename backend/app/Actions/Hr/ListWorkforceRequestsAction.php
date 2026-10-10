@@ -10,7 +10,7 @@ class ListWorkforceRequestsAction
     public function handle(): Collection
     {
         return WorkforceRequest::query()
-            ->with(['workLocation.clientCompany', 'employeeCategory', 'position', 'createdBy', 'matches.employee'])
+            ->with(['workLocation.clientCompany', 'clientCompany', 'employeeCategory', 'position', 'createdBy', 'matches.employee'])
             ->orderByDesc('requested_date')
             ->get();
     }

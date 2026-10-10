@@ -114,7 +114,7 @@ class GetHrDashboardAction
                 ->where('status', WorkforceRequestStatus::Fulfilled)
                 ->count(),
             'client_company_active_employees' => Employee::query()
-                ->whereHas('activeWorkAssignments.workLocation', fn ($q) => $q->where('location_type', 'client'))
+                ->whereHas('activeWorkAssignments', fn ($q) => $q->whereNotNull('client_company_id'))
                 ->count(),
             'month_payments_total' => (string) EmployeePayment::query()
                 ->whereBetween('payment_date', [$monthStart, $monthEnd])

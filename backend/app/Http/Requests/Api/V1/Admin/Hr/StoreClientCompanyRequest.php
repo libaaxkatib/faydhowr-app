@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Api\V1\Admin\Hr;
 
+use App\Enums\ClientCategory;
 use App\Enums\ClientStatus;
+use App\Rules\UniqueCompanyName;
 use App\Support\ApiResponse;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -19,7 +21,8 @@ class StoreClientCompanyRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:150', 'unique:client_companies,name'],
+            'name' => ['required', 'string', 'max:150', new UniqueCompanyName],
+            'category' => ['sometimes', Rule::in(ClientCategory::values())],
             'contact_person' => ['nullable', 'string', 'max:150'],
             'phone' => ['nullable', 'string', 'max:40'],
             'location' => ['nullable', 'string', 'max:150'],

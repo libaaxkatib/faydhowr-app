@@ -80,7 +80,7 @@ class ConfirmWorkforceRequestMatchAction
                 metadata: ['employee_id' => $employee->id],
             ));
 
-            return $request->load('workLocation.clientCompany', 'employeeCategory', 'position', 'createdBy', 'matches.employee');
+            return $request->load('workLocation.clientCompany', 'clientCompany', 'employeeCategory', 'position', 'createdBy', 'matches.employee');
         });
     }
 }

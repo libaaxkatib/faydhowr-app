@@ -23,6 +23,16 @@ class DeleteClientCompanyAction
             );
         }
 
+        if ($clientCompany->workAssignments()->exists()) {
+            throw new HttpResponseException(
+                ApiResponse::error(
+                    'This client company cannot be deleted while it has work assignments (current or historical).',
+                    'CLIENT_COMPANY_HAS_ASSIGNMENTS',
+                    422,
+                ),
+            );
+        }
+
         $name = $clientCompany->name;
         $id = $clientCompany->id;
 
