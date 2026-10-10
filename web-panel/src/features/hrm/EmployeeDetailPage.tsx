@@ -19,7 +19,8 @@ import { useToast } from '@/components/ui/useToast';
 import { useAuth } from '@/features/auth/useAuth';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { formatDate, formatDateTime, initialsOf } from '@/utils/formatters';
-import type { AttendanceStatus, Employee, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, SalaryFrequency, WorkAssignment } from '@/types/employee';
+import { assignmentLabel, friendlyErrorMessage, isWorkplaceMissing, localToday, OFFICE_LABEL } from '@/utils/hrHelpers';
+import type { AttendanceStatus, Employee, EmployeeLeave, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, SalaryFrequency, WorkAssignment } from '@/types/employee';
 
 const SEPARATION_REASON_OPTIONS: { value: EmployeeSeparationReason; label: string }[] = [
   { value: 'resigned', label: 'Resigned' },
@@ -122,6 +123,8 @@ export function EmployeeDetailPage() {
   const [assessmentNotes, setAssessmentNotes] = useState('');
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [endingAssignment, setEndingAssignment] = useState<WorkAssignment | null>(null);
+  const [settingWorkplaceFor, setSettingWorkplaceFor] = useState<WorkAssignment | null>(null);
+  const [changingSalaryFor, setChangingSalaryFor] = useState<WorkAssignment | null>(null);
   const [isSeparateOpen, setIsSeparateOpen] = useState(false);
   const [isRehireOpen, setIsRehireOpen] = useState(false);
   const [isLeaveOpen, setIsLeaveOpen] = useState(false);
@@ -185,6 +188,29 @@ export function EmployeeDetailPage() {
       show(isSupervisor ? 'Added to the Supervisor Pool.' : 'Removed from the Supervisor Pool.');
     },
     onError: (err) => show(err instanceof Error ? err.message : 'Could not update supervisor status.', 'error'),
+  });
+
+  const [rejectingLeave, setRejectingLeave] = useState<EmployeeLeave | null>(null);
+  const [rejectNote, setRejectNote] = useState('');
+
+  const approveLeaveMutation = useMutation({
+    mutationFn: (leaveId: number) => hrApi.employees.approveLeave(employeeId, leaveId),
+    onSuccess: () => {
+      invalidate();
+      show('Leave approved. It will reduce pay in the payroll for those days.');
+    },
+    onError: (err) => show(friendlyErrorMessage(err, 'Could not approve the leave.'), 'error'),
+  });
+
+  const rejectLeaveMutation = useMutation({
+    mutationFn: () => hrApi.employees.rejectLeave(employeeId, rejectingLeave!.id, rejectNote.trim()),
+    onSuccess: () => {
+      invalidate();
+      show('Leave rejected. The record is kept.');
+      setRejectingLeave(null);
+      setRejectNote('');
+    },
+    onError: (err) => show(friendlyErrorMessage(err, 'Could not reject the leave.'), 'error'),
   });
 
   const leaveMutation = useMutation({
@@ -405,6 +431,7 @@ export function EmployeeDetailPage() {
               {employee.pipeline_stage && employee.status === 'applicant' && (
                 <StatusBadge status={employee.pipeline_stage} label={PIPELINE_STAGE_LABELS[employee.pipeline_stage]} tone={employee.pipeline_stage === 'rejected' ? 'danger' : 'warning'} />
               )}
+              {employee.employment_type === 'temporary' && <StatusBadge status="temporary" label="Temporary" tone="warning" />}
               {employee.is_supervisor && <StatusBadge status="supervisor" label="Supervisor Pool" tone="info" />}
               {employee.guarantor_needed && !employee.damiin_completed && <StatusBadge status="damiin-needed" label="Damiin Needed" tone="danger" />}
               {employee.profile_complete ? (
@@ -459,6 +486,7 @@ export function EmployeeDetailPage() {
               <Field label="Reference / guarantor" value={employee.reference_name ?? '—'} />
               <Field label="Secondary/emergency contact name" value={employee.secondary_contact_name ?? '—'} />
               <Field label="Secondary/emergency contact phone" value={employee.secondary_contact_phone ?? '—'} />
+              <Field label="Employment type" value={employee.employment_type === 'temporary' ? 'Temporary' : 'Permanent'} />
               <Field label="Category" value={employee.employee_category_name ?? '—'} />
               <Field label="Category specialization" value={employee.category_specialization ?? '—'} />
               <Field label="Department" value={employee.department_name ?? '—'} />
@@ -563,24 +591,42 @@ export function EmployeeDetailPage() {
                 employee.active_work_assignments.map((assignment) => (
                   <div key={assignment.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-ink">
-                        {assignment.location_type === 'office' ? 'Fayadhowr Office' : assignment.client_company_name}
-                        {assignment.location_type === 'client' && ` · ${assignment.work_location_name}`}
-                      </p>
+                      <p className="text-sm font-medium text-ink">{assignmentLabel(assignment)}</p>
                       <StatusBadge status={assignment.status} tone="success" />
                     </div>
+                    {isWorkplaceMissing(assignment) && (
+                      <p className="mt-1 text-xs italic text-warning">Workplace not set yet</p>
+                    )}
                     <p className="mt-1 text-xs text-ink-muted">
                       {assignment.position_name ?? 'No position set'} · {assignment.salary_amount} {assignment.salary_currency} / {assignment.salary_frequency}
                     </p>
                     <p className="mt-1 text-xs text-ink-faint">Since {formatDate(assignment.start_date)}</p>
                     <PermissionGate module="hr">
-                      <button
-                        type="button"
-                        onClick={() => setEndingAssignment(assignment)}
-                        className="mt-1 text-xs font-medium text-danger hover:underline"
-                      >
-                        End assignment
-                      </button>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+                        {isWorkplaceMissing(assignment) && assignment.client_company_id !== null && (
+                          <button
+                            type="button"
+                            onClick={() => setSettingWorkplaceFor(assignment)}
+                            className="text-xs font-medium text-primary hover:underline"
+                          >
+                            Set workplace
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setChangingSalaryFor(assignment)}
+                          className="text-xs font-medium text-primary hover:underline"
+                        >
+                          Change salary
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEndingAssignment(assignment)}
+                          className="text-xs font-medium text-danger hover:underline"
+                        >
+                          End assignment
+                        </button>
+                      </div>
                     </PermissionGate>
                   </div>
                 ))
@@ -600,9 +646,7 @@ export function EmployeeDetailPage() {
                   .filter((a) => a.status !== 'active')
                   .map((assignment) => (
                     <div key={assignment.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
-                      <p className="text-sm text-ink">
-                        {assignment.location_type === 'office' ? 'Fayadhowr Office' : `${assignment.client_company_name} · ${assignment.work_location_name}`}
-                      </p>
+                      <p className="text-sm text-ink">{assignmentLabel(assignment)}</p>
                       <p className="mt-1 text-xs text-ink-faint">
                         {formatDate(assignment.start_date)} → {assignment.end_date ? formatDate(assignment.end_date) : 'Present'}
                       </p>
@@ -710,6 +754,34 @@ export function EmployeeDetailPage() {
                     </span>
                   </div>
                   {leave.notes && <p className="mt-1 text-xs text-ink-muted">{leave.notes}</p>}
+                  {leave.leave_type === 'unpaid' && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <StatusBadge
+                        status={leave.approval_status}
+                        label={leave.approval_status === 'approved' ? 'Approved - reduces pay' : leave.approval_status === 'pending' ? 'Waiting for approval - no pay reduction yet' : 'Rejected'}
+                        tone={leave.approval_status === 'approved' ? 'success' : leave.approval_status === 'pending' ? 'warning' : 'danger'}
+                      />
+                      {leave.decided_by && (
+                        <span className="text-xs text-ink-faint">
+                          by {leave.decided_by}
+                          {leave.decided_at ? ` on ${formatDate(leave.decided_at)}` : ''}
+                          {leave.decision_note ? ` - ${leave.decision_note}` : ''}
+                        </span>
+                      )}
+                      {leave.approval_status !== 'rejected' && (
+                        <PermissionGate module="hr">
+                          {leave.approval_status === 'pending' && (
+                            <Button size="sm" variant="outline" isLoading={approveLeaveMutation.isPending} onClick={() => approveLeaveMutation.mutate(leave.id)}>
+                              Approve
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" onClick={() => setRejectingLeave(leave)}>
+                            Reject
+                          </Button>
+                        </PermissionGate>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))
             ) : (
@@ -1166,6 +1238,28 @@ export function EmployeeDetailPage() {
         }}
       />
 
+      {settingWorkplaceFor && (
+        <SetWorkplaceModal
+          assignment={settingWorkplaceFor}
+          onClose={() => setSettingWorkplaceFor(null)}
+          onSaved={() => {
+            invalidate();
+            setSettingWorkplaceFor(null);
+          }}
+        />
+      )}
+
+      {changingSalaryFor && (
+        <ChangeSalaryModal
+          assignment={changingSalaryFor}
+          onClose={() => setChangingSalaryFor(null)}
+          onSaved={() => {
+            invalidate();
+            setChangingSalaryFor(null);
+          }}
+        />
+      )}
+
       {endingAssignment && (
         <EndAssignmentModal
           assignment={endingAssignment}
@@ -1188,6 +1282,26 @@ export function EmployeeDetailPage() {
         onConfirm={(note) => rehireMutation.mutate(note)}
         isLoading={rehireMutation.isPending}
       />
+
+      <Modal
+        isOpen={rejectingLeave !== null}
+        onClose={() => setRejectingLeave(null)}
+        title="Reject unpaid leave"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setRejectingLeave(null)}>Cancel</Button>
+            <Button size="sm" isLoading={rejectLeaveMutation.isPending} disabled={rejectNote.trim().length < 5} onClick={() => rejectLeaveMutation.mutate()}>
+              Reject
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-xs text-ink-muted">The leave record is kept for history. A rejected leave never reduces pay.</p>
+        <FormField label="Reason (at least 5 characters)" htmlFor="reject-leave-note" required>
+          <textarea id="reject-leave-note" rows={3} className={inputClasses + ' h-auto py-2'} value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} />
+        </FormField>
+      </Modal>
 
       <RecordLeaveModal
         isOpen={isLeaveOpen}
@@ -1242,6 +1356,13 @@ const FREQUENCY_OPTIONS: { value: SalaryFrequency; label: string }[] = [
   { value: 'daily', label: 'Daily' },
 ];
 
+/** Value of the "company" choice that stands for the Fayadhowr Office (which has no client company). */
+const OFFICE_CHOICE = 'office';
+
+/**
+ * Assign an employee to a company (or the Fayadhowr Office). The workplace is
+ * optional - HR can pick one now or add it later from the employee page.
+ */
 function AssignWorkLocationModal({
   isOpen,
   employeeId,
@@ -1255,20 +1376,31 @@ function AssignWorkLocationModal({
 }) {
   const { show } = useToast();
   const { isSuperAdmin } = useAuth();
+  const { data: companies } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list, enabled: isOpen });
   const { data: locations } = useQuery({ queryKey: ['work-locations'], queryFn: () => hrApi.workLocations.list(), enabled: isOpen });
 
+  const [companyChoice, setCompanyChoice] = useState('');
   const [workLocationId, setWorkLocationId] = useState('');
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(localToday());
   const [salaryAmount, setSalaryAmount] = useState('');
   const [salaryCurrency, setSalaryCurrency] = useState('USD');
   const [salaryFrequency, setSalaryFrequency] = useState<SalaryFrequency>('monthly');
   const [notes, setNotes] = useState('');
   const [overrideCapacity, setOverrideCapacity] = useState(false);
 
+  const isOffice = companyChoice === OFFICE_CHOICE;
+  const office = (locations ?? []).find((l) => l.location_type === 'office');
+  const companyLocations = (locations ?? []).filter(
+    (l) => l.location_type === 'client' && l.status === 'active' && companyChoice !== '' && String(l.client_company_id) === companyChoice,
+  );
+
   const assignMutation = useMutation({
     mutationFn: () =>
       hrApi.employees.workAssignments.create(employeeId, {
-        work_location_id: Number(workLocationId),
+        // The office has no company, so it is sent on its own; a company may carry an optional workplace.
+        ...(isOffice
+          ? { work_location_id: office?.id ?? null }
+          : { client_company_id: Number(companyChoice), work_location_id: workLocationId ? Number(workLocationId) : null }),
         start_date: startDate,
         salary_amount: Number(salaryAmount),
         salary_currency: salaryCurrency,
@@ -1278,38 +1410,76 @@ function AssignWorkLocationModal({
       }),
     onSuccess: () => {
       show('Work assignment created.');
+      setCompanyChoice('');
+      setWorkLocationId('');
+      setSalaryAmount('');
+      setNotes('');
       onSaved();
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not create work assignment.', 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, 'Could not create work assignment.'), 'error'),
   });
 
   if (!isOpen) return null;
+
+  const companyOptions = [
+    ...(office ? [{ value: OFFICE_CHOICE, label: OFFICE_LABEL }] : []),
+    ...(companies ?? [])
+      .filter((c) => c.status === 'active')
+      .map((c) => ({ value: String(c.id), label: c.category === 'guri' ? `${c.name} (Guri)` : c.name })),
+  ];
 
   return (
     <Modal
       isOpen
       onClose={onClose}
-      title="Assign Work Location"
+      title="Assign to company"
       size="sm"
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" isLoading={assignMutation.isPending} onClick={() => assignMutation.mutate()}>Save</Button>
+          <Button
+            size="sm"
+            isLoading={assignMutation.isPending}
+            disabled={companyChoice === '' || salaryAmount === ''}
+            onClick={() => assignMutation.mutate()}
+          >
+            Save
+          </Button>
         </>
       }
     >
-      <FormField label="Work location" htmlFor="wa-location" required>
+      <FormField label="Company" htmlFor="wa-company" required>
         <Select
-          id="wa-location"
-          value={workLocationId}
-          onChange={(e) => setWorkLocationId(e.target.value)}
-          placeholder="Select a location"
-          options={(locations ?? []).map((l) => ({
-            value: String(l.id),
-            label: l.location_type === 'office' ? l.name : `${l.client_company_name} · ${l.name}`,
-          }))}
+          id="wa-company"
+          value={companyChoice}
+          onChange={(e) => {
+            setCompanyChoice(e.target.value);
+            setWorkLocationId('');
+          }}
+          placeholder="Select a company"
+          options={companyOptions}
         />
       </FormField>
+      {!isOffice && (
+        <FormField
+          label="Work location (optional)"
+          htmlFor="wa-location"
+          hint={
+            companyChoice !== '' && companyLocations.length === 0
+              ? 'This company has no workplaces yet. You can add the workplace later.'
+              : 'You can add the workplace later.'
+          }
+        >
+          <Select
+            id="wa-location"
+            value={workLocationId}
+            onChange={(e) => setWorkLocationId(e.target.value)}
+            placeholder={companyChoice === '' ? 'Select a company first' : 'Workplace not set yet'}
+            options={companyLocations.map((l) => ({ value: String(l.id), label: l.name }))}
+            disabled={companyChoice === ''}
+          />
+        </FormField>
+      )}
       <FormField label="Start date" htmlFor="wa-start" required>
         <input id="wa-start" type="date" className={inputClasses} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
       </FormField>
@@ -1333,6 +1503,157 @@ function AssignWorkLocationModal({
           Override location capacity if full (Super Admin only)
         </label>
       )}
+    </Modal>
+  );
+}
+
+/** Adds the workplace to an assignment that was created without one. The server allows this only once. */
+function SetWorkplaceModal({
+  assignment,
+  onClose,
+  onSaved,
+}: {
+  assignment: WorkAssignment;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { show } = useToast();
+  const { isSuperAdmin } = useAuth();
+  const { data: locations, isLoading } = useQuery({ queryKey: ['work-locations'], queryFn: () => hrApi.workLocations.list() });
+  const [workLocationId, setWorkLocationId] = useState('');
+  const [overrideCapacity, setOverrideCapacity] = useState(false);
+
+  const companyLocations = (locations ?? []).filter(
+    (l) => l.location_type === 'client' && l.status === 'active' && l.client_company_id === assignment.client_company_id,
+  );
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      hrApi.employees.workAssignments.update(assignment.id, {
+        work_location_id: Number(workLocationId),
+        ...(isSuperAdmin && overrideCapacity ? { override_capacity: true } : {}),
+      }),
+    onSuccess: () => {
+      show('Workplace set.');
+      onSaved();
+    },
+    onError: (err) => show(friendlyErrorMessage(err, 'Could not set the workplace.'), 'error'),
+  });
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Set workplace"
+      size="sm"
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" isLoading={saveMutation.isPending} disabled={workLocationId === ''} onClick={() => saveMutation.mutate()}>
+            Save workplace
+          </Button>
+        </>
+      }
+    >
+      <p className="mb-3 text-sm text-ink-muted">{assignmentLabel(assignment)}</p>
+      <FormField
+        label="Workplace"
+        htmlFor="sw-location"
+        required
+        hint="The workplace can be set only once. Moving to a different workplace later is a new assignment."
+      >
+        <Select
+          id="sw-location"
+          value={workLocationId}
+          onChange={(e) => setWorkLocationId(e.target.value)}
+          placeholder={isLoading ? 'Loading…' : 'Select a workplace'}
+          options={companyLocations.map((l) => ({ value: String(l.id), label: l.name }))}
+        />
+      </FormField>
+      {!isLoading && companyLocations.length === 0 && (
+        <p className="mb-3 text-xs text-ink-muted">This company has no workplaces yet. Add one under Companies &amp; Locations first.</p>
+      )}
+      {isSuperAdmin && (
+        <label className="flex items-center gap-2 text-xs text-ink-muted">
+          <input type="checkbox" checked={overrideCapacity} onChange={(e) => setOverrideCapacity(e.target.checked)} />
+          Override location capacity if full (Super Admin only)
+        </label>
+      )}
+    </Modal>
+  );
+}
+
+/** Changes the salary on an assignment from a chosen date; earlier salaries are kept as history. */
+function ChangeSalaryModal({
+  assignment,
+  onClose,
+  onSaved,
+}: {
+  assignment: WorkAssignment;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { show } = useToast();
+  const [salaryAmount, setSalaryAmount] = useState(assignment.salary_amount);
+  const [salaryCurrency, setSalaryCurrency] = useState(assignment.salary_currency);
+  const [salaryFrequency, setSalaryFrequency] = useState<SalaryFrequency>(assignment.salary_frequency);
+  const [effectiveFrom, setEffectiveFrom] = useState(localToday());
+  const [reason, setReason] = useState('');
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      hrApi.employees.workAssignments.update(assignment.id, {
+        salary_amount: Number(salaryAmount),
+        salary_currency: salaryCurrency,
+        salary_frequency: salaryFrequency,
+        salary_effective_from: effectiveFrom,
+        salary_change_reason: reason || null,
+      }),
+    onSuccess: () => {
+      show('Salary updated.');
+      onSaved();
+    },
+    onError: (err) => show(friendlyErrorMessage(err, 'Could not change the salary.'), 'error'),
+  });
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Change salary"
+      size="sm"
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" isLoading={saveMutation.isPending} disabled={salaryAmount === '' || effectiveFrom === ''} onClick={() => saveMutation.mutate()}>
+            Save salary
+          </Button>
+        </>
+      }
+    >
+      <p className="mb-3 text-sm text-ink-muted">{assignmentLabel(assignment)}</p>
+      <div className="grid grid-cols-3 gap-2">
+        <FormField label="New salary" htmlFor="cs-salary" required>
+          <input id="cs-salary" type="number" min={0} step="0.01" className={inputClasses} value={salaryAmount} onChange={(e) => setSalaryAmount(e.target.value)} />
+        </FormField>
+        <FormField label="Currency" htmlFor="cs-currency" required>
+          <input id="cs-currency" maxLength={3} className={inputClasses} value={salaryCurrency} onChange={(e) => setSalaryCurrency(e.target.value.toUpperCase())} />
+        </FormField>
+        <FormField label="Frequency" htmlFor="cs-frequency" required>
+          <Select id="cs-frequency" value={salaryFrequency} onChange={(e) => setSalaryFrequency(e.target.value as SalaryFrequency)} options={FREQUENCY_OPTIONS} />
+        </FormField>
+      </div>
+      <FormField
+        label="Effective from"
+        htmlFor="cs-effective"
+        required
+        hint="The new salary applies from this date. Earlier salaries are kept as history, and approved or finalized payroll months are never changed."
+      >
+        <input id="cs-effective" type="date" className={inputClasses} value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+      </FormField>
+      <FormField label="Reason (optional)" htmlFor="cs-reason">
+        <input id="cs-reason" className={inputClasses} value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />
+      </FormField>
     </Modal>
   );
 }
@@ -1364,9 +1685,7 @@ function EndAssignmentModal({
         </>
       }
     >
-      <p className="mb-3 text-sm text-ink-muted">
-        {assignment.location_type === 'office' ? 'Fayadhowr Office' : `${assignment.client_company_name} · ${assignment.work_location_name}`}
-      </p>
+      <p className="mb-3 text-sm text-ink-muted">{assignmentLabel(assignment)}</p>
       <FormField label="End date" htmlFor="end-date" required>
         <input id="end-date" type="date" className={inputClasses} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
       </FormField>
@@ -1415,6 +1734,9 @@ function MarkSeparatedModal({
         </>
       }
     >
+      <p className="mb-3 rounded-sm bg-surface-alt px-3 py-2 text-xs text-ink-muted">
+        Confirming this ends all of this employee's open work assignments on the separation date. Pay stops after that date. Nothing is deleted: the assignments, salary history and this separation stay on record, and rehiring later needs a new assignment.
+      </p>
       <FormField label="Reason" htmlFor="sep-reason" required>
         <Select id="sep-reason" value={reason} onChange={(e) => setReason(e.target.value as EmployeeSeparationReason)} options={SEPARATION_REASON_OPTIONS} />
       </FormField>
@@ -1510,6 +1832,11 @@ function RecordLeaveModal({
       <FormField label="Leave type" htmlFor="leave-type" required>
         <Select id="leave-type" value={leaveType} onChange={(e) => setLeaveType(e.target.value as LeaveType)} options={LEAVE_TYPE_OPTIONS} />
       </FormField>
+      {leaveType === 'unpaid' && (
+        <p className="mb-3 rounded-sm bg-surface-alt px-3 py-2 text-xs text-ink-muted">
+          Unpaid leave must be approved by a different HR person before it reduces pay. Each calendar day is deducted at that day's salary divided by the days in the month. It cannot overlap other unpaid leave.
+        </p>
+      )}
       <FormField label="Start date" htmlFor="leave-start" required>
         <input id="leave-start" type="date" className={inputClasses} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
       </FormField>
@@ -1778,9 +2105,12 @@ function RecordAdvanceModal({
  * assignment shows no overtime line at all.
  */
 function PayrollSummaryCard({ employeeId, employee }: { employeeId: number; employee: Employee }) {
-  const activeAssignments = employee.active_work_assignments ?? [];
+  // Every non-cancelled assignment is selectable, because a month can contain final pay for an assignment that has since ended.
+  const activeAssignments = (employee.work_assignments ?? employee.active_work_assignments ?? []).filter((a) => a.status !== 'cancelled');
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
-  const [workAssignmentId, setWorkAssignmentId] = useState(activeAssignments[0] ? String(activeAssignments[0].id) : '');
+  const [pickedAssignmentId, setWorkAssignmentId] = useState('');
+  // Falls back to the first assignment so the card still works when an assignment is added after the page loaded.
+  const workAssignmentId = activeAssignments.some((a) => String(a.id) === pickedAssignmentId) ? pickedAssignmentId : activeAssignments[0] ? String(activeAssignments[0].id) : '';
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['payroll-summary', employeeId, workAssignmentId, period],
@@ -1795,7 +2125,7 @@ function PayrollSummaryCard({ employeeId, employee }: { employeeId: number; empl
       </CardHeader>
       <CardBody className="space-y-3">
         {activeAssignments.length === 0 ? (
-          <EmptyState icon="credit-card" title="No active work assignment" description="Payroll can only be calculated for an active assignment." />
+          <EmptyState icon="credit-card" title="No work assignment" description="Payroll can only be calculated for an employee who has a work assignment." />
         ) : (
           <>
             <div className="flex items-center gap-2">
@@ -1806,7 +2136,7 @@ function PayrollSummaryCard({ employeeId, employee }: { employeeId: number; empl
                   className="h-8 flex-1 text-xs"
                   options={activeAssignments.map((a) => ({
                     value: String(a.id),
-                    label: a.location_type === 'office' ? 'Fayadhowr Office' : (a.client_company_name ?? a.work_location_name),
+                    label: assignmentLabel(a),
                   }))}
                 />
               )}
@@ -1816,12 +2146,48 @@ function PayrollSummaryCard({ employeeId, employee }: { employeeId: number; empl
             {isLoading && <p className="text-xs text-ink-faint">Calculating…</p>}
             {error && <p className="text-xs text-danger">Could not load payroll summary.</p>}
 
-            {data && (
+            {data && !data.payable && (
+              <p data-testid="payroll-not-payable" className="rounded-sm border border-border bg-surface-muted px-3 py-2 text-xs text-ink-muted">
+                No payroll line for this month. {data.not_payable_reason}
+              </p>
+            )}
+
+            {data && data.payable && (
               <dl className="space-y-1.5 text-sm">
+                <div
+                  data-testid="payroll-provenance"
+                  className={`rounded-sm border px-3 py-2 text-xs ${data.is_estimate ? 'border-warning/40 bg-warning/10 text-ink' : 'border-border bg-surface-muted text-ink-muted'}`}
+                >
+                  {data.is_estimate ? (
+                    <>
+                      <p className="font-semibold text-ink">Estimate</p>
+                      <p>{data.estimate_note}</p>
+                      {data.run_id && data.differs_from_run && (
+                        <p className="mt-1 font-medium text-danger">The {data.run_status} payroll run no longer matches these figures. Regenerate it.</p>
+                      )}
+                    </>
+                  ) : (
+                    <p>Final figures from the {data.run_status} payroll run.</p>
+                  )}
+                </div>
                 <div className="flex justify-between">
                   <dt className="text-ink-muted">Monthly Salary</dt>
                   <dd className="text-ink">{data.monthly_salary} {data.currency}</dd>
                 </div>
+                <div className="flex justify-between">
+                  <dt className="text-ink-muted">Days paid ({data.eligible_days} of {data.days_in_month})</dt>
+                  <dd className="text-ink">{data.gross_pay}</dd>
+                </div>
+                {data.warnings.length > 0 && (
+                  <ul data-testid="payroll-warnings" className="list-disc space-y-1 rounded-sm border border-warning/40 bg-warning/10 py-2 pl-6 pr-3 text-[11px] text-ink">
+                    {data.warnings.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                )}
+                {data.final_pay && (
+                  <p className="text-[11px] italic text-ink-faint">Final pay: paid through {data.final_pay.last_paid_day}, weekends included.</p>
+                )}
                 <div className="flex justify-between">
                   <dt className="text-ink-muted">Absence Deduction ({data.absent_days}d)</dt>
                   <dd className="text-danger">−{data.absence_deduction}</dd>
@@ -1833,6 +2199,14 @@ function PayrollSummaryCard({ employeeId, employee }: { employeeId: number; empl
                 <div className="flex justify-between">
                   <dt className="text-ink-muted">Salary Advance</dt>
                   <dd className="text-danger">−{data.advance_deduction}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-ink-muted">Temporary replacement cost</dt>
+                  <dd className="text-danger">−{data.replacement_deduction}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-ink-muted">Approved unpaid leave</dt>
+                  <dd className="text-danger">−{data.unpaid_leave_deduction}</dd>
                 </div>
                 <div className="flex justify-between border-t border-border pt-1.5 font-semibold">
                   <dt className="text-ink">Net Payable</dt>

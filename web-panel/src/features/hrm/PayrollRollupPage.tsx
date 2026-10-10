@@ -19,10 +19,11 @@ function currentPeriod(): string {
 
 /**
  * docs/HRM_MARKETING_SRS.md HR Phase 6: multi-employee payroll rollup. Every
- * row comes from GetPayrollRollupAction, which calls the SAME, unmodified
- * GetEmployeePayrollSummaryAction used by the per-employee Payroll Summary
- * card - the formula is never re-derived here. Overtime is deliberately never
- * shown as a number; office rows get a static "pending" note only.
+ * row is the same line the payroll run holds (the formula is never re-derived
+ * here), so it always agrees with the Payroll Summary card and the payroll run.
+ * A month without an approved/finalized run is shown as an ESTIMATE. Overtime
+ * is deliberately never shown as a number; office rows get a static "pending"
+ * note only.
  */
 export function PayrollRollupPage() {
   const [period, setPeriod] = useState(currentPeriod());
@@ -44,10 +45,8 @@ export function PayrollRollupPage() {
     placeholderData: (previous) => previous,
   });
 
-  const totalNetPayable = useMemo(
-    () => (data ?? []).reduce((sum, row) => sum + Number(row.net_payable), 0),
-    [data],
-  );
+  const rows = data?.rows ?? [];
+  const meta = data?.meta;
 
   const columns = useMemo<ColumnDef<PayrollRollupRow, unknown>[]>(
     () => [
@@ -71,6 +70,21 @@ export function PayrollRollupPage() {
         ),
       },
       {
+        header: 'Days paid',
+        id: 'days_paid',
+        cell: ({ row }) => (
+          <span className="text-ink-muted">
+            {row.original.eligible_days}/{row.original.days_in_month}
+            {row.original.final_pay && <span className="ml-1 text-xs text-warning">final pay</span>}
+          </span>
+        ),
+      },
+      {
+        header: 'Gross',
+        accessorKey: 'gross_pay',
+        cell: ({ row }) => <span className="text-ink">{row.original.gross_pay}</span>,
+      },
+      {
         header: 'Absence',
         id: 'absence',
         cell: ({ row }) => (
@@ -88,6 +102,16 @@ export function PayrollRollupPage() {
         header: 'Advances',
         accessorKey: 'advance_deduction',
         cell: ({ row }) => <span className="text-ink-muted">{row.original.advance_deduction}</span>,
+      },
+      {
+        header: 'Replacement',
+        accessorKey: 'replacement_deduction',
+        cell: ({ row }) => <span className="text-ink-muted">{row.original.replacement_deduction}</span>,
+      },
+      {
+        header: 'Unpaid leave',
+        accessorKey: 'unpaid_leave_deduction',
+        cell: ({ row }) => <span className="text-ink-muted">{row.original.unpaid_leave_deduction}</span>,
       },
       {
         header: 'Net Payable',
@@ -152,17 +176,50 @@ export function PayrollRollupPage() {
       {isLoading && <LoadingState label="Loading payroll rollup…" />}
       {error && <ErrorState error={error} onRetry={refetch} />}
 
+      {meta && (
+        <div
+          data-testid="rollup-provenance"
+          className={`mb-4 rounded-sm border px-4 py-3 text-sm ${meta.is_estimate ? 'border-warning/40 bg-warning/10 text-ink' : 'border-border bg-surface-muted text-ink-muted'}`}
+        >
+          {meta.is_estimate ? (
+            <>
+              <p className="font-semibold text-ink">Estimate</p>
+              <p>{meta.estimate_note}</p>
+              {meta.run_id && meta.differs_from_run && (
+                <p className="mt-1 font-medium text-danger">
+                  The {meta.run_status} payroll run for this month no longer matches these figures. Regenerate it on the Payroll page.
+                </p>
+              )}
+            </>
+          ) : (
+            <p>
+              Final figures from the <span className="font-semibold text-ink">{meta.run_status}</span> payroll run for {meta.period}.
+            </p>
+          )}
+        </div>
+      )}
+
+      {meta && meta.warnings.length > 0 && (
+        <ul data-testid="rollup-warnings" className="mb-4 list-disc space-y-1 rounded-sm border border-warning/40 bg-warning/10 py-3 pl-8 pr-4 text-xs text-ink">
+          {meta.warnings.map((w) => (
+            <li key={w}>{w}</li>
+          ))}
+        </ul>
+      )}
+
       {data && (
         <Card>
-          {data.length === 0 ? (
-            <EmptyState title="No matching assignments" description="No active work assignments matched the selected period and filters." />
+          {rows.length === 0 ? (
+            <EmptyState title="No payroll lines" description="No payable assignments matched the selected period and filters." />
           ) : (
             <>
               <div className="flex items-center justify-between border-b border-border px-5 py-3">
-                <span className="text-sm text-ink-muted">{data.length} employee(s)</span>
-                <span className="text-sm font-semibold text-ink">Total Net Payable: {totalNetPayable.toFixed(2)}</span>
+                <span className="text-sm text-ink-muted">{rows.length} employee(s)</span>
+                <span className="text-sm font-semibold text-ink">
+                  Total Net Payable{meta?.is_estimate ? ' (estimate)' : ''}: {meta?.totals.net_payable}
+                </span>
               </div>
-              <DataTable columns={columns} data={data} />
+              <DataTable columns={columns} data={rows} />
             </>
           )}
         </Card>

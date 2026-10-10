@@ -1,14 +1,19 @@
-import { apiRequest, apiRequestWithMeta } from '@/api/client';
+import { apiRequest, apiRequestWithMeta, downloadAuthenticatedFile } from '@/api/client';
 import type { PageMeta } from '@/types/api';
+import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollItem, PayrollRun } from '@/types/payroll';
 import type {
   AttendanceRosterEntry,
   ClientCompany,
+  ClientCompanyAgreement,
+  ClientCompanyCategory,
   EmployeeAttendance,
   CreateEmployeePayload,
   CreateTemporaryReplacementPayload,
   CreateWorkAssignmentPayload,
   CreateWorkforceRequestPayload,
   Department,
+  DuplicateCheckParams,
+  DuplicateEmployeeMatch,
   EndTemporaryReplacementPayload,
   Employee,
   EmployeeCategory,
@@ -35,11 +40,14 @@ import type {
   ListWorkforceRequestHistoryParams,
   MarkEmployeeAttendancePayload,
   MarkEmployeeSeparatedPayload,
+  PayrollRollupMeta,
+  PayrollRollupResult,
   PayrollRollupRow,
   PayrollSummary,
   PracticalBatch,
   PracticalDecision,
   Position,
+  RecordReplacementWorkdaysPayload,
   RecordEmployeeAdvancePayload,
   RecordEmployeeLeavePayload,
   RecordEmployeePaymentPayload,
@@ -47,6 +55,8 @@ import type {
   RecordEmployeePerformanceReviewPayload,
   RecordTemporaryReplacementPaymentPayload,
   TemporaryReplacement,
+  TemporaryReplacementCost,
+  TemporaryReplacementWorkday,
   TrainingBatch,
   UpdateEmployeePayload,
   UpdateWorkAssignmentPayload,
@@ -100,19 +110,52 @@ export const hrApi = {
       });
       return { data, meta: meta as PageMeta };
     },
-    payrollRollup: (params: GetPayrollRollupParams) =>
-      apiRequest<PayrollRollupRow[]>('admin/hr/reports/payroll-rollup', { query: params as unknown as Record<string, string | number | undefined> }),
+    payrollRollup: async (params: GetPayrollRollupParams): Promise<PayrollRollupResult> => {
+      const { data, meta } = await apiRequestWithMeta<PayrollRollupRow[]>('admin/hr/reports/payroll-rollup', {
+        query: params as unknown as Record<string, string | number | undefined>,
+      });
+      return { rows: data, meta: meta as PayrollRollupMeta };
+    },
   },
 
   clientCompanies: {
     list: () => apiRequest<ClientCompany[]>('admin/hr/client-companies'),
-    create: (payload: { name: string; contact_person?: string | null; phone?: string | null; location?: string | null; notes?: string | null }) =>
-      apiRequest<ClientCompany>('admin/hr/client-companies', { method: 'POST', body: payload }),
+    create: (payload: {
+      name: string;
+      category?: ClientCompanyCategory;
+      contact_person?: string | null;
+      phone?: string | null;
+      location?: string | null;
+      notes?: string | null;
+    }) => apiRequest<ClientCompany>('admin/hr/client-companies', { method: 'POST', body: payload }),
     update: (
       id: number,
-      payload: { name?: string; contact_person?: string | null; phone?: string | null; location?: string | null; status?: string; notes?: string | null },
+      payload: {
+        name?: string;
+        category?: ClientCompanyCategory;
+        contact_person?: string | null;
+        phone?: string | null;
+        location?: string | null;
+        status?: string;
+        notes?: string | null;
+      },
     ) => apiRequest<ClientCompany>(`admin/hr/client-companies/${id}`, { method: 'PUT', body: payload }),
     remove: (id: number) => apiRequest<null>(`admin/hr/client-companies/${id}`, { method: 'DELETE' }),
+    agreements: {
+      list: (companyId: number) => apiRequest<ClientCompanyAgreement[]>(`admin/hr/client-companies/${companyId}/agreements`),
+      upload: (companyId: number, file: File, notes?: string | null) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        if (notes) formData.append('notes', notes);
+        return apiRequest<ClientCompanyAgreement>(`admin/hr/client-companies/${companyId}/agreements`, {
+          method: 'POST',
+          body: formData,
+          isFormData: true,
+        });
+      },
+      download: (companyId: number, agreement: ClientCompanyAgreement) =>
+        downloadAuthenticatedFile(`admin/hr/client-companies/${companyId}/agreements/${agreement.id}/download`, agreement.file_name),
+    },
   },
 
   workLocations: {
@@ -232,6 +275,39 @@ export const hrApi = {
       apiRequest<TemporaryReplacement>(`admin/hr/temporary-replacements/${id}/end`, { method: 'PATCH', body: payload }),
     addPayment: (id: number, payload: RecordTemporaryReplacementPaymentPayload) =>
       apiRequest<TemporaryReplacement>(`admin/hr/temporary-replacements/${id}/payments`, { method: 'POST', body: payload }),
+    approve: (id: number) => apiRequest<TemporaryReplacement>(`admin/hr/temporary-replacements/${id}/approve`, { method: 'PATCH' }),
+    cost: (id: number, period: string) =>
+      apiRequest<TemporaryReplacementCost>(`admin/hr/temporary-replacements/${id}/cost`, { query: { period } }),
+    workdays: {
+      list: (id: number) => apiRequest<TemporaryReplacementWorkday[]>(`admin/hr/temporary-replacements/${id}/workdays`),
+      record: (id: number, payload: RecordReplacementWorkdaysPayload) =>
+        apiRequest<unknown>(`admin/hr/temporary-replacements/${id}/workdays`, { method: 'POST', body: payload }),
+      verify: (id: number, workdayId: number) =>
+        apiRequest<TemporaryReplacementWorkday>(`admin/hr/temporary-replacements/${id}/workdays/${workdayId}/verify`, { method: 'PATCH' }),
+      void: (id: number, workdayId: number, reason: string) =>
+        apiRequest<TemporaryReplacementWorkday>(`admin/hr/temporary-replacements/${id}/workdays/${workdayId}/void`, {
+          method: 'PATCH',
+          body: { reason },
+        }),
+    },
+  },
+
+  payrollRuns: {
+    list: () => apiRequest<PayrollRun[]>('admin/hr/payroll-runs'),
+    get: (id: number) => apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}`),
+    /** Creates the draft for a month, or regenerates it if one already exists (refused once approved/finalized). */
+    generate: (period: string) => apiRequest<PayrollRun>('admin/hr/payroll-runs', { method: 'POST', body: { period } }),
+    review: (id: number) => apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/review`, { method: 'PATCH' }),
+    approve: (id: number) => apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/approve`, { method: 'PATCH' }),
+    reopen: (id: number, reason: string) =>
+      apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/reopen`, { method: 'PATCH', body: { reason } }),
+    finalize: (id: number) => apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/finalize`, { method: 'PATCH' }),
+    exportExcel: (run: Pick<PayrollRun, 'id' | 'period'>) =>
+      downloadAuthenticatedFile(`admin/hr/payroll-runs/${run.id}/export`, `payroll-${run.period}.xlsx`),
+    addAdjustment: (itemId: number, payload: CreatePayrollAdjustmentPayload) =>
+      apiRequest<PayrollAdjustmentResult>(`admin/hr/payroll-items/${itemId}/adjustments`, { method: 'POST', body: payload }),
+    markPaid: (itemId: number, paymentDate?: string) =>
+      apiRequest<PayrollItem>(`admin/hr/payroll-items/${itemId}/pay`, { method: 'POST', body: paymentDate ? { payment_date: paymentDate } : {} }),
   },
 
   attendance: {
@@ -251,6 +327,8 @@ export const hrApi = {
       return { data, meta: meta as PageMeta };
     },
     get: (id: number) => apiRequest<Employee>(`admin/hr/employees/${id}`),
+    duplicateCheck: (params: DuplicateCheckParams) =>
+      apiRequest<DuplicateEmployeeMatch[]>('admin/hr/employees/duplicate-check', { query: { ...params } }),
     create: (payload: CreateEmployeePayload) =>
       apiRequest<Employee>('admin/hr/employees', { method: 'POST', body: payload }),
     update: (id: number, payload: UpdateEmployeePayload) =>
@@ -267,6 +345,10 @@ export const hrApi = {
       apiRequest<EmployeeAttendance>(`admin/hr/employees/${id}/attendance`, { method: 'POST', body: payload }),
     addLeave: (id: number, payload: RecordEmployeeLeavePayload) =>
       apiRequest<Employee>(`admin/hr/employees/${id}/leaves`, { method: 'POST', body: payload }),
+    approveLeave: (employeeId: number, leaveId: number, note?: string | null) =>
+      apiRequest<EmployeeLeave>(`admin/hr/employees/${employeeId}/leaves/${leaveId}/approve`, { method: 'PATCH', body: { note: note || null } }),
+    rejectLeave: (employeeId: number, leaveId: number, note: string) =>
+      apiRequest<EmployeeLeave>(`admin/hr/employees/${employeeId}/leaves/${leaveId}/reject`, { method: 'PATCH', body: { note } }),
     addPerformanceReview: (id: number, payload: RecordEmployeePerformanceReviewPayload) =>
       apiRequest<Employee>(`admin/hr/employees/${id}/performance-reviews`, { method: 'POST', body: payload }),
     addPayment: (id: number, payload: RecordEmployeePaymentPayload) =>

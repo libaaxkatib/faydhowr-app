@@ -53,7 +53,7 @@ export function WorkforceRequestHistoryPage() {
         id: 'location',
         cell: ({ row }) => (
           <span className="text-ink">
-            {row.original.client_company_name ? `${row.original.client_company_name} · ${row.original.work_location_name}` : row.original.work_location_name}
+            {[row.original.client_company_name, row.original.work_location_name].filter(Boolean).join(' · ') || '—'}
           </span>
         ),
       },

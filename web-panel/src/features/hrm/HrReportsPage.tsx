@@ -245,6 +245,12 @@ export function HrReportsPage() {
                   </span>
                 </div>
               ))}
+              {data.assignments_without_workplace > 0 && (
+                <div className="flex items-center justify-between border-t border-border pt-2 text-sm">
+                  <span className="text-ink-muted">Company recorded, workplace not set yet</span>
+                  <span className="font-semibold text-ink">{formatNumber(data.assignments_without_workplace)}</span>
+                </div>
+              )}
             </CardBody>
           </Card>
 

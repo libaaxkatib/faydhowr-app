@@ -36,8 +36,25 @@ test('HR Manager with the intended HR grant sees only Human Resources, nothing e
 
   const hrGroup = NAV_GROUPS.find((g) => g.label === 'Human Resources')!;
   const renderable = hrGroup.items.filter((item) => isItemRenderable(item, hasPermission, false)).map((i) => i.label);
-  // Every HR item requires hr.view or hr.reports.view, both granted here - all should render.
-  assert.deepEqual(renderable, hrGroup.items.map((i) => i.label));
+  // Every HR item requires hr.view or hr.reports.view, both granted here - all should render,
+  // except Payroll, which needs its own hr.payroll.view permission (not part of this grant).
+  assert.deepEqual(
+    renderable,
+    hrGroup.items.filter((i) => i.permission !== 'hr.payroll.view').map((i) => i.label),
+  );
+  assert.ok(!renderable.includes('Payroll'));
+});
+
+test('Payroll nav item appears only with hr.payroll.view (or for a Super Admin)', () => {
+  const hrGroup = NAV_GROUPS.find((g) => g.label === 'Human Resources')!;
+  const payroll = hrGroup.items.find((i) => i.label === 'Payroll')!;
+  assert.equal(payroll.permission, 'hr.payroll.view');
+
+  const withoutIt = permissionSetOf(['hr.view', 'hr.manage', 'hr.payroll.manage']);
+  const withIt = permissionSetOf(['hr.view', 'hr.payroll.view']);
+  assert.equal(isItemRenderable(payroll, withoutIt, false), false);
+  assert.equal(isItemRenderable(payroll, withIt, false), true);
+  assert.equal(isItemRenderable(payroll, permissionSetOf([]), true), true);
 });
 
 test('HR Manager with zero grants sees no group at all - a title/submenu alone never shows a group', () => {

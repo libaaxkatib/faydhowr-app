@@ -1,19 +1,35 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { hrApi } from '@/api/hr';
+import { ApiClientError } from '@/api/client';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Modal } from '@/components/ui/Modal';
 import { FormField, inputClasses } from '@/components/ui/FormField';
+import { Select } from '@/components/ui/Select';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
-import type { ClientCompany, WorkLocation } from '@/types/employee';
+import { formatDate } from '@/utils/formatters';
+import { friendlyErrorMessage } from '@/utils/hrHelpers';
+import type { ClientCompany, ClientCompanyAgreement, ClientCompanyCategory, WorkLocation } from '@/types/employee';
+
+const CATEGORY_OPTIONS: { value: ClientCompanyCategory; label: string }[] = [
+  { value: 'company', label: 'Company' },
+  { value: 'guri', label: 'Guri (household)' },
+];
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function ClientCompaniesPage() {
   const queryClient = useQueryClient();
@@ -106,10 +122,20 @@ export function ClientCompaniesPage() {
           <Card key={company.id}>
             <CardHeader>
               <div>
-                <h3 className="font-display text-sm font-bold text-ink">{company.name}</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-display text-sm font-bold text-ink">{company.name}</h3>
+                  <StatusBadge
+                    status={company.category}
+                    label={company.category_label ?? (company.category === 'guri' ? 'Guri (household)' : 'Company')}
+                    tone={company.category === 'guri' ? 'info' : 'neutral'}
+                  />
+                </div>
                 <p className="text-xs text-ink-muted">
                   {[company.contact_person, company.phone, company.location].filter(Boolean).join(' · ') || 'No contact details'}
                 </p>
+                {company.aliases && company.aliases.length > 0 && (
+                  <p className="text-xs text-ink-faint">Also known as: {company.aliases.map((a) => a.alias).join(', ')}</p>
+                )}
               </div>
               <PermissionGate module="hr">
                 <div className="flex items-center gap-1">
@@ -128,7 +154,7 @@ export function ClientCompaniesPage() {
             </CardHeader>
             <CardBody>
               {!company.work_locations || company.work_locations.length === 0 ? (
-                <p className="text-sm text-ink-muted">No work locations yet.</p>
+                <p className="text-sm text-ink-muted">No work locations yet. A workplace is optional - employees can be assigned to the company first.</p>
               ) : (
                 <div className="divide-y divide-border">
                   {company.work_locations.map((location) => (
@@ -154,6 +180,7 @@ export function ClientCompaniesPage() {
                   ))}
                 </div>
               )}
+              <AgreementSection company={company} onChanged={invalidate} />
             </CardBody>
           </Card>
         ))}
@@ -200,11 +227,14 @@ function CompanyFormModal({
   const [phone, setPhone] = useState(editing?.phone ?? '');
   const [location, setLocation] = useState(editing?.location ?? '');
   const [notes, setNotes] = useState(editing?.notes ?? '');
+  const [category, setCategory] = useState<ClientCompanyCategory>(editing?.category ?? 'company');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
   const saveMutation = useMutation({
     mutationFn: () => {
       const payload = {
         name,
+        category,
         contact_person: contactPerson || null,
         phone: phone || null,
         location: location || null,
@@ -216,7 +246,13 @@ function CompanyFormModal({
       show(editing ? 'Client company updated.' : 'Client company created.');
       onSaved();
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Something went wrong.', 'error'),
+    onError: (err) => {
+      if (err instanceof ApiClientError && err.isValidation && err.fieldErrors) {
+        setFieldErrors(err.fieldErrors);
+        if (err.fieldErrors.name) return;
+      }
+      show(friendlyErrorMessage(err, 'Something went wrong.'), 'error');
+    },
   });
 
   return (
@@ -232,8 +268,22 @@ function CompanyFormModal({
         </>
       }
     >
-      <FormField label="Company name" htmlFor="cc-name" required>
+      <FormField
+        label="Company name"
+        htmlFor="cc-name"
+        required
+        error={
+          fieldErrors.name?.[0]
+            ? /taken|already/i.test(fieldErrors.name[0])
+              ? 'A company with this name already exists. Names are the same even if the capital letters differ.'
+              : fieldErrors.name[0]
+            : undefined
+        }
+      >
         <input id="cc-name" className={inputClasses} value={name} onChange={(e) => setName(e.target.value)} />
+      </FormField>
+      <FormField label="Type" htmlFor="cc-category" hint="Choose Guri for a household. You can change this later.">
+        <Select id="cc-category" value={category} onChange={(e) => setCategory(e.target.value as ClientCompanyCategory)} options={CATEGORY_OPTIONS} />
       </FormField>
       <FormField label="Contact person" htmlFor="cc-contact">
         <input id="cc-contact" className={inputClasses} value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
@@ -248,6 +298,121 @@ function CompanyFormModal({
         <textarea id="cc-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </FormField>
     </Modal>
+  );
+}
+
+/**
+ * Optional agreement files for one company. The newest upload is the current
+ * agreement; uploading again keeps the older ones as history. Only loads the
+ * list when opened, so the companies page doesn't fire one request per company.
+ */
+function AgreementSection({ company, onChanged }: { company: ClientCompany; onChanged: () => void }) {
+  const queryClient = useQueryClient();
+  const { show } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [notes, setNotes] = useState('');
+
+  const { data: agreements, isLoading, error } = useQuery({
+    queryKey: ['client-company-agreements', company.id],
+    queryFn: () => hrApi.clientCompanies.agreements.list(company.id),
+    enabled: isOpen,
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => hrApi.clientCompanies.agreements.upload(company.id, file, notes || null),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client-company-agreements', company.id] });
+      onChanged();
+      setNotes('');
+      show('Agreement uploaded. Earlier agreements are kept as history.');
+    },
+    onError: (err) => show(friendlyErrorMessage(err, 'Could not upload the agreement.'), 'error'),
+  });
+
+  const downloadMutation = useMutation({
+    mutationFn: (agreement: ClientCompanyAgreement) => hrApi.clientCompanies.agreements.download(company.id, agreement),
+    onError: (err) => show(friendlyErrorMessage(err, 'Could not download the agreement.'), 'error'),
+  });
+
+  // Newest first = the current agreement; sort defensively in case the server order changes.
+  const sorted = [...(agreements ?? [])].sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at) || b.id - a.id);
+  const count = agreements?.length ?? company.agreements_count ?? 0;
+
+  return (
+    <div className="mt-4 border-t border-border pt-3">
+      <button type="button" onClick={() => setIsOpen((open) => !open)} className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted hover:text-primary">
+        <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} size={14} />
+        Agreement {count > 0 ? `(${count} on file)` : '(none yet)'}
+      </button>
+
+      {isOpen && (
+        <div className="mt-3 space-y-3">
+          {isLoading && <p className="text-xs text-ink-faint">Loading agreements…</p>}
+          {error && <p className="text-xs text-danger">{friendlyErrorMessage(error, 'Could not load agreements.')}</p>}
+          {agreements && sorted.length === 0 && <p className="text-xs italic text-ink-faint">No agreement uploaded yet. This is optional.</p>}
+
+          {sorted.length > 0 && (
+            <div className="space-y-1.5">
+              {sorted.map((agreement, index) => (
+                <div key={agreement.id} className="flex items-center justify-between gap-3 rounded-sm border border-border px-2.5 py-1.5">
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-2 text-sm text-ink">
+                      <span className="truncate">{agreement.file_name}</span>
+                      {index === 0 ? <StatusBadge status="current" label="Current" tone="success" /> : <span className="text-xs text-ink-faint">Earlier version</span>}
+                    </p>
+                    <p className="text-xs text-ink-faint">
+                      {formatFileSize(agreement.file_size)} · uploaded {formatDate(agreement.uploaded_at)}
+                      {agreement.uploaded_by && ` by ${agreement.uploaded_by}`}
+                      {agreement.notes && ` · ${agreement.notes}`}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    isLoading={downloadMutation.isPending && downloadMutation.variables?.id === agreement.id}
+                    onClick={() => downloadMutation.mutate(agreement)}
+                  >
+                    Download
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <PermissionGate module="hr">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="min-w-[10rem] flex-1">
+                <label htmlFor={`agreement-notes-${company.id}`} className="mb-1 block text-xs font-medium text-ink-muted">Note (optional)</label>
+                <input
+                  id={`agreement-notes-${company.id}`}
+                  className={inputClasses}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="e.g. Renewed for 2026"
+                />
+              </div>
+              <Button size="sm" variant="outline" isLoading={uploadMutation.isPending} onClick={() => fileInputRef.current?.click()}>
+                <Icon name="plus" size={14} />
+                {sorted.length > 0 ? 'Upload new agreement' : 'Upload agreement'}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) uploadMutation.mutate(file);
+                  e.target.value = '';
+                }}
+              />
+            </div>
+            <p className="text-xs text-ink-faint">PDF, Word or picture files, up to 10 MB. A new upload becomes the current agreement; the old one stays in the list.</p>
+          </PermissionGate>
+        </div>
+      )}
+    </div>
   );
 }
 

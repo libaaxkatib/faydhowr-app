@@ -173,6 +173,25 @@ export async function apiRequestRaw(path: string, options: RequestOptions = {}):
   return result as Response;
 }
 
+/**
+ * Downloads a file the API protects with the bearer token (an agreement, an
+ * Excel export). A plain link can't send the Authorization header, so the file
+ * is fetched as a blob and saved through a temporary link. Errors surface as a
+ * normal `ApiClientError`.
+ */
+export async function downloadAuthenticatedFile(path: string, fileName: string): Promise<void> {
+  const response = await apiRequestRaw(path);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 /** Same as `apiRequest`, but also returns `meta` — needed by hand-rolled-pagination list endpoints. */
 export async function apiRequestWithMeta<T>(
   path: string,

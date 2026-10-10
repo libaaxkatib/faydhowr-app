@@ -71,7 +71,7 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
                     {visibleItems.map((item) =>
                       item.comingSoon ? (
                         <div
-                          key={item.to}
+                          key={`${item.to}:${item.label}`}
                           title="Backend for this module isn't built yet"
                           className="flex cursor-not-allowed items-center gap-2.5 rounded-md px-3 py-2 text-[13px] text-white/30"
                         >
@@ -80,7 +80,7 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
                         </div>
                       ) : (
                         <NavLink
-                          key={item.to}
+                          key={`${item.to}:${item.label}`}
                           to={item.to}
                           end={item.end}
                           onClick={onNavigate}

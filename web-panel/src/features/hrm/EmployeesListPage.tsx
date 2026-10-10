@@ -18,6 +18,7 @@ import { inputClasses } from '@/components/ui/FormField';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { formatDate, initialsOf } from '@/utils/formatters';
+import { OFFICE_LABEL } from '@/utils/hrHelpers';
 import type { Employee, EmployeePipelineStage, EmployeeStatus } from '@/types/employee';
 
 const STATUS_OPTIONS: { value: EmployeeStatus; label: string }[] = [
@@ -195,7 +196,10 @@ export function EmployeesListPage({
             </div>
             <div className="min-w-0">
               <p className="truncate font-medium text-ink">{row.original.full_name}</p>
-              <p className="truncate text-xs text-ink-muted">{row.original.employee_number}</p>
+              <p className="truncate text-xs text-ink-muted">
+                {row.original.employee_number}
+                {row.original.employment_type === 'temporary' && <span className="ml-1.5 font-semibold text-warning">· Temporary</span>}
+              </p>
             </div>
           </div>
         ),
@@ -237,9 +241,7 @@ export function EmployeesListPage({
           if (assignments.length === 0) {
             return <span className="italic text-ink-faint">Unassigned</span>;
           }
-          const labels = assignments.map((a) =>
-            a.location_type === 'office' ? 'Fayadhowr Office' : (a.client_company_name ?? a.work_location_name),
-          );
+          const labels = assignments.map((a) => (a.location_type === 'office' ? OFFICE_LABEL : (a.client_company_name ?? a.work_location_name ?? 'Company not recorded')));
           return <span className="text-ink">{labels.join(', ')}</span>;
         },
       },

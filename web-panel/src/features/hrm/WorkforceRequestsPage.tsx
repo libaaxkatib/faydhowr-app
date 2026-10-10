@@ -26,6 +26,13 @@ const STATUS_TONE: Record<WorkforceRequestStatus, 'success' | 'warning' | 'dange
   cancelled: 'danger',
 };
 
+const OFFICE_CHOICE = 'office';
+
+/** The workplace if known, otherwise the company (the workplace is optional), otherwise a neutral label. */
+function requestTitle(request: WorkforceRequest): string {
+  return request.work_location_name ?? request.client_company_name ?? 'Company not recorded';
+}
+
 const STATUS_LABEL: Record<WorkforceRequestStatus, string> = {
   open: 'Open',
   partially_filled: 'Partially Filled',
@@ -45,6 +52,7 @@ export function WorkforceRequestsPage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [companyChoice, setCompanyChoice] = useState('');
   const [workLocationId, setWorkLocationId] = useState('');
   const [employeeCategoryId, setEmployeeCategoryId] = useState('');
   const [positionId, setPositionId] = useState('');
@@ -53,9 +61,12 @@ export function WorkforceRequestsPage() {
   const [requestedDate, setRequestedDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState('');
   const [candidatesFor, setCandidatesFor] = useState<WorkforceRequest | null>(null);
+  const [workplaceFor, setWorkplaceFor] = useState<WorkforceRequest | null>(null);
+  const [workplaceChoice, setWorkplaceChoice] = useState('');
 
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['workforce-requests'], queryFn: hrApi.workforceRequests.list });
   const { data: workLocations } = useQuery({ queryKey: ['work-locations'], queryFn: () => hrApi.workLocations.list() });
+  const { data: companies } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list });
   const { data: categories } = useQuery({ queryKey: ['employee-categories'], queryFn: hrApi.employeeCategories.list });
   const { data: positions } = useQuery({ queryKey: ['positions'], queryFn: hrApi.positions.list });
 
@@ -65,10 +76,23 @@ export function WorkforceRequestsPage() {
     enabled: candidatesFor !== null,
   });
 
+  const isOffice = companyChoice === OFFICE_CHOICE;
+  const office = (workLocations ?? []).find((l) => l.location_type === 'office');
+  const companyLocations = (workLocations ?? []).filter(
+    (l) => l.location_type === 'client' && l.status === 'active' && companyChoice !== '' && String(l.client_company_id) === companyChoice,
+  );
+  const companyOptions = [
+    ...(office ? [{ value: OFFICE_CHOICE, label: 'Fayadhowr Office' }] : []),
+    ...(companies ?? []).filter((c) => c.status === 'active').map((c) => ({ value: String(c.id), label: c.category === 'guri' ? `${c.name} (Guri)` : c.name })),
+  ];
+
   const createMutation = useMutation({
     mutationFn: () =>
       hrApi.workforceRequests.create({
-        work_location_id: Number(workLocationId),
+        // The office has no company, so it is sent on its own; a company may carry an optional workplace.
+        ...(isOffice
+          ? { work_location_id: office?.id ?? null }
+          : { client_company_id: Number(companyChoice), work_location_id: workLocationId ? Number(workLocationId) : null }),
         employee_category_id: employeeCategoryId ? Number(employeeCategoryId) : undefined,
         position_id: positionId ? Number(positionId) : undefined,
         gender_requirement: (genderRequirement || undefined) as 'male' | 'female' | undefined,
@@ -80,6 +104,7 @@ export function WorkforceRequestsPage() {
       queryClient.invalidateQueries({ queryKey: ['workforce-requests'] });
       show('Workforce request created.');
       setIsCreateOpen(false);
+      setCompanyChoice('');
       setWorkLocationId('');
       setEmployeeCategoryId('');
       setPositionId('');
@@ -89,6 +114,20 @@ export function WorkforceRequestsPage() {
     },
     onError: (err) => show(err instanceof Error ? err.message : 'Something went wrong.', 'error'),
   });
+
+  const workplaceMutation = useMutation({
+    mutationFn: () => hrApi.workforceRequests.update(workplaceFor!.id, { work_location_id: Number(workplaceChoice) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workforce-requests'] });
+      show('Workplace saved.');
+      setWorkplaceFor(null);
+      setWorkplaceChoice('');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Could not save the workplace.', 'error'),
+  });
+  const workplaceOptions = (workLocations ?? []).filter(
+    (l) => l.location_type === 'client' && l.status === 'active' && workplaceFor !== null && l.client_company_id === workplaceFor.client_company_id,
+  );
 
   const cancelMutation = useMutation({
     mutationFn: (id: number) => hrApi.workforceRequests.cancel(id),
@@ -137,9 +176,10 @@ export function WorkforceRequestsPage() {
             <Card key={request.id} className="p-5">
               <div className="mb-3 flex items-start justify-between">
                 <div>
-                  <h3 className="font-display text-base font-bold text-ink">{request.work_location_name ?? 'Unknown location'}</h3>
+                  <h3 className="font-display text-base font-bold text-ink">{requestTitle(request)}</h3>
                   <p className="text-xs text-ink-muted">
-                    {request.client_company_name && `${request.client_company_name} · `}
+                    {request.work_location_name && request.client_company_name && `${request.client_company_name} · `}
+                    {!request.work_location_name && request.work_location_id === null && 'Workplace not set yet · '}
                     {formatDate(request.requested_date)}
                   </p>
                 </div>
@@ -161,6 +201,13 @@ export function WorkforceRequestsPage() {
                 <Button size="sm" variant="outline" onClick={() => setCandidatesFor(request)}>
                   View Candidates
                 </Button>
+                {request.work_location_id === null && request.client_company_id !== null && request.status !== 'cancelled' && (
+                  <PermissionGate module="hr">
+                    <Button size="sm" variant="outline" onClick={() => setWorkplaceFor(request)}>
+                      Set workplace
+                    </Button>
+                  </PermissionGate>
+                )}
                 {(request.status === 'open' || request.status === 'partially_filled') && (
                   <PermissionGate module="hr">
                     <Button size="sm" variant="ghost" onClick={() => cancelMutation.mutate(request.id)} isLoading={cancelMutation.isPending}>
@@ -199,21 +246,40 @@ export function WorkforceRequestsPage() {
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-            <Button size="sm" isLoading={createMutation.isPending} disabled={!workLocationId} onClick={() => createMutation.mutate()}>
+            <Button size="sm" isLoading={createMutation.isPending} disabled={companyChoice === ''} onClick={() => createMutation.mutate()}>
               Create
             </Button>
           </>
         }
       >
-        <FormField label="Work location" htmlFor="wr-location" required>
+        <FormField label="Company" htmlFor="wr-company" required>
           <Select
-            id="wr-location"
-            value={workLocationId}
-            onChange={(e) => setWorkLocationId(e.target.value)}
-            placeholder="Select a location…"
-            options={(workLocations ?? []).map((l) => ({ value: String(l.id), label: l.client_company_name ? `${l.client_company_name} · ${l.name}` : l.name }))}
+            id="wr-company"
+            value={companyChoice}
+            onChange={(e) => {
+              setCompanyChoice(e.target.value);
+              setWorkLocationId('');
+            }}
+            placeholder="Select a company…"
+            options={companyOptions}
           />
         </FormField>
+        {!isOffice && (
+          <FormField
+            label="Work location (optional)"
+            htmlFor="wr-location"
+            hint={companyChoice !== '' && companyLocations.length === 0 ? 'This company has no workplaces yet. You can add the workplace later.' : 'You can add the workplace later.'}
+          >
+            <Select
+              id="wr-location"
+              value={workLocationId}
+              onChange={(e) => setWorkLocationId(e.target.value)}
+              placeholder={companyChoice === '' ? 'Select a company first' : 'Workplace not set yet'}
+              options={companyLocations.map((l) => ({ value: String(l.id), label: l.name }))}
+              disabled={companyChoice === ''}
+            />
+          </FormField>
+        )}
         <FormField label="Category (optional)" htmlFor="wr-category">
           <Select
             id="wr-category"
@@ -253,9 +319,38 @@ export function WorkforceRequestsPage() {
       </Modal>
 
       <Modal
+        isOpen={workplaceFor !== null}
+        onClose={() => setWorkplaceFor(null)}
+        title="Set workplace"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setWorkplaceFor(null)}>Cancel</Button>
+            <Button size="sm" isLoading={workplaceMutation.isPending} disabled={workplaceChoice === ''} onClick={() => workplaceMutation.mutate()}>
+              Save
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-xs text-ink-muted">
+          {workplaceFor?.client_company_name}: the workplace can be set once; an existing workplace is never replaced.
+        </p>
+        <FormField label="Work location" htmlFor="wr-set-location" required>
+          <Select
+            id="wr-set-location"
+            value={workplaceChoice}
+            onChange={(e) => setWorkplaceChoice(e.target.value)}
+            placeholder={workplaceOptions.length === 0 ? 'This company has no workplaces yet' : 'Select a workplace…'}
+            options={workplaceOptions.map((l) => ({ value: String(l.id), label: l.name }))}
+            disabled={workplaceOptions.length === 0}
+          />
+        </FormField>
+      </Modal>
+
+      <Modal
         isOpen={candidatesFor !== null}
         onClose={() => setCandidatesFor(null)}
-        title={candidatesFor ? `Candidates for ${candidatesFor.work_location_name}` : 'Candidates'}
+        title={candidatesFor ? `Candidates for ${requestTitle(candidatesFor)}` : 'Candidates'}
         size="lg"
       >
         {candidatesLoading && <LoadingState label="Loading candidates…" />}

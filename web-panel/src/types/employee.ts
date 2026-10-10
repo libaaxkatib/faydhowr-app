@@ -202,9 +202,33 @@ export type ClientStatus = 'active' | 'inactive';
 export type WorkAssignmentStatus = 'active' | 'ended' | 'cancelled';
 export type SalaryFrequency = 'monthly' | 'weekly' | 'daily';
 
+export type ClientCompanyCategory = 'company' | 'guri';
+
+export interface ClientCompanyAlias {
+  alias: string;
+  source: string | null;
+  source_reference: string | null;
+}
+
+/** One uploaded agreement file for a client company. The newest upload is the current one; older ones are kept as history. */
+export interface ClientCompanyAgreement {
+  id: number;
+  client_company_id: number;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  notes: string | null;
+  uploaded_by: string | null;
+  uploaded_at: string;
+}
+
 export interface ClientCompany {
   id: number;
   name: string;
+  category: ClientCompanyCategory;
+  category_label: string;
+  aliases?: ClientCompanyAlias[];
+  agreements_count?: number;
   contact_person: string | null;
   phone: string | null;
   location: string | null;
@@ -236,10 +260,17 @@ export interface WorkLocation {
 export interface WorkAssignment {
   id: number;
   employee_id: number;
-  work_location_id: number;
-  work_location_name: string;
-  location_type: LocationType;
+  client_company_id: number | null;
   client_company_name: string | null;
+  /** Null until HR sets the workplace - the workplace is optional and can be added later. */
+  work_location_id: number | null;
+  work_location_name?: string | null;
+  /** 'client' whenever there is no location (the assignment is to a company). */
+  location_type: LocationType;
+  /** The Permanent assignment this one takes over from (null when it replaces nobody). */
+  replaces_assignment_id?: number | null;
+  /** Calendar days nobody was paid between the previous employee's last day and this start (0 = back to back). */
+  succession_gap_days?: number;
   position_id: number | null;
   position_name: string | null;
   start_date: string;
@@ -253,7 +284,12 @@ export interface WorkAssignment {
 }
 
 export interface CreateWorkAssignmentPayload {
-  work_location_id: number;
+  /** Required unless work_location_id is given (the Fayadhowr Office has no company). */
+  client_company_id?: number | null;
+  /** Optional - the workplace can be added later. */
+  work_location_id?: number | null;
+  /** Optional: the ended Permanent assignment this one takes over from. Overlapping days are refused. */
+  replaces_assignment_id?: number | null;
   position_id?: number | null;
   start_date: string;
   end_date?: string | null;
@@ -264,7 +300,13 @@ export interface CreateWorkAssignmentPayload {
   override_capacity?: boolean;
 }
 
-export type UpdateWorkAssignmentPayload = Partial<Omit<CreateWorkAssignmentPayload, 'work_location_id' | 'override_capacity'>>;
+export type UpdateWorkAssignmentPayload = Partial<Omit<CreateWorkAssignmentPayload, 'client_company_id' | 'work_location_id'>> & {
+  /** Sets the workplace once, only when none is set yet. */
+  work_location_id?: number;
+  /** Date a new salary starts to apply (defaults to today on the server). Earlier salaries are kept as history. */
+  salary_effective_from?: string;
+  salary_change_reason?: string | null;
+};
 
 export interface EndWorkAssignmentPayload {
   end_date: string;
@@ -285,7 +327,8 @@ export interface WorkforceRequestMatch {
 
 export interface WorkforceRequest {
   id: number;
-  work_location_id: number;
+  work_location_id: number | null;
+  client_company_id: number | null;
   work_location_name: string | null;
   client_company_name: string | null;
   employee_category_id: number | null;
@@ -304,7 +347,9 @@ export interface WorkforceRequest {
 }
 
 export interface CreateWorkforceRequestPayload {
-  work_location_id: number;
+  /** Required unless work_location_id is given (the Fayadhowr Office has no company). */
+  client_company_id?: number | null;
+  work_location_id?: number | null;
   employee_category_id?: number | null;
   position_id?: number | null;
   gender_requirement?: EmployeeGender | null;
@@ -313,7 +358,10 @@ export interface CreateWorkforceRequestPayload {
   notes?: string | null;
 }
 
-export type UpdateWorkforceRequestPayload = Partial<Omit<CreateWorkforceRequestPayload, 'work_location_id'>>;
+export type UpdateWorkforceRequestPayload = Partial<Omit<CreateWorkforceRequestPayload, 'client_company_id' | 'work_location_id'>> & {
+  /** Only to complete a missing workplace; an existing one is never swapped. */
+  work_location_id?: number;
+};
 
 /** A Waiting employee annotated with advisory match flags against one workforce request - filter+sort, not a numeric score. */
 export interface WaitingCandidate {
@@ -387,10 +435,13 @@ export interface TemporaryReplacement {
   replacement_employee_name: string | null;
   start_date: string;
   end_date: string | null;
-  daily_rate: string;
-  currency: string;
+  /** Legacy: the rate is now derived from the covered employee's salary, so this may be null. */
+  daily_rate: string | null;
+  currency: string | null;
   reason: string | null;
   status: TemporaryReplacementStatus;
+  approved: boolean;
+  approved_at: string | null;
   notes: string | null;
   created_by: string | null;
   payments: TemporaryReplacementPayment[];
@@ -403,10 +454,45 @@ export interface CreateTemporaryReplacementPayload {
   replacement_employee_id: number;
   start_date: string;
   end_date?: string | null;
-  daily_rate: number;
-  currency: string;
   reason?: string | null;
   notes?: string | null;
+}
+
+export type TemporaryReplacementWorkdayStatus = 'recorded' | 'verified' | 'void';
+
+export interface TemporaryReplacementWorkday {
+  id: number;
+  temporary_replacement_id: number;
+  work_date: string;
+  status: TemporaryReplacementWorkdayStatus;
+  notes: string | null;
+  recorded_by: string | null;
+  verified_at: string | null;
+  verified_by: string | null;
+  voided_at: string | null;
+  void_reason: string | null;
+}
+
+export interface RecordReplacementWorkdaysPayload {
+  dates: string[];
+  verify?: boolean;
+  notes?: string | null;
+}
+
+/** Month cost preview for one replacement. Only verified days are charged. */
+export interface TemporaryReplacementCost {
+  verified_days: number;
+  /** A number like '10.0000', or a plain-text note such as 'varies...' when the covered salary changed during the month. */
+  daily_rate: string;
+  amount: string;
+  currency: string;
+  charged_dates: string[];
+  ignored: {
+    unverified: number;
+    outside_window_or_month: number;
+    duplicates: number;
+  };
+  approved: boolean;
 }
 
 export interface EndTemporaryReplacementPayload {
@@ -450,6 +536,8 @@ export interface AttendanceRosterEntry {
 
 export type LeaveType = 'annual' | 'sick' | 'unpaid' | 'other';
 
+export type LeaveApprovalStatus = 'pending' | 'approved' | 'rejected';
+
 export interface EmployeeLeave {
   id: number;
   employee_id?: number;
@@ -460,6 +548,11 @@ export interface EmployeeLeave {
   start_date: string;
   end_date: string;
   notes: string | null;
+  /** Unpaid leave starts pending and reduces pay only once approved. */
+  approval_status: LeaveApprovalStatus;
+  decided_by?: string | null;
+  decided_at?: string | null;
+  decision_note?: string | null;
   recorded_by: string | null;
   created_at: string;
 }
@@ -568,24 +661,50 @@ export interface PayrollSummary {
   employee_id: number;
   work_assignment_id: number;
   payroll_period: string;
-  location_type: LocationType;
+  /** False when the assignment has no payroll line this month (Temporary employee, cancelled, outside the month). */
+  payable: boolean;
+  not_payable_reason: string | null;
+  location_type: LocationType | null;
   monthly_salary: string;
   currency: string;
   days_in_month: number;
+  /** Calendar days paid this month (proration; weekends are paid days). */
+  eligible_days: number;
   daily_rate: string;
+  /** Salary for the eligible calendar days, before deductions. */
+  gross_pay: string;
   absent_days: number;
   absence_deduction: string;
-  penalties: { id: number; penalty_date: string; reason: string; deduction_amount: string }[];
+  penalties: { id: number; penalty_date: string | null; reason: string; deduction_amount: string }[];
   penalty_deduction: string;
-  advances: { id: number; advance_date: string; reason: string; amount: string }[];
+  advances: { id: number; advance_date: string | null; reason: string; amount: string }[];
   advance_deduction: string;
+  replacement_deduction: string;
+  replacements: { replacement_id: number; temporary_employee_name: string | null; verified_days: number; amount: string }[];
+  unpaid_leave_deduction: string;
+  unpaid_leaves: { leave_id: number; days: number; amount: string }[];
+  adjustment: string;
   net_payable: string;
+  /** Present when the assignment ended inside this month (permanent separation final pay). */
+  final_pay: { last_paid_day: string; paid_calendar_days: number } | null;
+  /** 'stored_run' = the locked payroll run; 'live_estimate' = calculated now with the payroll engine. */
+  source: 'stored_run' | 'live_estimate';
+  is_estimate: boolean;
+  estimate_note: string | null;
+  run_id: number | null;
+  run_status: 'draft' | 'reviewed' | 'approved' | 'finalized' | null;
+  /** A draft/reviewed run exists for the month but no longer matches the live figures - regenerate it. */
+  differs_from_run: boolean;
+  warnings: string[];
 }
+
+export type EmploymentType = 'permanent' | 'temporary';
 
 export interface Employee {
   id: number;
   employee_number: string;
   full_name: string;
+  employment_type: EmploymentType;
   /** Legitimately null for 242 employees migrated from the Excel HR source - never fabricate a value. */
   phone: string | null;
   alternate_phone: string | null;
@@ -697,6 +816,29 @@ export interface CreateEmployeePayload {
   training_fee_status?: string | null;
   source?: string | null;
   notes?: string | null;
+  employment_type?: EmploymentType;
+  /** Send true (with duplicate_reason) only after the server answered DUPLICATE_EMPLOYEE_PHONE and HR confirmed this is a different person. */
+  confirm_duplicate?: boolean;
+  duplicate_reason?: string | null;
+}
+
+export type DuplicateMatchReason = 'phone' | 'name';
+
+/** An existing employee that shares a phone number (blocking) or a full name (warning only) with the one being entered. */
+export interface DuplicateEmployeeMatch {
+  id: number;
+  employee_number: string;
+  full_name: string;
+  status: EmployeeStatus;
+  archived: boolean;
+  matched_on: DuplicateMatchReason[];
+}
+
+export interface DuplicateCheckParams {
+  phone?: string;
+  alternate_phone?: string;
+  full_name?: string;
+  ignore_employee_id?: number;
 }
 
 export type UpdateEmployeePayload = Partial<Omit<CreateEmployeePayload, 'phone' | 'location' | 'application_date'>> & {
@@ -750,6 +892,8 @@ export interface HrReportsSummary {
   pipeline_breakdown: Partial<Record<EmployeePipelineStage, number>>;
   category_breakdown: { id: number; name: string; total: number }[];
   department_breakdown: { id: number; name: string; total: number }[];
+  /** Active assignments recorded against a company only (workplace not set yet). */
+  assignments_without_workplace: number;
   workplace_breakdown: {
     id: number;
     name: string;
@@ -874,22 +1018,25 @@ export interface GetPayrollRollupParams {
   department_id?: number;
 }
 
-export interface PayrollRollupRow {
-  employee_id: number;
+export interface PayrollRollupRow extends PayrollSummary {
   employee_name: string | null;
   department_name: string | null;
-  work_assignment_id: number;
-  payroll_period: string;
-  location_type: LocationType;
-  monthly_salary: string;
-  currency: string;
-  days_in_month: number;
-  daily_rate: string;
-  absent_days: number;
-  absence_deduction: string;
-  penalties: { id: number; penalty_date: string; reason: string; deduction_amount: string }[];
-  penalty_deduction: string;
-  advances: { id: number; advance_date: string; reason: string; amount: string }[];
-  advance_deduction: string;
-  net_payable: string;
+}
+
+export interface PayrollRollupMeta {
+  period: string;
+  source: 'stored_run' | 'live_estimate';
+  is_estimate: boolean;
+  estimate_note: string | null;
+  run_id: number | null;
+  run_status: 'draft' | 'reviewed' | 'approved' | 'finalized' | null;
+  differs_from_run: boolean;
+  row_count: number;
+  totals: { gross_pay: string; replacement_deduction: string; other_deductions: string; adjustment: string; net_payable: string };
+  warnings: string[];
+}
+
+export interface PayrollRollupResult {
+  rows: PayrollRollupRow[];
+  meta: PayrollRollupMeta;
 }
