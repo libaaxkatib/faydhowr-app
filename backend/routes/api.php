@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\Admin\Customers\CustomerAttachmentController as 
 use App\Http\Controllers\Api\V1\Admin\Customers\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Api\V1\Admin\Customers\CustomerNoteController as AdminCustomerNoteController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
+use App\Http\Controllers\Api\V1\Admin\Hr\ClientCompanyAgreementController as AdminClientCompanyAgreementController;
 use App\Http\Controllers\Api\V1\Admin\Hr\ClientCompanyController as AdminClientCompanyController;
 use App\Http\Controllers\Api\V1\Admin\Hr\DepartmentController as AdminDepartmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeAttendanceController as AdminEmployeeAttendanceController;
@@ -43,9 +44,11 @@ use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeUniformController as AdminEmplo
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeWorkAssignmentController as AdminEmployeeWorkAssignmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrDashboardController as AdminHrDashboardController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrReportsController as AdminHrReportsController;
+use App\Http\Controllers\Api\V1\Admin\Hr\PayrollRunController as AdminPayrollRunController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PositionController as AdminPositionController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PracticalBatchController as AdminPracticalBatchController;
 use App\Http\Controllers\Api\V1\Admin\Hr\TemporaryReplacementController as AdminTemporaryReplacementController;
+use App\Http\Controllers\Api\V1\Admin\Hr\TemporaryReplacementWorkdayController as AdminTemporaryReplacementWorkdayController;
 use App\Http\Controllers\Api\V1\Admin\Hr\TrainingBatchController as AdminTrainingBatchController;
 use App\Http\Controllers\Api\V1\Admin\Hr\WorkforceRequestController as AdminWorkforceRequestController;
 use App\Http\Controllers\Api\V1\Admin\Hr\WorkLocationController as AdminWorkLocationController;
@@ -1144,8 +1147,16 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.view', 'throttle:admi
         ->name('api.v1.admin.hr.client-companies.index');
     Route::get('v1/admin/hr/work-locations', [AdminWorkLocationController::class, 'index'])
         ->name('api.v1.admin.hr.work-locations.index');
+    Route::get('v1/admin/hr/client-companies/{clientCompany}/agreements', [AdminClientCompanyAgreementController::class, 'index'])
+        ->whereNumber('clientCompany')
+        ->name('api.v1.admin.hr.client-companies.agreements.index');
+    Route::get('v1/admin/hr/client-companies/{clientCompany}/agreements/{agreement}/download', [AdminClientCompanyAgreementController::class, 'download'])
+        ->whereNumber(['clientCompany', 'agreement'])
+        ->name('api.v1.admin.hr.client-companies.agreements.download');
     Route::get('v1/admin/hr/employees', [AdminEmployeeController::class, 'index'])
         ->name('api.v1.admin.hr.employees.index');
+    Route::get('v1/admin/hr/employees/duplicate-check', [AdminEmployeeController::class, 'duplicateCheck'])
+        ->name('api.v1.admin.hr.employees.duplicate-check');
     Route::get('v1/admin/hr/employees/{employee}', [AdminEmployeeController::class, 'show'])
         ->whereNumber('employee')
         ->name('api.v1.admin.hr.employees.show');
@@ -1174,6 +1185,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.view', 'throttle:admi
         ->name('api.v1.admin.hr.workforce-requests.candidates');
     Route::get('v1/admin/hr/temporary-replacements', [AdminTemporaryReplacementController::class, 'index'])
         ->name('api.v1.admin.hr.temporary-replacements.index');
+    Route::get('v1/admin/hr/temporary-replacements/{temporaryReplacement}/workdays', [AdminTemporaryReplacementWorkdayController::class, 'index'])
+        ->whereNumber('temporaryReplacement')
+        ->name('api.v1.admin.hr.temporary-replacements.workdays.index');
     Route::get('v1/admin/hr/attendance', [AdminEmployeeAttendanceController::class, 'forDate'])
         ->name('api.v1.admin.hr.attendance.for-date');
     Route::get('v1/admin/hr/employees/{employee}/payroll-summary', [AdminEmployeePayrollController::class, 'summary'])
@@ -1227,6 +1241,8 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::patch('v1/admin/hr/employees/{employee}/status', [AdminEmployeeStatusController::class, 'update'])
         ->whereNumber('employee')
         ->name('api.v1.admin.hr.employees.status');
+    Route::post('v1/admin/hr/employees/bulk-activate', [AdminEmployeeStatusController::class, 'bulkActivate'])
+        ->name('api.v1.admin.hr.employees.bulk-activate');
     Route::patch('v1/admin/hr/employees/{employee}/separate', [AdminEmployeeSeparationController::class, 'separate'])
         ->whereNumber('employee')
         ->name('api.v1.admin.hr.employees.separate');
@@ -1239,6 +1255,12 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::post('v1/admin/hr/employees/{employee}/leaves', [AdminEmployeeRecordsController::class, 'storeLeave'])
         ->whereNumber('employee')
         ->name('api.v1.admin.hr.employees.leaves.store');
+    Route::patch('v1/admin/hr/employees/{employee}/leaves/{leave}/approve', [AdminEmployeeRecordsController::class, 'approveLeave'])
+        ->whereNumber(['employee', 'leave'])
+        ->name('api.v1.admin.hr.employees.leaves.approve');
+    Route::patch('v1/admin/hr/employees/{employee}/leaves/{leave}/reject', [AdminEmployeeRecordsController::class, 'rejectLeave'])
+        ->whereNumber(['employee', 'leave'])
+        ->name('api.v1.admin.hr.employees.leaves.reject');
     Route::post('v1/admin/hr/employees/{employee}/performance-reviews', [AdminEmployeeRecordsController::class, 'storePerformanceReview'])
         ->whereNumber('employee')
         ->name('api.v1.admin.hr.employees.performance-reviews.store');
@@ -1326,6 +1348,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::delete('v1/admin/hr/client-companies/{clientCompany}', [AdminClientCompanyController::class, 'destroy'])
         ->whereNumber('clientCompany')
         ->name('api.v1.admin.hr.client-companies.destroy');
+    Route::post('v1/admin/hr/client-companies/{clientCompany}/agreements', [AdminClientCompanyAgreementController::class, 'store'])
+        ->whereNumber('clientCompany')
+        ->name('api.v1.admin.hr.client-companies.agreements.store');
 
     Route::post('v1/admin/hr/work-locations', [AdminWorkLocationController::class, 'store'])
         ->name('api.v1.admin.hr.work-locations.store');
@@ -1345,6 +1370,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::patch('v1/admin/hr/work-assignments/{workAssignment}/end', [AdminEmployeeWorkAssignmentController::class, 'end'])
         ->whereNumber('workAssignment')
         ->name('api.v1.admin.hr.work-assignments.end');
+    Route::patch('v1/admin/hr/work-assignments/{workAssignment}/cancel', [AdminEmployeeWorkAssignmentController::class, 'cancel'])
+        ->whereNumber('workAssignment')
+        ->name('api.v1.admin.hr.work-assignments.cancel');
 
     Route::post('v1/admin/hr/workforce-requests', [AdminWorkforceRequestController::class, 'store'])
         ->name('api.v1.admin.hr.workforce-requests.store');
@@ -1366,6 +1394,58 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::post('v1/admin/hr/temporary-replacements/{temporaryReplacement}/payments', [AdminTemporaryReplacementController::class, 'addPayment'])
         ->whereNumber('temporaryReplacement')
         ->name('api.v1.admin.hr.temporary-replacements.payments.store');
+    Route::post('v1/admin/hr/temporary-replacements/{temporaryReplacement}/workdays', [AdminTemporaryReplacementWorkdayController::class, 'store'])
+        ->whereNumber('temporaryReplacement')
+        ->name('api.v1.admin.hr.temporary-replacements.workdays.store');
+    Route::patch('v1/admin/hr/temporary-replacements/{temporaryReplacement}/workdays/{workday}/verify', [AdminTemporaryReplacementWorkdayController::class, 'verify'])
+        ->whereNumber(['temporaryReplacement', 'workday'])
+        ->name('api.v1.admin.hr.temporary-replacements.workdays.verify');
+    Route::patch('v1/admin/hr/temporary-replacements/{temporaryReplacement}/workdays/{workday}/void', [AdminTemporaryReplacementWorkdayController::class, 'void'])
+        ->whereNumber(['temporaryReplacement', 'workday'])
+        ->name('api.v1.admin.hr.temporary-replacements.workdays.void');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.manage', 'throttle:admin-operations'])->group(function (): void {
+    Route::post('v1/admin/hr/payroll-runs', [AdminPayrollRunController::class, 'store'])
+        ->name('api.v1.admin.hr.payroll-runs.store');
+    Route::patch('v1/admin/hr/payroll-runs/{payrollRun}/review', [AdminPayrollRunController::class, 'review'])
+        ->whereNumber('payrollRun')
+        ->name('api.v1.admin.hr.payroll-runs.review');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.view', 'throttle:admin-operations'])->group(function (): void {
+    Route::get('v1/admin/hr/temporary-replacements/{temporaryReplacement}/cost', [AdminTemporaryReplacementWorkdayController::class, 'cost'])
+        ->whereNumber('temporaryReplacement')
+        ->name('api.v1.admin.hr.temporary-replacements.cost');
+    Route::get('v1/admin/hr/payroll-runs', [AdminPayrollRunController::class, 'index'])
+        ->name('api.v1.admin.hr.payroll-runs.index');
+    Route::get('v1/admin/hr/payroll-runs/{payrollRun}', [AdminPayrollRunController::class, 'show'])
+        ->whereNumber('payrollRun')
+        ->name('api.v1.admin.hr.payroll-runs.show');
+    Route::get('v1/admin/hr/payroll-runs/{payrollRun}/export', [AdminPayrollRunController::class, 'export'])
+        ->whereNumber('payrollRun')
+        ->name('api.v1.admin.hr.payroll-runs.export');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.approve', 'throttle:admin-operations'])->group(function (): void {
+    Route::patch('v1/admin/hr/temporary-replacements/{temporaryReplacement}/approve', [AdminTemporaryReplacementWorkdayController::class, 'approve'])
+        ->whereNumber('temporaryReplacement')
+        ->name('api.v1.admin.hr.temporary-replacements.approve');
+    Route::patch('v1/admin/hr/payroll-runs/{payrollRun}/approve', [AdminPayrollRunController::class, 'approve'])
+        ->whereNumber('payrollRun')
+        ->name('api.v1.admin.hr.payroll-runs.approve');
+    Route::patch('v1/admin/hr/payroll-runs/{payrollRun}/reopen', [AdminPayrollRunController::class, 'reopen'])
+        ->whereNumber('payrollRun')
+        ->name('api.v1.admin.hr.payroll-runs.reopen');
+    Route::patch('v1/admin/hr/payroll-runs/{payrollRun}/finalize', [AdminPayrollRunController::class, 'finalize'])
+        ->whereNumber('payrollRun')
+        ->name('api.v1.admin.hr.payroll-runs.finalize');
+    Route::post('v1/admin/hr/payroll-items/{payrollItem}/adjustments', [AdminPayrollRunController::class, 'adjust'])
+        ->whereNumber('payrollItem')
+        ->name('api.v1.admin.hr.payroll-items.adjustments.store');
+    Route::post('v1/admin/hr/payroll-items/{payrollItem}/pay', [AdminPayrollRunController::class, 'pay'])
+        ->whereNumber('payrollItem')
+        ->name('api.v1.admin.hr.payroll-items.pay');
 });
 
 Route::middleware(['auth:sanctum', 'admin', 'permission:reconciliation.view', 'throttle:admin-operations'])->group(function (): void {
