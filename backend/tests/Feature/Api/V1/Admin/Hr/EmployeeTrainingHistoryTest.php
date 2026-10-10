@@ -92,8 +92,9 @@ class EmployeeTrainingHistoryTest extends TestCase
         $response->assertJsonPath('data.training_history.0.training_batch_id', $batch['id']);
         $response->assertJsonPath('data.training_history.0.batch_number', $batch['batch_number']);
         $response->assertJsonPath('data.training_history.0.batch_date', '2026-04-10');
-        $response->assertJsonPath('data.training_history.0.start_time', '09:00');
-        $response->assertJsonPath('data.training_history.0.end_time', '12:00');
+        // A `time` column comes back as "09:00" on SQLite but "09:00:00" on PostgreSQL; both mean 09:00.
+        $this->assertMatchesRegularExpression('/^09:00(:00)?$/', $response->json('data.training_history.0.start_time'));
+        $this->assertMatchesRegularExpression('/^12:00(:00)?$/', $response->json('data.training_history.0.end_time'));
         $response->assertJsonPath('data.training_history.0.team_or_group', 'Team A');
         $response->assertJsonPath('data.training_history.0.trainer_name', 'Trainer Admin');
         $response->assertJsonPath('data.training_history.0.location', 'Head Office');

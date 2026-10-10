@@ -142,7 +142,7 @@ class HrReportsListEndpointsPhase6Test extends TestCase
         $token = $admin->createToken('t')->plainTextToken;
         $location = $this->makeWorkLocation();
         $original = $this->makeEmployee(['status' => 'active']);
-        $replacement = $this->makeEmployee(['status' => 'active']);
+        $replacement = $this->makeEmployee(['status' => 'active', 'employment_type' => 'temporary']);
 
         $assignmentId = $this->withToken($token)->postJson("/api/v1/admin/hr/employees/{$original->id}/work-assignments", [
             'work_location_id' => $location->id, 'start_date' => now()->toDateString(),

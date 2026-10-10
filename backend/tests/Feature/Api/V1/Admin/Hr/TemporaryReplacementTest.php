@@ -14,7 +14,7 @@ class TemporaryReplacementTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function makeEmployee(string $status = 'active'): Employee
+    private function makeEmployee(string $status = 'active', string $employmentType = 'permanent'): Employee
     {
         return Employee::query()->create([
             'employee_number' => 'EMP-'.fake()->unique()->numerify('######'),
@@ -22,6 +22,7 @@ class TemporaryReplacementTest extends TestCase
             'phone' => fake()->unique()->e164PhoneNumber(),
             'employee_category_id' => EmployeeCategory::query()->firstOrFail()->id,
             'status' => $status,
+            'employment_type' => $employmentType,
             'application_date' => now()->toDateString(),
         ]);
     }
@@ -55,7 +56,7 @@ class TemporaryReplacementTest extends TestCase
         $token = $admin->createToken('t')->plainTextToken;
         $location = $this->makeWorkLocation();
         $originalEmployee = $this->makeEmployee();
-        $replacementEmployee = $this->makeEmployee();
+        $replacementEmployee = $this->makeEmployee('active', 'temporary');
         $assignmentId = $this->makeActiveAssignment($token, $originalEmployee, $location);
 
         $created = $this->withToken($token)->postJson('/api/v1/admin/hr/temporary-replacements', [
@@ -119,7 +120,7 @@ class TemporaryReplacementTest extends TestCase
         $token = $admin->createToken('t')->plainTextToken;
         $location = $this->makeWorkLocation();
         $originalEmployee = $this->makeEmployee();
-        $replacementEmployee = $this->makeEmployee();
+        $replacementEmployee = $this->makeEmployee('active', 'temporary');
         $assignmentId = $this->makeActiveAssignment($token, $originalEmployee, $location);
 
         $this->withToken($token)->patchJson("/api/v1/admin/hr/work-assignments/{$assignmentId}/end", [
@@ -159,7 +160,7 @@ class TemporaryReplacementTest extends TestCase
         $locationA = $this->makeWorkLocation();
         $locationB = $this->makeWorkLocation();
         $originalEmployee = $this->makeEmployee();
-        $replacementEmployee = $this->makeEmployee();
+        $replacementEmployee = $this->makeEmployee('active', 'temporary');
 
         // The replacement already has their own active assignment at Company B's location.
         $this->makeActiveAssignment($token, $replacementEmployee, $locationB);
@@ -180,7 +181,7 @@ class TemporaryReplacementTest extends TestCase
         $token = $admin->createToken('t')->plainTextToken;
         $location = $this->makeWorkLocation();
         $originalEmployee = $this->makeEmployee();
-        $replacementEmployee = $this->makeEmployee();
+        $replacementEmployee = $this->makeEmployee('active', 'temporary');
         $assignmentId = $this->makeActiveAssignment($token, $originalEmployee, $location);
 
         $created = $this->withToken($token)->postJson('/api/v1/admin/hr/temporary-replacements', [
