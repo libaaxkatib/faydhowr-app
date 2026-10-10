@@ -19,7 +19,7 @@ class TemporaryReplacementResource extends JsonResource
             'work_location_name' => $this->whenLoaded('workAssignment', fn () => $this->workAssignment?->workLocation?->name),
             'client_company_name' => $this->whenLoaded(
                 'workAssignment',
-                fn () => $this->workAssignment?->workLocation?->clientCompany?->name,
+                fn () => $this->workAssignment?->clientCompany?->name ?? $this->workAssignment?->workLocation?->clientCompany?->name,
             ),
             'replacement_employee_id' => $this->replacement_employee_id,
             'replacement_employee_name' => $this->whenLoaded('replacementEmployee', fn () => $this->replacementEmployee?->full_name),
@@ -29,6 +29,8 @@ class TemporaryReplacementResource extends JsonResource
             'currency' => $this->currency,
             'reason' => $this->reason,
             'status' => $this->status->value,
+            'approved' => $this->approved_at !== null,
+            'approved_at' => $this->approved_at?->toIso8601String(),
             'notes' => $this->notes,
             'created_by' => $this->whenLoaded('createdBy', fn () => $this->createdBy?->full_name),
             'payments' => TemporaryReplacementPaymentResource::collection($this->whenLoaded('payments')),

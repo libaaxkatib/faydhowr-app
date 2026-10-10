@@ -24,6 +24,8 @@ use Illuminate\Support\Facades\DB;
  */
 class MarkEmployeeSeparatedAction
 {
+    public function __construct(private readonly CloseAssignmentsOnSeparationAction $closeAssignments) {}
+
     public function handle(
         Employee $employee,
         EmployeeSeparationReason $reason,
@@ -67,13 +69,23 @@ class MarkEmployeeSeparatedAction
                 'separated_by' => $actor->id,
             ]);
 
+            // Approved rule: the separation also closes this employee's open assignments
+            // (inside the same transaction, so a failure undoes the whole separation).
+            $closed = $this->closeAssignments->handle($employee, $separationDate, $actor);
+
             event(AuditEvent::record(
                 action: AuditAction::Update,
                 admin: $actor,
                 description: "Employee '{$employee->full_name}' separated ({$reason->label()}).",
                 entityType: Employee::class,
                 entityId: $employee->id,
-                metadata: ['reason' => $reason->value, 'separation_date' => $separationDate],
+                metadata: [
+                    'reason' => $reason->value,
+                    'separation_date' => $separationDate,
+                    'assignments_closed' => $closed['assignments'],
+                    'replacements_ended' => $closed['replacements_ended'],
+                    'finalized_payroll_after_separation' => $closed['finalized_payroll_after_separation'],
+                ],
             ));
 
             return $employee->load('category', 'department', 'position', 'statusHistories.changedBy', 'separations.separatedBy', 'latestSeparation.separatedBy');

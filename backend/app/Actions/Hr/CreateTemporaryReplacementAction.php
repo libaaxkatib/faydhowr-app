@@ -56,9 +56,30 @@ class CreateTemporaryReplacementAction
             );
         }
 
+        if ($replacementEmployee->employment_type !== 'temporary') {
+            throw new HttpResponseException(
+                ApiResponse::error(
+                    "Employee '{$replacementEmployee->full_name}' is not classified as Temporary. Set the employment type to Temporary first.",
+                    'REPLACEMENT_EMPLOYEE_NOT_TEMPORARY',
+                    422,
+                ),
+            );
+        }
+
+        if ($workAssignment->employee()->value('employment_type') === 'temporary') {
+            throw new HttpResponseException(
+                ApiResponse::error(
+                    'A Temporary employee can only cover a Permanent employee\'s position.',
+                    'COVERED_EMPLOYEE_NOT_PERMANENT',
+                    422,
+                ),
+            );
+        }
+
         return DB::transaction(function () use ($workAssignment, $replacementEmployee, $data, $actor) {
             $replacement = TemporaryReplacement::query()->create([
                 ...$data,
+                'currency' => $data['currency'] ?? 'USD',
                 'work_assignment_id' => $workAssignment->id,
                 'replacement_employee_id' => $replacementEmployee->id,
                 'status' => TemporaryReplacementStatus::Active,
@@ -73,7 +94,7 @@ class CreateTemporaryReplacementAction
                 entityId: $replacement->id,
             ));
 
-            return $replacement->load('workAssignment.employee', 'workAssignment.workLocation.clientCompany', 'replacementEmployee', 'createdBy', 'payments.paidBy');
+            return $replacement->load('workAssignment.employee', 'workAssignment.workLocation.clientCompany', 'workAssignment.clientCompany', 'replacementEmployee', 'createdBy', 'payments.paidBy');
         });
     }
 }

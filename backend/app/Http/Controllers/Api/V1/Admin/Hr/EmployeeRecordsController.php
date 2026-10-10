@@ -2,19 +2,23 @@
 
 namespace App\Http\Controllers\Api\V1\Admin\Hr;
 
+use App\Actions\Hr\DecideEmployeeLeaveAction;
 use App\Actions\Hr\RecordEmployeeAdvanceAction;
 use App\Actions\Hr\RecordEmployeeLeaveAction;
 use App\Actions\Hr\RecordEmployeePaymentAction;
 use App\Actions\Hr\RecordEmployeePenaltyAction;
 use App\Actions\Hr\RecordEmployeePerformanceReviewAction;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\Admin\Hr\DecideEmployeeLeaveRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\RecordEmployeeAdvanceRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\RecordEmployeeLeaveRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\RecordEmployeePaymentRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\RecordEmployeePenaltyRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\RecordEmployeePerformanceReviewRequest;
+use App\Http\Resources\Api\V1\Admin\Hr\EmployeeLeaveResource;
 use App\Http\Resources\Api\V1\Admin\Hr\EmployeeResource;
 use App\Models\Employee;
+use App\Models\EmployeeLeave;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 
@@ -25,6 +29,20 @@ class EmployeeRecordsController extends Controller
         $employee = $action->handle($employee, $request->validated(), $request->user());
 
         return ApiResponse::success('Leave recorded successfully.', new EmployeeResource($employee), 201);
+    }
+
+    public function approveLeave(DecideEmployeeLeaveRequest $request, Employee $employee, EmployeeLeave $leave, DecideEmployeeLeaveAction $action): JsonResponse
+    {
+        abort_unless((int) $leave->employee_id === (int) $employee->id, 404);
+
+        return ApiResponse::success('Leave approved.', new EmployeeLeaveResource($action->approve($leave, $request->validated('note'), $request->user())));
+    }
+
+    public function rejectLeave(DecideEmployeeLeaveRequest $request, Employee $employee, EmployeeLeave $leave, DecideEmployeeLeaveAction $action): JsonResponse
+    {
+        abort_unless((int) $leave->employee_id === (int) $employee->id, 404);
+
+        return ApiResponse::success('Leave rejected.', new EmployeeLeaveResource($action->reject($leave, $request->validated('note'), $request->user())));
     }
 
     public function storePerformanceReview(

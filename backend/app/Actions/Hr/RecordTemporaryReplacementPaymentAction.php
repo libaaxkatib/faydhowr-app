@@ -34,6 +34,6 @@ class RecordTemporaryReplacementPaymentAction
             metadata: ['payment_id' => $payment->id, 'amount' => (string) $payment->amount],
         ));
 
-        return $replacement->load('workAssignment.employee', 'workAssignment.workLocation.clientCompany', 'replacementEmployee', 'createdBy', 'payments.paidBy');
+        return $replacement->load('workAssignment.employee', 'workAssignment.workLocation.clientCompany', 'workAssignment.clientCompany', 'replacementEmployee', 'createdBy', 'payments.paidBy');
     }
 }

@@ -10,6 +10,7 @@ use App\Models\Admin;
 use App\Models\Employee;
 use App\Models\EmployeeAttendance;
 use App\Support\ApiResponse;
+use App\Support\Hr\Payroll\PayrollPeriodLock;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
@@ -22,6 +23,8 @@ class MarkEmployeeAttendanceAction
 {
     public function handle(Employee $employee, string $date, AttendanceStatus $status, ?string $notes, Admin $actor): EmployeeAttendance
     {
+        app(PayrollPeriodLock::class)->assertDateEditable($date, 'Attendance on this date');
+
         if ($employee->status !== EmployeeStatus::Active) {
             throw new HttpResponseException(
                 ApiResponse::error(

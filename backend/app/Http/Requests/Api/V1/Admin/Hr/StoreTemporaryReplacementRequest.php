@@ -21,8 +21,8 @@ class StoreTemporaryReplacementRequest extends FormRequest
             'replacement_employee_id' => ['required', 'integer', 'exists:employees,id'],
             'start_date' => ['required', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
-            'daily_rate' => ['required', 'numeric', 'min:0'],
-            'currency' => ['required', 'string', 'size:3'],
+            'daily_rate' => ['nullable', 'numeric', 'min:0'], // legacy: the rate is derived from the covered employee's salary
+            'currency' => ['nullable', 'string', 'size:3'],
             'reason' => ['nullable', 'string'],
             'notes' => ['nullable', 'string'],
         ];

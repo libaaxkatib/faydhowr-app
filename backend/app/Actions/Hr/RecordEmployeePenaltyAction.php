@@ -9,6 +9,7 @@ use App\Models\Admin;
 use App\Models\Employee;
 use App\Models\EmployeePenalty;
 use App\Support\ApiResponse;
+use App\Support\Hr\Payroll\PayrollPeriodLock;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
@@ -22,6 +23,8 @@ class RecordEmployeePenaltyAction
 {
     public function handle(Employee $employee, array $data, Admin $actor): Employee
     {
+        app(PayrollPeriodLock::class)->assertDateEditable($data['payroll_period'].'-01', 'The payroll month of this record');
+
         if ($employee->status !== EmployeeStatus::Active) {
             throw new HttpResponseException(
                 ApiResponse::error(
