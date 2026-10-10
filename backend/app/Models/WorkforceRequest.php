@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'work_location_id',
+    'client_company_id',
     'employee_category_id',
     'position_id',
     'gender_requirement',
@@ -38,6 +39,11 @@ class WorkforceRequest extends Model
     public function workLocation(): BelongsTo
     {
         return $this->belongsTo(WorkLocation::class);
+    }
+
+    public function clientCompany(): BelongsTo
+    {
+        return $this->belongsTo(ClientCompany::class);
     }
 
     public function employeeCategory(): BelongsTo

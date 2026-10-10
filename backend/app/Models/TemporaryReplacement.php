@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'currency',
     'reason',
     'status',
+    'approved_at',
+    'approved_by',
     'notes',
     'created_by',
 ])]
@@ -32,6 +34,7 @@ class TemporaryReplacement extends Model
             'end_date' => 'date',
             'daily_rate' => 'decimal:2',
             'status' => TemporaryReplacementStatus::class,
+            'approved_at' => 'datetime',
         ];
     }
 
@@ -53,5 +56,15 @@ class TemporaryReplacement extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(TemporaryReplacementPayment::class)->latest('payment_date');
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'approved_by');
+    }
+
+    public function workdays(): HasMany
+    {
+        return $this->hasMany(TemporaryReplacementWorkday::class)->orderBy('work_date');
     }
 }

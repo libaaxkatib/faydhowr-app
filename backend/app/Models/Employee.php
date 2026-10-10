@@ -34,6 +34,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'department_id',
     'position_id',
     'status',
+    'employment_type',
     'pipeline_stage',
     'guarantor_confirmed_at',
     'guarantor_needed',

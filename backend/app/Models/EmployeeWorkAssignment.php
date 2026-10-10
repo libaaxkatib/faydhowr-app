@@ -4,15 +4,19 @@ namespace App\Models;
 
 use App\Enums\SalaryFrequency;
 use App\Enums\WorkAssignmentStatus;
+use App\Support\Hr\Payroll\PayrollMoney;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use RuntimeException;
 
 #[Fillable([
     'employee_id',
     'work_location_id',
+    'client_company_id',
+    'replaces_assignment_id',
     'position_id',
     'start_date',
     'end_date',
@@ -48,6 +52,27 @@ class EmployeeWorkAssignment extends Model
         return $this->belongsTo(WorkLocation::class);
     }
 
+    /**
+     * The company recorded directly on the assignment. A work location is
+     * optional, so this is the authoritative company link; for an office
+     * assignment it is null.
+     */
+    public function clientCompany(): BelongsTo
+    {
+        return $this->belongsTo(ClientCompany::class);
+    }
+
+    /** The Permanent assignment this one takes over from (null when it replaces nobody). */
+    public function replaces(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'replaces_assignment_id');
+    }
+
+    public function successors(): HasMany
+    {
+        return $this->hasMany(self::class, 'replaces_assignment_id');
+    }
+
     public function position(): BelongsTo
     {
         return $this->belongsTo(Position::class);
@@ -61,5 +86,38 @@ class EmployeeWorkAssignment extends Model
     public function temporaryReplacements(): HasMany
     {
         return $this->hasMany(TemporaryReplacement::class);
+    }
+
+    public function salaryHistories(): HasMany
+    {
+        return $this->hasMany(AssignmentSalaryHistory::class, 'work_assignment_id')->orderBy('effective_from');
+    }
+
+    /**
+     * Effective-dated MONTHLY salary periods for payroll. A period runs until
+     * the day before the next period starts, so there are no gaps or overlaps.
+     * Any non-monthly row makes payroll refuse rather than guess a conversion.
+     *
+     * @return list<array{from: string, to: ?string, monthly_cents: int}>
+     */
+    public function monthlySalaryPeriods(): array
+    {
+        $rows = $this->salaryHistories()->get()->values();
+        $periods = [];
+
+        foreach ($rows as $index => $row) {
+            if ($row->frequency !== SalaryFrequency::Monthly) {
+                throw new RuntimeException("Assignment #{$this->id} has a non-monthly salary ({$row->frequency->value}); payroll supports monthly salaries only.");
+            }
+
+            $next = $rows[$index + 1] ?? null;
+            $periods[] = [
+                'from' => $row->effective_from->toDateString(),
+                'to' => $next?->effective_from->copy()->subDay()->toDateString(),
+                'monthly_cents' => PayrollMoney::toCents($row->amount),
+            ];
+        }
+
+        return $periods;
     }
 }
