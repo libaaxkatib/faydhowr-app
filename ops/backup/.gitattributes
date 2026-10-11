@@ -1,0 +1,3 @@
+# The script runs inside a Linux container: keep LF line endings even when
+# checked out on Windows (a CRLF shebang line would break it).
+* text eol=lf
