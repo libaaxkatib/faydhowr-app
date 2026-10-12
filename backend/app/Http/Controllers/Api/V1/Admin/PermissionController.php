@@ -108,6 +108,11 @@ class PermissionController extends Controller
                     'SUPER_ADMIN_PERMISSIONS_IMMUTABLE',
                     422,
                 ),
+                'SUPER_ADMIN_ONLY_PERMISSION' => ApiResponse::error(
+                    'One or more permissions are reserved for Super Admin and cannot be granted.',
+                    'SUPER_ADMIN_ONLY_PERMISSION',
+                    422,
+                ),
                 'INVALID_PERMISSIONS' => ApiResponse::error(
                     'One or more permissions are invalid.',
                     'INVALID_PERMISSIONS',

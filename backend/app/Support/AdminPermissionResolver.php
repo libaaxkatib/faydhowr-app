@@ -54,8 +54,11 @@ class AdminPermissionResolver
             ->where('admin_permissions.admin_id', $admin->id)
             ->pluck('permissions.key');
 
+        // Super-Admin-only permissions (for example hr.import) are never honoured for any other role, even
+        // if a row was written straight into the database.
         return $roleKeys
             ->merge($directKeys)
+            ->reject(fn (string $key): bool => in_array($key, AdminPermission::superAdminOnlyValues(), true))
             ->unique()
             ->values()
             ->all();

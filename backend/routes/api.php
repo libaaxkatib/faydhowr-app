@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeUniformController as AdminEmplo
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeWorkAssignmentController as AdminEmployeeWorkAssignmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrDashboardController as AdminHrDashboardController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrReportsController as AdminHrReportsController;
+use App\Http\Controllers\Api\V1\Admin\Hr\ImportController as AdminHrImportController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PayrollRunController as AdminPayrollRunController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PositionController as AdminPositionController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PracticalBatchController as AdminPracticalBatchController;
@@ -1403,6 +1404,33 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::patch('v1/admin/hr/temporary-replacements/{temporaryReplacement}/workdays/{workday}/void', [AdminTemporaryReplacementWorkdayController::class, 'void'])
         ->whereNumber(['temporaryReplacement', 'workday'])
         ->name('api.v1.admin.hr.temporary-replacements.workdays.void');
+});
+
+// HR Excel imports: reserved for Super Admin. Both the role check and the hr.import permission are required,
+// and hr.import can never be granted to another role (see AdminPermission::isSuperAdminOnly()).
+Route::middleware(['auth:sanctum', 'admin', 'super_admin', 'permission:hr.import', 'throttle:admin-operations'])->group(function (): void {
+    Route::get('v1/admin/hr/imports', [AdminHrImportController::class, 'index'])
+        ->name('api.v1.admin.hr.imports.index');
+    Route::post('v1/admin/hr/imports', [AdminHrImportController::class, 'store'])
+        ->name('api.v1.admin.hr.imports.store');
+    Route::get('v1/admin/hr/imports/{importBatch}', [AdminHrImportController::class, 'show'])
+        ->whereNumber('importBatch')
+        ->name('api.v1.admin.hr.imports.show');
+    Route::get('v1/admin/hr/imports/{importBatch}/rows', [AdminHrImportController::class, 'rows'])
+        ->whereNumber('importBatch')
+        ->name('api.v1.admin.hr.imports.rows');
+    Route::get('v1/admin/hr/imports/{importBatch}/report', [AdminHrImportController::class, 'report'])
+        ->whereNumber('importBatch')
+        ->name('api.v1.admin.hr.imports.report');
+    Route::post('v1/admin/hr/imports/{importBatch}/confirm', [AdminHrImportController::class, 'confirm'])
+        ->whereNumber('importBatch')
+        ->name('api.v1.admin.hr.imports.confirm');
+    Route::post('v1/admin/hr/imports/{importBatch}/process', [AdminHrImportController::class, 'process'])
+        ->whereNumber('importBatch')
+        ->name('api.v1.admin.hr.imports.process');
+    Route::post('v1/admin/hr/imports/{importBatch}/cancel', [AdminHrImportController::class, 'cancel'])
+        ->whereNumber('importBatch')
+        ->name('api.v1.admin.hr.imports.cancel');
 });
 
 Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.manage', 'throttle:admin-operations'])->group(function (): void {

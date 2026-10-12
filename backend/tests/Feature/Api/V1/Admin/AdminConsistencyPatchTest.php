@@ -248,6 +248,7 @@ class AdminConsistencyPatchTest extends TestCase
             'customers.view',
             'dashboard.view',
             'goods_receipts.manage',
+            'hr.import',
             'hr.manage',
             'hr.payroll.approve',
             'hr.payroll.manage',

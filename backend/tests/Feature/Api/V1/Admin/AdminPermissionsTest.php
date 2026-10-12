@@ -28,7 +28,8 @@ class AdminPermissionsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('message', 'Permissions retrieved successfully.')
-            ->assertJsonCount(count(AdminPermission::cases()), 'data');
+            // The grantable catalogue: permissions reserved for Super Admin (hr.import) are not offered.
+            ->assertJsonCount(count(AdminPermission::cases()) - count(AdminPermission::superAdminOnlyValues()), 'data');
 
         $response->assertJsonFragment([
             'key' => AdminPermission::ProductsCreate->value,
@@ -43,7 +44,7 @@ class AdminPermissionsTest extends TestCase
         ]);
 
         $this->assertSame(
-            Permission::query()->orderBy('group')->orderBy('key')->pluck('key')->all(),
+            Permission::query()->whereNotIn('key', AdminPermission::superAdminOnlyValues())->orderBy('group')->orderBy('key')->pluck('key')->all(),
             collect($response->json('data'))->pluck('key')->all(),
         );
     }

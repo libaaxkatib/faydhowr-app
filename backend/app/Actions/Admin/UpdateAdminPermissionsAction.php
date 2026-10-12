@@ -2,6 +2,7 @@
 
 namespace App\Actions\Admin;
 
+use App\Enums\AdminPermission;
 use App\Enums\AdminRole;
 use App\Enums\AuditAction;
 use App\Events\Audit\AuditEvent;
@@ -28,6 +29,10 @@ class UpdateAdminPermissionsAction
         }
 
         $uniqueKeys = array_values(array_unique($permissionKeys));
+
+        if (array_intersect($uniqueKeys, AdminPermission::superAdminOnlyValues()) !== []) {
+            throw new DomainException('SUPER_ADMIN_ONLY_PERMISSION');
+        }
 
         $permissions = Permission::query()
             ->whereIn('key', $uniqueKeys)

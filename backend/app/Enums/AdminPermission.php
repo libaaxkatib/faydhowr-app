@@ -59,6 +59,7 @@ enum AdminPermission: string
     case HrPayrollView = 'hr.payroll.view';
     case HrPayrollManage = 'hr.payroll.manage';
     case HrPayrollApprove = 'hr.payroll.approve';
+    case HrImport = 'hr.import';
 
     case MarketingView = 'marketing.view';
     case MarketingManage = 'marketing.manage';
@@ -115,6 +116,7 @@ enum AdminPermission: string
             self::HrPayrollView => 'View Payroll',
             self::HrPayrollManage => 'Prepare and Review Payroll',
             self::HrPayrollApprove => 'Approve, Finalize and Correct Payroll',
+            self::HrImport => 'Import HR Data (Super Admin only)',
             self::MarketingView => 'View Marketing',
             self::MarketingManage => 'Manage Marketing',
             self::MarketingAssign => 'Assign Marketing Work',
@@ -170,7 +172,8 @@ enum AdminPermission: string
             self::HrReportsView,
             self::HrPayrollView,
             self::HrPayrollManage,
-            self::HrPayrollApprove => 'HR',
+            self::HrPayrollApprove,
+            self::HrImport => 'HR',
             self::MarketingView,
             self::MarketingManage,
             self::MarketingAssign,
@@ -181,6 +184,30 @@ enum AdminPermission: string
             self::ReconciliationUpdate,
             self::ReconciliationResolve => 'Data Issues & Reconciliation',
         };
+    }
+
+    /**
+     * Permissions reserved for the Super Admin role. They are implicit for Super Admin and can never be
+     * granted to another role or admin, whether through the Roles & Permissions screen, the direct
+     * admin-permission endpoint, or a stray database row (the resolver ignores such grants).
+     */
+    public function isSuperAdminOnly(): bool
+    {
+        return match ($this) {
+            self::HrImport => true,
+            default => false,
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function superAdminOnlyValues(): array
+    {
+        return array_values(array_map(
+            fn (self $permission): string => $permission->value,
+            array_filter(self::cases(), fn (self $permission): bool => $permission->isSuperAdminOnly()),
+        ));
     }
 
     /**
