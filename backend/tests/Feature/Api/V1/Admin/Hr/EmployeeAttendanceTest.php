@@ -4,6 +4,7 @@ namespace Tests\Feature\Api\V1\Admin\Hr;
 
 use App\Models\Admin;
 use App\Models\Employee;
+use App\Models\EmployeeAttendance;
 use App\Models\EmployeeCategory;
 use App\Models\WorkLocation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,7 +61,7 @@ class EmployeeAttendanceTest extends TestCase
         ])->assertOk()->assertJsonPath('data.status', 'late');
 
         $this->assertDatabaseCount('employee_attendances', 1);
-        $stored = \App\Models\EmployeeAttendance::query()->where('employee_id', $employee->id)->whereDate('date', $date)->first();
+        $stored = EmployeeAttendance::query()->where('employee_id', $employee->id)->whereDate('date', $date)->first();
         $this->assertNotNull($stored);
         $this->assertSame('late', $stored->status->value);
     }

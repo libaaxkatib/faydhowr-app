@@ -3,7 +3,6 @@
 namespace App\Http\Requests\Api\V1\Admin\Marketing;
 
 use App\Enums\Marketing\MarketingRecordStatus;
-use App\Enums\Marketing\MarketingRecordType;
 use App\Support\ApiResponse;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;

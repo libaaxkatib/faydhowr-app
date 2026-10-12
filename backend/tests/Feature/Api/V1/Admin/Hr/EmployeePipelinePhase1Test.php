@@ -5,6 +5,7 @@ namespace Tests\Feature\Api\V1\Admin\Hr;
 use App\Models\Admin;
 use App\Models\EmployeeCategory;
 use App\Models\EmployeeDocumentCategory;
+use App\Models\TrainingBatchParticipant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -324,7 +325,7 @@ class EmployeePipelinePhase1Test extends TestCase
         $batch = $this->withToken($token)->postJson('/api/v1/admin/hr/training-batches', ['batch_date' => now()->toDateString()])->json('data');
         $this->withToken($token)->postJson("/api/v1/admin/hr/training-batches/{$batch['id']}/participants", ['employee_id' => $employee['id']])->assertOk();
 
-        $participantId = \App\Models\TrainingBatchParticipant::query()->where('training_batch_id', $batch['id'])->firstOrFail()->id;
+        $participantId = TrainingBatchParticipant::query()->where('training_batch_id', $batch['id'])->firstOrFail()->id;
 
         $this->withToken($token)
             ->deleteJson("/api/v1/admin/hr/training-batches/{$batch['id']}/participants/{$participantId}")

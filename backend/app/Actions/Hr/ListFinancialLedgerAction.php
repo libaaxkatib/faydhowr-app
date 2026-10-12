@@ -19,7 +19,7 @@ class ListFinancialLedgerAction
 {
     public function handle(array $filters): LengthAwarePaginator
     {
-        $rows = new Collection();
+        $rows = new Collection;
 
         if (empty($filters['type']) || $filters['type'] === 'payment') {
             $rows = $rows->merge($this->paymentsQuery($filters)->get()->map(fn (EmployeePayment $p) => [

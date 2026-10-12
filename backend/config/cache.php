@@ -1,5 +1,6 @@
 <?php
 
+use App\DataTransferObjects\Dashboard\DashboardKpiData;
 use Illuminate\Support\Str;
 
 return [
@@ -132,7 +133,7 @@ return [
     */
 
     'serializable_classes' => [
-        \App\DataTransferObjects\Dashboard\DashboardKpiData::class,
+        DashboardKpiData::class,
     ],
 
 ];
