@@ -40,9 +40,9 @@ final class StagedRow
      * @param  array<string, mixed>|null  $payload
      * @param  array<string, mixed>|null  $meta
      */
-    public static function invalid(string $code, string $message, ?array $payload = null, ?string $nameKey = null, ?string $phoneKey = null, ?array $meta = null): self
+    public static function invalid(string $code, string $message, ?array $payload = null, ?string $nameKey = null, ?string $phoneKey = null, ?array $meta = null, ?string $entityType = null, ?int $entityId = null): self
     {
-        return new self(ImportRowStatus::Invalid, $code, $message, $payload, $nameKey, $phoneKey, $meta, null, null);
+        return new self(ImportRowStatus::Invalid, $code, $message, $payload, $nameKey, $phoneKey, $meta, $entityType, $entityId);
     }
 
     /**
@@ -58,9 +58,9 @@ final class StagedRow
      * @param  array<string, mixed>|null  $payload
      * @param  array<string, mixed>|null  $meta
      */
-    public static function review(string $code, string $message, ?array $payload = null, ?string $nameKey = null, ?string $phoneKey = null, ?array $meta = null): self
+    public static function review(string $code, string $message, ?array $payload = null, ?string $nameKey = null, ?string $phoneKey = null, ?array $meta = null, ?string $entityType = null, ?int $entityId = null): self
     {
-        return new self(ImportRowStatus::Review, $code, $message, $payload, $nameKey, $phoneKey, $meta, null, null);
+        return new self(ImportRowStatus::Review, $code, $message, $payload, $nameKey, $phoneKey, $meta, $entityType, $entityId);
     }
 
     /** The same verdict re-labelled as a repeat inside the file (second and later occurrences). */

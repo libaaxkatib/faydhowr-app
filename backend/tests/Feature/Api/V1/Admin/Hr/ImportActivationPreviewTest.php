@@ -160,6 +160,28 @@ class ImportActivationPreviewTest extends TestCase
         $this->assertSame('already_active', $rows[0]['meta']['report']['proposed_path']);
     }
 
+    public function test_every_preview_row_that_found_an_employee_links_to_it_even_when_it_needs_review_or_is_invalid(): void
+    {
+        $twinA = $this->person('waiting', 'Twin Person', '615000001');
+        $this->person('applicant', 'Twin Person', '615000002');
+        $mismatch = $this->person('waiting', 'Mismatch Person', '615000003');
+        $archived = $this->person('waiting', 'Archived Person', '615000004');
+        $archived->delete();
+        $drifted = $this->person('applicant', 'Drifted Person', '615000005');
+
+        $id = $this->stage([
+            $this->plan($twinA),
+            $this->plan($mismatch, ['employee_number' => 'EMP-000000']),
+            $this->plan($archived),
+            $this->plan($drifted, ['expected_status' => 'waiting']),
+        ]);
+        $rows = $this->rows($id);
+
+        $this->assertSame(['review', 'invalid', 'invalid', 'invalid'], array_column($rows, 'status'));
+        $this->assertSame([$twinA->id, $mismatch->id, $archived->id, $drifted->id], array_column($rows, 'record_id'));
+        $this->assertSame(['Employee', 'Employee', 'Employee', 'Employee'], array_column($rows, 'record_type'));
+    }
+
     public function test_another_record_for_the_same_person_is_flagged_for_review(): void
     {
         $one = $this->person('waiting', 'Same Person', '615000001');

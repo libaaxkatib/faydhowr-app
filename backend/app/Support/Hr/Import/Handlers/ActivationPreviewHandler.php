@@ -107,11 +107,11 @@ final class ActivationPreviewHandler implements ImportTypeHandler
         }
 
         if ($employee->trashed()) {
-            return StagedRow::invalid('EMPLOYEE_ARCHIVED', 'The employee record is archived.', null, null, null, ['report' => $this->report($base, $employee, 'none', 'no', 'EMPLOYEE_ARCHIVED')]);
+            return StagedRow::invalid('EMPLOYEE_ARCHIVED', 'The employee record is archived.', null, null, null, ['report' => $this->report($base, $employee, 'none', 'no', 'EMPLOYEE_ARCHIVED')], Employee::class, $employee->id);
         }
 
         if ($employee->employee_number !== $number || WorkbookPlanExecutor::nameKey($employee->full_name) !== $planKey) {
-            return StagedRow::invalid('IDENTITY_MISMATCH', "Employee {$employee->employee_number} does not match the plan row (number or name differs).", null, null, null, ['report' => $this->report($base, $employee, 'none', 'no', 'IDENTITY_MISMATCH')]);
+            return StagedRow::invalid('IDENTITY_MISMATCH', "Employee {$employee->employee_number} does not match the plan row (number or name differs).", null, null, null, ['report' => $this->report($base, $employee, 'none', 'no', 'IDENTITY_MISMATCH')], Employee::class, $employee->id);
         }
 
         if ($employee->status === EmployeeStatus::Active) {
@@ -119,7 +119,7 @@ final class ActivationPreviewHandler implements ImportTypeHandler
         }
 
         if ($expected !== '' && $expected !== $employee->status->value) {
-            return StagedRow::invalid('STATUS_CHANGED_SINCE_PLAN', "The plan expected status '{$expected}' but the employee is '{$employee->status->value}'.", null, null, null, ['report' => $this->report($base, $employee, 'none', 'no', 'STATUS_CHANGED_SINCE_PLAN')]);
+            return StagedRow::invalid('STATUS_CHANGED_SINCE_PLAN', "The plan expected status '{$expected}' but the employee is '{$employee->status->value}'.", null, null, null, ['report' => $this->report($base, $employee, 'none', 'no', 'STATUS_CHANGED_SINCE_PLAN')], Employee::class, $employee->id);
         }
 
         [$path, $needsOverride, $pathText] = $this->path($employee->status);
