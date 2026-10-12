@@ -9,6 +9,7 @@ use App\Models\Admin;
 use App\Models\Employee;
 use App\Models\ImportBatch;
 use App\Models\ImportRow;
+use App\Support\Hr\EmployeeDuplicateFinder;
 use App\Support\Hr\EmployeeTransitionGuard;
 use App\Support\Hr\Import\ImportNormalizer;
 use App\Support\Hr\Import\ImportTypeHandler;
@@ -147,7 +148,7 @@ final class WaitingListHandler implements ImportTypeHandler
         $alternateOnly = [];
         $archived = [];
 
-        foreach (Employee::withTrashed()->where(fn ($q) => $q->where('phone', 'like', '%'.$phoneKey)->orWhere('alternate_phone', 'like', '%'.$phoneKey))->get() as $candidate) {
+        foreach (Employee::withTrashed()->where(fn ($q) => $q->whereRaw(EmployeeDuplicateFinder::digitsSql('phone').' like ?', ['%'.$phoneKey])->orWhereRaw(EmployeeDuplicateFinder::digitsSql('alternate_phone').' like ?', ['%'.$phoneKey]))->get() as $candidate) {
             $isRegistration = ImportNormalizer::phoneKey($candidate->phone) === $phoneKey;
             $isAlternate = ImportNormalizer::phoneKey($candidate->alternate_phone) === $phoneKey;
 

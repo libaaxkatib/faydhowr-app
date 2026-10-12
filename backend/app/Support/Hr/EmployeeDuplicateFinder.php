@@ -31,6 +31,21 @@ class EmployeeDuplicateFinder
     }
 
     /**
+     * SQL that strips the usual phone punctuation from a stored column, so "+252 615 123 456" and
+     * "615-123-456" are found by their digits. Works on SQLite and PostgreSQL.
+     */
+    public static function digitsSql(string $column): string
+    {
+        $expression = $column;
+
+        foreach ([' ', '-', '+', '.', '(', ')'] as $character) {
+            $expression = "replace({$expression}, '{$character}', '')";
+        }
+
+        return $expression;
+    }
+
+    /**
      * @param  array{phone?: ?string, alternate_phone?: ?string, full_name?: ?string}  $candidate
      * @return Collection<int, array{id: int, employee_number: string, full_name: string, status: string, archived: bool, matched_on: list<string>}>
      */
@@ -50,7 +65,7 @@ class EmployeeDuplicateFinder
             }
 
             $employees = Employee::withTrashed()
-                ->where(fn ($q) => $q->where('phone', 'like', '%'.$key)->orWhere('alternate_phone', 'like', '%'.$key))
+                ->where(fn ($q) => $q->whereRaw(self::digitsSql('phone').' like ?', ['%'.$key])->orWhereRaw(self::digitsSql('alternate_phone').' like ?', ['%'.$key]))
                 ->get();
 
             foreach ($employees as $employee) {
