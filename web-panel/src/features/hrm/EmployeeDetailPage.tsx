@@ -20,6 +20,7 @@ import { useAuth } from '@/features/auth/useAuth';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { formatDate, formatDateTime, initialsOf } from '@/utils/formatters';
 import { assignmentLabel, friendlyErrorMessage, isWorkplaceMissing, localToday, OFFICE_LABEL } from '@/utils/hrHelpers';
+import { submitPracticalDecision } from '@/utils/practicalDecision';
 import type { AttendanceStatus, Employee, EmployeeLeave, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, SalaryFrequency, WorkAssignment } from '@/types/employee';
 
 const SEPARATION_REASON_OPTIONS: { value: EmployeeSeparationReason; label: string }[] = [
@@ -119,7 +120,6 @@ export function EmployeeDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [decisionResult, setDecisionResult] = useState<PracticalDecision>('approved');
   const [assessmentNotes, setAssessmentNotes] = useState('');
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [endingAssignment, setEndingAssignment] = useState<WorkAssignment | null>(null);
@@ -325,14 +325,15 @@ export function EmployeeDetailPage() {
     onError: (err) => show(err instanceof Error ? err.message : 'Could not confirm uniform.', 'error'),
   });
 
+  // The clicked decision is passed in as the mutation variable, never read from component state:
+  // a state setter is asynchronous, so reading it here would submit the previous (default Approved) value.
   const decisionMutation = useMutation({
-    mutationFn: () =>
-      hrApi.employees.addPracticalAssessment(employeeId, {
-        assessment_date: new Date().toISOString().slice(0, 10),
-        result: decisionResult,
-        practical_batch_id: practicalBatchId ? Number(practicalBatchId) : null,
-        notes: assessmentNotes || null,
-      }),
+    mutationFn: (result: PracticalDecision) =>
+      submitPracticalDecision(
+        (payload) => hrApi.employees.addPracticalAssessment(employeeId, payload),
+        result,
+        { assessmentDate: new Date().toISOString().slice(0, 10), practicalBatchId, notes: assessmentNotes },
+      ),
     onSuccess: () => {
       invalidate();
       setAssessmentNotes('');
@@ -1095,12 +1096,10 @@ export function EmployeeDetailPage() {
                       <Button
                         key={option.value}
                         size="sm"
-                        variant={decisionResult === option.value ? 'primary' : 'outline'}
-                        isLoading={decisionMutation.isPending && decisionResult === option.value}
-                        onClick={() => {
-                          setDecisionResult(option.value);
-                          decisionMutation.mutate();
-                        }}
+                        variant={option.tone === 'success' ? 'primary' : option.tone === 'danger' ? 'danger' : 'outline'}
+                        isLoading={decisionMutation.isPending && decisionMutation.variables === option.value}
+                        disabled={decisionMutation.isPending}
+                        onClick={() => decisionMutation.mutate(option.value)}
                       >
                         {option.label}
                       </Button>
