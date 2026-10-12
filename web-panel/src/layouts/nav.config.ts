@@ -91,6 +91,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Positions', to: '/hr/positions', icon: 'shield', permission: 'hr.view' },
       { label: 'Companies & Locations', to: '/hr/companies', icon: 'briefcase', permission: 'hr.view' },
       { label: 'Payroll', to: '/hr/payroll', icon: 'credit-card', permission: 'hr.payroll.view' },
+      { label: 'Excel Imports', to: '/hr/imports', icon: 'file-text', permission: 'hr.import' },
       { label: 'Reports', to: '/hr/reports', icon: 'bar-chart', end: true, permission: 'hr.reports.view' },
       { label: 'Waiting Analytics', to: '/hr/reports/waiting-analytics', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Workforce Request History', to: '/hr/reports/workforce-requests', icon: 'bar-chart', permission: 'hr.reports.view' },

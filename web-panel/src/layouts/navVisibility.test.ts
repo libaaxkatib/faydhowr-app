@@ -37,12 +37,24 @@ test('HR Manager with the intended HR grant sees only Human Resources, nothing e
   const hrGroup = NAV_GROUPS.find((g) => g.label === 'Human Resources')!;
   const renderable = hrGroup.items.filter((item) => isItemRenderable(item, hasPermission, false)).map((i) => i.label);
   // Every HR item requires hr.view or hr.reports.view, both granted here - all should render,
-  // except Payroll, which needs its own hr.payroll.view permission (not part of this grant).
+  // except Payroll (needs its own hr.payroll.view) and Excel Imports (hr.import, reserved for Super Admin).
   assert.deepEqual(
     renderable,
-    hrGroup.items.filter((i) => i.permission !== 'hr.payroll.view').map((i) => i.label),
+    hrGroup.items.filter((i) => i.permission !== 'hr.payroll.view' && i.permission !== 'hr.import').map((i) => i.label),
   );
   assert.ok(!renderable.includes('Payroll'));
+  assert.ok(!renderable.includes('Excel Imports'));
+});
+
+test('Excel Imports is shown to a Super Admin only, never to an HR Manager - even one holding hr.import by mistake is not the gate', () => {
+  const hrGroup = NAV_GROUPS.find((g) => g.label === 'Human Resources')!;
+  const imports = hrGroup.items.find((i) => i.label === 'Excel Imports')!;
+  assert.equal(imports.permission, 'hr.import');
+  assert.equal(imports.to, '/hr/imports');
+
+  assert.equal(isItemRenderable(imports, permissionSetOf(['dashboard.view', 'hr.view', 'hr.manage', 'hr.reports.view']), false), false);
+  assert.equal(isItemRenderable(imports, permissionSetOf([]), true), true, 'a Super Admin sees it');
+  // (The backend ignores hr.import for every non-Super-Admin role, so a stray grant can never open the page.)
 });
 
 test('Payroll nav item appears only with hr.payroll.view (or for a Super Admin)', () => {

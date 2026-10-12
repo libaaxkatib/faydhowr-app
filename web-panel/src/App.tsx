@@ -29,6 +29,7 @@ import { PerformanceReportPage } from '@/features/hrm/PerformanceReportPage';
 import { FinancialLedgerPage } from '@/features/hrm/FinancialLedgerPage';
 import { PayrollRollupPage } from '@/features/hrm/PayrollRollupPage';
 import { PayrollRunsPage } from '@/features/hrm/PayrollRunsPage';
+import { ExcelImportsPage } from '@/features/hrm/ExcelImportsPage';
 import { MarketingDashboardPage } from '@/features/marketing/MarketingDashboardPage';
 import { MarketingRecordsListPage } from '@/features/marketing/MarketingRecordsListPage';
 import { MarketingRecordDetailPage } from '@/features/marketing/MarketingRecordDetailPage';
@@ -158,6 +159,7 @@ export default function App() {
         <Route path="/hr/positions" element={<RequirePermission permission="hr.view"><PositionsPage /></RequirePermission>} />
         <Route path="/hr/companies" element={<RequirePermission permission="hr.view"><ClientCompaniesPage /></RequirePermission>} />
         <Route path="/hr/payroll" element={<RequirePermission permission="hr.payroll.view"><PayrollRunsPage /></RequirePermission>} />
+        <Route path="/hr/imports" element={<RequirePermission permission="hr.import"><ExcelImportsPage /></RequirePermission>} />
         <Route path="/hr/reports" element={<RequirePermission permission="hr.reports.view"><HrReportsPage /></RequirePermission>} />
         <Route path="/hr/reports/waiting-analytics" element={<RequirePermission permission="hr.reports.view"><WaitingAnalyticsPage /></RequirePermission>} />
         <Route path="/hr/reports/workforce-requests" element={<RequirePermission permission="hr.reports.view"><WorkforceRequestHistoryPage /></RequirePermission>} />

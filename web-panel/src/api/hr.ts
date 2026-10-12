@@ -333,8 +333,11 @@ export const hrApi = {
       apiRequest<Employee>('admin/hr/employees', { method: 'POST', body: payload }),
     update: (id: number, payload: UpdateEmployeePayload) =>
       apiRequest<Employee>(`admin/hr/employees/${id}`, { method: 'PUT', body: payload }),
-    updateStatus: (id: number, status: EmployeeStatus, note?: string) =>
-      apiRequest<Employee>(`admin/hr/employees/${id}/status`, { method: 'PATCH', body: { status, note } }),
+    updateStatus: (id: number, status: EmployeeStatus, note?: string, overrideReason?: string) =>
+      apiRequest<Employee>(`admin/hr/employees/${id}/status`, {
+        method: 'PATCH',
+        body: { status, note, ...(overrideReason ? { override_reason: overrideReason } : {}) },
+      }),
     separate: (id: number, payload: MarkEmployeeSeparatedPayload) =>
       apiRequest<Employee>(`admin/hr/employees/${id}/separate`, { method: 'PATCH', body: payload }),
     rehire: (id: number, note?: string | null) =>

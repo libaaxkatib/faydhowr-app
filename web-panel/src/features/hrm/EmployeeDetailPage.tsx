@@ -17,6 +17,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { useAuth } from '@/features/auth/useAuth';
+import { StatusOverrideDialog } from '@/features/hrm/StatusOverrideDialog';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { formatDate, formatDateTime, initialsOf } from '@/utils/formatters';
 import { assignmentLabel, friendlyErrorMessage, isWorkplaceMissing, localToday, OFFICE_LABEL } from '@/utils/hrHelpers';
@@ -119,6 +120,8 @@ export function EmployeeDetailPage() {
   const { show } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const { isSuperAdmin: canOverrideStatus } = useAuth();
+  const [isOverrideOpen, setIsOverrideOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [assessmentNotes, setAssessmentNotes] = useState('');
   const [isAssignOpen, setIsAssignOpen] = useState(false);
@@ -559,6 +562,11 @@ export function EmployeeDetailPage() {
                     Mark Inactive
                   </Button>
                 )}
+                {canOverrideStatus && (
+                  <Button variant="outline" size="sm" onClick={() => setIsOverrideOpen(true)}>
+                    Override status…
+                  </Button>
+                )}
               </div>
               {employee.status === 'applicant' && (
                 <p className="mt-3 border-t border-border pt-3 text-xs text-ink-faint">
@@ -671,6 +679,12 @@ export function EmployeeDetailPage() {
                       <StatusBadge status={entry.to_status} />
                       <span className="text-xs text-ink-faint">{formatDateTime(entry.created_at)}</span>
                     </div>
+                    {entry.is_override && (
+                      <div className="mt-1">
+                        <StatusBadge status="override" tone="warning" label="Super Admin override" />
+                        <p className="mt-1 text-xs text-ink-muted">Reason: {entry.override_reason}</p>
+                      </div>
+                    )}
                     {entry.note && <p className="mt-1 text-xs text-ink-muted">{entry.note}</p>}
                     <p className="mt-1 text-xs text-ink-faint">by {entry.changed_by ?? '—'}</p>
                   </div>
@@ -1266,6 +1280,10 @@ export function EmployeeDetailPage() {
           onConfirm={(endDate, note) => endAssignmentMutation.mutate({ id: endingAssignment.id, end_date: endDate, note })}
           isLoading={endAssignmentMutation.isPending}
         />
+      )}
+
+      {canOverrideStatus && (
+        <StatusOverrideDialog isOpen={isOverrideOpen} employee={employee} onClose={() => setIsOverrideOpen(false)} onDone={invalidate} />
       )}
 
       <MarkSeparatedModal

@@ -43,6 +43,10 @@ export interface EmployeeStatusHistoryEntry {
   to_status: EmployeeStatus;
   changed_by: string | null;
   note: string | null;
+  /** Set when a Super Admin changed the status outside the normal lifecycle; the reason is mandatory. */
+  is_override?: boolean;
+  override_reason?: string | null;
+  source?: string | null;
   created_at: string;
 }
 
