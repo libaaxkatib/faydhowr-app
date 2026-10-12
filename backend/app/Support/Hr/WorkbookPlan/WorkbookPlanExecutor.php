@@ -79,7 +79,7 @@ class WorkbookPlanExecutor
      * @param  list<array<string, mixed>>  $employees
      * @return array{dry_run: bool, summary: array<string, int>, results: list<array<string, mixed>>}
      */
-    public function status(array $employees, string $note, ?string $joiningDate, bool $dryRun, ?Admin $actor): array
+    public function status(array $employees, string $note, ?string $joiningDate, bool $dryRun, ?Admin $actor, ?string $overrideReason = null): array
     {
         $records = array_map(fn (array $e): array => [
             'employee_id' => (int) $e['employee_id'],
@@ -90,7 +90,7 @@ class WorkbookPlanExecutor
 
         $admin = $actor ?? new Admin(['id' => 0]);
 
-        return $this->bulkActivate->handle($records, $note, $joiningDate, $dryRun, $admin);
+        return $this->bulkActivate->handle($records, $note, $joiningDate, $dryRun, $admin, $overrideReason);
     }
 
     /**

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['employee_id', 'from_status', 'to_status', 'changed_by', 'note'])]
+#[Fillable(['employee_id', 'from_status', 'to_status', 'changed_by', 'note', 'override_reason', 'source', 'import_batch_id'])]
 class EmployeeStatusHistory extends Model
 {
     use HasFactory;

@@ -55,8 +55,15 @@ class BulkActivateEmployeesTest extends TestCase
         $applicant = $this->makeEmployee('applicant');
         $applicant->update(['pipeline_stage' => 'need_training']);
 
-        $this->withToken($token)->postJson(self::URL, $this->body([$waiting, $applicant], ['dry_run' => false, 'confirm' => true, 'joining_date' => '2026-10-01']))
+        // Waiting -> Active is a normal step; Applicant -> Active is not, so it needs the Super Admin's reason.
+        $this->withToken($token)->postJson(self::URL, $this->body([$waiting, $applicant], [
+            'dry_run' => false, 'confirm' => true, 'joining_date' => '2026-10-01',
+            'override_reason' => 'Required processes completed, confirmed by the owner for the approved workbook.',
+        ]))
             ->assertOk()->assertJsonPath('data.summary.activated', 2)->assertJsonPath('data.summary.failed', 0);
+
+        $this->assertNull(EmployeeStatusHistory::query()->where('employee_id', $waiting->id)->latest('id')->value('override_reason'), 'A normal step records no override.');
+        $this->assertStringContainsString('required processes completed', mb_strtolower((string) EmployeeStatusHistory::query()->where('employee_id', $applicant->id)->latest('id')->value('override_reason')));
 
         foreach ([$waiting, $applicant] as $e) {
             $e->refresh();
@@ -72,6 +79,41 @@ class BulkActivateEmployeesTest extends TestCase
         $this->assertNull($waiting->waiting_since, 'Leaving Waiting clears the waiting clock.');
         $this->assertSame('need_training', $applicant->pipeline_stage->value, 'No completion is invented: the pipeline stage is untouched.');
         $this->assertDatabaseCount('employee_historical_completions', 0);
+    }
+
+    public function test_an_applicant_cannot_be_activated_without_a_super_admin_override_reason(): void
+    {
+        [, $token] = $this->superAdminToken();
+        $applicant = $this->makeEmployee('applicant');
+
+        $this->withToken($token)->postJson(self::URL, $this->body([$applicant]))
+            ->assertOk()
+            ->assertJsonPath('data.summary.requires_override', 1)
+            ->assertJsonPath('data.summary.would_activate', 0)
+            ->assertJsonPath('data.results.0.code', 'TRANSITION_OVERRIDE_REQUIRED');
+
+        $this->withToken($token)->postJson(self::URL, $this->body([$applicant], ['dry_run' => false, 'confirm' => true]))
+            ->assertOk()->assertJsonPath('data.summary.failed', 1)->assertJsonPath('data.results.0.code', 'TRANSITION_OVERRIDE_REQUIRED');
+
+        $this->assertSame('applicant', $applicant->refresh()->status->value);
+        $this->assertSame(0, EmployeeStatusHistory::query()->where('employee_id', $applicant->id)->count());
+
+        $this->withToken($token)->postJson(self::URL, $this->body([$applicant], ['override_reason' => 'Confirmed complete by the owner.']))
+            ->assertOk()->assertJsonPath('data.summary.would_activate_with_override', 1);
+        $this->assertSame('applicant', $applicant->refresh()->status->value, 'A dry run with a reason still changes nothing.');
+    }
+
+    public function test_a_non_super_admin_cannot_use_an_override_reason_to_activate(): void
+    {
+        $applicant = $this->makeEmployee('applicant');
+
+        $this->withToken($this->tokenWithOnly(['hr.view', 'hr.manage']))
+            ->postJson(self::URL, $this->body([$applicant], ['dry_run' => false, 'confirm' => true, 'override_reason' => 'Trying to bypass the lifecycle rules.']))
+            ->assertOk()
+            ->assertJsonPath('data.summary.failed', 1)
+            ->assertJsonPath('data.results.0.code', 'TRANSITION_OVERRIDE_FORBIDDEN');
+
+        $this->assertSame('applicant', $applicant->refresh()->status->value);
     }
 
     public function test_an_existing_joining_date_is_never_overwritten(): void

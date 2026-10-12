@@ -11,6 +11,7 @@ use App\Models\Employee;
 use App\Models\EmployeeSeparation;
 use App\Models\EmployeeStatusHistory;
 use App\Support\ApiResponse;
+use App\Support\Hr\EmployeeTransitionGuard;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
@@ -24,7 +25,10 @@ use Illuminate\Support\Facades\DB;
  */
 class MarkEmployeeSeparatedAction
 {
-    public function __construct(private readonly CloseAssignmentsOnSeparationAction $closeAssignments) {}
+    public function __construct(
+        private readonly CloseAssignmentsOnSeparationAction $closeAssignments,
+        private readonly EmployeeTransitionGuard $guard,
+    ) {}
 
     public function handle(
         Employee $employee,
@@ -46,6 +50,8 @@ class MarkEmployeeSeparatedAction
 
         return DB::transaction(function () use ($employee, $reason, $separationDate, $rehireEligible, $notes, $actor) {
             $from = $employee->status;
+
+            $this->guard->authorize($from, EmployeeStatus::Inactive, EmployeeTransitionGuard::CONTEXT_SEPARATION, $actor);
 
             $employee->update([
                 'status' => EmployeeStatus::Inactive,

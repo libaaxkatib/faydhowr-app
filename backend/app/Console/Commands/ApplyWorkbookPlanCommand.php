@@ -25,6 +25,7 @@ class ApplyWorkbookPlanCommand extends Command
         {--step=* : companies, status and/or assignments (default: all that have a file)}
         {--note=Approved as working in the company workbook (EMPLOYEE AND COMPANY.xlsx) : Status-history note for the Active transition}
         {--joining-date= : Set employees.joining_date (only where empty), e.g. 2026-10-01}
+        {--override-reason= : Super Admin reason, required to move employees to Active when that is not a normal lifecycle step (for example Applicant to Active)}
         {--admin-email= : Super Admin who performs the run (required with --commit)}
         {--report= : Write every record result to this CSV path}
         {--commit : Actually write to the database (default is a dry run)}';
@@ -76,10 +77,10 @@ class ApplyWorkbookPlanCommand extends Command
         }
 
         if (in_array('status', $steps, true)) {
-            $run = $executor->status($employees, (string) $this->option('note'), $this->option('joining-date') ?: null, $dryRun, $actor);
+            $run = $executor->status($employees, (string) $this->option('note'), $this->option('joining-date') ?: null, $dryRun, $actor, $this->option('override-reason') ?: null);
             $this->summarize('status', $run['results']);
             $all = array_merge($all, array_map(fn ($r) => ['step' => 'status', ...$r], $run['results']));
-            $assumeActive = array_map(fn ($r) => (int) $r['employee_id'], array_filter($run['results'], fn ($r) => in_array($r['outcome'], ['would_activate', 'already_active', 'activated'], true)));
+            $assumeActive = array_map(fn ($r) => (int) $r['employee_id'], array_filter($run['results'], fn ($r) => in_array($r['outcome'], ['would_activate', 'would_activate_with_override', 'already_active', 'activated'], true)));
         }
 
         if (in_array('assignments', $steps, true)) {

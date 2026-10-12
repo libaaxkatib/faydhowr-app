@@ -15,6 +15,9 @@ class EmployeeStatusHistoryResource extends JsonResource
             'to_status' => $this->to_status->value,
             'changed_by' => $this->whenLoaded('changedBy', fn () => $this->changedBy?->full_name),
             'note' => $this->note,
+            'is_override' => $this->override_reason !== null,
+            'override_reason' => $this->override_reason,
+            'source' => $this->source,
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

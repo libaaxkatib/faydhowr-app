@@ -25,6 +25,8 @@ class BulkActivateEmployeesRequest extends FormRequest
             'records.*.expected_status' => ['nullable', 'string', 'max:20'],
             'note' => ['required', 'string', 'min:10', 'max:300'],
             'joining_date' => ['nullable', 'date'],
+            // Super Admin only. Needed for employees whose move to Active is not a normal lifecycle step.
+            'override_reason' => ['nullable', 'string', 'max:2000'],
             'dry_run' => ['sometimes', 'boolean'],
             'confirm' => ['sometimes', 'boolean'],
         ];

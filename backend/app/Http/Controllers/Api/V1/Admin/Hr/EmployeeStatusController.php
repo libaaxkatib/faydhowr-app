@@ -23,6 +23,7 @@ class EmployeeStatusController extends Controller
             EmployeeStatus::from($request->validated('status')),
             $request->validated('note'),
             $request->user(),
+            $request->validated('override_reason'),
         );
 
         return ApiResponse::success('Employee status updated successfully.', new EmployeeResource($employee));
@@ -42,6 +43,7 @@ class EmployeeStatusController extends Controller
             $request->validated('joining_date'),
             $dryRun,
             $request->user(),
+            $request->validated('override_reason'),
         );
 
         return ApiResponse::success($dryRun ? 'Dry run completed; nothing was changed.' : 'Bulk activation completed.', $result);

@@ -21,6 +21,9 @@ class UpdateEmployeeStatusRequest extends FormRequest
         return [
             'status' => ['required', Rule::in(EmployeeStatus::values())],
             'note' => ['nullable', 'string'],
+            // Super Admin only, and only needed when the change is not a normal lifecycle step.
+            // Authorization and length are enforced by the EmployeeTransitionGuard.
+            'override_reason' => ['nullable', 'string', 'max:2000'],
         ];
     }
 

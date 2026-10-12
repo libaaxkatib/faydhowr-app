@@ -9,6 +9,7 @@ use App\Models\Admin;
 use App\Models\Employee;
 use App\Models\EmployeeStatusHistory;
 use App\Support\ApiResponse;
+use App\Support\Hr\EmployeeTransitionGuard;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
@@ -21,6 +22,8 @@ use Illuminate\Support\Facades\DB;
  */
 class RehireEmployeeAction
 {
+    public function __construct(private readonly EmployeeTransitionGuard $guard) {}
+
     public function handle(Employee $employee, ?string $note, Admin $actor): Employee
     {
         if ($employee->status !== EmployeeStatus::Inactive) {
@@ -32,6 +35,8 @@ class RehireEmployeeAction
                 ),
             );
         }
+
+        $this->guard->authorize(EmployeeStatus::Inactive, EmployeeStatus::Active, EmployeeTransitionGuard::CONTEXT_REHIRE, $actor);
 
         return DB::transaction(function () use ($employee, $note, $actor) {
             $employee->update(['status' => EmployeeStatus::Active]);

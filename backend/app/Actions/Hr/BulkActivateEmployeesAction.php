@@ -7,6 +7,7 @@ use App\Enums\EmployeeStatus;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\Employee;
+use App\Support\Hr\EmployeeTransitionGuard;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -34,26 +35,29 @@ class BulkActivateEmployeesAction
     public function __construct(
         private readonly UpdateEmployeeStatusAction $statusAction,
         private readonly RehireEmployeeAction $rehireAction,
+        private readonly EmployeeTransitionGuard $guard,
     ) {}
 
     /**
      * @param  list<array{employee_id: int, source_ref?: ?string, expected_employee_number?: ?string, expected_status?: ?string}>  $records
      * @return array{dry_run: bool, summary: array<string, int>, results: list<array<string, mixed>>}
      */
-    public function handle(array $records, string $note, ?string $joiningDate, bool $dryRun, Admin $actor): array
+    public function handle(array $records, string $note, ?string $joiningDate, bool $dryRun, Admin $actor, ?string $overrideReason = null): array
     {
         $results = [];
 
         foreach ($records as $record) {
-            $results[] = $this->one($record, $note, $joiningDate, $dryRun, $actor);
+            $results[] = $this->one($record, $note, $joiningDate, $dryRun, $actor, $overrideReason);
         }
 
-        $summary = ['total' => count($results), 'activated' => 0, 'would_activate' => 0, 'already_active' => 0, 'failed' => 0];
+        $summary = ['total' => count($results), 'activated' => 0, 'would_activate' => 0, 'would_activate_with_override' => 0, 'requires_override' => 0, 'already_active' => 0, 'failed' => 0];
 
         foreach ($results as $result) {
             $summary[match ($result['outcome']) {
                 'activated' => 'activated',
                 'would_activate' => 'would_activate',
+                'would_activate_with_override' => 'would_activate_with_override',
+                'requires_override' => 'requires_override',
                 'already_active' => 'already_active',
                 default => 'failed',
             }]++;
@@ -66,7 +70,7 @@ class BulkActivateEmployeesAction
      * @param  array<string, mixed>  $record
      * @return array<string, mixed>
      */
-    private function one(array $record, string $note, ?string $joiningDate, bool $dryRun, Admin $actor): array
+    private function one(array $record, string $note, ?string $joiningDate, bool $dryRun, Admin $actor, ?string $overrideReason): array
     {
         $base = ['employee_id' => $record['employee_id'], 'source_ref' => $record['source_ref'] ?? null];
         $employee = Employee::withTrashed()->find($record['employee_id']);
@@ -100,7 +104,21 @@ class BulkActivateEmployeesAction
             return [...$base, 'to_status' => 'active', 'outcome' => 'already_active', 'code' => null, 'message' => 'Already Active; nothing changed.'];
         }
 
+        // Inactive employees return through Rehire (a normal step); everyone else is checked by the
+        // lifecycle guard. A change that is not a normal step needs a Super Admin override reason.
+        $needsOverride = $employee->status !== EmployeeStatus::Inactive
+            && $this->guard->evaluate($employee->status, EmployeeStatus::Active) === EmployeeTransitionGuard::DECISION_OVERRIDE_REQUIRED;
+        $hasReason = $overrideReason !== null && trim($overrideReason) !== '';
+
+        if ($needsOverride && ! $hasReason) {
+            return [...$base, 'to_status' => 'active', 'outcome' => $dryRun ? 'requires_override' : 'failed', 'code' => 'TRANSITION_OVERRIDE_REQUIRED', 'message' => "{$employee->status->label()} to Active is not a normal lifecycle step; it needs a Super Admin override with a reason."];
+        }
+
         if ($dryRun) {
+            if ($needsOverride) {
+                return [...$base, 'to_status' => 'active', 'outcome' => 'would_activate_with_override', 'code' => null, 'message' => 'Would be moved to Active by Super Admin override (reason recorded in the status history).'];
+            }
+
             return [...$base, 'to_status' => 'active', 'outcome' => 'would_activate', 'code' => null, 'message' => $employee->status === EmployeeStatus::Inactive
                 ? 'Would be reactivated through Rehire (separation history kept).'
                 : 'Would be moved to Active (status history kept).'];
@@ -109,11 +127,11 @@ class BulkActivateEmployeesAction
         $statusNote = $note.($base['source_ref'] ? " [{$base['source_ref']}]" : '');
 
         try {
-            DB::transaction(function () use ($employee, $statusNote, $joiningDate, $actor): void {
+            DB::transaction(function () use ($employee, $statusNote, $joiningDate, $actor, $needsOverride, $overrideReason): void {
                 if ($employee->status === EmployeeStatus::Inactive) {
                     $this->rehireAction->handle($employee, $statusNote, $actor);
                 } else {
-                    $this->statusAction->handle($employee, EmployeeStatus::Active, $statusNote, $actor);
+                    $this->statusAction->handle($employee, EmployeeStatus::Active, $statusNote, $actor, $needsOverride ? $overrideReason : null);
                 }
 
                 if ($joiningDate !== null && $employee->fresh()->joining_date === null) {

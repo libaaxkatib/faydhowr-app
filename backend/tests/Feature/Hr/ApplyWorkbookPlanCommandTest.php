@@ -16,6 +16,8 @@ use Tests\TestCase;
 
 class ApplyWorkbookPlanCommandTest extends TestCase
 {
+    private const OVERRIDE = 'Required processes completed; confirmed by the owner for the approved workbook.';
+
     use HrFixtures;
     use RefreshDatabase;
 
@@ -83,12 +85,25 @@ class ApplyWorkbookPlanCommandTest extends TestCase
         $this->artisan('hr:apply-workbook-plan', ['--companies' => $this->companiesFile(), '--employees' => $employees])
             ->expectsOutputToContain('DRY RUN')
             ->expectsOutputToContain('COMPANIES: 3 record(s) - would_create: 3')
-            ->expectsOutputToContain('STATUS: 2 record(s) - would_activate: 2')
-            ->expectsOutputToContain('ASSIGNMENTS: 2 record(s) - would_assign: 2')
+            ->expectsOutputToContain('STATUS: 2 record(s) - requires_override: 1, would_activate: 1')
+            // The applicant cannot become Active without the override, so the preview shows its assignment as blocked too.
+            ->expectsOutputToContain('ASSIGNMENTS: 2 record(s) - failed: 1, would_assign: 1')
             ->assertSuccessful();
 
         $this->assertSame($before, $this->counts());
         $this->assertDatabaseCount('client_company_aliases', 0);
+    }
+
+    public function test_a_dry_run_with_an_override_reason_previews_the_applicant_as_an_override_and_writes_nothing(): void
+    {
+        [$employees] = $this->employeesFile();
+        $before = $this->counts();
+
+        $this->artisan('hr:apply-workbook-plan', ['--companies' => $this->companiesFile(), '--employees' => $employees, '--override-reason' => self::OVERRIDE])
+            ->expectsOutputToContain('STATUS: 2 record(s) - would_activate: 1, would_activate_with_override: 1')
+            ->assertSuccessful();
+
+        $this->assertSame($before, $this->counts());
     }
 
     public function test_commit_requires_a_super_admin(): void
@@ -110,7 +125,7 @@ class ApplyWorkbookPlanCommandTest extends TestCase
 
         $this->artisan('hr:apply-workbook-plan', [
             '--companies' => $this->companiesFile(), '--employees' => $employees, '--commit' => true,
-            '--admin-email' => $admin->email, '--joining-date' => '2026-10-01',
+            '--admin-email' => $admin->email, '--joining-date' => '2026-10-01', '--override-reason' => self::OVERRIDE,
         ])->assertSuccessful();
 
         $this->assertSame(['GURI TEST', 'MarwaFertility', 'TransitHotel'], ClientCompany::query()->orderBy('name')->pluck('name')->all());
@@ -141,7 +156,7 @@ class ApplyWorkbookPlanCommandTest extends TestCase
     {
         $admin = Admin::factory()->superAdmin()->create();
         [$employees] = $this->employeesFile();
-        $args = ['--companies' => $this->companiesFile(), '--employees' => $employees, '--commit' => true, '--admin-email' => $admin->email];
+        $args = ['--companies' => $this->companiesFile(), '--employees' => $employees, '--commit' => true, '--admin-email' => $admin->email, '--override-reason' => self::OVERRIDE];
 
         $this->artisan('hr:apply-workbook-plan', $args)->assertSuccessful();
         $after = $this->counts();
@@ -164,7 +179,7 @@ class ApplyWorkbookPlanCommandTest extends TestCase
 
         $this->artisan('hr:apply-workbook-plan', [
             '--companies' => $this->companiesFile(), '--employees' => $employees, '--commit' => true,
-            '--admin-email' => $admin->email, '--report' => $report,
+            '--admin-email' => $admin->email, '--report' => $report, '--override-reason' => self::OVERRIDE,
         ])->expectsOutputToContain('failed - IDENTITY_MISMATCH: 1')->expectsOutputToContain('failed - SALARY_OR_START_MISSING: 1')->assertFailed();
 
         $this->assertSame(0, EmployeeWorkAssignment::query()->count());
@@ -177,7 +192,7 @@ class ApplyWorkbookPlanCommandTest extends TestCase
         $admin = Admin::factory()->superAdmin()->create();
         [$employees] = $this->employeesFile();
 
-        $this->artisan('hr:apply-workbook-plan', ['--employees' => $employees, '--step' => ['status', 'assignments'], '--commit' => true, '--admin-email' => $admin->email])
+        $this->artisan('hr:apply-workbook-plan', ['--employees' => $employees, '--step' => ['status', 'assignments'], '--commit' => true, '--admin-email' => $admin->email, '--override-reason' => self::OVERRIDE])
             ->expectsOutputToContain('failed - COMPANY_NOT_REGISTERED: 2')->assertFailed();
         $this->assertSame(0, EmployeeWorkAssignment::query()->count());
     }

@@ -12,6 +12,7 @@ use App\Models\Employee;
 use App\Models\EmployeePracticalAssessment;
 use App\Models\EmployeeStatusHistory;
 use App\Support\ApiResponse;
+use App\Support\Hr\EmployeeTransitionGuard;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
@@ -25,6 +26,8 @@ use Illuminate\Support\Facades\DB;
  */
 class RecordPracticalDecisionAction
 {
+    public function __construct(private readonly EmployeeTransitionGuard $guard) {}
+
     public function handle(
         Employee $employee,
         PracticalAssessmentResult $decision,
@@ -79,6 +82,8 @@ class RecordPracticalDecisionAction
     private function approve(Employee $employee, Admin $actor): void
     {
         $from = $employee->status;
+
+        $this->guard->authorize($from, EmployeeStatus::Waiting, EmployeeTransitionGuard::CONTEXT_PRACTICAL_APPROVAL, $actor);
 
         $employee->update([
             'pipeline_stage' => null,
