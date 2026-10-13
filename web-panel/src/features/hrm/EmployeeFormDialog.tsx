@@ -10,6 +10,7 @@ import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
 import { duplicateMatchesFromError, friendlyErrorMessage } from '@/utils/hrHelpers';
+import { recruitmentCategories } from '@/utils/employeeCategories';
 import type {
   CreateEmployeePayload,
   DuplicateEmployeeMatch,
@@ -412,7 +413,8 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
               value={form.employee_category_id}
               onChange={(e) => setForm({ ...form, employee_category_id: e.target.value })}
               placeholder="Select category"
-              options={(categories ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
+              // Office Staff is assigned by the Office Staff workflow, not picked while recruiting (an employee who already has it keeps it).
+              options={recruitmentCategories(categories ?? [], employee ? employee.employee_category_id : null).map((c) => ({ value: String(c.id), label: c.name }))}
             />
           </FormField>
           <FormField label="Department" htmlFor="department_id" error={fieldErrors.department_id?.[0]}>

@@ -18,6 +18,7 @@ import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate, formatDurationSince } from '@/utils/formatters';
 import { parseWorkforceRequestStatuses } from '@/utils/hrDashboardLinks';
+import { recruitmentCategories } from '@/utils/employeeCategories';
 import type { WorkforceRequest, WorkforceRequestStatus } from '@/types/employee';
 
 const STATUS_TONE: Record<WorkforceRequestStatus, 'success' | 'warning' | 'danger' | 'neutral'> = {
@@ -307,7 +308,7 @@ export function WorkforceRequestsPage() {
             value={employeeCategoryId}
             onChange={(e) => setEmployeeCategoryId(e.target.value)}
             placeholder="Any category"
-            options={(categories ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
+            options={recruitmentCategories(categories ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
           />
         </FormField>
         <FormField label="Position (optional)" htmlFor="wr-position">
