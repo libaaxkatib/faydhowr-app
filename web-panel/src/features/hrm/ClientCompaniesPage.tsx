@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 
 import { hrApi } from '@/api/hr';
 import { ApiClientError } from '@/api/client';
@@ -18,6 +19,7 @@ import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
+import { CATEGORY_FILTERS, categoryCounts, filterByCategory, isInternalOffice, parseCategoryFilter } from '@/utils/clientCompanyFilter';
 import type { ClientCompany, ClientCompanyAgreement, ClientCompanyCategory, WorkLocation } from '@/types/employee';
 
 const CATEGORY_OPTIONS: { value: ClientCompanyCategory; label: string }[] = [
@@ -34,13 +36,19 @@ function formatFileSize(bytes: number): string {
 export function ClientCompaniesPage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const categoryFilter = parseCategoryFilter(searchParams);
   const [companyModal, setCompanyModal] = useState<{ editing: ClientCompany | null } | null>(null);
   const [locationModal, setLocationModal] = useState<{ clientCompanyId: number | null; editing: WorkLocation | null } | null>(null);
 
   const { data: companies, isLoading, error, refetch } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list });
   const { data: locations } = useQuery({ queryKey: ['work-locations'], queryFn: () => hrApi.workLocations.list() });
 
-  const officeLocations = (locations ?? []).filter((l) => l.location_type === 'office');
+  // The Fayadhowr Office is Fayadhowr's own internal location, not a client: it is kept out of the client list,
+  // its filter and its counts. Its capacity stays editable from the button in the page header.
+  const officeLocations = (locations ?? []).filter(isInternalOffice);
+  const counts = categoryCounts(companies ?? []);
+  const visibleCompanies = filterByCategory(companies ?? [], categoryFilter);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['client-companies'] });
@@ -75,50 +83,51 @@ export function ClientCompaniesPage() {
         breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Companies & Locations' }]}
         actions={
           <PermissionGate module="hr">
-            <Button onClick={() => setCompanyModal({ editing: null })}>
-              <Icon name="plus" size={15} />
-              Add Client Company
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {officeLocations.map((office) => (
+                <Button key={office.id} variant="outline" onClick={() => setLocationModal({ clientCompanyId: null, editing: office })}>
+                  <Icon name="pencil" size={15} />
+                  Office capacity
+                </Button>
+              ))}
+              <Button onClick={() => setCompanyModal({ editing: null })}>
+                <Icon name="plus" size={15} />
+                Add Client Company
+              </Button>
+            </div>
           </PermissionGate>
         }
       />
 
-      <Card className="mb-4">
-        <CardHeader>
-          <h3 className="font-display text-sm font-bold text-ink">Fayadhowr Office</h3>
-        </CardHeader>
-        <CardBody>
-          {officeLocations.map((office) => (
-            <div key={office.id} className="flex items-center justify-between">
-              <div className="flex gap-6 text-sm">
-                <div>
-                  <p className="text-xs text-ink-faint">Capacity</p>
-                  <p className="font-display text-lg font-bold text-ink">{office.capacity ?? '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-ink-faint">Current</p>
-                  <p className="font-display text-lg font-bold text-ink">{office.active_assignments_count}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-ink-faint">Available</p>
-                  <p className="font-display text-lg font-bold text-ink">{office.available_slots ?? '—'}</p>
-                </div>
-              </div>
-              <PermissionGate module="hr">
-                <Button variant="outline" size="sm" onClick={() => setLocationModal({ clientCompanyId: null, editing: office })}>
-                  <Icon name="pencil" size={14} />
-                  Edit Capacity
-                </Button>
-              </PermissionGate>
-            </div>
-          ))}
-        </CardBody>
-      </Card>
+      {companies && companies.length > 0 && (
+        <div role="group" aria-label="Filter by category" className="mb-4 flex flex-wrap items-center gap-2">
+          {CATEGORY_FILTERS.map((option) => {
+            const isActive = categoryFilter === option.value;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => setSearchParams(option.value === 'all' ? {} : { category: option.value }, { replace: true })}
+                className={`rounded-full border px-4 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                  isActive ? 'border-primary bg-primary text-white' : 'border-border bg-surface text-ink-muted hover:border-primary/40 hover:text-primary'
+                }`}
+              >
+                {option.label} <span className={isActive ? 'text-white/80' : 'text-ink-faint'}>({counts[option.value]})</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {companies && companies.length === 0 && <EmptyState icon="box" title="No client companies yet" />}
+      {companies && companies.length > 0 && visibleCompanies.length === 0 && (
+        <EmptyState icon="box" title={`No ${categoryFilter === 'guri' ? 'Guri' : 'Company'} records`} />
+      )}
 
       <div className="flex flex-col gap-4">
-        {companies?.map((company) => (
+        {visibleCompanies.map((company) => (
           <Card key={company.id}>
             <CardHeader>
               <div>
