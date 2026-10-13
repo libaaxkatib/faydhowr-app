@@ -160,7 +160,7 @@ class ImportActivationPreviewTest extends TestCase
         $this->assertSame('already_active', $rows[0]['meta']['report']['proposed_path']);
     }
 
-    public function test_every_preview_row_that_found_an_employee_links_to_it_even_when_it_needs_review_or_is_invalid(): void
+    public function test_every_preview_row_that_found_an_employee_links_to_it_even_when_it_has_a_lookalike_or_is_invalid(): void
     {
         $twinA = $this->person('waiting', 'Twin Person', '615000001');
         $this->person('applicant', 'Twin Person', '615000002');
@@ -177,76 +177,140 @@ class ImportActivationPreviewTest extends TestCase
         ]);
         $rows = $this->rows($id);
 
-        $this->assertSame(['review', 'invalid', 'invalid', 'invalid'], array_column($rows, 'status'));
+        $this->assertSame(['valid', 'invalid', 'invalid', 'invalid'], array_column($rows, 'status'));
         $this->assertSame([$twinA->id, $mismatch->id, $archived->id, $drifted->id], array_column($rows, 'record_id'));
         $this->assertSame(['Employee', 'Employee', 'Employee', 'Employee'], array_column($rows, 'record_type'));
     }
 
-    public function test_another_record_for_the_same_person_is_flagged_for_review(): void
+    public function test_a_look_alike_record_does_not_exclude_an_employee_whose_number_and_name_match(): void
     {
         $one = $this->person('waiting', 'Same Person', '615000001');
         $twin = $this->person('applicant', 'Same Person', '615999999');
+        $archivedTwin = $this->person('inactive', 'Same Person', '615888888');
+        $archivedTwin->delete();
 
         $id = $this->stage([$this->plan($one)]);
         $row = $this->rows($id)[0];
 
-        $this->assertSame('review', $row['status']);
-        $this->assertSame('DUPLICATE_PERSON_RECORD', $row['code']);
-        $this->assertSame([$twin->employee_number], $row['meta']['employee_numbers']);
+        // Approved rule: employee number AND name match, so the employee is activation-ready.
+        $this->assertSame('valid', $row['status']);
+        $this->assertNull($row['code']);
+        $this->assertSame('yes', $row['meta']['report']['activation_ready']);
+        $this->assertSame('', $row['meta']['report']['exclusion_reason']);
+        $this->assertContains('LOOKALIKE_RECORD_NOTED', $row['meta']['warnings']);
+
+        // The look-alikes are noted for information only, without names or phone numbers.
+        $this->assertEqualsCanonicalizing([$twin->employee_number, $archivedTwin->employee_number], $row['meta']['employee_numbers']);
+        $note = $row['meta']['report']['lookalike_note'];
+        $this->assertStringContainsString('INCLUDED', $note);
+        $this->assertStringContainsString($archivedTwin->employee_number.' (inactive, archived): same full name, different phone', $note);
+        $this->assertStringContainsString($twin->employee_number.' (applicant): same full name, different phone', $note);
+        $this->assertStringContainsString('registration phone is untouched', $note);
+        $this->assertStringNotContainsString('Same Person', $note);
+        $this->assertStringNotContainsString('615', $note);
     }
 
-    public function test_uncertain_identity_rows_are_excluded_from_the_activation_ready_list_and_explained_without_names(): void
+    public function test_look_alikes_are_counted_as_notes_and_never_as_exclusions(): void
     {
         $ready = $this->person('waiting', 'Clear Person', '615000001');
-        $readyApplicant = $this->person('applicant', 'Clear Applicant', '615000002');
-        $uncertain = $this->person('applicant', 'Doubtful Person', '615000003');
-        $archivedTwin = $this->person('inactive', 'Doubtful Person', '615888888');
-        $archivedTwin->delete();
-        $liveTwin = $this->person('waiting', 'Doubtful Person', '615777777');
+        $withTwin = $this->person('applicant', 'Doubtful Person', '615000003');
+        $this->person('waiting', 'Doubtful Person', '615777777');
 
-        $id = $this->stage([$this->plan($ready), $this->plan($readyApplicant), $this->plan($uncertain)]);
-        $rows = $this->rows($id);
-
-        $this->assertSame(['valid', 'valid', 'review'], array_column($rows, 'status'));
-        $this->assertSame(['yes', 'yes', 'no'], array_map(fn (array $r): string => $r['meta']['report']['activation_ready'], $rows));
-        $this->assertSame(['', '', 'DUPLICATE_PERSON_RECORD'], array_map(fn (array $r): string => $r['meta']['report']['exclusion_reason'], $rows));
-
-        $explanation = $rows[2]['meta']['report']['review_explanation'];
-        $this->assertStringContainsString($archivedTwin->employee_number.' (inactive, archived): same full name, different phone', $explanation);
-        $this->assertStringContainsString($liveTwin->employee_number.' (waiting): same full name, different phone', $explanation);
-        $this->assertStringContainsString('Excluded from activation until the data is corrected', $explanation);
-        $this->assertStringContainsString('Nothing was matched, created or changed automatically', $explanation);
-        $this->assertStringNotContainsString('Doubtful', $explanation);
-        $this->assertStringNotContainsString('615', $explanation);
-
-        // The summary keeps the two lists apart.
+        $id = $this->stage([$this->plan($ready), $this->plan($withTwin)]);
         $summary = $this->as($this->token)->getJson(self::IMPORTS."/{$id}")->assertOk()->json('data');
+
         $this->assertSame(2, $summary['activation_ready']);
         $this->assertSame(['normal_step' => 1, 'super_admin_override_required' => 1], $summary['activation_ready_by_path']);
-        $this->assertSame(['DUPLICATE_PERSON_RECORD' => 1], $summary['activation_excluded']);
-        $this->assertSame(1, $summary['activation_excluded_total']);
+        $this->assertSame([], $summary['activation_excluded']);
+        $this->assertSame(0, $summary['activation_excluded_total']);
+        $this->assertSame(1, $summary['activation_lookalikes_noted']);
+        $this->assertSame(0, $summary['counts']['review']);
 
-        // The review report is separate from the ready list and carries the explanation.
-        $review = $this->as($this->token)->get(self::IMPORTS."/{$id}/report?status=review")->assertOk()->streamedContent();
-        $this->assertStringContainsString($uncertain->employee_number, $review);
-        $this->assertStringNotContainsString($ready->employee_number, $review);
-        $this->assertStringContainsString('Excluded from activation until the data is corrected', $review);
         $readyReport = $this->as($this->token)->get(self::IMPORTS."/{$id}/report?status=valid")->assertOk()->streamedContent();
-        $this->assertStringNotContainsString($uncertain->employee_number, $readyReport);
+        $this->assertStringContainsString($withTwin->employee_number, $readyReport);
+        $this->assertStringContainsString('lookalike_note', $readyReport);
     }
 
-    public function test_excluded_employees_are_never_matched_created_or_changed(): void
+    public function test_a_look_alike_is_never_matched_merged_created_or_overwritten_and_phones_are_preserved(): void
     {
-        $uncertain = $this->person('applicant', 'Doubtful Person', '615000003');
-        $this->person('waiting', 'Doubtful Person', '615777777');
-        $snapshot = fn (): array => [Employee::withTrashed()->orderBy('id')->get()->toJson(), EmployeeStatusHistory::query()->count(), DB::table('employee_work_assignments')->count()];
+        $employee = $this->person('applicant', 'Doubtful Person', '615000003');
+        $twin = $this->person('waiting', 'Doubtful Person', '615777777');
+        $snapshot = fn (): array => [
+            Employee::withTrashed()->orderBy('id')->get()->toJson(),
+            Employee::withTrashed()->orderBy('id')->pluck('phone')->all(),
+            EmployeeStatusHistory::query()->count(),
+            DB::table('employee_work_assignments')->count(),
+        ];
         $before = $snapshot();
 
-        $id = $this->stage([$this->plan($uncertain)]);
+        $id = $this->stage([$this->plan($employee)]);
         $this->confirmImport($this->token, $id)->assertStatus(422)->assertJsonPath('error_code', 'PREVIEW_ONLY');
 
-        $this->assertSame($before, $snapshot(), 'The excluded employee and its look-alike are untouched; nothing was created.');
-        $this->assertSame('applicant', $uncertain->fresh()->status->value);
+        $this->assertSame($before, $snapshot(), 'Nothing is created, merged, archived, activated or rewritten; every phone is unchanged.');
+        $this->assertSame('615000003', $employee->fresh()->phone);
+        $this->assertSame('615777777', $twin->fresh()->phone);
+        $this->assertSame('applicant', $employee->fresh()->status->value);
+    }
+
+    public function test_an_employee_number_that_belongs_to_a_different_record_is_flagged_and_nobody_is_selected(): void
+    {
+        $a = $this->person('waiting', 'Person Alpha', '615000001');
+        $b = $this->person('waiting', 'Person Beta', '615000002');
+
+        // The plan row names employee A's id but gives employee B's number: a genuine employee-number conflict.
+        $id = $this->stage([$this->plan($a, ['employee_number' => $b->employee_number]), $this->plan($b)]);
+        $rows = $this->rows($id);
+
+        $this->assertSame(['invalid', 'valid'], array_column($rows, 'status'));
+        $this->assertSame(['EMPLOYEE_NUMBER_CONFLICT', null], array_column($rows, 'code'));
+        $this->assertSame($a->id, $rows[0]['record_id'], 'The conflict stays on the row that carried it.');
+        $this->assertSame('no', $rows[0]['meta']['report']['activation_ready']);
+        $this->assertStringContainsString('Nobody was selected', $rows[0]['message']);
+        $this->assertSame('waiting', $a->fresh()->status->value);
+        $this->assertSame('waiting', $b->fresh()->status->value);
+    }
+
+    public function test_a_matching_number_with_a_different_name_is_flagged_not_assumed_to_be_the_same_person(): void
+    {
+        $employee = $this->person('waiting', 'Real Name', '615000001');
+
+        $id = $this->stage([$this->plan($employee, ['name_key' => 'somethingelse'])]);
+        $row = $this->rows($id)[0];
+
+        $this->assertSame('invalid', $row['status']);
+        $this->assertSame('IDENTITY_MISMATCH', $row['code']);
+        $this->assertStringContainsString('the name differs', $row['message']);
+    }
+
+    public function test_every_planned_row_is_accounted_for_exactly_once_with_no_duplicates_or_gaps(): void
+    {
+        $waiting = $this->person('waiting', 'Waiting One', '615000001');
+        $applicant = $this->person('applicant', 'Applicant One', '615000002');
+        $inactive = $this->person('inactive', 'Inactive One', '615000003');
+        $twinned = $this->person('applicant', 'Twinned Person', '615000004');
+        $this->person('waiting', 'Twinned Person', '615000099');
+        $active = $this->person('active', 'Already Active', '615000005');
+        $conflict = $this->person('waiting', 'Conflict Person', '615000006');
+
+        $rowsIn = [
+            $this->plan($waiting), $this->plan($applicant), $this->plan($inactive), $this->plan($twinned), $this->plan($active),
+            $this->plan($conflict, ['employee_number' => 'EMP-999999']),
+            $this->plan($waiting), // the same employee listed twice
+        ];
+        $id = $this->stage($rowsIn);
+        $rows = $this->rows($id);
+        $batch = $this->as($this->token)->getJson(self::IMPORTS."/{$id}")->json('data');
+
+        $this->assertCount(count($rowsIn), $rows, 'Every row of the file has exactly one result.');
+        $this->assertSame(range(2, count($rowsIn) + 1), array_column($rows, 'row_number'), 'No gaps and no repeats in the sheet row numbers.');
+        $this->assertSame(count($rowsIn), $batch['counts']['total']);
+        $this->assertSame(count($rowsIn), $batch['counts']['valid'] + $batch['counts']['invalid'] + $batch['counts']['duplicate'] + $batch['counts']['review']);
+
+        $this->assertSame(['valid', 'valid', 'valid', 'valid', 'duplicate', 'invalid', 'duplicate'], array_column($rows, 'status'));
+        $this->assertSame(4, $batch['activation_ready'], 'Ready = waiting, applicant, inactive and the look-alike employee.');
+        $this->assertSame(['IDENTITY_MISMATCH' => 1], $batch['activation_excluded']);
+        $this->assertSame(1, $batch['activation_lookalikes_noted']);
+        $this->assertSame('DUPLICATE_IN_FILE', $rows[6]['code'], 'A repeated employee is not counted twice.');
     }
 
     public function test_missing_pay_data_and_unregistered_companies_are_reported_not_invented(): void

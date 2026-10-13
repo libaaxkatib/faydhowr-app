@@ -175,7 +175,7 @@ export const ROW_CODE_TEXT: Record<string, string> = {
   EMPLOYEE_NOT_FOUND: 'Employee not found',
   EMPLOYEE_ARCHIVED: 'Employee is archived',
   STATUS_CHANGED_SINCE_PLAN: 'Status changed since the plan was made',
-  DUPLICATE_PERSON_RECORD: 'Another record may be the same person',
+  EMPLOYEE_NUMBER_CONFLICT: 'Plan number belongs to a different employee record',
   SALARY_OR_START_MISSING: 'Salary or start date missing',
   RETENTION_EXPIRED: 'Not imported before the details were deleted',
   MATCH_CHANGED: 'Employee changed after the preview',

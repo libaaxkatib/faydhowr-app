@@ -416,11 +416,17 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
               </ul>
             </div>
             <div className="rounded-sm border border-border p-3 text-sm">
-              <p className="font-medium text-warning">Excluded until corrected: {batch.activation_excluded_total ?? 0}</p>
+              <p className="font-medium text-warning">Genuine conflicts (excluded until corrected): {batch.activation_excluded_total ?? 0}</p>
               <p className="mt-1 text-xs text-ink-muted">
-                Their identity could not be confirmed as unique, or data is missing. Nothing was matched, created or changed. Open the
-                &quot;Needs review&quot; filter and download the report for the reason on each row.
+                An employee whose number or name does not match the plan, whose status changed, or whose pay data is missing. Nothing was
+                matched, created or changed. Download the report for the reason on each row.
               </p>
+              {(batch.activation_lookalikes_noted ?? 0) > 0 && (
+                <p className="mt-2 text-xs text-ink-muted">
+                  {batch.activation_lookalikes_noted} ready employee(s) have a look-alike record (same name or a different phone). They are
+                  included because their employee number and name match the plan; nothing is merged, archived or changed.
+                </p>
+              )}
             </div>
           </div>
         )}

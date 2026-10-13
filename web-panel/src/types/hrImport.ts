@@ -42,6 +42,8 @@ export interface ImportBatch {
   /** Rows excluded from activation until corrected, by reason code. */
   activation_excluded?: Record<string, number>;
   activation_excluded_total?: number;
+  /** Rows that have a look-alike record. They are still INCLUDED (employee number and name match the plan). */
+  activation_lookalikes_noted?: number;
 }
 
 export interface ImportRow {

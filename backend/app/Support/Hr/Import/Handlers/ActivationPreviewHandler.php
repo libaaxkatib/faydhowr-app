@@ -110,8 +110,20 @@ final class ActivationPreviewHandler implements ImportTypeHandler
             return StagedRow::invalid('EMPLOYEE_ARCHIVED', 'The employee record is archived.', null, null, null, ['report' => $this->report($base, $employee, 'none', 'no', 'EMPLOYEE_ARCHIVED')], Employee::class, $employee->id);
         }
 
-        if ($employee->employee_number !== $number || WorkbookPlanExecutor::nameKey($employee->full_name) !== $planKey) {
-            return StagedRow::invalid('IDENTITY_MISMATCH', "Employee {$employee->employee_number} does not match the plan row (number or name differs).", null, null, null, ['report' => $this->report($base, $employee, 'none', 'no', 'IDENTITY_MISMATCH')], Employee::class, $employee->id);
+        if ($employee->employee_number !== $number) {
+            // The plan's number must belong to the plan's employee. If it belongs to a DIFFERENT employee record this is a
+            // genuine employee-number conflict: it is flagged on its own and no employee is ever chosen automatically.
+            $owner = Employee::withTrashed()->where('employee_number', $number)->where('id', '!=', $employee->id)->exists();
+            $code = $owner ? 'EMPLOYEE_NUMBER_CONFLICT' : 'IDENTITY_MISMATCH';
+            $message = $owner
+                ? "The plan number {$number} belongs to a different employee record than the plan's employee id. Nobody was selected; correct the plan."
+                : "Employee {$employee->employee_number} does not match the plan row (the employee number differs).";
+
+            return StagedRow::invalid($code, $message, null, null, null, ['report' => $this->report($base, $employee, 'none', 'no', $code)], Employee::class, $employee->id);
+        }
+
+        if (WorkbookPlanExecutor::nameKey($employee->full_name) !== $planKey) {
+            return StagedRow::invalid('IDENTITY_MISMATCH', "Employee {$employee->employee_number} does not match the plan row (the name differs).", null, null, null, ['report' => $this->report($base, $employee, 'none', 'no', 'IDENTITY_MISMATCH')], Employee::class, $employee->id);
         }
 
         if ($employee->status === EmployeeStatus::Active) {
@@ -148,29 +160,29 @@ final class ActivationPreviewHandler implements ImportTypeHandler
         $completions = DB::table('employee_historical_completions')->where('employee_id', $employee->id)->distinct()->count('stage');
         $build = fn (string $ready, string $reason, string $explanation): array => $this->report(
             $base, $employee, $path, $needsOverride ? 'yes' : 'no', '', $pathText, $companyRegistered ? 'yes' : 'no', (string) $completions, implode(' ', $warnings),
-            ['activation_ready' => $ready, 'exclusion_reason' => $reason, 'review_explanation' => $explanation],
+            ['activation_ready' => $ready, 'exclusion_reason' => $reason, 'lookalike_note' => $explanation],
         );
 
+        // Approved rule (2026-10-14): when the employee number AND the name match the plan, a look-alike record (same full
+        // name, or a different phone) is NOT a reason to exclude. It is only noted for information. Nothing is merged,
+        // archived, created or overwritten, and the employee's registration phone is never touched.
+        $lookalikes = [];
+
         if ($others->isNotEmpty()) {
-            $explanation = $this->explainOtherRecords($others->all());
-            $meta = [
-                'report' => $build('no', 'DUPLICATE_PERSON_RECORD', $explanation),
-                'path' => $path,
-                'warnings' => $warnings,
+            $warnings[] = 'LOOKALIKE_RECORD_NOTED';
+            $lookalikes = [
                 'employee_numbers' => $others->pluck('employee_number')->all(),
                 'candidates' => $others->map(fn (array $m): array => ['employee_number' => $m['employee_number'], 'status' => $m['status'], 'archived' => $m['archived'], 'matched_on' => $m['matched_on']])->all(),
             ];
-
-            return StagedRow::review('DUPLICATE_PERSON_RECORD', 'Identity verified against the plan, but another record may be the same person. Excluded from activation until the data is corrected and the identity is verified.', null, null, null, $meta, Employee::class, $employee->id);
         }
 
         if (! $payOk) {
-            $meta = ['report' => $build('no', 'SALARY_OR_START_MISSING', 'A positive monthly salary and a valid start date are needed for the assignment step; none is invented.'), 'path' => $path, 'warnings' => $warnings];
+            $meta = ['report' => $build('no', 'SALARY_OR_START_MISSING', ''), 'path' => $path, 'warnings' => $warnings] + $lookalikes;
 
             return StagedRow::review('SALARY_OR_START_MISSING', 'A positive monthly salary and a valid start date are needed for the assignment step; none is invented.', null, null, null, $meta, Employee::class, $employee->id);
         }
 
-        $meta = ['report' => $build('yes', '', ''), 'path' => $path, 'warnings' => $warnings];
+        $meta = ['report' => $build('yes', '', $others->isNotEmpty() ? $this->explainOtherRecords($others->all()) : ''), 'path' => $path, 'warnings' => $warnings] + $lookalikes;
 
         return StagedRow::valid([], null, null, $meta, Employee::class, $employee->id, $pathText);
     }
@@ -206,7 +218,7 @@ final class ActivationPreviewHandler implements ImportTypeHandler
             // Only rows marked "yes" are on the activation-ready list. Everything else is excluded, with the reason.
             'activation_ready' => $extra['activation_ready'] ?? 'no',
             'exclusion_reason' => $extra['exclusion_reason'] ?? ($problem !== '' ? $problem : ($path === self::PATH_ALREADY_ACTIVE ? 'ALREADY_ACTIVE' : '')),
-            'review_explanation' => $extra['review_explanation'] ?? '',
+            'lookalike_note' => $extra['lookalike_note'] ?? '',
             'source_row' => $base['source_row'],
             'employee_number' => $base['employee_number'],
             'current_status' => $employee?->status->value ?? '',
@@ -241,8 +253,8 @@ final class ActivationPreviewHandler implements ImportTypeHandler
             return "{$m['employee_number']} ({$m['status']}".($m['archived'] ? ', archived' : '')."): {$basis}";
         }, $others);
 
-        return 'The employee number and name match the plan, but '.count($others).' other record(s) may be the same person - '
-            .implode('; ', $parts).'. Excluded from activation until the data is corrected and the identity is verified. Nothing was matched, created or changed automatically.';
+        return 'INCLUDED: the employee number and name match the approved plan. For information only, '.count($others).' other record(s) look similar - '
+            .implode('; ', $parts).'. Nothing is merged, archived, created or overwritten, and the registration phone is untouched.';
     }
 
     /**

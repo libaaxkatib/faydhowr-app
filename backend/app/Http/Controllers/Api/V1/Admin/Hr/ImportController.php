@@ -210,6 +210,8 @@ class ImportController extends Controller
             $summary['activation_ready_by_path'] = $readyByPath;
             $summary['activation_excluded'] = $excluded;
             $summary['activation_excluded_total'] = array_sum($excluded);
+            // Look-alike records are INCLUDED (approved rule: employee number and name match); this only counts the notes.
+            $summary['activation_lookalikes_noted'] = (int) ($warnings['LOOKALIKE_RECORD_NOTED'] ?? 0);
         }
 
         return $summary;
