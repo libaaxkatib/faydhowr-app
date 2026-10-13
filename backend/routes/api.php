@@ -45,6 +45,7 @@ use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeWorkAssignmentController as Adm
 use App\Http\Controllers\Api\V1\Admin\Hr\HrDashboardController as AdminHrDashboardController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrReportsController as AdminHrReportsController;
 use App\Http\Controllers\Api\V1\Admin\Hr\ImportController as AdminHrImportController;
+use App\Http\Controllers\Api\V1\Admin\Hr\MonthlyPaymentReportController as AdminMonthlyPaymentReportController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PayrollRunController as AdminPayrollRunController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PositionController as AdminPositionController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PracticalBatchController as AdminPracticalBatchController;
@@ -1453,6 +1454,13 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.view', 'throt
     Route::get('v1/admin/hr/payroll-runs/{payrollRun}/export', [AdminPayrollRunController::class, 'export'])
         ->whereNumber('payrollRun')
         ->name('api.v1.admin.hr.payroll-runs.export');
+});
+
+// The monthly payment list contains employees' payment/account numbers: it needs payroll access AND the
+// permission that already gates those numbers everywhere else (hr.manage). Read-only; pays nothing.
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.view', 'permission:hr.manage', 'throttle:admin-operations'])->group(function (): void {
+    Route::get('v1/admin/hr/reports/monthly-payment-list', [AdminMonthlyPaymentReportController::class, 'download'])
+        ->name('api.v1.admin.hr.reports.monthly-payment-list');
 });
 
 Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.approve', 'throttle:admin-operations'])->group(function (): void {

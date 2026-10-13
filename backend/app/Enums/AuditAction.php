@@ -44,6 +44,7 @@ enum AuditAction: string
     case FaqUpdate = 'faq_update';
     case FaqDelete = 'faq_delete';
     case ServiceFeatureToggle = 'service_feature_toggle';
+    case Export = 'export';
 
     /**
      * @return list<string>

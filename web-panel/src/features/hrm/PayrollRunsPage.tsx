@@ -82,6 +82,8 @@ export function PayrollRunsPage() {
   const { hasPermission } = useEffectivePermissions();
   const canManage = hasPermission('hr.payroll.manage');
   const canApprove = hasPermission('hr.payroll.approve');
+  // The list contains employees' payment numbers, so the server requires hr.manage as well as payroll access.
+  const canDownloadPaymentList = hasPermission('hr.manage');
 
   const [period, setPeriod] = useState(localMonth());
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -160,6 +162,11 @@ export function PayrollRunsPage() {
       show('Payroll reopened. It is a draft again.');
     },
     onError: (err) => show(friendlyErrorMessage(err, 'Could not reopen the payroll.'), 'error'),
+  });
+
+  const paymentListMutation = useMutation({
+    mutationFn: () => hrApi.payrollRuns.downloadPaymentList(period),
+    onError: (err) => show(friendlyErrorMessage(err, 'Could not download the payment list.'), 'error'),
   });
 
   const exportMutation = useMutation({
@@ -248,10 +255,23 @@ export function PayrollRunsPage() {
               Generate / refresh draft
             </Button>
           )}
+          {canDownloadPaymentList && (
+            <Button
+              variant="outline"
+              isLoading={paymentListMutation.isPending}
+              disabled={!PERIOD_PATTERN.test(period)}
+              onClick={() => paymentListMutation.mutate()}
+            >
+              <Icon name="file-text" size={15} />
+              Download payment list (Excel)
+            </Button>
+          )}
           <p className="min-w-[14rem] flex-1 text-xs text-ink-muted">
             {lockedForPeriod
               ? `${monthLabel(period)} is already ${lockedForPeriod.status}, so it cannot be regenerated. ${lockedForPeriod.status === 'approved' ? 'Reopen it first if it needs to change.' : 'Use adjustments for corrections.'}`
               : 'Creates the draft payroll for the month from salaries, absences, penalties, advances and approved temporary cover. Running it again refreshes the draft.'}
+            {canDownloadPaymentList &&
+              ' The payment list is an Excel file of who to pay for the selected month (an estimate until the month is approved); downloading it does not mark anything paid.'}
           </p>
         </CardBody>
       </Card>

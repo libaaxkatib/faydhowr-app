@@ -304,6 +304,9 @@ export const hrApi = {
     finalize: (id: number) => apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/finalize`, { method: 'PATCH' }),
     exportExcel: (run: Pick<PayrollRun, 'id' | 'period'>) =>
       downloadAuthenticatedFile(`admin/hr/payroll-runs/${run.id}/export`, `payroll-${run.period}.xlsx`),
+    /** Excel list of who to pay for a month (needs hr.payroll.view + hr.manage). Read-only: pays nothing, creates no run. */
+    downloadPaymentList: (period: string) =>
+      downloadAuthenticatedFile(`admin/hr/reports/monthly-payment-list?period=${encodeURIComponent(period)}`, `payment-list-${period}.xlsx`),
     addAdjustment: (itemId: number, payload: CreatePayrollAdjustmentPayload) =>
       apiRequest<PayrollAdjustmentResult>(`admin/hr/payroll-items/${itemId}/adjustments`, { method: 'POST', body: payload }),
     markPaid: (itemId: number, paymentDate?: string) =>
