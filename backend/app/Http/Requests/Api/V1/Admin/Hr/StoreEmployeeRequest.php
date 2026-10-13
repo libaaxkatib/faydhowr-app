@@ -34,6 +34,8 @@ class StoreEmployeeRequest extends FormRequest
             'confirm_duplicate' => ['sometimes', 'boolean'],
             'duplicate_reason' => ['nullable', 'string', 'min:10', 'max:500', 'required_if_accepted:confirm_duplicate'],
             'alternate_phone' => ['nullable', 'string', 'max:40'],
+            // Optional, never required, and never used for identity or duplicate matching.
+            'payment_account_number' => ['nullable', 'string', 'max:50', 'regex:'.EmployeePaymentAccountRule::PATTERN],
             'location' => ['required', 'string', 'max:150'],
             'gender' => ['required', Rule::in(EmployeeGender::values())],
             'age' => ['nullable', 'integer', 'min:14', 'max:100'],

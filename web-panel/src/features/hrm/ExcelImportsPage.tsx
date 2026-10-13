@@ -175,7 +175,10 @@ export function ExcelImportsPage() {
               </p>
             )}
             {type === 'employee_registrations' && (
-              <p className="mt-1 text-xs text-ink-muted">A payment/account number column is ignored on purpose; the registration phone is the only phone used for matching.</p>
+              <p className="mt-1 text-xs text-ink-muted">
+                An optional payment/account number is saved in its own field and is never shown in the preview. It is never used to match
+                anyone: the registration phone is the only phone used for matching.
+              </p>
             )}
           </div>
 

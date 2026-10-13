@@ -28,7 +28,7 @@ export const IMPORT_TYPES: ImportTypeInfo[] = [
     label: 'New employee registrations',
     summary: 'Registers NEW people at the Application stage. An employee who already exists is skipped, never updated.',
     required: ['full_name', 'phone (registration phone)', 'gender', 'location', 'category', 'application_date'],
-    optional: ['alternate_phone', 'age', 'marital_status', 'lives_with', 'reference_name', 'secondary_contact_name', 'secondary_contact_phone', 'department', 'position', 'experience', 'source', 'notes'],
+    optional: ['alternate_phone', 'payment_account_number (never used for matching)', 'age', 'marital_status', 'lives_with', 'reference_name', 'secondary_contact_name', 'secondary_contact_phone', 'department', 'position', 'experience', 'source', 'notes'],
     previewOnly: false,
   },
   {

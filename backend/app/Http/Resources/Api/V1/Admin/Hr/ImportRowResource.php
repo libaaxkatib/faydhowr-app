@@ -23,7 +23,8 @@ class ImportRowResource extends JsonResource
             'message' => $this->message,
             'record_type' => $this->entity_type === null ? null : class_basename($this->entity_type),
             'record_id' => $this->entity_id,
-            'details' => $this->payload,
+            // The payment/account number is never shown in the preview, only whether the row has one.
+            'details' => $this->payload === null ? null : array_diff_key($this->payload, ['payment_account_number' => true]) + (isset($this->payload['payment_account_number']) ? ['has_payment_account' => true] : []),
             'meta' => $this->meta,
             'processed_at' => $this->processed_at?->toIso8601String(),
         ];

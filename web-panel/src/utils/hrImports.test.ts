@@ -41,11 +41,20 @@ test('there are exactly four import types and only the activation preview is rea
   assert.equal(importTypeInfo('waiting_list').label, 'Waiting list');
 });
 
-test('the registration import lists the required registration fields and never the payment account', () => {
+test('the registration import requires the registration fields and offers the payment account only as optional', () => {
   const info = importTypeInfo('employee_registrations');
   assert.equal(info.required.length, 6);
   assert.ok(info.required.join(' ').includes('application_date'));
-  assert.ok(![...info.required, ...info.optional].join(' ').toLowerCase().includes('account'));
+  assert.ok(!info.required.join(' ').toLowerCase().includes('account'), 'the payment account is never required');
+  assert.ok(info.optional.join(' ').includes('payment_account_number'));
+  assert.match(info.optional.join(' '), /never used for matching/);
+});
+
+test('the waiting list and the activation preview never take a payment account', () => {
+  for (const type of ['waiting_list', 'activation_preview'] as const) {
+    const info = importTypeInfo(type);
+    assert.ok(![...info.required, ...info.optional].join(' ').toLowerCase().includes('account'));
+  }
 });
 
 test('a batch offers the right actions for its stage', () => {

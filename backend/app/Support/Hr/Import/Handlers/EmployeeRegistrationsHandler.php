@@ -5,6 +5,7 @@ namespace App\Support\Hr\Import\Handlers;
 use App\Actions\Hr\CreateEmployeeAction;
 use App\Enums\EmployeeGender;
 use App\Enums\ImportType;
+use App\Http\Requests\Api\V1\Admin\Hr\EmployeePaymentAccountRule;
 use App\Models\Admin;
 use App\Models\Department;
 use App\Models\Employee;
@@ -29,8 +30,11 @@ use Illuminate\Http\Exceptions\HttpResponseException;
  *
  * It never updates an existing employee. The same phone with the same name is an existing employee
  * (skipped); the same phone with another name, or the same full name with another phone, is a suspected
- * duplicate and goes to manual review. The registration phone is the only phone matched on; a company
- * payment/account number column is recognised, ignored and never stored (there is no such employee field).
+ * duplicate and goes to manual review. The registration phone is the only phone matched on.
+ *
+ * An optional payment/account number column is stored in the employee's separate payment_account_number field.
+ * It is NEVER used to identify or match a person (not even when it looks like a phone number), is not shown in
+ * the preview, and is removed from staging by the 30-day retention purge like every other personal value.
  */
 final class EmployeeRegistrationsHandler implements ImportTypeHandler
 {
@@ -50,6 +54,7 @@ final class EmployeeRegistrationsHandler implements ImportTypeHandler
             'full_name' => ['full name', 'name', 'employee name'],
             'phone' => ['registration phone', 'phone number', 'mobile', 'telephone'],
             'alternate_phone' => ['alternate phone', 'alt phone', 'second phone'],
+            'payment_account_number' => ['payment account', 'payment account number', 'payment number', 'account number', 'account'],
             'gender' => ['sex'],
             'location' => ['residential location', 'residence', 'area'],
             'category' => ['employee category', 'category name'],
@@ -75,7 +80,7 @@ final class EmployeeRegistrationsHandler implements ImportTypeHandler
 
     public function ignoredColumns(): array
     {
-        return ['payment account', 'payment account number', 'payment number', 'account number', 'account'];
+        return [];
     }
 
     public function stage(array $cells, array &$seen): StagedRow
@@ -139,6 +144,12 @@ final class EmployeeRegistrationsHandler implements ImportTypeHandler
             }
         }
 
+        $account = trim($cells['payment_account_number'] ?? '');
+
+        if ($account !== '' && ! EmployeePaymentAccountRule::isValid($account)) {
+            return StagedRow::invalid('ACCOUNT_INVALID', 'The payment/account number may contain letters, digits, spaces and - + . / only (up to 50 characters).', null, $nameKey, $phoneKey);
+        }
+
         $departmentId = null;
 
         if (trim($cells['department'] ?? '') !== '') {
@@ -163,6 +174,7 @@ final class EmployeeRegistrationsHandler implements ImportTypeHandler
             'full_name' => $name,
             'phone' => $phone,
             'alternate_phone' => trim($cells['alternate_phone'] ?? ''),
+            'payment_account_number' => $account,
             'gender' => $gender,
             'location' => $location,
             'employee_category_id' => $categoryId,

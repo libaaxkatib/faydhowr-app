@@ -2,12 +2,38 @@
 
 namespace App\Http\Resources\Api\V1\Admin\Hr;
 
+use App\Enums\AdminPermission;
 use App\Enums\EmployeeDocumentVerificationStatus;
+use App\Models\Admin;
+use App\Support\AdminPermissionResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class EmployeeResource extends JsonResource
 {
+    private bool $includePaymentAccount = false;
+
+    /**
+     * Opt in to the sensitive payment/account number. Used ONLY by the single-employee endpoints (show, register,
+     * update); lists, reports and every action response omit it. Even then it is returned only to a caller who may
+     * manage HR, so read-only HR users never receive it.
+     */
+    public function withPaymentAccount(): static
+    {
+        $this->includePaymentAccount = true;
+
+        return $this;
+    }
+
+    private function mayReceivePaymentAccount(Request $request): bool
+    {
+        $user = $request->user();
+
+        return $this->includePaymentAccount
+            && $user instanceof Admin
+            && app(AdminPermissionResolver::class)->has($user, AdminPermission::HrManage->value, $request);
+    }
+
     public function toArray(Request $request): array
     {
         return [
@@ -16,6 +42,7 @@ class EmployeeResource extends JsonResource
             'full_name' => $this->full_name,
             'phone' => $this->phone,
             'alternate_phone' => $this->alternate_phone,
+            'payment_account_number' => $this->when($this->mayReceivePaymentAccount($request), fn () => $this->payment_account_number),
             'location' => $this->location,
             'age' => $this->age,
             'marital_status' => $this->marital_status,

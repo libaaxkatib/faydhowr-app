@@ -60,20 +60,20 @@ class EmployeeController extends Controller
     {
         $employee = $action->handle($request->validated(), $request->user());
 
-        return ApiResponse::success('Employee registered successfully.', new EmployeeResource($employee), 201);
+        return ApiResponse::success('Employee registered successfully.', (new EmployeeResource($employee))->withPaymentAccount(), 201);
     }
 
     public function show(Employee $employee, GetEmployeeAction $action): JsonResponse
     {
         $employee = $action->handle($employee);
 
-        return ApiResponse::success('Employee retrieved successfully.', new EmployeeResource($employee));
+        return ApiResponse::success('Employee retrieved successfully.', (new EmployeeResource($employee))->withPaymentAccount());
     }
 
     public function update(UpdateEmployeeRequest $request, Employee $employee, UpdateEmployeeAction $action): JsonResponse
     {
         $employee = $action->handle($employee, $request->validated(), $request->user());
 
-        return ApiResponse::success('Employee updated successfully.', new EmployeeResource($employee));
+        return ApiResponse::success('Employee updated successfully.', (new EmployeeResource($employee))->withPaymentAccount());
     }
 }

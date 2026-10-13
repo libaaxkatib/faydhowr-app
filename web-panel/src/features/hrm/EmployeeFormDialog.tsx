@@ -43,6 +43,7 @@ const emptyForm = {
   full_name: '',
   phone: '',
   alternate_phone: '',
+  payment_account_number: '',
   location: '',
   gender: '' as EmployeeGender | '',
   age: '',
@@ -97,6 +98,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
               // Legitimately null for migrated employees — never fabricated, just left blank to edit.
               phone: employee.phone ?? '',
               alternate_phone: employee.alternate_phone ?? '',
+              payment_account_number: employee.payment_account_number ?? '',
               location: employee.location ?? '',
               gender: employee.gender ?? '',
               age: employee.age?.toString() ?? '',
@@ -174,6 +176,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
           full_name: form.full_name,
           phone: form.phone,
           alternate_phone: form.alternate_phone || null,
+          payment_account_number: form.payment_account_number.trim() || null,
           location: form.location,
           gender: form.gender as EmployeeGender,
           age: form.age ? Number(form.age) : null,
@@ -201,6 +204,9 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
         // Never fabricated: an empty field is saved as null, not as a placeholder string.
         phone: form.phone || null,
         alternate_phone: form.alternate_phone || null,
+        // Sent only when the record actually carried the field (it is withheld from users who cannot manage HR), so an
+        // edit can never blank a value this screen was not allowed to see.
+        ...(employee?.payment_account_number !== undefined ? { payment_account_number: form.payment_account_number.trim() || null } : {}),
         location: form.location || null,
         gender: form.gender ? (form.gender as EmployeeGender) : undefined,
         age: form.age ? Number(form.age) : null,
@@ -331,6 +337,24 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
             <input id="reference_name" className={inputClasses} value={form.reference_name} onChange={(e) => setForm({ ...form, reference_name: e.target.value })} />
           </FormField>
         </div>
+
+        {(mode === 'create' || employee?.payment_account_number !== undefined) && (
+          <FormField
+            label="Payment / account number (optional)"
+            htmlFor="payment_account_number"
+            error={fieldErrors.payment_account_number?.[0]}
+            hint="Used only to pay this employee. It is not their phone number and is never used to find or match them."
+          >
+            <input
+              id="payment_account_number"
+              className={inputClasses}
+              value={form.payment_account_number}
+              maxLength={50}
+              autoComplete="off"
+              onChange={(e) => setForm({ ...form, payment_account_number: e.target.value })}
+            />
+          </FormField>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Secondary/emergency contact name" htmlFor="secondary_contact_name" error={fieldErrors.secondary_contact_name?.[0]}>

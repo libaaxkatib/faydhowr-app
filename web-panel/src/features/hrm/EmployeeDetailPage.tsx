@@ -482,6 +482,9 @@ export function EmployeeDetailPage() {
             <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
               <Field label="Phone" value={employee.phone ?? '—'} />
               <Field label="Alternate phone (employee's own)" value={employee.alternate_phone ?? '—'} />
+              {employee.payment_account_number !== undefined && (
+                <Field label="Payment / account number" value={employee.payment_account_number ?? '—'} />
+              )}
               <Field label="Location" value={employee.location ?? '—'} />
               <Field label="Gender" value={employee.gender ? employee.gender[0].toUpperCase() + employee.gender.slice(1) : 'Not recorded'} />
               <Field label="Age" value={employee.age?.toString() ?? '—'} />

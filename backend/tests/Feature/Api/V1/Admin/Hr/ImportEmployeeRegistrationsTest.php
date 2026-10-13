@@ -5,6 +5,8 @@ namespace Tests\Feature\Api\V1\Admin\Hr;
 use App\Models\Employee;
 use App\Models\EmployeeCategory;
 use App\Models\EmployeeStatusHistory;
+use App\Models\ImportBatch;
+use App\Support\Hr\Import\ImportRetention;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\HrFixtures;
@@ -219,23 +221,58 @@ class ImportEmployeeRegistrationsTest extends TestCase
         $this->assertSame(1, Employee::query()->count());
     }
 
-    public function test_the_registration_phone_is_the_only_phone_matched_and_a_payment_account_column_is_ignored(): void
+    public function test_the_payment_account_column_is_stored_separately_and_never_treated_as_the_registration_phone(): void
     {
-        // The account number looks like a phone number and equals another employee's phone. It must be ignored.
+        // The account number looks exactly like another employee's phone. It must not match, flag or replace anything.
         $other = $this->makeEmployee('active', 'permanent', '615777888');
         $header = [...self::HEADER, 'Payment Account'];
 
         $response = $this->upload($this->token, 'employee_registrations', $this->csvUpload($header, [[...$this->row(['phone' => '0615123456']), '0615777888']]))->assertCreated();
 
-        $this->assertSame(['Payment Account (ignored on purpose)'], $response->json('data.unrecognised_headers'));
+        $this->assertSame([], $response->json('data.unrecognised_headers'), 'The column is recognised now.');
         $id = $response->json('data.id');
-        $this->assertSame('valid', $this->rows($id)[0]['status'], 'The payment/account value is not treated as the registration phone.');
+        $this->assertSame('valid', $this->rows($id)[0]['status'], 'The payment/account value is not treated as a phone, so there is no duplicate.');
 
         $this->runImport($this->token, $id);
         $employee = Employee::query()->where('full_name', 'Hodan Cabdi Nuur')->firstOrFail();
-        $this->assertSame('0615123456', $employee->phone);
-        $this->assertStringNotContainsString('777888', json_encode($employee->toArray()), 'The account value is stored nowhere.');
+        $this->assertSame('0615123456', $employee->phone, 'The registration phone is unchanged.');
+        $this->assertSame('0615777888', $employee->payment_account_number, 'The account number is stored in its own field.');
+        $this->assertNull($employee->alternate_phone);
         $this->assertSame('615777888', $other->fresh()->phone);
+        $this->assertNull($other->fresh()->payment_account_number, 'The other employee was not touched.');
+    }
+
+    public function test_the_payment_account_is_not_shown_in_the_preview_or_report_and_is_purged_with_the_staging_data(): void
+    {
+        $header = [...self::HEADER, 'account number'];
+        $id = $this->stageRows([[...$this->row(), 'ACC-9988-7766']], $header);
+
+        $row = $this->rows($id)[0];
+        $this->assertArrayNotHasKey('payment_account_number', $row['details']);
+        $this->assertTrue($row['details']['has_payment_account']);
+        $this->assertStringNotContainsString('9988', json_encode($row));
+
+        $csv = $this->as($this->token)->get(self::IMPORTS."/{$id}/report")->assertOk()->streamedContent();
+        $this->assertStringNotContainsString('9988', $csv);
+
+        ImportBatch::query()->whereKey($id)->update(['retention_expires_at' => now('UTC')->subMinute()]);
+        app(ImportRetention::class)->purgeExpired();
+        $this->assertStringNotContainsString('9988', json_encode(DB::table('import_rows')->get()), 'Staging keeps no account number after the purge.');
+    }
+
+    public function test_an_invalid_payment_account_marks_only_that_row_invalid(): void
+    {
+        $header = [...self::HEADER, 'payment account'];
+        $id = $this->stageRows([
+            [...$this->row(['phone' => '0615000001']), '<script>alert(1)</script>'],
+            [...$this->row(['full_name' => 'Second Person', 'phone' => '0615000002']), str_repeat('9', 51)],
+            [...$this->row(['full_name' => 'Third Person', 'phone' => '0615000003']), '+252 61 5000 003'],
+            [...$this->row(['full_name' => 'Fourth Person', 'phone' => '0615000004']), ''],
+        ], $header);
+
+        $this->assertSame(['ACCOUNT_INVALID', 'ACCOUNT_INVALID', null, null], array_column($this->rows($id), 'code'));
+        $this->runImport($this->token, $id)->assertJsonPath('data.counts.imported', 2);
+        $this->assertNull(Employee::query()->where('full_name', 'Fourth Person')->firstOrFail()->payment_account_number, 'An empty account stays empty.');
     }
 
     public function test_dates_in_several_formats_and_excel_serials_are_understood(): void

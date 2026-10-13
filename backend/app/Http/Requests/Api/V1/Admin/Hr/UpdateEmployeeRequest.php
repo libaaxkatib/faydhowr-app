@@ -25,6 +25,8 @@ class UpdateEmployeeRequest extends FormRequest
             // otherwise-unrelated edit without being forced to fabricate one.
             'phone' => ['sometimes', 'nullable', 'string', 'max:40'],
             'alternate_phone' => ['sometimes', 'nullable', 'string', 'max:40'],
+            // Optional and separate from the registration phone. Omitting it keeps the stored value; null clears it.
+            'payment_account_number' => ['sometimes', 'nullable', 'string', 'max:50', 'regex:'.EmployeePaymentAccountRule::PATTERN],
             'employment_type' => ['sometimes', Rule::in(['permanent', 'temporary'])],
             'confirm_duplicate' => ['sometimes', 'boolean'],
             'duplicate_reason' => ['nullable', 'string', 'min:10', 'max:500', 'required_if_accepted:confirm_duplicate'],

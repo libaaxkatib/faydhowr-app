@@ -712,6 +712,11 @@ export interface Employee {
   /** Legitimately null for 242 employees migrated from the Excel HR source - never fabricate a value. */
   phone: string | null;
   alternate_phone: string | null;
+  /**
+   * Optional payment/account number, separate from the phone. Present ONLY on the single-employee endpoints and
+   * only for users who can manage HR (undefined otherwise); never in lists.
+   */
+  payment_account_number?: string | null;
   location: string | null;
   age: number | null;
   marital_status: string | null;
@@ -803,6 +808,7 @@ export interface CreateEmployeePayload {
   full_name: string;
   phone: string;
   alternate_phone?: string | null;
+  payment_account_number?: string | null;
   location: string;
   gender: EmployeeGender;
   age?: number | null;
@@ -841,6 +847,7 @@ export interface DuplicateEmployeeMatch {
 export interface DuplicateCheckParams {
   phone?: string;
   alternate_phone?: string;
+  payment_account_number?: string | null;
   full_name?: string;
   ignore_employee_id?: number;
 }

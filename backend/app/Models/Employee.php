@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'full_name',
     'phone',
     'alternate_phone',
+    'payment_account_number',
     'location',
     'age',
     'marital_status',
@@ -54,6 +55,15 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Employee extends Model
 {
     use HasFactory, SoftDeletes;
+
+    /**
+     * The payment/account number is sensitive and is never part of generic serialisation (toArray/toJson, logs,
+     * audit metadata, other resources). It is exposed only by EmployeeResource::withPaymentAccount(), to callers
+     * allowed to manage HR.
+     *
+     * @var list<string>
+     */
+    protected $hidden = ['payment_account_number'];
 
     protected function casts(): array
     {
