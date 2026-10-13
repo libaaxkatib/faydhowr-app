@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { hrApi } from '@/api/hr';
@@ -20,6 +20,7 @@ import { useToast } from '@/components/ui/useToast';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatCurrency, formatDate } from '@/utils/formatters';
+import { parseReplacementStatus } from '@/utils/hrDashboardLinks';
 import { assignmentLabel, describeDailyRate, expandDateRange, friendlyErrorMessage, localMonth, localToday } from '@/utils/hrHelpers';
 import type { EmploymentType, TemporaryReplacement, TemporaryReplacementWorkday, TemporaryReplacementWorkdayStatus } from '@/types/employee';
 
@@ -32,6 +33,7 @@ import type { EmploymentType, TemporaryReplacement, TemporaryReplacementWorkday,
  */
 export function TemporaryReplacementsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -41,6 +43,9 @@ export function TemporaryReplacementsPage() {
 
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['temporary-replacements'], queryFn: hrApi.temporaryReplacements.list });
   const workdaysFor = data?.find((replacement) => replacement.id === workdaysForId) ?? null;
+  // The HR dashboard's Active Replacements card links here with ?status=active.
+  const statusFilter = parseReplacementStatus(searchParams);
+  const visibleReplacements = data && statusFilter ? data.filter((replacement) => replacement.status === statusFilter) : data;
 
   const endMutation = useMutation({
     mutationFn: ({ id, endDate }: { id: number; endDate: string }) => hrApi.temporaryReplacements.end(id, { end_date: endDate }),
@@ -82,9 +87,24 @@ export function TemporaryReplacementsPage() {
       {error && <ErrorState error={error} onRetry={refetch} />}
       {data && data.length === 0 && <EmptyState icon="refresh" title="No temporary replacements yet" />}
 
-      {data && data.length > 0 && (
+      {data && data.length > 0 && statusFilter && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-ink-muted">
+          <span>
+            Showing {statusFilter} replacements only ({visibleReplacements?.length ?? 0} of {data.length}).
+          </span>
+          <button type="button" onClick={() => setSearchParams({}, { replace: true })} className="font-medium text-primary hover:underline">
+            Show all replacements
+          </button>
+        </div>
+      )}
+
+      {data && data.length > 0 && visibleReplacements && visibleReplacements.length === 0 && (
+        <EmptyState icon="refresh" title={`No ${statusFilter} temporary replacements`} />
+      )}
+
+      {visibleReplacements && visibleReplacements.length > 0 && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {data.map((replacement) => (
+          {visibleReplacements.map((replacement) => (
             <Card key={replacement.id} className="p-5">
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div>

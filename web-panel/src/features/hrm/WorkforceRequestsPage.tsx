@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { hrApi } from '@/api/hr';
@@ -17,6 +17,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate, formatDurationSince } from '@/utils/formatters';
+import { parseWorkforceRequestStatuses } from '@/utils/hrDashboardLinks';
 import type { WorkforceRequest, WorkforceRequestStatus } from '@/types/employee';
 
 const STATUS_TONE: Record<WorkforceRequestStatus, 'success' | 'warning' | 'danger' | 'neutral'> = {
@@ -49,6 +50,7 @@ const STATUS_LABEL: Record<WorkforceRequestStatus, string> = {
  */
 export function WorkforceRequestsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -65,6 +67,10 @@ export function WorkforceRequestsPage() {
   const [workplaceChoice, setWorkplaceChoice] = useState('');
 
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['workforce-requests'], queryFn: hrApi.workforceRequests.list });
+  // The HR dashboard's Open / Fulfilled cards link here with ?status=open|fulfilled. "open" = open + partially filled.
+  const statusFilter = parseWorkforceRequestStatuses(searchParams);
+  const visibleRequests = data && statusFilter ? data.filter((request) => statusFilter.includes(request.status)) : data;
+  const statusFilterLabel = statusFilter === null ? '' : statusFilter.length > 1 ? 'open' : STATUS_LABEL[statusFilter[0]].toLowerCase();
   const { data: workLocations } = useQuery({ queryKey: ['work-locations'], queryFn: () => hrApi.workLocations.list() });
   const { data: companies } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list });
   const { data: categories } = useQuery({ queryKey: ['employee-categories'], queryFn: hrApi.employeeCategories.list });
@@ -170,9 +176,24 @@ export function WorkforceRequestsPage() {
       {error && <ErrorState error={error} onRetry={refetch} />}
       {data && data.length === 0 && <EmptyState icon="briefcase" title="No workforce requests yet" />}
 
-      {data && data.length > 0 && (
+      {data && data.length > 0 && statusFilter && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-ink-muted">
+          <span>
+            Showing {statusFilterLabel} requests only ({visibleRequests?.length ?? 0} of {data.length}).
+          </span>
+          <button type="button" onClick={() => setSearchParams({}, { replace: true })} className="font-medium text-primary hover:underline">
+            Show all requests
+          </button>
+        </div>
+      )}
+
+      {data && data.length > 0 && visibleRequests && visibleRequests.length === 0 && (
+        <EmptyState icon="briefcase" title={`No ${statusFilterLabel} workforce requests`} />
+      )}
+
+      {visibleRequests && visibleRequests.length > 0 && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {data.map((request) => (
+          {visibleRequests.map((request) => (
             <Card key={request.id} className="p-5">
               <div className="mb-3 flex items-start justify-between">
                 <div>

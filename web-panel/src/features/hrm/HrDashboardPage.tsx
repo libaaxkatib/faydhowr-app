@@ -8,9 +8,12 @@ import { Icon, type IconName } from '@/components/ui/Icon';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
+import { categoryTileTo, dashboardCardTo } from '@/utils/hrDashboardLinks';
 
 export function HrDashboardPage() {
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['hr-dashboard'], queryFn: hrApi.dashboard });
+  // One reference time per render so the "last 30 days" link and the card describe the same window.
+  const now = new Date();
 
   return (
     <div>
@@ -22,19 +25,25 @@ export function HrDashboardPage() {
       {data && (
         <>
           <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            <KpiCard label="Total Employees" value={data.total_employees} icon="users" color="bg-primary" to="/hr/employees" />
-            <KpiCard label="Active" value={data.active_employees} icon="check" color="bg-success" to="/hr/employees" />
-            <KpiCard label="Inactive" value={data.inactive_employees} icon="x" color="bg-danger" to="/hr/former-employees" />
-            <KpiCard label="New Applicants (30d)" value={data.new_applicants} icon="plus" color="bg-secondary" />
-            <KpiCard label="Practical" value={data.practical} icon="file-text" color="bg-purple-500" />
-            <KpiCard label="Waiting" value={data.waiting} icon="calendar" color="bg-warning" to="/hr/waiting" />
-            <KpiCard label="Open Workforce Requests" value={data.open_workforce_requests} icon="briefcase" color="bg-teal-600" to="/hr/workforce-requests" />
-            <KpiCard label="Fulfilled Workforce Requests" value={data.fulfilled_workforce_requests} icon="briefcase" color="bg-teal-600" to="/hr/reports/workforce-requests" />
-            <KpiCard label="Approved" value={data.approved} icon="shield" color="bg-teal-600" />
-            <KpiCard label="Supervisor Pool" value={data.supervisor_pool_count} icon="shield" color="bg-primary" to="/hr/supervisor-pool" />
-            <KpiCard label="Active Replacements" value={data.active_temporary_replacements} icon="refresh" color="bg-warning" to="/hr/temporary-replacements" />
-            <KpiCard label="Office Staff" value={data.office_staff_count} icon="users" color="bg-secondary" to="/hr/office-staff" />
-            <KpiCard label="Client Company Active Employees" value={data.client_company_active_employees} icon="briefcase" color="bg-secondary" />
+            <KpiCard label="Total Employees" value={data.total_employees} icon="users" color="bg-primary" to={dashboardCardTo('total_employees', now)} />
+            <KpiCard label="Active" value={data.active_employees} icon="check" color="bg-success" to={dashboardCardTo('active_employees', now)} />
+            <KpiCard label="Inactive" value={data.inactive_employees} icon="x" color="bg-danger" to={dashboardCardTo('inactive_employees', now)} />
+            <KpiCard label="New Applicants (30d)" value={data.new_applicants} icon="plus" color="bg-secondary" to={dashboardCardTo('new_applicants', now)} />
+            <KpiCard label="Practical" value={data.practical} icon="file-text" color="bg-purple-500" to={dashboardCardTo('practical', now)} />
+            <KpiCard label="Waiting" value={data.waiting} icon="calendar" color="bg-warning" to={dashboardCardTo('waiting', now)} />
+            <KpiCard label="Open Workforce Requests" value={data.open_workforce_requests} icon="briefcase" color="bg-teal-600" to={dashboardCardTo('open_workforce_requests', now)} />
+            <KpiCard label="Fulfilled Workforce Requests" value={data.fulfilled_workforce_requests} icon="briefcase" color="bg-teal-600" to={dashboardCardTo('fulfilled_workforce_requests', now)} />
+            <KpiCard label="Approved" value={data.approved} icon="shield" color="bg-teal-600" to={dashboardCardTo('approved', now)} />
+            <KpiCard label="Supervisor Pool" value={data.supervisor_pool_count} icon="shield" color="bg-primary" to={dashboardCardTo('supervisor_pool', now)} />
+            <KpiCard label="Active Replacements" value={data.active_temporary_replacements} icon="refresh" color="bg-warning" to={dashboardCardTo('active_replacements', now)} />
+            <KpiCard label="Office Staff" value={data.office_staff_count} icon="users" color="bg-secondary" to={dashboardCardTo('office_staff', now)} />
+            <KpiCard
+              label="Client Company Active Employees"
+              value={data.client_company_active_employees}
+              icon="briefcase"
+              color="bg-secondary"
+              to={dashboardCardTo('client_company_employees', now)}
+            />
           </div>
 
           <Card className="mb-5">
@@ -89,10 +98,15 @@ export function HrDashboardPage() {
             </CardHeader>
             <CardBody className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               {data.category_breakdown.map((category) => (
-                <div key={category.id} className="rounded-md border border-border p-3 text-center">
+                <Link
+                  key={category.id}
+                  to={categoryTileTo(category.id)}
+                  aria-label={`${category.name}: ${formatNumber(category.total)} employees`}
+                  className={`block rounded-md border border-border p-3 text-center ${CLICKABLE_CLASSES}`}
+                >
                   <p className="font-display text-lg font-bold text-ink">{formatNumber(category.total)}</p>
                   <p className="text-xs text-ink-muted">{category.name}</p>
-                </div>
+                </Link>
               ))}
             </CardBody>
           </Card>
@@ -101,6 +115,10 @@ export function HrDashboardPage() {
     </div>
   );
 }
+
+// Shared by every clickable dashboard tile: pointer cursor, hover feedback and a visible keyboard focus ring.
+const FOCUS_RING = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
+const CLICKABLE_CLASSES = `cursor-pointer transition hover:border-primary/40 hover:shadow-card ${FOCUS_RING}`;
 
 function KpiCard({
   label,
@@ -132,8 +150,8 @@ function KpiCard({
 
   if (to) {
     return (
-      <Link to={to} className="block">
-        <Card className="p-5 transition hover:border-primary/40 hover:shadow-card">{content}</Card>
+      <Link to={to} aria-label={`${label}: ${displayValue}`} className={`block rounded-lg ${FOCUS_RING}`}>
+        <Card className="cursor-pointer p-5 transition hover:border-primary/40 hover:shadow-card">{content}</Card>
       </Link>
     );
   }

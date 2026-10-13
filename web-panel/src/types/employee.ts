@@ -791,6 +791,8 @@ export interface ListEmployeesParams {
   location?: string;
   is_supervisor?: boolean;
   office_only?: boolean;
+  /** At least one ACTIVE assignment to a client company - the HR dashboard's "Client Company Active Employees" population. */
+  client_company_only?: boolean;
   profile_complete?: boolean;
   guarantor_needed?: boolean;
   /** The dedicated Damiin Needed active-work-queue filter - distinct from guarantor_needed. */

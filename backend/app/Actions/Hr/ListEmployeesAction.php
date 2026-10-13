@@ -68,6 +68,12 @@ class ListEmployeesAction
             $query->whereHas('activeWorkAssignments.workLocation', fn ($q) => $q->where('location_type', 'office'));
         }
 
+        // Same definition as the HR dashboard's "Client Company Active Employees" count
+        // (GetHrDashboardAction): at least one ACTIVE work assignment tied to a client company.
+        if (! empty($filters['client_company_only'])) {
+            $query->whereHas('activeWorkAssignments', fn ($q) => $q->whereNotNull('client_company_id'));
+        }
+
         // array_key_exists, not empty(): both true and false are meaningful filter
         // values here (e.g. "Profile Incomplete" must be queryable, not just "Complete").
         if (array_key_exists('profile_complete', $filters)) {

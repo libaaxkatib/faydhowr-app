@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
@@ -19,6 +19,7 @@ import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { formatDate, initialsOf } from '@/utils/formatters';
 import { OFFICE_LABEL } from '@/utils/hrHelpers';
+import { parseEmployeeListUrl } from '@/utils/hrDashboardLinks';
 import type { Employee, EmployeePipelineStage, EmployeeStatus } from '@/types/employee';
 
 const STATUS_OPTIONS: { value: EmployeeStatus; label: string }[] = [
@@ -89,26 +90,46 @@ export function EmployeesListPage({
   breadcrumbLabel = 'Employees',
 }: EmployeesListPageProps) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<EmployeeStatus | ''>('');
-  const [employeeCategoryId, setEmployeeCategoryId] = useState('');
   const [departmentId, setDepartmentId] = useState('');
   const [location, setLocation] = useState('');
   const [profileComplete, setProfileComplete] = useState<'' | 'true' | 'false'>('');
   const [guarantorNeeded, setGuarantorNeeded] = useState<'' | 'true' | 'false'>('');
   const [isSupervisorFilter, setIsSupervisorFilter] = useState<'' | 'true' | 'false'>('');
-  const [applicationDateFrom, setApplicationDateFrom] = useState('');
-  const [applicationDateTo, setApplicationDateTo] = useState('');
   const [joiningDateFrom, setJoiningDateFrom] = useState('');
   const [joiningDateTo, setJoiningDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
   const debouncedLocation = useDebouncedValue(location);
-  const effectiveStatus = fixedStatus ?? (status || undefined);
   const isLockedNavView = Boolean(
     fixedStatus || fixedPipelineStage || filterIsSupervisor || filterOfficeOnly || filterDamiinActive || filterHistoricalRejected,
   );
+  // Dashboard cards and category tiles deep-link here with query parameters (utils/hrDashboardLinks.ts). The
+  // filters they promise live in the URL so a link, a reload and the browser Back button all restore them.
+  // Locked nav views (Waiting, Supervisor Pool, ...) ignore the URL on purpose: their population is fixed.
+  const urlFilters = parseEmployeeListUrl(isLockedNavView ? '' : searchParams);
+  const status = urlFilters.status;
+  const employeeCategoryId = urlFilters.employeeCategoryId;
+  const applicationDateFrom = urlFilters.applicationDateFrom;
+  const applicationDateTo = urlFilters.applicationDateTo;
+  const clientCompanyOnly = urlFilters.clientCompanyOnly;
+  const effectiveStatus = fixedStatus ?? (status || undefined);
+
+  function setUrlFilter(key: 'status' | 'employee_category_id' | 'application_date_from' | 'application_date_to' | 'client_company_only', value: string) {
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        if (value === '') next.delete(key);
+        else next.set(key, value);
+
+        return next;
+      },
+      { replace: true },
+    );
+    setPage(1);
+  }
   const effectiveIsSupervisor = filterIsSupervisor ?? (isSupervisorFilter === '' ? undefined : isSupervisorFilter === 'true');
   // Deliberately independent of filterDamiinActive — this is the generic "Damiin:
   // Yes/No" dropdown's own raw guarantor_needed filter, unaffected by the queue.
@@ -129,6 +150,7 @@ export function EmployeesListPage({
         location: debouncedLocation,
         is_supervisor: effectiveIsSupervisor,
         office_only: filterOfficeOnly,
+        client_company_only: clientCompanyOnly,
         profile_complete: profileComplete,
         guarantor_needed: effectiveGuarantorNeeded,
         damiin_active: filterDamiinActive,
@@ -150,6 +172,7 @@ export function EmployeesListPage({
         location: debouncedLocation || undefined,
         is_supervisor: effectiveIsSupervisor,
         office_only: filterOfficeOnly || undefined,
+        client_company_only: clientCompanyOnly || undefined,
         profile_complete: profileComplete === '' ? undefined : profileComplete === 'true',
         guarantor_needed: effectiveGuarantorNeeded,
         damiin_active: filterDamiinActive || undefined,
@@ -331,6 +354,15 @@ export function EmployeesListPage({
         </div>
       )}
 
+      {clientCompanyOnly && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-ink-muted">
+          <span>Showing only employees with an active assignment to a client company.</span>
+          <button type="button" onClick={() => setUrlFilter('client_company_only', '')} className="font-medium text-primary hover:underline">
+            Show all employees
+          </button>
+        </div>
+      )}
+
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
           <SearchInput
@@ -343,14 +375,14 @@ export function EmployeesListPage({
             <>
               <Select
                 value={status}
-                onChange={(event) => resetPageAnd(setStatus)(event.target.value as EmployeeStatus | '')}
+                onChange={(event) => setUrlFilter('status', event.target.value)}
                 options={STATUS_OPTIONS}
                 placeholder="All statuses"
                 className="w-40"
               />
               <Select
                 value={employeeCategoryId}
-                onChange={(event) => resetPageAnd(setEmployeeCategoryId)(event.target.value)}
+                onChange={(event) => setUrlFilter('employee_category_id', event.target.value)}
                 options={(categories ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
                 placeholder="All categories"
                 className="w-44"
@@ -400,14 +432,14 @@ export function EmployeesListPage({
               <input
                 type="date"
                 value={applicationDateFrom}
-                onChange={(event) => resetPageAnd(setApplicationDateFrom)(event.target.value)}
+                onChange={(event) => setUrlFilter('application_date_from', event.target.value)}
                 className={`${inputClasses} w-36`}
               />
               to
               <input
                 type="date"
                 value={applicationDateTo}
-                onChange={(event) => resetPageAnd(setApplicationDateTo)(event.target.value)}
+                onChange={(event) => setUrlFilter('application_date_to', event.target.value)}
                 className={`${inputClasses} w-36`}
               />
             </label>

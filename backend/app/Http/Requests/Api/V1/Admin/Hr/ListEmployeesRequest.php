@@ -33,6 +33,10 @@ class ListEmployeesRequest extends FormRequest
             $this->merge(['office_only' => filter_var($this->query('office_only'), FILTER_VALIDATE_BOOLEAN)]);
         }
 
+        if ($this->has('client_company_only')) {
+            $this->merge(['client_company_only' => filter_var($this->query('client_company_only'), FILTER_VALIDATE_BOOLEAN)]);
+        }
+
         if ($this->has('profile_complete')) {
             $this->merge(['profile_complete' => filter_var($this->query('profile_complete'), FILTER_VALIDATE_BOOLEAN)]);
         }
@@ -62,6 +66,7 @@ class ListEmployeesRequest extends FormRequest
             'location' => ['sometimes', 'string', 'max:150'],
             'is_supervisor' => ['sometimes', 'boolean'],
             'office_only' => ['sometimes', 'boolean'],
+            'client_company_only' => ['sometimes', 'boolean'],
             'profile_complete' => ['sometimes', 'boolean'],
             'guarantor_needed' => ['sometimes', 'boolean'],
             'damiin_active' => ['sometimes', 'boolean'],
