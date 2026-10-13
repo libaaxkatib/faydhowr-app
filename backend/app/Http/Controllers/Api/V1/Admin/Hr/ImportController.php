@@ -180,8 +180,10 @@ class ImportController extends Controller
         if ($batch->type === ImportType::ActivationPreview && ! $batch->isPurged()) {
             $paths = [];
             $warnings = [];
+            $readyByPath = [];
+            $excluded = [];
 
-            ImportRow::query()->where('import_batch_id', $batch->id)->whereNotNull('meta')->chunkById(500, function ($rows) use (&$paths, &$warnings): void {
+            ImportRow::query()->where('import_batch_id', $batch->id)->whereNotNull('meta')->chunkById(500, function ($rows) use (&$paths, &$warnings, &$readyByPath, &$excluded): void {
                 foreach ($rows as $row) {
                     $path = $row->meta['path'] ?? ($row->meta['report']['proposed_path'] ?? null);
 
@@ -192,11 +194,22 @@ class ImportController extends Controller
                     foreach ((array) ($row->meta['warnings'] ?? []) as $warning) {
                         $warnings[$warning] = ($warnings[$warning] ?? 0) + 1;
                     }
+
+                    // Activation-ready = valid. Review and invalid rows are EXCLUDED until corrected, with their reason.
+                    if ($row->status === ImportRowStatus::Valid && $path !== null) {
+                        $readyByPath[$path] = ($readyByPath[$path] ?? 0) + 1;
+                    } elseif (in_array($row->status, [ImportRowStatus::Review, ImportRowStatus::Invalid], true)) {
+                        $excluded[$row->code ?? 'UNKNOWN'] = ($excluded[$row->code ?? 'UNKNOWN'] ?? 0) + 1;
+                    }
                 }
             });
 
             $summary['activation_paths'] = $paths;
             $summary['activation_warnings'] = $warnings;
+            $summary['activation_ready'] = array_sum($readyByPath);
+            $summary['activation_ready_by_path'] = $readyByPath;
+            $summary['activation_excluded'] = $excluded;
+            $summary['activation_excluded_total'] = array_sum($excluded);
         }
 
         return $summary;

@@ -146,18 +146,31 @@ final class ActivationPreviewHandler implements ImportTypeHandler
         }
 
         $completions = DB::table('employee_historical_completions')->where('employee_id', $employee->id)->distinct()->count('stage');
-        $report = $this->report($base, $employee, $path, $needsOverride ? 'yes' : 'no', '', $pathText, $companyRegistered ? 'yes' : 'no', (string) $completions, implode(' ', $warnings));
-        $meta = ['report' => $report, 'path' => $path, 'warnings' => $warnings];
+        $build = fn (string $ready, string $reason, string $explanation): array => $this->report(
+            $base, $employee, $path, $needsOverride ? 'yes' : 'no', '', $pathText, $companyRegistered ? 'yes' : 'no', (string) $completions, implode(' ', $warnings),
+            ['activation_ready' => $ready, 'exclusion_reason' => $reason, 'review_explanation' => $explanation],
+        );
 
         if ($others->isNotEmpty()) {
-            $meta['employee_numbers'] = $others->pluck('employee_number')->all();
+            $explanation = $this->explainOtherRecords($others->all());
+            $meta = [
+                'report' => $build('no', 'DUPLICATE_PERSON_RECORD', $explanation),
+                'path' => $path,
+                'warnings' => $warnings,
+                'employee_numbers' => $others->pluck('employee_number')->all(),
+                'candidates' => $others->map(fn (array $m): array => ['employee_number' => $m['employee_number'], 'status' => $m['status'], 'archived' => $m['archived'], 'matched_on' => $m['matched_on']])->all(),
+            ];
 
-            return StagedRow::review('DUPLICATE_PERSON_RECORD', 'Another employee record shares this person\'s phone or full name. Resolve it before activation.', null, null, null, $meta, Employee::class, $employee->id);
+            return StagedRow::review('DUPLICATE_PERSON_RECORD', 'Identity verified against the plan, but another record may be the same person. Excluded from activation until the data is corrected and the identity is verified.', null, null, null, $meta, Employee::class, $employee->id);
         }
 
         if (! $payOk) {
+            $meta = ['report' => $build('no', 'SALARY_OR_START_MISSING', 'A positive monthly salary and a valid start date are needed for the assignment step; none is invented.'), 'path' => $path, 'warnings' => $warnings];
+
             return StagedRow::review('SALARY_OR_START_MISSING', 'A positive monthly salary and a valid start date are needed for the assignment step; none is invented.', null, null, null, $meta, Employee::class, $employee->id);
         }
+
+        $meta = ['report' => $build('yes', '', ''), 'path' => $path, 'warnings' => $warnings];
 
         return StagedRow::valid([], null, null, $meta, Employee::class, $employee->id, $pathText);
     }
@@ -187,9 +200,13 @@ final class ActivationPreviewHandler implements ImportTypeHandler
      * @param  array<string, string>  $base
      * @return array<string, string>
      */
-    private function report(array $base, ?Employee $employee, string $path, string $needsOverride, string $problem = '', string $pathText = '', string $companyRegistered = '', string $completions = '', string $warnings = ''): array
+    private function report(array $base, ?Employee $employee, string $path, string $needsOverride, string $problem = '', string $pathText = '', string $companyRegistered = '', string $completions = '', string $warnings = '', array $extra = []): array
     {
         return [
+            // Only rows marked "yes" are on the activation-ready list. Everything else is excluded, with the reason.
+            'activation_ready' => $extra['activation_ready'] ?? 'no',
+            'exclusion_reason' => $extra['exclusion_reason'] ?? ($problem !== '' ? $problem : ($path === self::PATH_ALREADY_ACTIVE ? 'ALREADY_ACTIVE' : '')),
+            'review_explanation' => $extra['review_explanation'] ?? '',
             'source_row' => $base['source_row'],
             'employee_number' => $base['employee_number'],
             'current_status' => $employee?->status->value ?? '',
@@ -202,6 +219,30 @@ final class ActivationPreviewHandler implements ImportTypeHandler
             'historical_completion_stages' => $completions,
             'warnings' => trim($warnings.' '.$problem),
         ];
+    }
+
+    /**
+     * Plain-language, name-free explanation of why another record may be the same person. Employee numbers and
+     * statuses only; no names or phone numbers.
+     *
+     * @param  list<array{employee_number: string, status: string, archived: bool, matched_on: list<string>}>  $others
+     */
+    private function explainOtherRecords(array $others): string
+    {
+        $parts = array_map(function (array $m): string {
+            $byPhone = in_array(EmployeeDuplicateFinder::MATCH_PHONE, $m['matched_on'], true);
+            $byName = in_array(EmployeeDuplicateFinder::MATCH_NAME, $m['matched_on'], true);
+            $basis = match (true) {
+                $byPhone && $byName => 'same phone and same full name',
+                $byPhone => 'same phone, different name',
+                default => 'same full name, different phone',
+            };
+
+            return "{$m['employee_number']} ({$m['status']}".($m['archived'] ? ', archived' : '')."): {$basis}";
+        }, $others);
+
+        return 'The employee number and name match the plan, but '.count($others).' other record(s) may be the same person - '
+            .implode('; ', $parts).'. Excluded from activation until the data is corrected and the identity is verified. Nothing was matched, created or changed automatically.';
     }
 
     /**

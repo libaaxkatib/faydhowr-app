@@ -36,6 +36,12 @@ export interface ImportBatch {
   unrecognised_headers?: string[];
   activation_paths?: Record<string, number>;
   activation_warnings?: Record<string, number>;
+  /** Employees on the activation-ready list (verified, with a transition path). */
+  activation_ready?: number;
+  activation_ready_by_path?: Record<string, number>;
+  /** Rows excluded from activation until corrected, by reason code. */
+  activation_excluded?: Record<string, number>;
+  activation_excluded_total?: number;
 }
 
 export interface ImportRow {

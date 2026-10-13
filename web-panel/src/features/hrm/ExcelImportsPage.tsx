@@ -400,9 +400,31 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
           </div>
         )}
 
+        {batch.activation_ready !== undefined && (
+          <div className="grid gap-2 md:grid-cols-2">
+            <div className="rounded-sm border border-border p-3 text-sm">
+              <p className="font-medium text-success">Activation-ready: {batch.activation_ready}</p>
+              <ul className="mt-1 space-y-0.5 text-ink-muted">
+                {Object.entries(batch.activation_ready_by_path ?? {}).map(([path, count]) => (
+                  <li key={path}>
+                    {count} × {ACTIVATION_PATH_TEXT[path] ?? path}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-sm border border-border p-3 text-sm">
+              <p className="font-medium text-warning">Excluded until corrected: {batch.activation_excluded_total ?? 0}</p>
+              <p className="mt-1 text-xs text-ink-muted">
+                Their identity could not be confirmed as unique, or data is missing. Nothing was matched, created or changed. Open the
+                &quot;Needs review&quot; filter and download the report for the reason on each row.
+              </p>
+            </div>
+          </div>
+        )}
+
         {batch.activation_paths && (
           <div className="rounded-sm border border-border p-3 text-sm">
-            <p className="mb-1 font-medium text-ink">How the employees would become Active</p>
+            <p className="mb-1 font-medium text-ink">How the employees would become Active (all rows checked)</p>
             <ul className="space-y-0.5 text-ink-muted">
               {Object.entries(batch.activation_paths).map(([path, count]) => (
                 <li key={path}>

@@ -195,6 +195,60 @@ class ImportActivationPreviewTest extends TestCase
         $this->assertSame([$twin->employee_number], $row['meta']['employee_numbers']);
     }
 
+    public function test_uncertain_identity_rows_are_excluded_from_the_activation_ready_list_and_explained_without_names(): void
+    {
+        $ready = $this->person('waiting', 'Clear Person', '615000001');
+        $readyApplicant = $this->person('applicant', 'Clear Applicant', '615000002');
+        $uncertain = $this->person('applicant', 'Doubtful Person', '615000003');
+        $archivedTwin = $this->person('inactive', 'Doubtful Person', '615888888');
+        $archivedTwin->delete();
+        $liveTwin = $this->person('waiting', 'Doubtful Person', '615777777');
+
+        $id = $this->stage([$this->plan($ready), $this->plan($readyApplicant), $this->plan($uncertain)]);
+        $rows = $this->rows($id);
+
+        $this->assertSame(['valid', 'valid', 'review'], array_column($rows, 'status'));
+        $this->assertSame(['yes', 'yes', 'no'], array_map(fn (array $r): string => $r['meta']['report']['activation_ready'], $rows));
+        $this->assertSame(['', '', 'DUPLICATE_PERSON_RECORD'], array_map(fn (array $r): string => $r['meta']['report']['exclusion_reason'], $rows));
+
+        $explanation = $rows[2]['meta']['report']['review_explanation'];
+        $this->assertStringContainsString($archivedTwin->employee_number.' (inactive, archived): same full name, different phone', $explanation);
+        $this->assertStringContainsString($liveTwin->employee_number.' (waiting): same full name, different phone', $explanation);
+        $this->assertStringContainsString('Excluded from activation until the data is corrected', $explanation);
+        $this->assertStringContainsString('Nothing was matched, created or changed automatically', $explanation);
+        $this->assertStringNotContainsString('Doubtful', $explanation);
+        $this->assertStringNotContainsString('615', $explanation);
+
+        // The summary keeps the two lists apart.
+        $summary = $this->as($this->token)->getJson(self::IMPORTS."/{$id}")->assertOk()->json('data');
+        $this->assertSame(2, $summary['activation_ready']);
+        $this->assertSame(['normal_step' => 1, 'super_admin_override_required' => 1], $summary['activation_ready_by_path']);
+        $this->assertSame(['DUPLICATE_PERSON_RECORD' => 1], $summary['activation_excluded']);
+        $this->assertSame(1, $summary['activation_excluded_total']);
+
+        // The review report is separate from the ready list and carries the explanation.
+        $review = $this->as($this->token)->get(self::IMPORTS."/{$id}/report?status=review")->assertOk()->streamedContent();
+        $this->assertStringContainsString($uncertain->employee_number, $review);
+        $this->assertStringNotContainsString($ready->employee_number, $review);
+        $this->assertStringContainsString('Excluded from activation until the data is corrected', $review);
+        $readyReport = $this->as($this->token)->get(self::IMPORTS."/{$id}/report?status=valid")->assertOk()->streamedContent();
+        $this->assertStringNotContainsString($uncertain->employee_number, $readyReport);
+    }
+
+    public function test_excluded_employees_are_never_matched_created_or_changed(): void
+    {
+        $uncertain = $this->person('applicant', 'Doubtful Person', '615000003');
+        $this->person('waiting', 'Doubtful Person', '615777777');
+        $snapshot = fn (): array => [Employee::withTrashed()->orderBy('id')->get()->toJson(), EmployeeStatusHistory::query()->count(), DB::table('employee_work_assignments')->count()];
+        $before = $snapshot();
+
+        $id = $this->stage([$this->plan($uncertain)]);
+        $this->confirmImport($this->token, $id)->assertStatus(422)->assertJsonPath('error_code', 'PREVIEW_ONLY');
+
+        $this->assertSame($before, $snapshot(), 'The excluded employee and its look-alike are untouched; nothing was created.');
+        $this->assertSame('applicant', $uncertain->fresh()->status->value);
+    }
+
     public function test_missing_pay_data_and_unregistered_companies_are_reported_not_invented(): void
     {
         $noSalary = $this->person('waiting', 'No Salary', '615000001');
