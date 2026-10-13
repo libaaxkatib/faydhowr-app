@@ -17,6 +17,7 @@ import { PermissionGate } from '@/components/ui/PermissionGate';
 import { inputClasses } from '@/components/ui/FormField';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatDate, initialsOf } from '@/utils/formatters';
 import { OFFICE_LABEL } from '@/utils/hrHelpers';
 import { parseEmployeeListUrl } from '@/utils/hrDashboardLinks';
@@ -90,6 +91,7 @@ export function EmployeesListPage({
   breadcrumbLabel = 'Employees',
 }: EmployeesListPageProps) {
   const navigate = useNavigate();
+  const { hasPermission } = useEffectivePermissions();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [departmentId, setDepartmentId] = useState('');
@@ -342,6 +344,12 @@ export function EmployeesListPage({
                 Register Employee
               </Button>
             </PermissionGate>
+          ) : filterOfficeOnly && hasPermission('hr.manage') ? (
+            // The dedicated Office Staff workflow: add an existing employee, or register a new one straight into Office Staff.
+            <Button onClick={() => navigate('/hr/office-staff/new')}>
+              <Icon name="plus" size={15} />
+              Add Office Staff
+            </Button>
           ) : undefined
         }
       />

@@ -9,6 +9,7 @@ import { CustomersListPage } from '@/features/customers/CustomersListPage';
 import { CustomerDetailPage } from '@/features/customers/CustomerDetailPage';
 import { HrDashboardPage } from '@/features/hrm/HrDashboardPage';
 import { EmployeesListPage } from '@/features/hrm/EmployeesListPage';
+import { OfficeStaffRegistrationPage } from '@/features/hrm/OfficeStaffRegistrationPage';
 import { EmployeeDetailPage } from '@/features/hrm/EmployeeDetailPage';
 import { DepartmentsPage } from '@/features/hrm/DepartmentsPage';
 import { PositionsPage } from '@/features/hrm/PositionsPage';
@@ -154,6 +155,7 @@ export default function App() {
             </RequirePermission>
           }
         />
+        <Route path="/hr/office-staff/new" element={<RequirePermission permission="hr.manage"><OfficeStaffRegistrationPage /></RequirePermission>} />
         <Route path="/hr/attendance" element={<RequirePermission permission="hr.view"><AttendancePage /></RequirePermission>} />
         <Route path="/hr/departments" element={<RequirePermission permission="hr.view"><DepartmentsPage /></RequirePermission>} />
         <Route path="/hr/positions" element={<RequirePermission permission="hr.view"><PositionsPage /></RequirePermission>} />

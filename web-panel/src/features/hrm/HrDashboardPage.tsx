@@ -8,7 +8,7 @@ import { Icon, type IconName } from '@/components/ui/Icon';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
-import { categoryTileTo, dashboardCardTo } from '@/utils/hrDashboardLinks';
+import { categoryTileLabel, categoryTileTo, dashboardCardTo } from '@/utils/hrDashboardLinks';
 
 export function HrDashboardPage() {
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['hr-dashboard'], queryFn: hrApi.dashboard });
@@ -101,11 +101,11 @@ export function HrDashboardPage() {
                 <Link
                   key={category.id}
                   to={categoryTileTo(category.id)}
-                  aria-label={`${category.name}: ${formatNumber(category.total)} employees`}
+                  aria-label={`${categoryTileLabel(category.name)}: ${formatNumber(category.total)} employees`}
                   className={`block rounded-md border border-border p-3 text-center ${CLICKABLE_CLASSES}`}
                 >
                   <p className="font-display text-lg font-bold text-ink">{formatNumber(category.total)}</p>
-                  <p className="text-xs text-ink-muted">{category.name}</p>
+                  <p className="text-xs text-ink-muted">{categoryTileLabel(category.name)}</p>
                 </Link>
               ))}
             </CardBody>

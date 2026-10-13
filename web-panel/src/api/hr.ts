@@ -1,5 +1,6 @@
 import { apiRequest, apiRequestWithMeta, downloadAuthenticatedFile } from '@/api/client';
 import type { PageMeta } from '@/types/api';
+import type { OfficeStaffSummary } from '@/utils/officeStaff';
 import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollItem, PayrollRun } from '@/types/payroll';
 import type {
   AttendanceRosterEntry,
@@ -200,6 +201,14 @@ export const hrApi = {
     list: () => apiRequest<EmployeeCategory[]>('admin/hr/employee-categories'),
   },
 
+  /** Office Staff workflow (needs hr.manage). Documents use the existing employee document endpoints. */
+  officeStaff: {
+    lookup: (search: string) => apiRequest<OfficeStaffSummary[]>('admin/hr/office-staff/lookup', { query: { search } }),
+    get: (employeeId: number) => apiRequest<OfficeStaffSummary>(`admin/hr/office-staff/${employeeId}`),
+    assignExisting: (payload: Record<string, unknown>) => apiRequest<OfficeStaffSummary>('admin/hr/office-staff/assign', { method: 'POST', body: payload }),
+    registerNew: (payload: Record<string, unknown>) => apiRequest<OfficeStaffSummary>('admin/hr/office-staff', { method: 'POST', body: payload }),
+  },
+
   documentCategories: {
     list: () => apiRequest<EmployeeDocumentCategory[]>('admin/hr/employee-document-categories'),
     create: (payload: { name: string; description?: string | null }) =>
@@ -381,6 +390,9 @@ export const hrApi = {
         isFormData: true,
       });
     },
+    /** Opens a stored document through the authenticated download endpoint (there is no public URL). */
+    downloadDocument: (employeeId: number, documentId: number, fileName: string) =>
+      downloadAuthenticatedFile(`admin/hr/employees/${employeeId}/documents/${documentId}/download`, fileName),
     deleteDocument: (employeeId: number, documentId: number) =>
       apiRequest<null>(`admin/hr/employees/${employeeId}/documents/${documentId}`, { method: 'DELETE' }),
     verifyDocument: (employeeId: number, documentId: number) =>

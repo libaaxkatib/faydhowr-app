@@ -46,6 +46,7 @@ use App\Http\Controllers\Api\V1\Admin\Hr\HrDashboardController as AdminHrDashboa
 use App\Http\Controllers\Api\V1\Admin\Hr\HrReportsController as AdminHrReportsController;
 use App\Http\Controllers\Api\V1\Admin\Hr\ImportController as AdminHrImportController;
 use App\Http\Controllers\Api\V1\Admin\Hr\MonthlyPaymentReportController as AdminMonthlyPaymentReportController;
+use App\Http\Controllers\Api\V1\Admin\Hr\OfficeStaffController as AdminOfficeStaffController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PayrollRunController as AdminPayrollRunController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PositionController as AdminPositionController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PracticalBatchController as AdminPracticalBatchController;
@@ -1217,6 +1218,16 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.reports.view', 'throt
 });
 
 Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:admin-operations'])->group(function (): void {
+    // Office Staff workflow: shows and writes emergency-contact, guarantor and salary details, so hr.manage only.
+    Route::get('v1/admin/hr/office-staff/lookup', [AdminOfficeStaffController::class, 'lookup'])
+        ->name('api.v1.admin.hr.office-staff.lookup');
+    Route::get('v1/admin/hr/office-staff/{employee}', [AdminOfficeStaffController::class, 'show'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.office-staff.show');
+    Route::post('v1/admin/hr/office-staff/assign', [AdminOfficeStaffController::class, 'assign'])
+        ->name('api.v1.admin.hr.office-staff.assign');
+    Route::post('v1/admin/hr/office-staff', [AdminOfficeStaffController::class, 'register'])
+        ->name('api.v1.admin.hr.office-staff.register');
     Route::post('v1/admin/hr/departments', [AdminDepartmentController::class, 'store'])
         ->name('api.v1.admin.hr.departments.store');
     Route::put('v1/admin/hr/departments/{department}', [AdminDepartmentController::class, 'update'])

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  categoryTileLabel,
   categoryTileTo,
   dashboardCardTo,
   parseEmployeeListUrl,
@@ -97,4 +98,14 @@ test('Temporary Replacements: the Active Replacements card is read back as activ
   assert.equal(parseReplacementStatus('status=ended'), 'ended');
   assert.equal(parseReplacementStatus('status=open'), null);
   assert.equal(parseReplacementStatus(''), null);
+});
+
+test('the Office Staff category tile is labelled apart from the Office Staff assignment card; other categories keep their names', () => {
+  assert.equal(categoryTileLabel('Office Staff'), 'Office Staff (Category)');
+  assert.equal(categoryTileLabel(' office staff '), 'Office Staff (Category)');
+  for (const name of ['General Cleaning', 'Cooking', 'Waiter', 'Barista', 'Home Team', 'Supervisor']) assert.equal(categoryTileLabel(name), name);
+  // The label never changes where the tile goes: it still opens the employee list for that category id.
+  assert.equal(categoryTileTo(7), '/hr/employees?employee_category_id=7');
+  // The assignment-count card keeps its own link, unchanged.
+  assert.equal(dashboardCardTo('office_staff', new Date('2026-10-14T00:00:00Z')), '/hr/office-staff');
 });

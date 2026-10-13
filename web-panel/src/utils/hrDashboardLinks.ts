@@ -86,6 +86,15 @@ export function categoryTileTo(categoryId: number): string {
   return withQuery('/hr/employees', { employee_category_id: String(categoryId) });
 }
 
+/**
+ * Label of a Category Breakdown tile. The "Office Staff" CATEGORY tile counts employees who carry that category, while the
+ * "Office Staff" card above counts active office ASSIGNMENTS, so the two can differ. The tile says "(Category)" so they are
+ * never mistaken for each other. Every other category keeps its own name.
+ */
+export function categoryTileLabel(name: string): string {
+  return name.trim().toLowerCase() === 'office staff' ? 'Office Staff (Category)' : name;
+}
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function validDate(value: string | null): string {
