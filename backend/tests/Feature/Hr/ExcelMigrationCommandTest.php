@@ -19,6 +19,7 @@ use App\Support\Hr\ExcelMigration\RegistrationDateInferrer;
 use App\Support\Hr\ExcelMigration\ResolvedPerson;
 use App\Support\Hr\ExcelMigration\StageDictionary;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -100,6 +101,9 @@ class ExcelMigrationCommandTest extends TestCase
 
     public function test_dry_run_never_writes_any_hr_records(): void
     {
+        // The Office Staff positions are seeded by a migration, so "no writes" means the count is unchanged, not zero.
+        $positionsBefore = DB::table('positions')->count();
+
         $this->artisan('hr:migrate-from-excel', ['path' => $this->fixturePath, '--dry-run' => true])
             ->assertExitCode(0);
 
@@ -108,7 +112,7 @@ class ExcelMigrationCommandTest extends TestCase
         $this->assertDatabaseCount('employee_guarantors', 0);
         $this->assertDatabaseCount('employee_separations', 0);
         $this->assertDatabaseCount('departments', 0);
-        $this->assertDatabaseCount('positions', 0);
+        $this->assertDatabaseCount('positions', $positionsBefore);
     }
 
     public function test_phone_normalization(): void
