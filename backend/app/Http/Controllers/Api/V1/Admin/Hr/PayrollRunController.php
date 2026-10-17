@@ -66,7 +66,12 @@ class PayrollRunController extends Controller
         $path = tempnam(sys_get_temp_dir(), 'payroll').'.xlsx';
         $exporter->write($mapper->map($payrollRun), $path, 'Month-end payroll ('.ucfirst($payrollRun->status).')');
 
-        return response()->download($path, "payroll-{$payrollRun->period}.xlsx")->deleteFileAfterSend(true);
+        $response = response()->download($path, "payroll-{$payrollRun->period}.xlsx")->deleteFileAfterSend(true);
+        // File responses are public by default; this file lists everyone's pay, so it must be private and never stored.
+        $response->setPrivate();
+        $response->headers->addCacheControlDirective('no-store');
+
+        return $response;
     }
 
     public function adjust(CreatePayrollAdjustmentRequest $request, PayrollItem $payrollItem, CreatePayrollAdjustmentAction $action): JsonResponse

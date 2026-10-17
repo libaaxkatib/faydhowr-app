@@ -382,4 +382,18 @@ class PayrollLifecycleTest extends TestCase
         $this->assertStringContainsString($first->replacementEmployee->full_name, trim((string) $sheet->getCell('B'.($parentRow + 1))->getValue()));
         $this->assertStringContainsString($second->replacementEmployee->full_name, trim((string) $sheet->getCell('B'.($parentRow + 2))->getValue()));
     }
+
+    public function test_the_excel_export_is_private_and_never_cached_because_it_lists_everyones_pay(): void
+    {
+        [, $token] = $this->superAdminToken();
+        $this->permanentWith(300);
+        $run = $this->generate($token)->json('data.id');
+
+        $response = $this->withToken($token)->get("/api/v1/admin/hr/payroll-runs/{$run}/export")->assertOk();
+
+        // The exact value, not just "private": file responses are public by default, which would let a shared cache keep a salary file.
+        $response->assertHeader('Cache-Control', 'no-store, private');
+        $this->assertSame('no-store, private', $response->headers->get('Cache-Control'));
+        $this->assertFalse($response->headers->hasCacheControlDirective('public'));
+    }
 }

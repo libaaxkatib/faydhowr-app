@@ -101,7 +101,8 @@ class ClientCompanyCategoryAndAgreementTest extends TestCase
         Storage::disk('local')->assertExists($row->file_path);
 
         $this->withToken($token)->get("/api/v1/admin/hr/client-companies/{$company->id}/agreements/{$second->json('data.id')}/download")
-            ->assertOk()->assertDownload('agreement-v2.pdf');
+            ->assertOk()->assertDownload('agreement-v2.pdf')
+            ->assertHeader('Cache-Control', 'no-store, private');
     }
 
     public function test_the_attachment_disk_is_configurable_and_recorded_on_the_row(): void

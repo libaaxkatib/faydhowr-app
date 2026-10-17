@@ -42,6 +42,11 @@ class ClientCompanyAgreementController extends Controller
             return ApiResponse::error('The agreement file is no longer available in storage.', 'AGREEMENT_FILE_MISSING', 404);
         }
 
-        return $disk->download($agreement->file_path, $agreement->file_name);
+        $response = $disk->download($agreement->file_path, $agreement->file_name);
+
+        // Company contracts: never stored by a browser or shared cache.
+        $response->headers->set('Cache-Control', 'no-store, private');
+
+        return $response;
     }
 }
