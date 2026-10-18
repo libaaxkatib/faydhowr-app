@@ -138,6 +138,10 @@ class DocumentTestStorageIsolationTest extends TestCase
             base_path('tests/Support/FakesDocumentDisk.php'),
             base_path('tests/Feature/Api/V1/Admin/Hr/EmployeeDocumentFileHandlingTest.php'),
             base_path('tests/Feature/Hr/EmployeeDocumentInventoryCommandTest.php'),
+            base_path('tests/Feature/Hr/DocumentStorageTest.php'),
+            base_path('tests/Feature/Hr/DocumentS3AdapterTest.php'),
+            base_path('tests/Feature/Hr/DocumentRehearsalEmulatedTest.php'),
+            base_path('tests/Support/FakeS3Server.php'),
             base_path('tests/Feature/Hr/DocumentTestStorageIsolationTest.php'),
             base_path('tests/TestCase.php'),
         ];
