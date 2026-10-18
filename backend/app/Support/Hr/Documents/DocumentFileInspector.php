@@ -28,6 +28,24 @@ class DocumentFileInspector
         return $this->disk;
     }
 
+    /** An inspector for another disk (an employee document records the disk it lives on). */
+    public function forDisk(string $disk): static
+    {
+        return $disk === $this->disk ? $this : new static($disk);
+    }
+
+    /** SHA-256 of everything left in a readable stream. */
+    public static function hashStream(mixed $stream): string
+    {
+        $context = hash_init('sha256');
+
+        if (is_resource($stream)) {
+            hash_update_stream($context, $stream);
+        }
+
+        return hash_final($context);
+    }
+
     /** A recorded path this application could have produced: no traversal, no absolute path, nothing outside the documents folders. */
     public static function isUsableReference(?string $path): bool
     {
@@ -64,8 +82,11 @@ class DocumentFileInspector
         return is_string($root) && $root !== '' && is_dir($root);
     }
 
-    /** What is the state of this file? Reads a little of it to prove it can be opened; never changes anything. */
-    public function inspect(?string $path, ?int $expectedSize = null): DocumentFileState
+    /**
+     * What is the state of this file? Proves it can be opened and, when a size is given, compares it; when a SHA-256 is given the
+     * whole file is read and hashed (a difference is a ChecksumMismatch, checked before the size). Never changes anything.
+     */
+    public function inspect(?string $path, ?int $expectedSize = null, ?string $expectedSha256 = null): DocumentFileState
     {
         $problem = $this->locate($path);
 
@@ -81,11 +102,16 @@ class DocumentFileInspector
                 return DocumentFileState::Unreadable;
             }
 
+            $actualSha256 = $expectedSha256 === null ? null : self::hashStream($stream);
             fclose($stream);
 
             $size = $driver->fileSize((string) $path);
         } catch (Throwable) {
             return DocumentFileState::Unreadable;
+        }
+
+        if ($expectedSha256 !== null && ! hash_equals(strtolower($expectedSha256), (string) $actualSha256)) {
+            return DocumentFileState::ChecksumMismatch;
         }
 
         if ($expectedSize !== null && $size !== $expectedSize) {

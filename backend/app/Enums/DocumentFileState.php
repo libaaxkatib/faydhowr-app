@@ -20,6 +20,9 @@ enum DocumentFileState: string
     /** The recorded location is empty or is not a path this application would ever have written. */
     case InvalidReference = 'invalid_reference';
 
+    /** The file can be read, but its contents do not match the SHA-256 recorded for it: it is damaged or was changed. */
+    case ChecksumMismatch = 'checksum_mismatch';
+
     /** The file seems to exist but could not be opened or measured (permission or I/O problem). */
     case Unreadable = 'unreadable';
 
@@ -36,6 +39,12 @@ enum DocumentFileState: string
     public function isPermanentlyUnavailable(): bool
     {
         return $this === self::Missing || $this === self::InvalidReference;
+    }
+
+    /** The file is there but is not what was stored: it must not be served, and it needs attention rather than a retry. */
+    public function isIntegrityFailure(): bool
+    {
+        return $this === self::ChecksumMismatch;
     }
 
     /** The state says nothing reliable about the file: the right answer is "try again later". */

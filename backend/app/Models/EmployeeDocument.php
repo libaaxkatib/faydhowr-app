@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'file_type',
     'file_size',
     'file_path',
+    'disk',
+    'sha256',
     'document_number',
     'verification_status',
     'verified_at',

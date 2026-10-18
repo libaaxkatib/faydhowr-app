@@ -50,6 +50,7 @@ class EmployeeDocumentController extends Controller
      * - no such document for this employee -> 404 EMPLOYEE_DOCUMENT_NOT_FOUND (one answer for every "not yours to find" case)
      * - file confirmed missing / unusable  -> 404 DOCUMENT_FILE_MISSING (nothing is recreated, changed or reported as recovered)
      * - storage could not be checked/read  -> 503 DOCUMENT_STORAGE_UNAVAILABLE (never claims the file is missing)
+     * - contents differ from the recorded SHA-256 -> 502 DOCUMENT_INTEGRITY_FAILED (nothing is sent)
      * No message contains a path, an exception, a file name or any employee detail.
      */
     public function download(int $employee, int $document, DocumentFileInspector $files): StreamedResponse|JsonResponse
@@ -61,6 +62,18 @@ class EmployeeDocumentController extends Controller
 
         if ($record === null) {
             return ApiResponse::error('Document was not found.', 'EMPLOYEE_DOCUMENT_NOT_FOUND', 404);
+        }
+
+        // The record names the disk its file lives on (older documents: 'local'), so a change of the default disk strands nothing.
+        $files = $files->forDisk($record->disk ?: 'local');
+
+        // A document with a recorded checksum is hashed before it is sent: a damaged or altered file is never served.
+        if ($record->sha256 !== null && (bool) config('filesystems.hr_documents_verify_on_download', true)) {
+            $integrity = $files->inspect($record->file_path, null, $record->sha256);
+
+            if (! $integrity->isServable()) {
+                return $this->unavailable($integrity, $record);
+            }
         }
 
         $opened = $files->open($record->file_path);
@@ -113,6 +126,16 @@ class EmployeeDocumentController extends Controller
                 'This document is not available. Please ask the employee to provide it again and upload a new copy.',
                 'DOCUMENT_FILE_MISSING',
                 404,
+            );
+        }
+
+        if ($state->isIntegrityFailure()) {
+            Log::error('Employee document failed its integrity check and was not sent.', $context);
+
+            return ApiResponse::error(
+                'This document failed an integrity check and was not sent. Please contact an administrator.',
+                'DOCUMENT_INTEGRITY_FAILED',
+                502,
             );
         }
 

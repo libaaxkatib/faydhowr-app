@@ -152,10 +152,10 @@ class EmployeeDocumentInventoryCommandTest extends TestCase
         $this->assertEqualsCanonicalizing(['missing', 'size_mismatch', 'invalid_reference'], array_column($report['problem_records'], 'problem'));
         $this->assertCount(2, $report['unreferenced_files']);
         foreach ($report['problem_records'] as $row) {
-            $this->assertSame(['document_id', 'employee_id', 'current', 'uploaded_on', 'problem'], array_keys($row));
+            $this->assertSame(['document_id', 'employee_id', 'disk', 'current', 'uploaded_on', 'problem'], array_keys($row));
         }
         foreach ($report['unreferenced_files'] as $row) {
-            $this->assertSame(['employee_id', 'size_bytes', 'modified_on', 'reference'], array_keys($row));
+            $this->assertSame(['disk', 'employee_id', 'size_bytes', 'modified_on', 'reference'], array_keys($row));
             $this->assertSame(12, strlen($row['reference']));
         }
 
