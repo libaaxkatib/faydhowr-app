@@ -26,6 +26,9 @@ use Illuminate\Http\Exceptions\HttpResponseException;
  */
 class WorkbookPlanExecutor
 {
+    /** The workbook the approved plan came from; shown in status history, assignment notes and alias sources. */
+    public const DEFAULT_SOURCE = 'EMPLOYEE AND COMPANY.xlsx';
+
     public function __construct(
         private readonly CreateClientCompanyAction $createCompany,
         private readonly BulkActivateEmployeesAction $bulkActivate,
@@ -41,7 +44,7 @@ class WorkbookPlanExecutor
      * @param  list<array{name: string, category: string, aliases: list<array{alias: string, reference: ?string}>}>  $rows
      * @return list<array<string, mixed>>
      */
-    public function companies(array $rows, bool $dryRun, ?Admin $actor): array
+    public function companies(array $rows, bool $dryRun, ?Admin $actor, string $source = self::DEFAULT_SOURCE): array
     {
         $results = [];
 
@@ -51,7 +54,7 @@ class WorkbookPlanExecutor
 
             if ($existing !== null) {
                 $warn = $existing->category->value !== $row['category'] ? " (existing category is '{$existing->category->value}', plan says '{$row['category']}'; left unchanged)" : '';
-                $this->aliases($existing, $row['aliases'], $dryRun, $actor);
+                $this->aliases($existing, $row['aliases'], $dryRun, $actor, $source);
                 $results[] = [...$base, 'outcome' => 'exists', 'code' => null, 'message' => 'Already registered; nothing created.'.$warn];
 
                 continue;
@@ -65,7 +68,7 @@ class WorkbookPlanExecutor
 
             try {
                 $company = $this->createCompany->handle(['name' => $row['name'], 'category' => $row['category']], $actor);
-                $this->aliases($company, $row['aliases'], false, $actor);
+                $this->aliases($company, $row['aliases'], false, $actor, $source);
                 $results[] = [...$base, 'outcome' => 'created', 'code' => null, 'message' => 'Registered.'];
             } catch (\Throwable $e) {
                 $results[] = [...$base, 'outcome' => 'failed', 'code' => 'COMPANY_CREATE_FAILED', 'message' => $e->getMessage()];
@@ -79,11 +82,11 @@ class WorkbookPlanExecutor
      * @param  list<array<string, mixed>>  $employees
      * @return array{dry_run: bool, summary: array<string, int>, results: list<array<string, mixed>>}
      */
-    public function status(array $employees, string $note, ?string $joiningDate, bool $dryRun, ?Admin $actor, ?string $overrideReason = null): array
+    public function status(array $employees, string $note, ?string $joiningDate, bool $dryRun, ?Admin $actor, ?string $overrideReason = null, string $source = self::DEFAULT_SOURCE): array
     {
         $records = array_map(fn (array $e): array => [
             'employee_id' => (int) $e['employee_id'],
-            'source_ref' => 'EMPLOYEE AND COMPANY.xlsx row '.$e['source_row'],
+            'source_ref' => $source.' row '.$e['source_row'],
             'expected_employee_number' => $e['employee_number'],
             'expected_status' => $e['expected_status'] ?: null,
         ], $employees);
@@ -99,7 +102,7 @@ class WorkbookPlanExecutor
      * @param  list<string>  $assumeCompanies  lower-cased names the companies step (same dry run) would register
      * @return list<array<string, mixed>>
      */
-    public function assignments(array $employees, bool $dryRun, ?Admin $actor, array $assumeActive = [], array $assumeCompanies = []): array
+    public function assignments(array $employees, bool $dryRun, ?Admin $actor, array $assumeActive = [], array $assumeCompanies = [], string $source = self::DEFAULT_SOURCE): array
     {
         $results = [];
 
@@ -158,7 +161,7 @@ class WorkbookPlanExecutor
                     'salary_amount' => $row['salary'],
                     'salary_currency' => 'USD',
                     'salary_frequency' => 'monthly',
-                    'notes' => 'Assigned from the approved company workbook, EMPLOYEE AND COMPANY.xlsx row '.$row['source_row'].'.',
+                    'notes' => 'Assigned from the approved company workbook, '.$source.' row '.$row['source_row'].'.',
                 ], $actor);
                 $results[] = [...$base, 'outcome' => 'assigned', 'code' => null, 'message' => 'Assigned.'];
             } catch (HttpResponseException $e) {
@@ -175,7 +178,7 @@ class WorkbookPlanExecutor
     /**
      * @param  list<array{alias: string, reference: ?string}>  $aliases
      */
-    private function aliases(ClientCompany $company, array $aliases, bool $dryRun, ?Admin $actor): void
+    private function aliases(ClientCompany $company, array $aliases, bool $dryRun, ?Admin $actor, string $source): void
     {
         if ($dryRun) {
             return;
@@ -184,7 +187,7 @@ class WorkbookPlanExecutor
         foreach ($aliases as $alias) {
             ClientCompanyAlias::query()->firstOrCreate(
                 ['client_company_id' => $company->id, 'alias' => $alias['alias']],
-                ['source' => 'EMPLOYEE AND COMPANY.xlsx', 'source_reference' => $alias['reference'], 'created_by' => $actor?->id],
+                ['source' => $source, 'source_reference' => $alias['reference'], 'created_by' => $actor?->id],
             );
         }
     }

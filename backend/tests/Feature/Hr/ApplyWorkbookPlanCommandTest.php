@@ -118,6 +118,23 @@ class ApplyWorkbookPlanCommandTest extends TestCase
         $this->assertSame(0, ClientCompany::query()->count());
     }
 
+    public function test_the_source_label_names_the_workbook_in_history_notes_and_aliases(): void
+    {
+        $admin = Admin::factory()->superAdmin()->create();
+        [$employees, [$a]] = $this->employeesFile();
+
+        $this->artisan('hr:apply-workbook-plan', [
+            '--companies' => $this->companiesFile(), '--employees' => $employees, '--commit' => true,
+            '--admin-email' => $admin->email, '--joining-date' => '2026-10-01', '--override-reason' => self::OVERRIDE,
+            '--source-label' => 'EMPLOYEE AND COMPANY PART TWO.xlsx',
+        ])->assertSuccessful();
+
+        $assignment = EmployeeWorkAssignment::query()->where('employee_id', $a->id)->firstOrFail();
+        $this->assertSame('Assigned from the approved company workbook, EMPLOYEE AND COMPANY PART TWO.xlsx row 2.', $assignment->notes);
+        $this->assertSame(['EMPLOYEE AND COMPANY PART TWO.xlsx'], ClientCompanyAlias::query()->distinct()->pluck('source')->all());
+        $this->assertSame(0, ClientCompanyAlias::query()->where('source', 'EMPLOYEE AND COMPANY.xlsx')->count());
+    }
+
     public function test_commit_registers_companies_with_aliases_activates_and_assigns_without_a_location(): void
     {
         $admin = Admin::factory()->superAdmin()->create();

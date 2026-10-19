@@ -24,6 +24,7 @@ class ApplyWorkbookPlanCommand extends Command
         {--employees= : CSV of approved employees (source_row,employee_id,employee_number,name_key,expected_status,company,salary,start_date)}
         {--step=* : companies, status and/or assignments (default: all that have a file)}
         {--note=Approved as working in the company workbook (EMPLOYEE AND COMPANY.xlsx) : Status-history note for the Active transition}
+        {--source-label=EMPLOYEE AND COMPANY.xlsx : Name of the approved workbook, recorded in status history, assignment notes and company aliases}
         {--joining-date= : Set employees.joining_date (only where empty), e.g. 2026-10-01}
         {--override-reason= : Super Admin reason, required to move employees to Active when that is not a normal lifecycle step (for example Applicant to Active)}
         {--admin-email= : Super Admin who performs the run (required with --commit)}
@@ -70,21 +71,21 @@ class ApplyWorkbookPlanCommand extends Command
         $assumeActive = [];
 
         if ($companies !== []) {
-            $results = $executor->companies($companies, $dryRun, $actor);
+            $results = $executor->companies($companies, $dryRun, $actor, (string) $this->option('source-label'));
             $this->summarize('companies', $results);
             $all = array_merge($all, array_map(fn ($r) => ['step' => 'companies', ...$r], $results));
             $assumeCompanies = array_map(fn (array $c): string => mb_strtolower(trim($c['name'])), $companies);
         }
 
         if (in_array('status', $steps, true)) {
-            $run = $executor->status($employees, (string) $this->option('note'), $this->option('joining-date') ?: null, $dryRun, $actor, $this->option('override-reason') ?: null);
+            $run = $executor->status($employees, (string) $this->option('note'), $this->option('joining-date') ?: null, $dryRun, $actor, $this->option('override-reason') ?: null, (string) $this->option('source-label'));
             $this->summarize('status', $run['results']);
             $all = array_merge($all, array_map(fn ($r) => ['step' => 'status', ...$r], $run['results']));
             $assumeActive = array_map(fn ($r) => (int) $r['employee_id'], array_filter($run['results'], fn ($r) => in_array($r['outcome'], ['would_activate', 'would_activate_with_override', 'already_active', 'activated'], true)));
         }
 
         if (in_array('assignments', $steps, true)) {
-            $results = $executor->assignments($employees, $dryRun, $actor, $assumeActive, $assumeCompanies);
+            $results = $executor->assignments($employees, $dryRun, $actor, $assumeActive, $assumeCompanies, (string) $this->option('source-label'));
             $this->summarize('assignments', $results);
             $all = array_merge($all, array_map(fn ($r) => ['step' => 'assignments', ...$r], $results));
         }
