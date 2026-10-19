@@ -7,12 +7,14 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
+import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import type { Department } from '@/types/employee';
 
 export function DepartmentsPage() {
@@ -20,6 +22,8 @@ export function DepartmentsPage() {
   const { show } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<Department | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Department | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
 
@@ -57,9 +61,17 @@ export function DepartmentsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['departments'] });
       show('Department deleted.');
+      setPendingDelete(null);
+      setDeleteError(null);
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not delete department.', 'error'),
+    // A refusal ("still used by 2 positions â€¦") stays visible in the dialog instead of flashing past as a toast.
+    onError: (err) => setDeleteError(friendlyErrorMessage(err, 'Could not delete the department. Please try again.')),
   });
+
+  const closeDeleteDialog = () => {
+    setPendingDelete(null);
+    setDeleteError(null);
+  };
 
   return (
     <div>
@@ -77,7 +89,7 @@ export function DepartmentsPage() {
       />
 
       <Card>
-        {isLoading && <LoadingState label="Loading departments…" />}
+        {isLoading && <LoadingState label="Loading departmentsâ€¦" />}
         {error && <ErrorState error={error} onRetry={refetch} />}
         {data && data.length === 0 && <EmptyState icon="box" title="No departments yet" />}
         {data && data.length > 0 && (
@@ -93,7 +105,7 @@ export function DepartmentsPage() {
                     <button type="button" onClick={() => openEdit(department)} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary">
                       <Icon name="pencil" size={14} />
                     </button>
-                    <button type="button" onClick={() => deleteMutation.mutate(department.id)} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger">
+                    <button type="button" aria-label={`Delete department ${department.name}`} onClick={() => { setDeleteError(null); setPendingDelete(department); }} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger">
                       <Icon name="trash" size={14} />
                     </button>
                   </div>
@@ -123,6 +135,18 @@ export function DepartmentsPage() {
           <textarea id="dept-description" rows={2} className={inputClasses + ' h-auto py-2'} value={description} onChange={(e) => setDescription(e.target.value)} />
         </FormField>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={pendingDelete !== null}
+        title="Delete department?"
+        description={`Delete â€œ${pendingDelete?.name ?? ''}â€? This cannot be undone. A department that positions or employees still use cannot be deleted.`}
+        confirmLabel="Delete department"
+        tone="danger"
+        isLoading={deleteMutation.isPending}
+        errorMessage={deleteError}
+        onConfirm={() => pendingDelete && deleteMutation.mutate(pendingDelete.id)}
+        onCancel={closeDeleteDialog}
+      />
     </div>
   );
 }

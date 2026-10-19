@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { LoadingState } from '@/components/ui/LoadingState';
@@ -14,6 +15,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
+import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import type { Position } from '@/types/employee';
 
 export function PositionsPage() {
@@ -21,6 +23,8 @@ export function PositionsPage() {
   const { show } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<Position | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Position | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [departmentId, setDepartmentId] = useState('');
 
@@ -59,9 +63,17 @@ export function PositionsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['positions'] });
       show('Position deleted.');
+      setPendingDelete(null);
+      setDeleteError(null);
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not delete position.', 'error'),
+    // A refusal ("still used by 2 employees â€¦") stays visible in the dialog instead of flashing past as a toast.
+    onError: (err) => setDeleteError(friendlyErrorMessage(err, 'Could not delete the position. Please try again.')),
   });
+
+  const closeDeleteDialog = () => {
+    setPendingDelete(null);
+    setDeleteError(null);
+  };
 
   return (
     <div>
@@ -79,7 +91,7 @@ export function PositionsPage() {
       />
 
       <Card>
-        {isLoading && <LoadingState label="Loading positions…" />}
+        {isLoading && <LoadingState label="Loading positionsâ€¦" />}
         {error && <ErrorState error={error} onRetry={refetch} />}
         {data && data.length === 0 && <EmptyState icon="shield" title="No positions yet" />}
         {data && data.length > 0 && (
@@ -95,7 +107,7 @@ export function PositionsPage() {
                     <button type="button" onClick={() => openEdit(position)} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary">
                       <Icon name="pencil" size={14} />
                     </button>
-                    <button type="button" onClick={() => deleteMutation.mutate(position.id)} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger">
+                    <button type="button" aria-label={`Delete position ${position.name}`} onClick={() => { setDeleteError(null); setPendingDelete(position); }} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger">
                       <Icon name="trash" size={14} />
                     </button>
                   </div>
@@ -131,6 +143,18 @@ export function PositionsPage() {
           />
         </FormField>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={pendingDelete !== null}
+        title="Delete position?"
+        description={`Delete â€œ${pendingDelete?.name ?? ''}â€? This cannot be undone. A position that employees, work assignments or workforce requests still use cannot be deleted.`}
+        confirmLabel="Delete position"
+        tone="danger"
+        isLoading={deleteMutation.isPending}
+        errorMessage={deleteError}
+        onConfirm={() => pendingDelete && deleteMutation.mutate(pendingDelete.id)}
+        onCancel={closeDeleteDialog}
+      />
     </div>
   );
 }

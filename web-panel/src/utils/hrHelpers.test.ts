@@ -70,3 +70,12 @@ test('describeDailyRate formats numbers and leaves explanatory text alone', () =
   assert.equal(describeDailyRate('10.0000'), '$10.00 per day');
   assert.equal(describeDailyRate('varies during the month'), 'varies during the month');
 });
+
+test('friendlyErrorMessage shows the in-use refusal for a position or department exactly as the server explains it', () => {
+  const position = 'This position cannot be deleted because it is still used by 2 employees and 1 work assignment. Move or remove those records first.';
+  const department = 'This department cannot be deleted because it is still used by 1 position and 3 employees (1 archived). Move or remove those records first.';
+
+  assert.equal(friendlyErrorMessage({ status: 422, code: 'POSITION_IN_USE', message: position }, 'Could not delete the position. Please try again.'), position);
+  assert.equal(friendlyErrorMessage({ status: 422, code: 'DEPARTMENT_IN_USE', message: department }, 'Could not delete the department. Please try again.'), department);
+  assert.equal(friendlyErrorMessage(new TypeError(''), 'Could not delete the position. Please try again.'), 'Could not delete the position. Please try again.');
+});
