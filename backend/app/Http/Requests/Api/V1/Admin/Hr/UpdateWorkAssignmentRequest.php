@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api\V1\Admin\Hr;
 
+use App\Enums\AssignmentType;
 use App\Enums\SalaryFrequency;
 use App\Support\ApiResponse;
 use Illuminate\Contracts\Validation\Validator;
@@ -22,6 +23,7 @@ class UpdateWorkAssignmentRequest extends FormRequest
             'work_location_id' => ['sometimes', 'integer', 'exists:work_locations,id'],
             'override_capacity' => ['sometimes', 'boolean'],
             'position_id' => ['nullable', 'integer', 'exists:positions,id'],
+            'assignment_type' => ['sometimes', Rule::in(AssignmentType::values())],
             'start_date' => ['sometimes', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
             'salary_amount' => ['sometimes', 'numeric', 'min:0'],

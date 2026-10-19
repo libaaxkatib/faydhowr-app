@@ -3,15 +3,18 @@
 namespace App\Actions\Hr;
 
 use App\Enums\AdminRole;
+use App\Enums\AssignmentType;
 use App\Enums\AuditAction;
 use App\Enums\WorkAssignmentStatus;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
+use App\Models\AssignmentSalaryHistory;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\WorkLocation;
 use App\Support\ApiResponse;
 use App\Support\Hr\CompanyLocationResolver;
 use App\Support\Hr\Payroll\PayrollMoney;
+use App\Support\Hr\Payroll\PayrollPeriodLock;
 use App\Support\Hr\PositionSuccession;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -29,7 +32,7 @@ use Illuminate\Http\Exceptions\HttpResponseException;
  */
 class UpdateWorkAssignmentAction
 {
-    public function __construct(private readonly ChangeAssignmentSalaryAction $salary) {}
+    public function __construct(private readonly ChangeAssignmentSalaryAction $salary, private readonly PayrollPeriodLock $lock = new PayrollPeriodLock) {}
 
     public function handle(EmployeeWorkAssignment $assignment, array $data, Admin $actor): EmployeeWorkAssignment
     {
@@ -38,15 +41,37 @@ class UpdateWorkAssignmentAction
         }
 
         $this->guardSuccession($assignment, $data);
+        $this->guardPayrollDates($assignment, $data);
+
+        $before = [
+            'position_id' => $assignment->position_id,
+            'assignment_type' => $assignment->assignment_type?->value ?? AssignmentType::Permanent->value,
+            'start_date' => $assignment->start_date?->toDateString(),
+            'end_date' => $assignment->end_date?->toDateString(),
+            'notes' => $assignment->notes,
+        ];
+        $oldStart = $assignment->start_date?->toDateString();
 
         $this->applySalaryChange($assignment, $data, $actor);
 
         $assignment->update([
             'position_id' => array_key_exists('position_id', $data) ? $data['position_id'] : $assignment->position_id,
+            'assignment_type' => $data['assignment_type'] ?? $assignment->assignment_type?->value ?? AssignmentType::Permanent->value,
             'start_date' => $data['start_date'] ?? $assignment->start_date,
             'end_date' => $data['end_date'] ?? $assignment->end_date,
             'notes' => array_key_exists('notes', $data) ? $data['notes'] : $assignment->notes,
         ]);
+
+        $this->moveFirstSalaryRowWithTheStart($assignment, $oldStart);
+
+        $after = [
+            'position_id' => $assignment->position_id,
+            'assignment_type' => $assignment->assignment_type->value,
+            'start_date' => $assignment->start_date?->toDateString(),
+            'end_date' => $assignment->end_date?->toDateString(),
+            'notes' => $assignment->notes,
+        ];
+        $changed = array_keys(array_filter($after, fn ($value, string $key): bool => $value !== $before[$key], ARRAY_FILTER_USE_BOTH));
 
         event(AuditEvent::record(
             action: AuditAction::Update,
@@ -54,9 +79,59 @@ class UpdateWorkAssignmentAction
             description: "Work assignment #{$assignment->id} updated.",
             entityType: EmployeeWorkAssignment::class,
             entityId: $assignment->id,
+            // The original values are kept here, so a changed start date, position or type can always be traced back.
+            metadata: ['event' => 'edited', 'changed_fields' => $changed, 'before' => array_intersect_key($before, array_flip($changed)), 'after' => array_intersect_key($after, array_flip($changed))],
         ));
 
         return $assignment->load(['workLocation.clientCompany', 'clientCompany', 'position']);
+    }
+
+    /**
+     * Moving a start or last day changes the payable days of every payroll month from the earlier of the old and new date onward.
+     * That may not reach into an approved or finalized month.
+     */
+    private function guardPayrollDates(EmployeeWorkAssignment $assignment, array $data): void
+    {
+        foreach (['start_date', 'end_date'] as $field) {
+            if (! array_key_exists($field, $data) || $data[$field] === null) {
+                continue;
+            }
+
+            $old = $assignment->{$field}?->toDateString();
+            $new = CarbonImmutable::parse($data[$field])->toDateString();
+
+            if ($old === $new) {
+                continue;
+            }
+
+            $this->lock->assertAssignmentDateChangeAllowed($old === null ? $new : min($old, $new));
+        }
+    }
+
+    /**
+     * The first salary row starts with the assignment. When the start date moves, that row moves with it, so payroll never finds
+     * a day without a salary. A start date that would jump over a LATER salary change is refused.
+     */
+    private function moveFirstSalaryRowWithTheStart(EmployeeWorkAssignment $assignment, ?string $oldStart): void
+    {
+        $newStart = $assignment->start_date?->toDateString();
+
+        if ($oldStart === null || $newStart === null || $oldStart === $newStart) {
+            return;
+        }
+
+        $rows = AssignmentSalaryHistory::query()->where('work_assignment_id', $assignment->id)->orderBy('effective_from')->get();
+        $first = $rows->first();
+
+        if ($first === null || $first->effective_from->toDateString() !== $oldStart) {
+            return;
+        }
+
+        if ($rows->skip(1)->contains(fn ($row): bool => $row->effective_from->toDateString() <= $newStart)) {
+            $this->fail('The new start date is on or after a later salary change. Move the start date to before that change, or correct the salary history first.', 'START_DATE_PASSES_SALARY_CHANGE');
+        }
+
+        $first->update(['effective_from' => $newStart]);
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api\V1\Admin\Hr;
 
+use App\Enums\AssignmentType;
 use App\Enums\EmployeeStatus;
 use App\Enums\SalaryFrequency;
 use App\Models\Employee;
@@ -31,6 +32,7 @@ class StoreWorkAssignmentRequest extends FormRequest
             'client_company_id' => ['nullable', 'required_without:work_location_id', 'integer', 'exists:client_companies,id'],
             'replaces_assignment_id' => ['nullable', 'integer', 'exists:employee_work_assignments,id'],
             'position_id' => ['nullable', 'integer', 'exists:positions,id'],
+            'assignment_type' => ['sometimes', Rule::in(AssignmentType::values())],
             'start_date' => ['required', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
             'salary_amount' => ['required', 'numeric', 'min:0'],

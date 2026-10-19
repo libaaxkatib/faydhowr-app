@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\V1\Admin\Customers\CustomerNoteController as AdminC
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\Hr\ClientCompanyAgreementController as AdminClientCompanyAgreementController;
 use App\Http\Controllers\Api\V1\Admin\Hr\ClientCompanyController as AdminClientCompanyController;
+use App\Http\Controllers\Api\V1\Admin\Hr\CompanyEmployeeController as AdminCompanyEmployeeController;
 use App\Http\Controllers\Api\V1\Admin\Hr\DepartmentController as AdminDepartmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeAttendanceController as AdminEmployeeAttendanceController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeCategoryController as AdminEmployeeCategoryController;
@@ -1424,6 +1425,38 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::patch('v1/admin/hr/temporary-replacements/{temporaryReplacement}/workdays/{workday}/void', [AdminTemporaryReplacementWorkdayController::class, 'void'])
         ->whereNumber(['temporaryReplacement', 'workday'])
         ->name('api.v1.admin.hr.temporary-replacements.workdays.void');
+});
+
+// Company Employee Management (the employees of one company). Reading: hr.view. Changing: hr.manage AND hr.view, so the
+// screen's own salary figures never reach a caller who may not read salaries.
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.view', 'throttle:admin-operations'])->group(function (): void {
+    Route::get('v1/admin/hr/client-companies/{clientCompany}/employees', [AdminCompanyEmployeeController::class, 'index'])
+        ->whereNumber('clientCompany')
+        ->name('api.v1.admin.hr.company-employees.index');
+    Route::get('v1/admin/hr/client-companies/{clientCompany}/employee-candidates', [AdminCompanyEmployeeController::class, 'candidates'])
+        ->whereNumber('clientCompany')
+        ->name('api.v1.admin.hr.company-employees.candidates');
+    Route::get('v1/admin/hr/client-companies/{clientCompany}/employee-history', [AdminCompanyEmployeeController::class, 'history'])
+        ->whereNumber('clientCompany')
+        ->name('api.v1.admin.hr.company-employees.history');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'permission:hr.view', 'throttle:admin-operations'])->group(function (): void {
+    Route::post('v1/admin/hr/client-companies/{clientCompany}/employees', [AdminCompanyEmployeeController::class, 'store'])
+        ->whereNumber('clientCompany')
+        ->name('api.v1.admin.hr.company-employees.store');
+    Route::put('v1/admin/hr/client-companies/{clientCompany}/employees/{workAssignment}', [AdminCompanyEmployeeController::class, 'update'])
+        ->whereNumber(['clientCompany', 'workAssignment'])
+        ->name('api.v1.admin.hr.company-employees.update');
+    Route::post('v1/admin/hr/client-companies/{clientCompany}/employees/{workAssignment}/replace', [AdminCompanyEmployeeController::class, 'replace'])
+        ->whereNumber(['clientCompany', 'workAssignment'])
+        ->name('api.v1.admin.hr.company-employees.replace');
+    Route::post('v1/admin/hr/client-companies/{clientCompany}/employees/{workAssignment}/return', [AdminCompanyEmployeeController::class, 'returnEmployee'])
+        ->whereNumber(['clientCompany', 'workAssignment'])
+        ->name('api.v1.admin.hr.company-employees.return');
+    Route::post('v1/admin/hr/client-companies/{clientCompany}/employees/{workAssignment}/stop', [AdminCompanyEmployeeController::class, 'stop'])
+        ->whereNumber(['clientCompany', 'workAssignment'])
+        ->name('api.v1.admin.hr.company-employees.stop');
 });
 
 // HR Excel imports: need the dedicated hr.import permission, which only the Super Admin (implicitly) and the HR Manager

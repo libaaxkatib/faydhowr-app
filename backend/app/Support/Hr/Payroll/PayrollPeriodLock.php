@@ -46,6 +46,21 @@ final class PayrollPeriodLock
         }
     }
 
+    /**
+     * An assignment's start or last day decides the payable days of every payroll month it touches, so moving one may not reach
+     * back into (or before) a month whose payroll is approved or finalized. Such a change is refused, never silently applied.
+     */
+    public function assertAssignmentDateChangeAllowed(string $earliestAffectedDate): void
+    {
+        if ($this->isLockedFrom($earliestAffectedDate)) {
+            throw new HttpResponseException(ApiResponse::error(
+                'This date change affects a payroll month that is approved or finalized. Record a payroll adjustment instead; approved payroll is never rewritten.',
+                'PAYROLL_PERIOD_LOCKED',
+                422,
+            ));
+        }
+    }
+
     public function assertSalaryChangeAllowed(string $effectiveFrom): void
     {
         if ($this->isLockedFrom($effectiveFrom)) {

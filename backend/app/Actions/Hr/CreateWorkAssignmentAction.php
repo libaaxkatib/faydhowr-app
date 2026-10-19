@@ -3,6 +3,7 @@
 namespace App\Actions\Hr;
 
 use App\Enums\AdminRole;
+use App\Enums\AssignmentType;
 use App\Enums\AuditAction;
 use App\Enums\WorkAssignmentStatus;
 use App\Events\Audit\AuditEvent;
@@ -57,6 +58,7 @@ class CreateWorkAssignmentAction
                 'client_company_id' => $companyId,
                 'replaces_assignment_id' => $predecessor?->id,
                 'position_id' => $data['position_id'] ?? null,
+                'assignment_type' => $data['assignment_type'] ?? AssignmentType::Permanent->value,
                 'start_date' => $data['start_date'],
                 'end_date' => $data['end_date'] ?? null,
                 'salary_amount' => $data['salary_amount'],

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AssignmentType;
 use App\Enums\SalaryFrequency;
 use App\Enums\WorkAssignmentStatus;
 use App\Support\Hr\Payroll\PayrollMoney;
@@ -18,6 +19,7 @@ use RuntimeException;
     'client_company_id',
     'replaces_assignment_id',
     'position_id',
+    'assignment_type',
     'start_date',
     'end_date',
     'salary_amount',
@@ -39,6 +41,7 @@ class EmployeeWorkAssignment extends Model
             'salary_amount' => 'decimal:2',
             'salary_frequency' => SalaryFrequency::class,
             'status' => WorkAssignmentStatus::class,
+            'assignment_type' => AssignmentType::class,
         ];
     }
 

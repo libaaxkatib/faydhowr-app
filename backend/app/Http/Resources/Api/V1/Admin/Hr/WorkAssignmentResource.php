@@ -29,6 +29,7 @@ class WorkAssignmentResource extends JsonResource
                 $this->relationLoaded('replaces') && $this->replaces?->end_date !== null,
                 fn () => PositionSuccession::gapDays($this->replaces->end_date, $this->start_date),
             ),
+            'assignment_type' => $this->assignment_type?->value ?? 'permanent',
             'position_id' => $this->position_id,
             'position_name' => $this->whenLoaded('position', fn () => $this->position?->name),
             'start_date' => $this->start_date?->toDateString(),
