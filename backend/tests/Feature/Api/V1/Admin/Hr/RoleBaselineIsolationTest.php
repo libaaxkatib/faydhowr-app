@@ -27,7 +27,7 @@ class RoleBaselineIsolationTest extends TestCase
     /** The earlier, narrower HR grant set: still blocked from payroll and imports. */
     private const HR_WITHOUT_PAYROLL_OR_IMPORT = ['hr.view', 'hr.manage', 'hr.reports.view'];
 
-    private const MARKETING_MANAGER = ['marketing.view', 'marketing.manage', 'marketing.assign', 'marketing.reports.view'];
+    private const MARKETING_MANAGER = ['marketing.view', 'marketing.manage', 'marketing.assign', 'marketing.commission.view', 'marketing.reports.view'];
 
     private const MOBILE_APP_MANAGER = ['dashboard.view', 'customers.view'];
 
