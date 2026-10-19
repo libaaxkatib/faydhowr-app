@@ -17,12 +17,13 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { useAuth } from '@/features/auth/useAuth';
+import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { StatusOverrideDialog } from '@/features/hrm/StatusOverrideDialog';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { formatDate, formatDateTime, initialsOf } from '@/utils/formatters';
 import { assignmentLabel, friendlyErrorMessage, isWorkplaceMissing, localToday, OFFICE_LABEL } from '@/utils/hrHelpers';
 import { submitPracticalDecision } from '@/utils/practicalDecision';
-import type { AttendanceStatus, Employee, EmployeeLeave, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, SalaryFrequency, WorkAssignment } from '@/types/employee';
+import type { AttendanceStatus, Employee, EmployeeDocument, EmployeeLeave, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, SalaryFrequency, WorkAssignment } from '@/types/employee';
 
 const SEPARATION_REASON_OPTIONS: { value: EmployeeSeparationReason; label: string }[] = [
   { value: 'resigned', label: 'Resigned' },
@@ -118,6 +119,10 @@ export function EmployeeDetailPage() {
   const fromLabel = origin?.fromLabel ?? 'Employees';
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { hasPermission } = useEffectivePermissions();
+  // UX only: the server enforces hr.view on the download and hr.manage on the category change.
+  const canDownloadDocuments = hasPermission('hr.view');
+  const canChangeDocumentCategory = hasPermission('hr.manage');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { isSuperAdmin: canOverrideStatus } = useAuth();
@@ -141,6 +146,10 @@ export function EmployeeDetailPage() {
   const [signedDate, setSignedDate] = useState(new Date().toISOString().slice(0, 10));
   const [documentCategoryId, setDocumentCategoryId] = useState('');
   const [practicalBatchId, setPracticalBatchId] = useState('');
+  // Documents card: the document whose category is being corrected, and the category picked for it.
+  const [recategorizing, setRecategorizing] = useState<EmployeeDocument | null>(null);
+  const [recategorizeTo, setRecategorizeTo] = useState('');
+  const [recategorizeError, setRecategorizeError] = useState<string | null>(null);
 
   const { data: employee, isLoading, error, refetch } = useQuery({
     queryKey: ['employee', employeeId],
@@ -374,6 +383,33 @@ export function EmployeeDetailPage() {
     },
     onError: (err) => show(err instanceof Error ? err.message : 'Could not verify document.', 'error'),
   });
+
+  // Opens the stored file through the authenticated download endpoint (no public URL exists). Works for any document,
+  // whatever its category, and for former employees.
+  const downloadDocumentMutation = useMutation({
+    mutationFn: (doc: EmployeeDocument) => hrApi.employees.downloadDocument(employeeId, doc.id, doc.file_name),
+    onError: (err) => show(friendlyErrorMessage(err, 'Could not download the document. Please try again.'), 'error'),
+  });
+
+  // Corrects the category of the EXISTING document: no new document and no re-upload, the file itself is not touched.
+  const recategorizeMutation = useMutation({
+    mutationFn: (payload: { documentId: number; categoryId: number }) =>
+      hrApi.employees.updateDocumentCategory(employeeId, payload.documentId, payload.categoryId),
+    onSuccess: () => {
+      invalidate();
+      show('Document category updated.');
+      setRecategorizing(null);
+      setRecategorizeError(null);
+    },
+    // A refusal ("that category already has a current document …") stays visible in the dialog.
+    onError: (err) => setRecategorizeError(friendlyErrorMessage(err, 'Could not change the category. Please try again.')),
+  });
+
+  const closeRecategorize = () => {
+    setRecategorizing(null);
+    setRecategorizeTo('');
+    setRecategorizeError(null);
+  };
 
   const profilePictureMutation = useMutation({
     mutationFn: (file: File) => hrApi.employees.uploadProfilePicture(employeeId, file),
@@ -1208,7 +1244,7 @@ export function EmployeeDetailPage() {
                         {!doc.is_current && <span className="text-[10px] uppercase text-ink-faint">Superseded</span>}
                       </div>
                       <div className="ml-6 mt-0.5 flex items-center gap-1.5 text-xs text-ink-faint">
-                        {doc.category_name && <span>{doc.category_name}</span>}
+                        <span>{doc.category_name ?? 'No category'}</span>
                         <StatusBadge
                           status={doc.verification_status}
                           tone={doc.verification_status === 'verified' ? 'success' : doc.verification_status === 'rejected' ? 'danger' : 'neutral'}
@@ -1217,6 +1253,31 @@ export function EmployeeDetailPage() {
                     </div>
                     <PermissionGate module="hr">
                       <div className="flex shrink-0 items-center gap-2">
+                        {canDownloadDocuments && (
+                          <button
+                            type="button"
+                            aria-label={`Download ${doc.file_name}`}
+                            disabled={downloadDocumentMutation.isPending}
+                            onClick={() => downloadDocumentMutation.mutate(doc)}
+                            className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
+                          >
+                            Download
+                          </button>
+                        )}
+                        {canChangeDocumentCategory && doc.is_current && employee.profile_picture_document_id !== doc.id && (
+                          <button
+                            type="button"
+                            aria-label={`Change category of ${doc.file_name}`}
+                            onClick={() => {
+                              setRecategorizeError(null);
+                              setRecategorizeTo(doc.employee_document_category_id ? String(doc.employee_document_category_id) : '');
+                              setRecategorizing(doc);
+                            }}
+                            className="text-xs font-medium text-primary hover:underline"
+                          >
+                            Category
+                          </button>
+                        )}
                         {doc.is_current && doc.verification_status === 'pending' && (
                           <button type="button" onClick={() => verifyDocumentMutation.mutate(doc.id)} className="text-xs font-medium text-primary hover:underline">
                             Verify
@@ -1241,6 +1302,46 @@ export function EmployeeDetailPage() {
           </CardBody>
         </Card>
       </div>
+
+      <Modal
+        isOpen={recategorizing !== null}
+        onClose={closeRecategorize}
+        title="Change document category"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={closeRecategorize} disabled={recategorizeMutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              isLoading={recategorizeMutation.isPending}
+              disabled={!recategorizeTo || (recategorizing !== null && String(recategorizing.employee_document_category_id ?? '') === recategorizeTo)}
+              onClick={() => recategorizing && recategorizeMutation.mutate({ documentId: recategorizing.id, categoryId: Number(recategorizeTo) })}
+            >
+              Save category
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-sm text-ink-muted">
+          Moves “{recategorizing?.file_name}” to another category. The file itself is not changed and nothing is uploaded again.
+        </p>
+        <FormField label="Category" htmlFor="doc-recategory" required>
+          <Select
+            id="doc-recategory"
+            value={recategorizeTo}
+            onChange={(e) => setRecategorizeTo(e.target.value)}
+            placeholder="Choose a category…"
+            options={(documentCategories ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
+          />
+        </FormField>
+        {recategorizeError && (
+          <p role="alert" className="mt-3 rounded-sm bg-danger-soft px-3 py-2 text-sm text-danger">
+            {recategorizeError}
+          </p>
+        )}
+      </Modal>
 
       <EmployeeFormDialog isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} mode="edit" employee={employee} />
 

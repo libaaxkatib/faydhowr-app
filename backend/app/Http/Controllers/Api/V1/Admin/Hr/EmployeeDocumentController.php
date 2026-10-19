@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api\V1\Admin\Hr;
 
 use App\Actions\Hr\DeleteEmployeeDocumentAction;
 use App\Actions\Hr\StoreEmployeeDocumentAction;
+use App\Actions\Hr\UpdateEmployeeDocumentCategoryAction;
 use App\Actions\Hr\VerifyEmployeeDocumentAction;
 use App\Enums\DocumentFileState;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Admin\Hr\StoreEmployeeDocumentRequest;
+use App\Http\Requests\Api\V1\Admin\Hr\UpdateEmployeeDocumentCategoryRequest;
 use App\Http\Resources\Api\V1\Admin\Hr\EmployeeDocumentResource;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
@@ -24,6 +26,17 @@ class EmployeeDocumentController extends Controller
         $document = $action->handle($employee, $request->file('file'), $request->safe()->except('file'), $request->user());
 
         return ApiResponse::success('Document uploaded successfully.', new EmployeeDocumentResource($document), 201);
+    }
+
+    public function updateCategory(UpdateEmployeeDocumentCategoryRequest $request, Employee $employee, EmployeeDocument $document, UpdateEmployeeDocumentCategoryAction $action): JsonResponse
+    {
+        if ((int) $document->employee_id !== (int) $employee->id) {
+            return ApiResponse::error('Document was not found.', 'EMPLOYEE_DOCUMENT_NOT_FOUND', 404);
+        }
+
+        $document = $action->handle($employee, $document, (int) $request->validated('employee_document_category_id'), $request->user());
+
+        return ApiResponse::success('Document category updated successfully.', new EmployeeDocumentResource($document));
     }
 
     public function verify(Employee $employee, EmployeeDocument $document, VerifyEmployeeDocumentAction $action): JsonResponse

@@ -1328,6 +1328,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::patch('v1/admin/hr/employees/{employee}/documents/{document}/verify', [AdminEmployeeDocumentController::class, 'verify'])
         ->whereNumber(['employee', 'document'])
         ->name('api.v1.admin.hr.employees.documents.verify');
+    Route::patch('v1/admin/hr/employees/{employee}/documents/{document}/category', [AdminEmployeeDocumentController::class, 'updateCategory'])
+        ->whereNumber(['employee', 'document'])
+        ->name('api.v1.admin.hr.employees.documents.category');
     Route::post('v1/admin/hr/employees/{employee}/profile-picture', [AdminEmployeeProfilePictureController::class, 'store'])
         ->whereNumber('employee')
         ->name('api.v1.admin.hr.employees.profile-picture.store');

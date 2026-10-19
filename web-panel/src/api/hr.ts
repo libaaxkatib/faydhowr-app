@@ -395,6 +395,12 @@ export const hrApi = {
       downloadAuthenticatedFile(`admin/hr/employees/${employeeId}/documents/${documentId}/download`, fileName),
     deleteDocument: (employeeId: number, documentId: number) =>
       apiRequest<null>(`admin/hr/employees/${employeeId}/documents/${documentId}`, { method: 'DELETE' }),
+    /** Corrects the category of an existing document (hr.manage); the file and its checksum are not touched. */
+    updateDocumentCategory: (employeeId: number, documentId: number, categoryId: number) =>
+      apiRequest<EmployeeDocument>(`admin/hr/employees/${employeeId}/documents/${documentId}/category`, {
+        method: 'PATCH',
+        body: { employee_document_category_id: categoryId },
+      }),
     verifyDocument: (employeeId: number, documentId: number) =>
       apiRequest<EmployeeDocument>(`admin/hr/employees/${employeeId}/documents/${documentId}/verify`, { method: 'PATCH' }),
     uploadProfilePicture: (id: number, file: File) => {
