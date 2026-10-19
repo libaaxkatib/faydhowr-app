@@ -14,6 +14,7 @@ import { EmployeeDetailPage } from '@/features/hrm/EmployeeDetailPage';
 import { DepartmentsPage } from '@/features/hrm/DepartmentsPage';
 import { PositionsPage } from '@/features/hrm/PositionsPage';
 import { ClientCompaniesPage } from '@/features/hrm/ClientCompaniesPage';
+import { CompanyEmployeesPage } from '@/features/hrm/CompanyEmployeesPage';
 import { HrReportsPage } from '@/features/hrm/HrReportsPage';
 import { TrainingBatchesPage } from '@/features/hrm/TrainingBatchesPage';
 import { PracticalBatchesPage } from '@/features/hrm/PracticalBatchesPage';
@@ -160,6 +161,7 @@ export default function App() {
         <Route path="/hr/departments" element={<RequirePermission permission="hr.view"><DepartmentsPage /></RequirePermission>} />
         <Route path="/hr/positions" element={<RequirePermission permission="hr.view"><PositionsPage /></RequirePermission>} />
         <Route path="/hr/companies" element={<RequirePermission permission="hr.view"><ClientCompaniesPage /></RequirePermission>} />
+        <Route path="/hr/companies/:id/employees" element={<RequirePermission permission="hr.view"><CompanyEmployeesPage /></RequirePermission>} />
         <Route path="/hr/payroll" element={<RequirePermission permission="hr.payroll.view"><PayrollRunsPage /></RequirePermission>} />
         <Route path="/hr/imports" element={<RequirePermission permission="hr.import"><ExcelImportsPage /></RequirePermission>} />
         <Route path="/hr/reports" element={<RequirePermission permission="hr.reports.view"><HrReportsPage /></RequirePermission>} />

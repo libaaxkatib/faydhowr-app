@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { hrApi } from '@/api/hr';
 import { ApiClientError } from '@/api/client';
@@ -146,6 +146,11 @@ export function ClientCompaniesPage() {
                   <p className="text-xs text-ink-faint">Also known as: {company.aliases.map((a) => a.alias).join(', ')}</p>
                 )}
               </div>
+              <div className="flex items-center gap-1">
+              <Link to={`/hr/companies/${company.id}/employees`} className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-border px-2.5 text-xs font-semibold text-ink hover:bg-surface-alt">
+                <Icon name="users" size={14} />
+                Employees
+              </Link>
               <PermissionGate module="hr">
                 <div className="flex items-center gap-1">
                   <Button variant="outline" size="sm" onClick={() => setLocationModal({ clientCompanyId: company.id, editing: null })}>
@@ -160,6 +165,7 @@ export function ClientCompaniesPage() {
                   </button>
                 </div>
               </PermissionGate>
+              </div>
             </CardHeader>
             <CardBody>
               {!company.work_locations || company.work_locations.length === 0 ? (
