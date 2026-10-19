@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { hrApi } from '@/api/hr';
+import { ApiClientError } from '@/api/client';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -55,7 +56,8 @@ export function PositionsPage() {
       show(editing ? 'Position updated.' : 'Position created.');
       setIsOpen(false);
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Something went wrong.', 'error'),
+    // Show the real reason (for example "A position with this name already exists.") instead of a generic message.
+    onError: (err) => show(err instanceof ApiClientError ? (err.fieldErrors?.name?.[0] ?? err.message) : err instanceof Error ? err.message : 'Something went wrong.', 'error'),
   });
 
   const deleteMutation = useMutation({

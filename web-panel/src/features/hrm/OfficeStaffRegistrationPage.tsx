@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FormField, inputClasses } from '@/components/ui/FormField';
+import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { SearchInput } from '@/components/ui/SearchInput';
@@ -14,6 +15,9 @@ import { useToast } from '@/components/ui/useToast';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { duplicateMatchesFromError, friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import { OFFICE_STAFF_CATEGORY } from '@/utils/employeeCategories';
+import { decideCreatePosition } from '@/utils/positions';
+import { ApiClientError } from '@/api/client';
+import type { Position } from '@/types/employee';
 import {
   ALLOWED_DOCUMENT_EXTENSIONS,
   buildPayload,
@@ -60,6 +64,9 @@ export function OfficeStaffRegistrationPage() {
   const [staged, setStaged] = useState<StagedFiles>({});
   const [stagedErrors, setStagedErrors] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<{ summary: OfficeStaffSummary; uploadFailures: string[] } | null>(null);
+  const [isPositionDialogOpen, setIsPositionDialogOpen] = useState(false);
+  const [newPositionName, setNewPositionName] = useState('');
+  const [newPositionError, setNewPositionError] = useState('');
   const debouncedSearch = useDebouncedValue(search);
 
   const { data: positions } = useQuery({ queryKey: ['positions'], queryFn: hrApi.positions.list });
@@ -151,6 +158,46 @@ export function OfficeStaffRegistrationPage() {
       show(friendlyErrorMessage(error, 'Could not save.'), 'error');
     },
   });
+
+  // "Create position": a small dialog on top of THIS page, so everything already typed in the form stays exactly as it is.
+  const openCreatePosition = () => {
+    setNewPositionName('');
+    setNewPositionError('');
+    setIsPositionDialogOpen(true);
+  };
+
+  const createPositionMutation = useMutation({
+    mutationFn: (name: string) => hrApi.positions.create({ name }),
+    onSuccess: (created) => {
+      queryClient.setQueryData<Position[]>(['positions'], (current) => [...(current ?? []).filter((p) => p.id !== created.id), created].sort((a, b) => a.name.localeCompare(b.name)));
+      queryClient.invalidateQueries({ queryKey: ['positions'] });
+      setForm((current) => ({ ...current, position_id: String(created.id) }));
+      setIsPositionDialogOpen(false);
+      show(`Position "${created.name}" created and selected.`);
+    },
+    onError: async (error) => {
+      const message = error instanceof ApiClientError ? (error.fieldErrors?.name?.[0] ?? error.message) : friendlyErrorMessage(error, 'Could not create the position.');
+      setNewPositionError(message);
+      // Someone else may have just created it: refresh the list so it can be picked instead.
+      await queryClient.invalidateQueries({ queryKey: ['positions'] });
+    },
+  });
+
+  const saveNewPosition = () => {
+    const decision = decideCreatePosition(positions ?? [], newPositionName);
+
+    if (decision.kind === 'invalid') {
+      setNewPositionError(decision.message);
+    } else if (decision.kind === 'use_existing') {
+      // Already there (any letter case or spacing): select it rather than creating a duplicate.
+      setForm((current) => ({ ...current, position_id: String(decision.id) }));
+      setIsPositionDialogOpen(false);
+      show(`"${decision.name}" already exists - it has been selected.`);
+    } else {
+      setNewPositionError('');
+      createPositionMutation.mutate(decision.name);
+    }
+  };
 
   const submit = () => {
     setShowErrors(true);
@@ -259,6 +306,9 @@ export function OfficeStaffRegistrationPage() {
                 )}
                 <FormField label="Position / job title" htmlFor="os-position" required error={errors.position_id} hint={mode === 'existing' && selected?.position_name ? `Currently recorded: ${selected.position_name}` : 'Positions are managed under Human Resources > Positions.'}>
                   <Select id="os-position" value={form.position_id} onChange={(e) => setField('position_id')(e.target.value)} options={(positions ?? []).map((p) => ({ value: String(p.id), label: p.name }))} placeholder="Choose a position…" />
+                  <button type="button" onClick={openCreatePosition} className="mt-1.5 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                    + Create position
+                  </button>
                 </FormField>
                 <TextField
                   id="os-salary" label="Monthly salary (USD)" required inputMode="decimal" value={form.monthly_salary} onChange={setField('monthly_salary')} error={errors.monthly_salary}
@@ -349,6 +399,31 @@ export function OfficeStaffRegistrationPage() {
       )}
 
       {mode === 'existing' && !selected && !isSearching && debouncedSearch.trim().length < 2 && <p className="text-sm text-ink-muted">Search for an employee above to continue.</p>}
+
+      <Modal
+        isOpen={isPositionDialogOpen}
+        onClose={() => setIsPositionDialogOpen(false)}
+        title="Create position"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setIsPositionDialogOpen(false)}>Cancel</Button>
+            <Button size="sm" isLoading={createPositionMutation.isPending} onClick={saveNewPosition}>Create and select</Button>
+          </>
+        }
+      >
+        <FormField label="Position name" htmlFor="os-new-position" required error={newPositionError} hint="Positions never carry a salary. The salary is entered for each employee.">
+          <input
+            id="os-new-position"
+            className={inputClasses}
+            value={newPositionName}
+            maxLength={150}
+            autoFocus
+            onChange={(e) => { setNewPositionName(e.target.value); setNewPositionError(''); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveNewPosition(); } }}
+          />
+        </FormField>
+      </Modal>
     </div>
   );
 }
