@@ -6,6 +6,8 @@ use App\Enums\LeaveType;
 use App\Models\EmployeeLeave;
 use App\Models\TemporaryReplacement;
 use App\Models\TemporaryReplacementWorkday;
+use App\Support\ApiResponse;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
  * Bridges stored replacements to the pure ReplacementCostCalculator: builds the
@@ -23,7 +25,11 @@ class ReplacementCostService
     public function forPeriod(TemporaryReplacement $replacement, string $period): array
     {
         $assignment = $replacement->workAssignment()->firstOrFail();
-        $salary = new SalaryTimeline($assignment->monthlySalaryPeriods());
+        try {
+            $salary = new SalaryTimeline($assignment->monthlySalaryPeriods());
+        } catch (\RuntimeException $e) {
+            throw new HttpResponseException(ApiResponse::error($e->getMessage(), 'PAYROLL_UNSUPPORTED_SALARY', 422));
+        }
 
         $workdays = $replacement->workdays()
             ->where('status', '!=', TemporaryReplacementWorkday::STATUS_VOID)

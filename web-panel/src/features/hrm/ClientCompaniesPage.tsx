@@ -17,6 +17,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
+import { MultiCompanyPolicyCard } from '@/features/hrm/companyEmployees/MultiCompanyPolicyCard';
 import { formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import { CATEGORY_FILTERS, categoryCounts, filterByCategory, isInternalOffice, parseCategoryFilter } from '@/utils/clientCompanyFilter';
@@ -98,6 +99,8 @@ export function ClientCompaniesPage() {
           </PermissionGate>
         }
       />
+
+      <MultiCompanyPolicyCard />
 
       {companies && companies.length > 0 && (
         <div role="group" aria-label="Filter by category" className="mb-4 flex flex-wrap items-center gap-2">

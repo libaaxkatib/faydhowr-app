@@ -68,9 +68,19 @@ class ListCompanyEmployeesAction
             ->get()
             ->groupBy('employee_id');
 
+        $others = $employeeIds === [] ? collect() : EmployeeWorkAssignment::query()
+            ->with(['clientCompany', 'workLocation'])
+            ->whereIn('employee_id', $employeeIds)
+            ->where('client_company_id', '!=', $company->id)
+            ->where('status', '!=', WorkAssignmentStatus::Cancelled)
+            ->whereDate('start_date', '<=', $monthEnd->toDateString())
+            ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $monthStart->toDateString()))
+            ->get()
+            ->groupBy('employee_id');
+
         $payrollInfo = $withPayroll ? $this->payrollFor($period, $assignments) : null;
 
-        $rows = $assignments->map(fn (EmployeeWorkAssignment $a): array => $this->row($a, $monthStart, $monthEnd, $daysInMonth, $attendance->get($a->employee_id, collect()), $payrollInfo));
+        $rows = $assignments->map(fn (EmployeeWorkAssignment $a): array => $this->row($a, $monthStart, $monthEnd, $daysInMonth, $attendance->get($a->employee_id, collect()), $payrollInfo, $others->get($a->employee_id, collect())));
 
         return [
             'period' => $period,
@@ -81,7 +91,7 @@ class ListCompanyEmployeesAction
     }
 
     /** @param  Collection<int, EmployeeAttendance>  $marks */
-    private function row(EmployeeWorkAssignment $a, CarbonImmutable $monthStart, CarbonImmutable $monthEnd, int $daysInMonth, $marks, ?array $payrollInfo): array
+    private function row(EmployeeWorkAssignment $a, CarbonImmutable $monthStart, CarbonImmutable $monthEnd, int $daysInMonth, $marks, ?array $payrollInfo, $otherAssignments): array
     {
         $from = $a->start_date->greaterThan($monthStart) ? CarbonImmutable::parse($a->start_date) : $monthStart;
         $to = $a->end_date !== null && $a->end_date->lessThan($monthEnd) ? CarbonImmutable::parse($a->end_date) : $monthEnd;
@@ -106,6 +116,8 @@ class ListCompanyEmployeesAction
             'start_date' => $a->start_date->toDateString(),
             'end_date' => $a->end_date?->toDateString(),
             'status' => $a->status->value,
+            // The same employee's assignments at OTHER companies in this month (only when multiple-company assignments are on).
+            'also_assigned_at' => $otherAssignments->map(fn (EmployeeWorkAssignment $o): array => ['assignment_id' => $o->id, 'company_id' => $o->client_company_id, 'company_name' => $o->clientCompany?->name ?? $o->workLocation?->name])->values()->all(),
             'salary' => $salary,
             'salary_changed_in_period' => $changedInPeriod,
             // Whether this assignment still holds the position on the month's last day. A replaced employee and their replacement

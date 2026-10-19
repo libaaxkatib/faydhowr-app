@@ -263,6 +263,11 @@ function EmployeeRow({ row, showPayroll, canManage, onEdit, onReplace, onReturn,
       <td className="min-w-[190px] px-4 py-3">
         <Link to={`/hr/employees/${row.employee_id}`} className="font-medium text-ink hover:text-primary hover:underline">{row.full_name}</Link>
         <span className="block text-xs text-ink-muted">{row.employee_number} · HR id {row.employee_id}</span>
+        {row.also_assigned_at.length > 0 && (
+          <span className="block text-xs text-warning" title="Attendance marks belong to the employee, so they appear under each company. An absence is charged once.">
+            Also at {row.also_assigned_at.map((o) => o.company_name).join(', ')}
+          </span>
+        )}
       </td>
       <td className="px-3 py-3 text-ink">{row.position_name ?? <span className="text-ink-faint">—</span>}</td>
       <td className="px-3 py-3">

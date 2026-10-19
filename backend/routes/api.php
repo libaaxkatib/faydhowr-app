@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeStatusController as AdminEmploy
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeUniformController as AdminEmployeeUniformController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeWorkAssignmentController as AdminEmployeeWorkAssignmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrDashboardController as AdminHrDashboardController;
+use App\Http\Controllers\Api\V1\Admin\Hr\HrPolicyController as AdminHrPolicyController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrReportsController as AdminHrReportsController;
 use App\Http\Controllers\Api\V1\Admin\Hr\ImportController as AdminHrImportController;
 use App\Http\Controllers\Api\V1\Admin\Hr\MonthlyPaymentReportController as AdminMonthlyPaymentReportController;
@@ -1458,6 +1459,12 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'permission:
         ->whereNumber(['clientCompany', 'workAssignment'])
         ->name('api.v1.admin.hr.company-employees.stop');
 });
+
+// HR policies: anyone who may view HR can see them; only the Super Admin can change one (route role check + the action re-checks).
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.view', 'throttle:admin-operations'])->get('v1/admin/hr/policies', [AdminHrPolicyController::class, 'index'])
+    ->name('api.v1.admin.hr.policies.index');
+Route::middleware(['auth:sanctum', 'admin', 'super_admin', 'throttle:admin-operations'])->put('v1/admin/hr/policies/{key}', [AdminHrPolicyController::class, 'update'])
+    ->name('api.v1.admin.hr.policies.update');
 
 // HR Excel imports: need the dedicated hr.import permission, which only the Super Admin (implicitly) and the HR Manager
 // role can hold - it can never be granted to another role (see AdminPermission::restrictedToRoles()).

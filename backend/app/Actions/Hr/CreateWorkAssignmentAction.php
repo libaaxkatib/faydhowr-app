@@ -14,6 +14,7 @@ use App\Models\EmployeeWorkAssignment;
 use App\Models\WorkLocation;
 use App\Support\ApiResponse;
 use App\Support\Hr\CompanyLocationResolver;
+use App\Support\Hr\ConcurrentAssignmentGuard;
 use App\Support\Hr\PositionSuccession;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -47,6 +48,7 @@ class CreateWorkAssignmentAction
         $companyId = CompanyLocationResolver::resolve($workLocation, $data['client_company_id'] ?? null);
 
         $this->guardAgainstDuplicates($employee, $workLocation, $companyId);
+        ConcurrentAssignmentGuard::assertAllowed($employee, $companyId, CarbonImmutable::parse($data['start_date'])->startOfDay(), empty($data['end_date']) ? null : CarbonImmutable::parse($data['end_date'])->startOfDay());
         $this->guardCapacity($workLocation, $data, $actor);
 
         return DB::transaction(function () use ($employee, $data, $actor, $workLocation, $companyId) {

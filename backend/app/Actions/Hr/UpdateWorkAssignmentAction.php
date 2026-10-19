@@ -13,6 +13,7 @@ use App\Models\EmployeeWorkAssignment;
 use App\Models\WorkLocation;
 use App\Support\ApiResponse;
 use App\Support\Hr\CompanyLocationResolver;
+use App\Support\Hr\ConcurrentAssignmentGuard;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\Payroll\PayrollPeriodLock;
 use App\Support\Hr\PositionSuccession;
@@ -42,6 +43,7 @@ class UpdateWorkAssignmentAction
 
         $this->guardSuccession($assignment, $data);
         $this->guardPayrollDates($assignment, $data);
+        $this->guardConcurrency($assignment, $data);
 
         $before = [
             'position_id' => $assignment->position_id,
@@ -84,6 +86,19 @@ class UpdateWorkAssignmentAction
         ));
 
         return $assignment->load(['workLocation.clientCompany', 'clientCompany', 'position']);
+    }
+
+    /** Moving the dates may not make this assignment overlap another assignment of the same employee (unless multi-company is on). */
+    private function guardConcurrency(EmployeeWorkAssignment $assignment, array $data): void
+    {
+        if (! array_key_exists('start_date', $data) && ! array_key_exists('end_date', $data)) {
+            return;
+        }
+
+        $start = CarbonImmutable::parse($data['start_date'] ?? $assignment->start_date)->startOfDay();
+        $endValue = $data['end_date'] ?? $assignment->end_date;
+
+        ConcurrentAssignmentGuard::assertAllowed($assignment->employee, $assignment->client_company_id, $start, $endValue === null ? null : CarbonImmutable::parse($endValue)->startOfDay(), $assignment->id);
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Enums\EmployeeStatus;
 use App\Enums\WorkAssignmentStatus;
 use App\Models\ClientCompany;
 use App\Models\Employee;
+use App\Support\Hr\ConcurrentAssignmentGuard;
 
 /**
  * The searchable employee picker. It searches the existing HR register by its unique identifiers (HR id, employee number) and,
@@ -63,9 +64,12 @@ class SearchCompanyEmployeeCandidatesAction
         $active = $e->workAssignments;
         $here = $active->contains(fn ($a): bool => (int) $a->client_company_id === (int) $company->id);
 
+        $elsewhere = $active->filter(fn ($a): bool => $a->client_company_id !== null && (int) $a->client_company_id !== (int) $company->id && ($a->end_date === null || $a->end_date->gte(now()->startOfDay())));
+
         $reason = match (true) {
             $e->status !== EmployeeStatus::Active => "{$e->status->value} in HR - only Active employees can be assigned",
             $here => 'already has an active assignment at this company',
+            ! ConcurrentAssignmentGuard::enabled() && $elsewhere->isNotEmpty() => 'already assigned at '.$elsewhere->map(fn ($a): string => (string) $a->clientCompany?->name)->unique()->implode(', ').'; multiple-company assignments are not enabled',
             default => null,
         };
 

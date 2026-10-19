@@ -48,7 +48,11 @@ class RecordReplacementWorkdaysAction
             $this->fail('At least one workday date is required.', 'WORKDAY_DATES_REQUIRED');
         }
 
-        $salary = new SalaryTimeline($assignment->monthlySalaryPeriods());
+        try {
+            $salary = new SalaryTimeline($assignment->monthlySalaryPeriods());
+        } catch (\RuntimeException $e) {
+            $this->fail($e->getMessage(), 'PAYROLL_UNSUPPORTED_SALARY');
+        }
         $today = CarbonImmutable::now()->startOfDay();
 
         foreach ($dates as $date) {

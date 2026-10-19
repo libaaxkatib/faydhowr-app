@@ -37,6 +37,8 @@ export interface CompanyEmployeeRow {
   start_date: string;
   end_date: string | null;
   status: CompanyAssignmentStatus;
+  /** The same employee's assignments at OTHER companies in this month (only with multiple-company assignments on). */
+  also_assigned_at: { assignment_id: number; company_id: number | null; company_name: string | null }[];
   salary: CompanyEmployeeSalary;
   salary_changed_in_period: boolean;
   payable_days: number;
