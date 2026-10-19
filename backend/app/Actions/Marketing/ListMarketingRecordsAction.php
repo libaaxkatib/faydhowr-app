@@ -2,14 +2,19 @@
 
 namespace App\Actions\Marketing;
 
+use App\Models\Admin;
 use App\Models\MarketingRecord;
+use App\Support\Marketing\MarketingScope;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class ListMarketingRecordsAction
 {
-    public function handle(array $filters): LengthAwarePaginator
+    public function handle(array $filters, Admin $actor): LengthAwarePaginator
     {
-        $query = MarketingRecord::query()->with(['assignedTeam', 'assignedAdmin', 'broughtByAdmin', 'xarunDetail', 'projectDetail']);
+        $query = MarketingScope::records(
+            MarketingRecord::query()->with(['assignedTeam', 'assignedAdmin', 'broughtByAdmin', 'xarunDetail', 'projectDetail']),
+            $actor,
+        );
 
         if (! empty($filters['search'])) {
             $search = $filters['search'];

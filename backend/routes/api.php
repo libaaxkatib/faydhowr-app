@@ -1619,6 +1619,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.manage', 'thro
     Route::post('v1/admin/marketing/records/{record}/commission', [AdminMarketingCommissionController::class, 'storeRecord'])
         ->whereNumber('record')
         ->name('api.v1.admin.marketing.records.commission.store');
+    Route::patch('v1/admin/marketing/commission/records/{commissionRecord}', [AdminMarketingCommissionController::class, 'updateRecord'])
+        ->whereNumber('commissionRecord')
+        ->name('api.v1.admin.marketing.commission.records.update');
 });
 
 Route::middleware('auth:sanctum')->prefix('v1/notifications')->group(function (): void {

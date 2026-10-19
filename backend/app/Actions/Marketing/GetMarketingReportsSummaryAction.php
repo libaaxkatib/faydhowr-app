@@ -2,8 +2,10 @@
 
 namespace App\Actions\Marketing;
 
+use App\Models\Admin;
 use App\Models\MarketingRecord;
 use App\Models\MarketingTeam;
+use App\Support\Marketing\MarketingScope;
 use Carbon\CarbonImmutable;
 
 /**
@@ -14,12 +16,12 @@ use Carbon\CarbonImmutable;
  */
 class GetMarketingReportsSummaryAction
 {
-    public function handle(array $filters): array
+    public function handle(array $filters, Admin $actor): array
     {
         $from = $filters['from'] ?? CarbonImmutable::now()->subDays(30)->toDateString();
         $to = $filters['to'] ?? CarbonImmutable::now()->toDateString();
 
-        $baseQuery = MarketingRecord::query()->whereBetween('created_at', ["{$from} 00:00:00", "{$to} 23:59:59"]);
+        $baseQuery = MarketingScope::records(MarketingRecord::query(), $actor)->whereBetween('created_at', ["{$from} 00:00:00", "{$to} 23:59:59"]);
 
         if (! empty($filters['assigned_team_id'])) {
             $baseQuery->where('assigned_team_id', $filters['assigned_team_id']);
@@ -48,8 +50,10 @@ class GetMarketingReportsSummaryAction
             ->pluck('total', 'type');
 
         $teamBreakdown = MarketingTeam::query()
+            ->when(! MarketingScope::unrestricted($actor), fn ($query) => $query->whereIn('id', MarketingScope::teamIds($actor)))
             ->when(! empty($filters['assigned_team_id']), fn ($query) => $query->where('id', $filters['assigned_team_id']))
-            ->withCount(['records' => function ($query) use ($from, $to, $filters) {
+            ->withCount(['records' => function ($query) use ($from, $to, $filters, $actor) {
+                MarketingScope::records($query, $actor);
                 $query->whereBetween('created_at', ["{$from} 00:00:00", "{$to} 23:59:59"]);
 
                 if (! empty($filters['assigned_admin_id'])) {

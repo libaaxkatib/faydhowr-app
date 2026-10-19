@@ -25,6 +25,7 @@ class StoreCommissionRecordRequest extends FormRequest
             'admin_id' => ['required', 'integer', 'exists:admins,id'],
             'reference_date' => ['required', 'date'],
             'notes' => ['nullable', 'string'],
+            'amount' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99'],
         ];
     }
 

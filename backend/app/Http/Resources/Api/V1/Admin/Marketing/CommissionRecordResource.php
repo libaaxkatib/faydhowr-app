@@ -6,9 +6,9 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * amount/status reflect the foundation-only state — amount is null and
- * status is 'pending_calculation' until management approves a formula and
- * a future calculation step runs. Never fabricated here.
+ * amount is null (status 'pending_calculation') until a manager types the
+ * agreed figure, which makes the entry 'recorded'. No formula is applied and
+ * nothing is ever calculated or fabricated here.
  */
 class CommissionRecordResource extends JsonResource
 {

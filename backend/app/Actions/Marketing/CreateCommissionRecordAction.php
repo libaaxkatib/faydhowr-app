@@ -26,8 +26,8 @@ class CreateCommissionRecordAction
             'type' => $record->type,
             'reference_date' => $data['reference_date'],
             'commission_rate_id' => null,
-            'amount' => null,
-            'status' => CommissionStatus::PendingCalculation,
+            'amount' => $data['amount'] ?? null,
+            'status' => isset($data['amount']) ? CommissionStatus::Recorded : CommissionStatus::PendingCalculation,
             'notes' => $data['notes'] ?? null,
         ]);
 
@@ -37,7 +37,7 @@ class CreateCommissionRecordAction
             description: "Commission entry logged for marketing record '{$record->record_number}'.",
             entityType: CommissionRecord::class,
             entityId: $commissionRecord->id,
-            metadata: ['marketing_record_id' => $record->id, 'admin_id' => $data['admin_id']],
+            metadata: ['marketing_record_id' => $record->id, 'admin_id' => $data['admin_id'], 'amount' => $data['amount'] ?? null],
         ));
 
         return $commissionRecord->load(['admin', 'marketingRecord']);

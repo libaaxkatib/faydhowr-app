@@ -15,17 +15,20 @@ use App\Http\Requests\Api\V1\Admin\Marketing\UpdateMarketingTeamRequest;
 use App\Http\Resources\Api\V1\Admin\Marketing\MarketingTeamResource;
 use App\Models\MarketingTeam;
 use App\Support\ApiResponse;
+use App\Support\Marketing\MarketingScope;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class MarketingTeamController extends Controller
 {
-    public function index(ListMarketingTeamsAction $action): JsonResponse
+    public function index(Request $request, ListMarketingTeamsAction $action): JsonResponse
     {
-        return ApiResponse::success('Marketing teams retrieved successfully.', MarketingTeamResource::collection($action->handle()));
+        return ApiResponse::success('Marketing teams retrieved successfully.', MarketingTeamResource::collection($action->handle($request->user())));
     }
 
     public function store(StoreMarketingTeamRequest $request, CreateMarketingTeamAction $action): JsonResponse
     {
+        MarketingScope::requireUnrestricted(request()->user(), 'Only the Marketing Manager can create marketing teams.');
         $team = $action->handle($request->validated(), $request->user());
 
         return ApiResponse::success('Marketing team created successfully.', new MarketingTeamResource($team), 201);
@@ -33,6 +36,7 @@ class MarketingTeamController extends Controller
 
     public function update(UpdateMarketingTeamRequest $request, MarketingTeam $team, UpdateMarketingTeamAction $action): JsonResponse
     {
+        MarketingScope::requireUnrestricted(request()->user(), 'Only the Marketing Manager can change marketing teams.');
         $team = $action->handle($team, $request->validated(), $request->user());
 
         return ApiResponse::success('Marketing team updated successfully.', new MarketingTeamResource($team));
@@ -40,6 +44,7 @@ class MarketingTeamController extends Controller
 
     public function destroy(MarketingTeam $team, DeleteMarketingTeamAction $action): JsonResponse
     {
+        MarketingScope::requireUnrestricted(request()->user(), 'Only the Marketing Manager can delete marketing teams.');
         $action->handle($team, request()->user());
 
         return ApiResponse::success('Marketing team deleted successfully.');
@@ -47,6 +52,7 @@ class MarketingTeamController extends Controller
 
     public function addMember(AddMarketingTeamMemberRequest $request, MarketingTeam $team, AddMarketingTeamMemberAction $action): JsonResponse
     {
+        MarketingScope::requireUnrestricted(request()->user(), 'Only the Marketing Manager can change team membership.');
         $team = $action->handle($team, (int) $request->validated('admin_id'), $request->user());
 
         return ApiResponse::success('Member added successfully.', new MarketingTeamResource($team));
@@ -54,6 +60,7 @@ class MarketingTeamController extends Controller
 
     public function removeMember(MarketingTeam $team, int $admin, RemoveMarketingTeamMemberAction $action): JsonResponse
     {
+        MarketingScope::requireUnrestricted(request()->user(), 'Only the Marketing Manager can change team membership.');
         $team = $action->handle($team, $admin, request()->user());
 
         return ApiResponse::success('Member removed successfully.', new MarketingTeamResource($team));

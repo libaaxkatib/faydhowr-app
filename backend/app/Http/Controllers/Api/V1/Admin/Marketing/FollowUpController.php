@@ -20,17 +20,20 @@ use App\Http\Resources\Api\V1\Admin\Marketing\FollowUpResource;
 use App\Models\FollowUp;
 use App\Models\MarketingRecord;
 use App\Support\ApiResponse;
+use App\Support\Marketing\MarketingScope;
 use Illuminate\Http\JsonResponse;
 
 class FollowUpController extends Controller
 {
     public function index(ListFollowUpsRequest $request, ListFollowUpsAction $action): JsonResponse
     {
-        return ApiResponse::success('Follow-ups retrieved successfully.', FollowUpResource::collection($action->handle($request->validated())));
+        return ApiResponse::success('Follow-ups retrieved successfully.', FollowUpResource::collection($action->handle($request->validated(), $request->user())));
     }
 
     public function store(StoreFollowUpRequest $request, MarketingRecord $record, CreateFollowUpAction $action): JsonResponse
     {
+        MarketingScope::authorizeRecord($record, $request->user());
+        MarketingScope::guardAssignment($request->user(), null, $request->validated('assigned_admin_id'));
         $followUp = $action->handle($record, $request->validated(), $request->user());
 
         return ApiResponse::success('Follow-up scheduled successfully.', new FollowUpResource($followUp), 201);
@@ -38,6 +41,7 @@ class FollowUpController extends Controller
 
     public function complete(CompleteFollowUpRequest $request, FollowUp $followUp, CompleteFollowUpAction $action): JsonResponse
     {
+        MarketingScope::authorizeFollowUp($followUp, $request->user());
         $followUp = $action->handle($followUp, $request->validated('note'), $request->user());
 
         return ApiResponse::success('Follow-up marked completed.', new FollowUpResource($followUp));
@@ -45,6 +49,7 @@ class FollowUpController extends Controller
 
     public function reschedule(RescheduleFollowUpRequest $request, FollowUp $followUp, RescheduleFollowUpAction $action): JsonResponse
     {
+        MarketingScope::authorizeFollowUp($followUp, $request->user());
         $followUp = $action->handle($followUp, $request->validated('follow_up_date'), $request->validated('note'), $request->user());
 
         return ApiResponse::success('Follow-up rescheduled successfully.', new FollowUpResource($followUp));
@@ -52,6 +57,7 @@ class FollowUpController extends Controller
 
     public function addFeedback(AddFollowUpFeedbackRequest $request, FollowUp $followUp, AddFollowUpFeedbackAction $action): JsonResponse
     {
+        MarketingScope::authorizeFollowUp($followUp, $request->user());
         $followUp = $action->handle($followUp, $request->validated('feedback'), $request->user());
 
         return ApiResponse::success('Feedback added successfully.', new FollowUpResource($followUp));
@@ -59,6 +65,7 @@ class FollowUpController extends Controller
 
     public function updateRecordStatus(UpdateFollowUpRecordStatusRequest $request, FollowUp $followUp, UpdateFollowUpRecordStatusAction $action): JsonResponse
     {
+        MarketingScope::authorizeFollowUp($followUp, $request->user());
         $followUp = $action->handle($followUp, MarketingRecordStatus::from($request->validated('status')), $request->user());
 
         return ApiResponse::success('Marketing record status updated successfully.', new FollowUpResource($followUp));

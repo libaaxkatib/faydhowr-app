@@ -2,7 +2,9 @@
 
 namespace App\Actions\Marketing;
 
+use App\Models\Admin;
 use App\Models\FollowUp;
+use App\Support\Marketing\MarketingScope;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -13,15 +15,15 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class ListFollowUpsAction
 {
-    public function handle(array $filters): Collection
+    public function handle(array $filters, Admin $actor): Collection
     {
-        $query = FollowUp::query()->with([
+        $query = MarketingScope::followUps(FollowUp::query()->with([
             'marketingRecord.xarunDetail',
             'marketingRecord.projectDetail',
             'marketingRecord.assignedTeam',
             'assignedAdmin',
             'histories.performedBy',
-        ]);
+        ]), $actor);
 
         if (! empty($filters['assigned_admin_id'])) {
             $query->where('assigned_admin_id', $filters['assigned_admin_id']);

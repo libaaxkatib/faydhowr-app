@@ -11,12 +11,14 @@ use App\Http\Requests\Api\V1\Admin\Marketing\UpdateXarunRequest;
 use App\Http\Resources\Api\V1\Admin\Marketing\MarketingRecordResource;
 use App\Models\MarketingRecord;
 use App\Support\ApiResponse;
+use App\Support\Marketing\MarketingScope;
 use Illuminate\Http\JsonResponse;
 
 class XarunController extends Controller
 {
     public function store(StoreXarunRequest $request, CreateXarunRecordAction $action): JsonResponse
     {
+        MarketingScope::guardAssignment($request->user(), $request->validated('assigned_team_id'), $request->validated('assigned_admin_id'));
         $record = $action->handle($request->validated(), $request->user());
 
         return ApiResponse::success('XARUN registered successfully.', new MarketingRecordResource($record), 201);
@@ -28,6 +30,8 @@ class XarunController extends Controller
             return ApiResponse::error('This record is not a XARUN.', 'MARKETING_RECORD_TYPE_MISMATCH', 422);
         }
 
+        MarketingScope::authorizeRecord($record, $request->user());
+        MarketingScope::guardAssignment($request->user(), $request->validated('assigned_team_id'), $request->validated('assigned_admin_id'));
         $record = $action->handle($record, $request->validated(), $request->user());
 
         return ApiResponse::success('XARUN updated successfully.', new MarketingRecordResource($record));

@@ -5,6 +5,7 @@ namespace App\Actions\Marketing;
 use App\Enums\AdminRole;
 use App\Enums\AdminStatus;
 use App\Models\Admin;
+use App\Support\Marketing\MarketingScope;
 use Illuminate\Database\Eloquent\Collection;
 
 /**
@@ -16,13 +17,17 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class ListMarketingEmployeesAction
 {
-    public function handle(): Collection
+    public function handle(Admin $actor): Collection
     {
-        return Admin::query()
+        $query = Admin::query()
             ->whereIn('role', [AdminRole::MarketingManager->value, AdminRole::MarketingEmployee->value])
             ->where('status', AdminStatus::Active->value)
-            ->with('marketingTeams')
-            ->orderBy('full_name')
-            ->get();
+            ->with('marketingTeams');
+
+        if (! MarketingScope::unrestricted($actor)) {
+            $query->whereHas('marketingTeams', fn ($teams) => $teams->whereIn('marketing_teams.id', MarketingScope::teamIds($actor)));
+        }
+
+        return $query->orderBy('full_name')->get();
     }
 }
