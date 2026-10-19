@@ -22,7 +22,7 @@ class ApplyWorkbookPlanCommand extends Command
     protected $signature = 'hr:apply-workbook-plan
         {--companies= : CSV of companies to register (name,category,aliases)}
         {--employees= : CSV of approved employees (source_row,employee_id,employee_number,name_key,expected_status,company,salary,start_date)}
-        {--step=* : companies, status and/or assignments (default: all that have a file)}
+        {--step=* : companies, status, assignments and/or payments (default: companies, status and assignments for the files given; payments only when asked for)}
         {--note=Approved as working in the company workbook (EMPLOYEE AND COMPANY.xlsx) : Status-history note for the Active transition}
         {--source-label=EMPLOYEE AND COMPANY.xlsx : Name of the approved workbook, recorded in status history, assignment notes and company aliases}
         {--joining-date= : Set employees.joining_date (only where empty), e.g. 2026-10-01}
@@ -57,7 +57,7 @@ class ApplyWorkbookPlanCommand extends Command
 
         try {
             $companies = in_array('companies', $steps, true) ? $reader->companies((string) $this->option('companies')) : [];
-            $employees = array_intersect(['status', 'assignments'], $steps) !== [] ? $reader->employees((string) $this->option('employees')) : [];
+            $employees = array_intersect(['status', 'assignments', 'payments'], $steps) !== [] ? $reader->employees((string) $this->option('employees')) : [];
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
 
@@ -88,6 +88,12 @@ class ApplyWorkbookPlanCommand extends Command
             $results = $executor->assignments($employees, $dryRun, $actor, $assumeActive, $assumeCompanies, (string) $this->option('source-label'));
             $this->summarize('assignments', $results);
             $all = array_merge($all, array_map(fn ($r) => ['step' => 'assignments', ...$r], $results));
+        }
+
+        if (in_array('payments', $steps, true)) {
+            $results = $executor->paymentNumbers($employees, $dryRun, $actor, (string) $this->option('source-label'));
+            $this->summarize('payments', $results);
+            $all = array_merge($all, array_map(fn ($r) => ['step' => 'payments', ...$r], $results));
         }
 
         $failed = count(array_filter($all, fn ($r) => $r['outcome'] === 'failed'));

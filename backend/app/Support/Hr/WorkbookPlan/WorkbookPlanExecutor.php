@@ -5,8 +5,11 @@ namespace App\Support\Hr\WorkbookPlan;
 use App\Actions\Hr\BulkActivateEmployeesAction;
 use App\Actions\Hr\CreateClientCompanyAction;
 use App\Actions\Hr\CreateWorkAssignmentAction;
+use App\Enums\AuditAction;
 use App\Enums\EmployeeStatus;
 use App\Enums\WorkAssignmentStatus;
+use App\Events\Audit\AuditEvent;
+use App\Http\Requests\Api\V1\Admin\Hr\EmployeePaymentAccountRule;
 use App\Models\Admin;
 use App\Models\ClientCompany;
 use App\Models\ClientCompanyAlias;
@@ -170,6 +173,82 @@ class WorkbookPlanExecutor
             } catch (\Throwable $e) {
                 $results[] = [...$base, 'outcome' => 'failed', 'code' => 'UNEXPECTED_ERROR', 'message' => $e->getMessage()];
             }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Fills the employee's separate payment/account number (the number salary is sent to) from the workbook's phone column.
+     * It is NEVER the registration phone: `phone` is not read or written here, an existing payment number is never
+     * overwritten (a different one is reported as a conflict), and a row without a number is skipped, not guessed.
+     *
+     * @param  list<array<string, mixed>>  $employees  rows carrying an optional payment_account_number column
+     * @return list<array<string, mixed>>
+     */
+    public function paymentNumbers(array $employees, bool $dryRun, ?Admin $actor, string $source = self::DEFAULT_SOURCE): array
+    {
+        $results = [];
+
+        foreach ($employees as $row) {
+            $base = ['source_row' => $row['source_row'], 'employee_id' => (int) $row['employee_id'], 'company' => null];
+            $number = trim((string) ($row['payment_account_number'] ?? ''));
+            $employee = Employee::withTrashed()->find((int) $row['employee_id']);
+
+            if ($number === '') {
+                $results[] = [...$base, 'outcome' => 'skipped_no_number', 'code' => null, 'message' => 'The plan row carries no payment number; nothing is guessed.'];
+
+                continue;
+            }
+
+            if ($employee === null || $employee->trashed()) {
+                $results[] = [...$base, 'outcome' => 'failed', 'code' => 'EMPLOYEE_NOT_FOUND', 'message' => 'Employee missing or archived.'];
+
+                continue;
+            }
+
+            if ($employee->employee_number !== $row['employee_number'] || self::nameKey($employee->full_name) !== $row['name_key']) {
+                $results[] = [...$base, 'outcome' => 'failed', 'code' => 'IDENTITY_MISMATCH', 'message' => "Employee {$employee->employee_number} does not match the approved plan row (number or name differs)."];
+
+                continue;
+            }
+
+            if (! EmployeePaymentAccountRule::isValid($number)) {
+                $results[] = [...$base, 'outcome' => 'failed', 'code' => 'INVALID_PAYMENT_NUMBER', 'message' => 'The payment number has characters or a length that is not allowed.'];
+
+                continue;
+            }
+
+            $existing = trim((string) $employee->payment_account_number);
+
+            if ($existing !== '') {
+                $results[] = $existing === $number
+                    ? [...$base, 'outcome' => 'already_set', 'code' => null, 'message' => 'The same payment number is already recorded; nothing changed.']
+                    : [...$base, 'outcome' => 'failed', 'code' => 'PAYMENT_NUMBER_CONFLICT', 'message' => 'A different payment number is already recorded; it is not overwritten.'];
+
+                continue;
+            }
+
+            if ($dryRun) {
+                $results[] = [...$base, 'outcome' => 'would_set', 'code' => null, 'message' => 'Would record the payment number (registration phone untouched).'];
+
+                continue;
+            }
+
+            $employee->update(['payment_account_number' => $number]);
+
+            if ($actor !== null) {
+                event(AuditEvent::record(
+                    action: AuditAction::Update,
+                    admin: $actor,
+                    description: "Payment number recorded for employee {$employee->employee_number} from the approved workbook, ".$source.' row '.$row['source_row'].'.',
+                    entityType: Employee::class,
+                    entityId: $employee->id,
+                    metadata: ['field' => 'payment_account_number'],
+                ));
+            }
+
+            $results[] = [...$base, 'outcome' => 'set', 'code' => null, 'message' => 'Payment number recorded (registration phone untouched).'];
         }
 
         return $results;

@@ -4,6 +4,7 @@ namespace Tests\Feature\Hr;
 
 use App\Enums\AdminRole;
 use App\Models\Admin;
+use App\Models\AuditLog;
 use App\Models\ClientCompany;
 use App\Models\ClientCompanyAlias;
 use App\Models\Employee;
@@ -239,5 +240,68 @@ class ApplyWorkbookPlanCommandTest extends TestCase
             ->expectsOutputToContain('created: 2, exists: 1')->assertSuccessful();
 
         $this->assertSame(3, ClientCompany::query()->count());
+    }
+
+    // ------------------------------------------------------------- payments step (payment number vs registration phone)
+
+    /** @return array{0: string, 1: Employee, 2: Employee, 3: Admin} */
+    private function paymentFile(string $numberA, string $numberB = ''): array
+    {
+        $a = $this->makeEmployee('active', 'permanent', '615000111');
+        $b = $this->makeEmployee('active', 'permanent', '615000222');
+        $rows = [
+            [2, $a->id, $a->employee_number, WorkbookPlanExecutor::nameKey($a->full_name), 'active', 'X', '100', '2026-10-01', $numberA],
+            [3, $b->id, $b->employee_number, WorkbookPlanExecutor::nameKey($b->full_name), 'active', 'X', '100', '2026-10-01', $numberB],
+        ];
+        $file = $this->csv('payments.csv', ['source_row', 'employee_id', 'employee_number', 'name_key', 'expected_status', 'company', 'salary', 'start_date', 'payment_account_number'], $rows);
+
+        return [$file, $a, $b, Admin::factory()->create(['role' => AdminRole::SuperAdmin])];
+    }
+
+    public function test_the_payments_step_records_the_payment_number_and_never_touches_the_registration_phone(): void
+    {
+        [$file, $a, $b, $admin] = $this->paymentFile('38628356');
+
+        $this->artisan('hr:apply-workbook-plan', ['--employees' => $file, '--step' => ['payments'], '--commit' => true, '--admin-email' => $admin->email])->assertSuccessful();
+
+        $this->assertSame('38628356', $a->fresh()->payment_account_number);
+        $this->assertSame('615000111', $a->fresh()->phone, 'the registration phone is never overwritten');
+        $this->assertNull($b->fresh()->payment_account_number, 'a row without a number is skipped, not guessed');
+        $this->assertSame('615000222', $b->fresh()->phone);
+        $this->assertDatabaseHas('audit_logs', ['entity_type' => Employee::class, 'entity_id' => $a->id, 'action' => 'update']);
+    }
+
+    public function test_the_payments_step_is_a_dry_run_by_default_and_idempotent(): void
+    {
+        [$file, $a, , $admin] = $this->paymentFile('38628356');
+
+        $this->artisan('hr:apply-workbook-plan', ['--employees' => $file, '--step' => ['payments']])->expectsOutputToContain('would_set: 1')->assertSuccessful();
+        $this->assertNull($a->fresh()->payment_account_number, 'a dry run writes nothing');
+
+        $this->artisan('hr:apply-workbook-plan', ['--employees' => $file, '--step' => ['payments'], '--commit' => true, '--admin-email' => $admin->email])->assertSuccessful();
+        $this->artisan('hr:apply-workbook-plan', ['--employees' => $file, '--step' => ['payments'], '--commit' => true, '--admin-email' => $admin->email])->expectsOutputToContain('already_set: 1')->assertSuccessful();
+        $this->assertSame(1, AuditLog::query()->where('entity_type', Employee::class)->where('entity_id', $a->id)->where('action', 'update')->count());
+    }
+
+    public function test_a_different_existing_payment_number_is_a_conflict_and_is_not_overwritten(): void
+    {
+        [$file, $a, , $admin] = $this->paymentFile('38628356');
+        $a->update(['payment_account_number' => '61999999']);
+
+        $this->artisan('hr:apply-workbook-plan', ['--employees' => $file, '--step' => ['payments'], '--commit' => true, '--admin-email' => $admin->email])->expectsOutputToContain('PAYMENT_NUMBER_CONFLICT')->assertFailed();
+
+        $this->assertSame('61999999', $a->fresh()->payment_account_number);
+    }
+
+    public function test_an_identity_mismatch_or_an_invalid_number_writes_nothing(): void
+    {
+        [$file, $a, , $admin] = $this->paymentFile('<script>1');
+        $this->artisan('hr:apply-workbook-plan', ['--employees' => $file, '--step' => ['payments'], '--commit' => true, '--admin-email' => $admin->email])->expectsOutputToContain('INVALID_PAYMENT_NUMBER')->assertFailed();
+        $this->assertNull($a->fresh()->payment_account_number);
+
+        $a->update(['full_name' => 'Someone Else Entirely']);
+        [$file2] = [$this->csv('p2.csv', ['source_row', 'employee_id', 'employee_number', 'name_key', 'expected_status', 'company', 'salary', 'start_date', 'payment_account_number'], [[2, $a->id, $a->employee_number, 'originalname', 'active', 'X', '100', '2026-10-01', '38628356']])];
+        $this->artisan('hr:apply-workbook-plan', ['--employees' => $file2, '--step' => ['payments'], '--commit' => true, '--admin-email' => $admin->email])->expectsOutputToContain('IDENTITY_MISMATCH')->assertFailed();
+        $this->assertNull($a->fresh()->payment_account_number);
     }
 }
