@@ -21,6 +21,19 @@ export const ASSIGNABLE_ADMIN_ROLES: { value: AdminRole; label: string }[] = [
   { value: 'mobile_app_manager', label: 'Mobile App Manager' },
 ];
 
+/**
+ * Permissions that only some roles may hold. The backend refuses any other grant (and ignores a stray one), so the
+ * screens simply do not offer them. hr.import is the HR Manager's dedicated import permission (owner decision).
+ */
+export const ROLE_RESTRICTED_PERMISSIONS: Record<string, AdminRole[]> = {
+  'hr.import': ['hr_manager'],
+};
+
+export function permissionAllowedForRole(permissionKey: string, role: AdminRole | undefined): boolean {
+  const allowed = ROLE_RESTRICTED_PERMISSIONS[permissionKey];
+  return allowed === undefined || (role !== undefined && allowed.includes(role));
+}
+
 /** Every AdminRole value the database accepts — used wherever a role needs to be *displayed*, not assigned. */
 export const ADMIN_ROLE_LABELS: Record<AdminRole, string> = {
   super_admin: 'Super Admin',

@@ -3,8 +3,8 @@ import type { PageMeta } from '@/types/api';
 import type { ImportBatch, ImportRow, ImportRowStatus, ImportType } from '@/types/hrImport';
 
 /**
- * HR Excel imports. Every endpoint is reserved for Super Admin on the backend (role and the hr.import
- * permission); this module only calls them. Nothing is written before `confirm`.
+ * HR Excel imports. Every endpoint needs the dedicated hr.import permission on the backend (the Super Admin, or the
+ * HR Manager role once it has been granted); this module only calls them. Nothing is written before `confirm`.
  */
 export const hrImportsApi = {
   list: (page = 1) =>

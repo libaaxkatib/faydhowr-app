@@ -5,7 +5,7 @@ export type FollowUpStatus = 'scheduled' | 'completed' | 'rescheduled';
 export type FollowUpFilter = 'today' | 'upcoming' | 'overdue' | 'all';
 export type MarketingQuotationStatus = 'draft' | 'sent' | 'accepted' | 'declined';
 export type CommissionRateType = 'percentage' | 'fixed';
-export type CommissionStatus = 'pending_calculation' | 'calculated' | 'approved' | 'paid';
+export type CommissionStatus = 'pending_calculation' | 'recorded' | 'calculated' | 'approved' | 'paid';
 
 export interface MarketingTeam {
   id: number;

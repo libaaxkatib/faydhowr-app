@@ -14,7 +14,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/useToast';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
-import { ADMIN_ROLE_LABELS, ASSIGNABLE_ADMIN_ROLES } from '@/types/system';
+import { ADMIN_ROLE_LABELS, ASSIGNABLE_ADMIN_ROLES, permissionAllowedForRole } from '@/types/system';
 import type { AdminRole } from '@/types/admin';
 import type { Permission } from '@/types/system';
 
@@ -93,7 +93,10 @@ function RoleTab() {
     onError: (err) => show(err instanceof ApiClientError ? err.message : 'Could not update role permissions.', 'error'),
   });
 
-  const groups = useMemo(() => groupPermissions(catalog.data ?? []), [catalog.data]);
+  const groups = useMemo(
+    () => groupPermissions((catalog.data ?? []).filter((p) => permissionAllowedForRole(p.key, selectedRole))),
+    [catalog.data, selectedRole],
+  );
   const isDirty =
     rolePermissions.data &&
     (draft.size !== rolePermissions.data.permissions.length ||
@@ -187,8 +190,11 @@ function AdminOverridesTab() {
     onError: (err) => show(err instanceof ApiClientError ? err.message : 'Could not update admin overrides.', 'error'),
   });
 
-  const groups = useMemo(() => groupPermissions(catalog.data ?? []), [catalog.data]);
   const selectedAdmin = adminsList.data?.data.find((a) => a.id === adminId);
+  const groups = useMemo(
+    () => groupPermissions((catalog.data ?? []).filter((p) => permissionAllowedForRole(p.key, selectedAdmin?.role))),
+    [catalog.data, selectedAdmin?.role],
+  );
   const isSuperAdmin = selectedAdmin?.role === 'super_admin';
   const isDirty =
     adminPermissions.data &&

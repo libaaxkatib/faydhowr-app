@@ -15,20 +15,25 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
+import { useAuth } from '@/features/auth/useAuth';
 import { formatCurrency, formatDate } from '@/utils/formatters';
-import type { CommissionRateType } from '@/types/marketing';
+import type { CommissionRateType, CommissionRecord } from '@/types/marketing';
 
 /**
- * Foundation only, per docs/HRM_MARKETING_SRS.md §20-21/§39 — the
- * calculation formula is not yet approved. This screen configures rates and
- * shows logged commission entries; it never computes or displays a
- * fabricated total, and every record's amount/status honestly shows
- * "Pending calculation" until a future, explicitly-approved step fills
- * them in.
+ * Manual commission recording, per docs/HRM_MARKETING_SRS.md §20-21/§39 — the
+ * calculation formula is not approved, so nothing is computed here. A Marketing
+ * Manager (or the Super Admin) types the agreed amount against an entry; until
+ * then it honestly shows "Pending calculation". Team members see only their
+ * own entries, and only the manager can record or change an amount.
  */
 export function CommissionPage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { admin, isSuperAdmin } = useAuth();
+  const canRecordAmounts = isSuperAdmin || admin?.role === 'marketing_manager';
+  const [recording, setRecording] = useState<CommissionRecord | null>(null);
+  const [amount, setAmount] = useState('');
+  const [amountNotes, setAmountNotes] = useState('');
   const [isRateOpen, setIsRateOpen] = useState(false);
   const [rateType, setRateType] = useState<CommissionRateType>('percentage');
   const [rateValue, setRateValue] = useState('');
@@ -60,24 +65,42 @@ export function CommissionPage() {
     onError: (err) => show(err instanceof Error ? err.message : 'Something went wrong.', 'error'),
   });
 
+  const recordAmountMutation = useMutation({
+    mutationFn: () => marketingApi.commission.recordAmount(recording!.id, { amount: Number(amount), notes: amountNotes.trim() === '' ? null : amountNotes.trim() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commission-records'] });
+      show('Commission amount recorded.');
+      setRecording(null);
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Something went wrong.', 'error'),
+  });
+
+  const openRecord = (entry: CommissionRecord) => {
+    setRecording(entry);
+    setAmount(entry.amount ?? '');
+    setAmountNotes(entry.notes ?? '');
+  };
+
   return (
     <div>
       <PageHeader
         title="Commission"
         breadcrumb={[{ label: 'Marketing', to: '/marketing' }, { label: 'Commission' }]}
         actions={
-          <PermissionGate module="marketing">
-            <Button onClick={() => setIsRateOpen(true)}>
-              <Icon name="plus" size={15} />
-              Configure Rate
-            </Button>
-          </PermissionGate>
+          canRecordAmounts ? (
+            <PermissionGate module="marketing">
+              <Button onClick={() => setIsRateOpen(true)}>
+                <Icon name="plus" size={15} />
+                Configure Rate
+              </Button>
+            </PermissionGate>
+          ) : undefined
         }
       />
 
       <div className="mb-4 rounded-md border border-warning/30 bg-warning-soft px-4 py-3 text-sm text-warning">
-        <strong>Calculation formula not yet approved.</strong> Rates below record what's configured; commission entries show
-        "Pending calculation" until management approves how amounts are computed. No totals are estimated here.
+        <strong>Commission is recorded manually.</strong> The calculation formula is not approved, so nothing is computed or
+        estimated here: an entry shows "Pending calculation" until the Marketing Manager types the agreed amount.
       </div>
 
       <Card className="mb-4">
@@ -130,15 +153,42 @@ export function CommissionPage() {
                   </p>
                   <StatusBadge
                     status={entry.status}
-                    label={entry.status === 'pending_calculation' ? 'Pending calculation' : entry.status}
+                    label={entry.status === 'pending_calculation' ? 'Pending calculation' : entry.status === 'recorded' ? 'Recorded' : entry.status}
                     tone={entry.status === 'pending_calculation' ? 'neutral' : 'success'}
                   />
+                  {canRecordAmounts && (entry.status === 'pending_calculation' || entry.status === 'recorded') && (
+                    <div className="mt-1.5">
+                      <Button variant="outline" size="sm" onClick={() => openRecord(entry)}>
+                        {entry.amount ? 'Change amount' : 'Record amount'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         )}
       </Card>
+
+      <Modal
+        isOpen={recording !== null}
+        onClose={() => setRecording(null)}
+        title="Record Commission Amount"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setRecording(null)}>Cancel</Button>
+            <Button size="sm" isLoading={recordAmountMutation.isPending} disabled={amount.trim() === '' || Number.isNaN(Number(amount)) || Number(amount) < 0} onClick={() => recordAmountMutation.mutate()}>Save</Button>
+          </>
+        }
+      >
+        <FormField label="Agreed amount" htmlFor="commission-amount" required hint="Typed by a person. No formula or rate is applied.">
+          <input id="commission-amount" type="number" min="0" step="0.01" className={inputClasses} value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </FormField>
+        <FormField label="Note" htmlFor="commission-note">
+          <input id="commission-note" type="text" className={inputClasses} value={amountNotes} onChange={(e) => setAmountNotes(e.target.value)} />
+        </FormField>
+      </Modal>
 
       <Modal
         isOpen={isRateOpen}

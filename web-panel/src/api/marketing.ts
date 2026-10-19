@@ -108,7 +108,10 @@ export const marketingApi = {
       });
       return { data, meta: meta as PageMeta };
     },
-    createRecord: (recordId: number, payload: { admin_id: number; reference_date: string; notes?: string | null }) =>
+    createRecord: (recordId: number, payload: { admin_id: number; reference_date: string; notes?: string | null; amount?: number | null }) =>
       apiRequest<CommissionRecord>(`admin/marketing/records/${recordId}/commission`, { method: 'POST', body: payload }),
+    /** Manual entry: a person types the agreed amount. Nothing is calculated. */
+    recordAmount: (id: number, payload: { amount: number; notes?: string | null }) =>
+      apiRequest<CommissionRecord>(`admin/marketing/commission/records/${id}`, { method: 'PATCH', body: payload }),
   },
 };
