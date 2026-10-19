@@ -8,21 +8,23 @@ use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\ClientCompany;
 use App\Models\EmployeeWorkAssignment;
+use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\CompanyEmployees\CompanyAssignmentGuard;
-use App\Support\Hr\Payroll\PayrollPeriodLock;
+use App\Support\Hr\Payroll\ClosedPayrollCorrection;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Stop Employee: ends THIS company assignment on a given last day, with a reason. It does NOT change the employee's HR status or
  * employment - ending employment altogether is the separate Separation action on the employee record (which closes assignments
  * itself). The assignment, its salary history, attendance and payroll all stay; the position can be given to another registered
- * employee afterwards. Nothing is deleted. A last day that reaches into an approved or finalized payroll month is refused.
+ * employee afterwards. Nothing is deleted. A last day that reaches into an approved or finalized payroll month is a Super Admin
+ * correction (reason required) - see ClosedPayrollCorrection.
  */
 class StopCompanyAssignmentAction
 {
     public function __construct(
         private readonly EndWorkAssignmentAction $end,
-        private readonly PayrollPeriodLock $lock = new PayrollPeriodLock,
+        private readonly ClosedPayrollCorrection $corrections = new ClosedPayrollCorrection,
     ) {}
 
     /** @param  array{end_date: string, reason: string}  $data */
@@ -36,11 +38,13 @@ class StopCompanyAssignmentAction
             CompanyAssignmentGuard::fail("The last day ({$lastDay->toDateString()}) is before the assignment started ({$assignment->start_date->toDateString()}).", 'STOP_BEFORE_ASSIGNMENT_START');
         }
 
-        $this->lock->assertAssignmentDateChangeAllowed($lastDay->addDay()->toDateString());
-
         $assignment->loadMissing('employee');
 
-        return DB::transaction(function () use ($company, $assignment, $data, $actor, $lastDay): EmployeeWorkAssignment {
+        return $this->corrections->run($actor, 'stopped', AssignmentChain::employeeIds($assignment), $lastDay->addDay()->toDateString(), $data['correction_reason'] ?? null, [
+            'assignment_id' => $assignment->id,
+            'old' => ['end_date' => $assignment->end_date?->toDateString(), 'status' => $assignment->status->value],
+            'new' => ['end_date' => $lastDay->toDateString(), 'status' => 'ended'],
+        ], fn (): EmployeeWorkAssignment => DB::transaction(function () use ($company, $assignment, $data, $actor, $lastDay): EmployeeWorkAssignment {
             $reason = trim($data['reason']);
 
             $this->end->handle($assignment, ['end_date' => $lastDay->toDateString(), 'note' => "Stopped: {$reason}"], $actor);
@@ -63,6 +67,6 @@ class StopCompanyAssignmentAction
             ));
 
             return $assignment->refresh()->load(['employee', 'position']);
-        });
+        }));
     }
 }

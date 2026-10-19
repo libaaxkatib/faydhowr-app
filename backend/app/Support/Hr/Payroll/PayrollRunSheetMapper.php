@@ -19,6 +19,7 @@ class PayrollRunSheetMapper
         PayrollItemDeduction::KIND_ADVANCE => 'Salary advance',
         PayrollItemDeduction::KIND_ABSENCE => 'Absence',
         PayrollItemDeduction::KIND_UNPAID_LEAVE => 'Unpaid leave',
+        PayrollItemDeduction::KIND_OVERPAYMENT_RECOVERY => 'Overpayment recovery',
     ];
 
     /**

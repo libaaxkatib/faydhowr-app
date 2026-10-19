@@ -34,6 +34,8 @@ export interface CompanyEmployeeRow {
   work_location_name: string | null;
   assignment_type: AssignmentType;
   replaces_assignment_id: number | null;
+  /** For a Replacement: the Permanent employee whose position it holds and that employee's salary (the salary basis, and what Return proposes). */
+  replaces: { assignment_id: number; employee_id: number; employee_number: string | null; full_name: string | null; salary: CompanyEmployeeSalary } | null;
   start_date: string;
   end_date: string | null;
   status: CompanyAssignmentStatus;
@@ -82,6 +84,8 @@ export interface CompanyEmployeeCandidate {
   status: string;
   phone: string | null;
   category: string | null;
+  /** 'temporary' workers are paid per verified day of Temporary cover, not as a Replacement who takes over a position. */
+  employment_type?: string | null;
   current_companies: string[];
   already_here: boolean;
   eligible: boolean;
@@ -135,6 +139,7 @@ export interface AssignmentPayload {
   salary_currency: string;
   salary_frequency: string;
   notes?: string | null;
+  correction_reason?: string | null;
 }
 
 export interface ReplacePayload {
@@ -143,20 +148,26 @@ export interface ReplacePayload {
   original_last_day?: string | null;
   assignment_type: AssignmentType;
   position_id?: number | null;
-  salary_amount: number;
-  salary_currency: string;
-  salary_frequency: string;
+  /** Sent only for a Permanent successor. A Replacement has no salary of its own: the server uses the replaced Permanent's. */
+  salary_amount?: number;
+  salary_currency?: string;
+  salary_frequency?: string;
+  /** HR's decision to proceed when the replacement is a Temporary worker. */
+  acknowledge_temporary_as_replacement?: boolean;
   reason?: string | null;
   notes?: string | null;
+  correction_reason?: string | null;
 }
 
 export interface ReturnPayload {
   return_date: string;
   position_id?: number | null;
-  salary_amount?: number;
-  salary_currency?: string;
-  salary_frequency?: string;
+  /** Always sent: HR confirms or edits the salary of the returning employee, it is never assumed unchanged. */
+  salary_amount: number;
+  salary_currency: string;
+  salary_frequency: string;
   notes?: string | null;
+  correction_reason?: string | null;
 }
 
 export interface EditPayload {
@@ -169,4 +180,6 @@ export interface EditPayload {
   salary_effective_from?: string;
   salary_change_reason?: string | null;
   notes?: string | null;
+  /** Needed (and only accepted from a Super Admin) when the change alters an approved or finalized payroll month. */
+  correction_reason?: string | null;
 }

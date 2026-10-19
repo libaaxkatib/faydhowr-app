@@ -11,7 +11,7 @@ use App\Models\Admin;
 use App\Models\ClientCompany;
 use App\Models\EmployeeWorkAssignment;
 use App\Support\Hr\CompanyEmployees\CompanyAssignmentGuard;
-use App\Support\Hr\Payroll\PayrollPeriodLock;
+use App\Support\Hr\Payroll\ClosedPayrollCorrection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -21,19 +21,21 @@ use Illuminate\Support\Facades\DB;
  * and attendance record stay as they were, and the chain original -> replacement -> returned original stays readable.
  *
  * Only an assignment marked Replacement can be returned from - a replacement who was made Permanent keeps the position (use
- * Replace to change that). The original must still be an Active employee. A change reaching into an approved or finalized payroll
- * month is refused.
+ * Replace to change that). The original must still be an Active employee. The salary of the new Permanent assignment is never
+ * assumed: HR must confirm or edit it (the previous salary is only the proposal on the screen), so it is a required input here.
+ * A change reaching into an approved or finalized payroll month is a Super Admin correction (reason required) - see
+ * ClosedPayrollCorrection.
  */
 class ReturnCompanyEmployeeAction
 {
     public function __construct(
         private readonly EndWorkAssignmentAction $end,
         private readonly CreateWorkAssignmentAction $create,
-        private readonly PayrollPeriodLock $lock = new PayrollPeriodLock,
+        private readonly ClosedPayrollCorrection $corrections = new ClosedPayrollCorrection,
     ) {}
 
     /**
-     * @param  array<string, mixed>  $data  return_date, optional position_id, salary_amount, salary_currency, salary_frequency, notes
+     * @param  array<string, mixed>  $data  return_date, salary_amount, salary_currency, salary_frequency (all confirmed by HR), optional position_id, notes
      * @return array{replacement: EmployeeWorkAssignment, returned: EmployeeWorkAssignment}
      */
     public function handle(ClientCompany $company, EmployeeWorkAssignment $replacement, array $data, Admin $actor): array
@@ -59,11 +61,19 @@ class ReturnCompanyEmployeeAction
             CompanyAssignmentGuard::fail("The replacement started on {$replacement->start_date->toDateString()}; the return date must be after that day.", 'RETURN_BEFORE_REPLACEMENT_STARTED');
         }
 
-        $this->lock->assertAssignmentDateChangeAllowed($returnDate->toDateString());
+        foreach (['salary_amount', 'salary_currency', 'salary_frequency'] as $field) {
+            if (! isset($data[$field]) || $data[$field] === '') {
+                CompanyAssignmentGuard::fail('Confirm or edit the salary of the returning employee before saving; it is not assumed to be unchanged.', 'RETURN_SALARY_REQUIRED', [$field => ['The salary must be confirmed.']]);
+            }
+        }
 
         $replacement->loadMissing('employee');
 
-        return DB::transaction(function () use ($company, $replacement, $original, $data, $actor, $returnDate, $lastDay): array {
+        return $this->corrections->run($actor, 'returned', [$replacement->employee_id, $original->employee_id], $returnDate->toDateString(), $data['correction_reason'] ?? null, [
+            'assignment_id' => $replacement->id,
+            'old' => ['replacement_assignment_id' => $replacement->id, 'end_date' => $replacement->end_date?->toDateString()],
+            'new' => ['return_date' => $returnDate->toDateString(), 'replacement_last_day' => $lastDay->toDateString(), 'salary_amount' => $data['salary_amount']],
+        ], fn (): array => DB::transaction(function () use ($company, $replacement, $original, $data, $actor, $returnDate, $lastDay): array {
             $this->end->handle($replacement, [
                 'end_date' => $lastDay->toDateString(),
                 'note' => "Ended because {$original->employee->full_name} ({$original->employee->employee_number}) returned on {$returnDate->toDateString()}.",
@@ -76,9 +86,9 @@ class ReturnCompanyEmployeeAction
                 'position_id' => array_key_exists('position_id', $data) ? $data['position_id'] : $original->position_id,
                 'assignment_type' => AssignmentType::Permanent->value,
                 'start_date' => $returnDate->toDateString(),
-                'salary_amount' => $data['salary_amount'] ?? $original->salary_amount,
-                'salary_currency' => strtoupper((string) ($data['salary_currency'] ?? $original->salary_currency)),
-                'salary_frequency' => $data['salary_frequency'] ?? $original->salary_frequency->value,
+                'salary_amount' => $data['salary_amount'],
+                'salary_currency' => strtoupper((string) $data['salary_currency']),
+                'salary_frequency' => $data['salary_frequency'],
                 'notes' => $data['notes'] ?? null,
             ], $actor);
 
@@ -98,10 +108,12 @@ class ReturnCompanyEmployeeAction
                     'replacement_last_day' => $lastDay->toDateString(),
                     'returned_assignment_id' => $returned->id,
                     'return_date' => $returnDate->toDateString(),
+                    'previous_salary' => ['amount' => (string) $original->salary_amount, 'currency' => $original->salary_currency],
+                    'confirmed_salary' => ['amount' => number_format((float) $data['salary_amount'], 2, '.', ''), 'currency' => strtoupper((string) $data['salary_currency'])],
                 ],
             ));
 
             return ['replacement' => $replacement->refresh()->load(['employee', 'position']), 'returned' => $returned->load(['employee', 'position'])];
-        });
+        }));
     }
 }

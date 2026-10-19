@@ -4,6 +4,7 @@ namespace App\Actions\Hr\CompanyEmployees;
 
 use App\Actions\Hr\CreateWorkAssignmentAction;
 use App\Actions\Hr\EndWorkAssignmentAction;
+use App\Enums\AssignmentType;
 use App\Enums\AuditAction;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
@@ -11,7 +12,7 @@ use App\Models\ClientCompany;
 use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Support\Hr\CompanyEmployees\CompanyAssignmentGuard;
-use App\Support\Hr\Payroll\PayrollPeriodLock;
+use App\Support\Hr\Payroll\ClosedPayrollCorrection;
 use App\Support\Hr\PositionSuccession;
 use Illuminate\Support\Facades\DB;
 
@@ -20,16 +21,18 @@ use Illuminate\Support\Facades\DB;
  * is linked to it (replaces_assignment_id). Both assignments - and everything paid under them - are kept. In ONE transaction: if
  * anything fails, nothing changes.
  *
- * The replacement is explicitly Permanent or Replacement (never inferred). The original's last paid day defaults to the day before
- * the replacement date; a gap between them is allowed and reported, an overlap (a day paid to two people) is refused by the
- * existing succession rule. A change reaching into an approved or finalized payroll month is refused.
+ * The replacement is explicitly Permanent or Replacement (never inferred). A REPLACEMENT has no salary of its own: its salary basis is
+ * the monthly salary of the Permanent employee it replaces (see CreateWorkAssignmentAction). A Permanent successor brings the salary HR
+ * enters. The original's last paid day defaults to the day before the replacement date; a gap between them is allowed and reported, an
+ * overlap (a day paid to two people) is refused by the existing succession rule. A change reaching into an approved or finalized
+ * payroll month is a Super Admin correction (reason required) - see ClosedPayrollCorrection.
  */
 class ReplaceCompanyEmployeeAction
 {
     public function __construct(
         private readonly EndWorkAssignmentAction $end,
         private readonly CreateWorkAssignmentAction $create,
-        private readonly PayrollPeriodLock $lock = new PayrollPeriodLock,
+        private readonly ClosedPayrollCorrection $corrections = new ClosedPayrollCorrection,
     ) {}
 
     /**
@@ -56,11 +59,13 @@ class ReplaceCompanyEmployeeAction
 
         PositionSuccession::assertNoOverlap($lastDay, $replacementDate);
 
-        $this->lock->assertAssignmentDateChangeAllowed($lastDay->addDay()->toDateString());
-
         $original->loadMissing('employee', 'position');
 
-        return DB::transaction(function () use ($company, $original, $data, $actor, $replacementDate, $lastDay, $replacement): array {
+        return $this->corrections->run($actor, 'replaced', [$original->employee_id, $replacement->id], $lastDay->addDay()->toDateString(), $data['correction_reason'] ?? null, [
+            'assignment_id' => $original->id,
+            'old' => ['assignment_id' => $original->id, 'employee_id' => $original->employee_id, 'end_date' => $original->end_date?->toDateString()],
+            'new' => ['original_last_day' => $lastDay->toDateString(), 'replacement_employee_id' => $replacement->id, 'replacement_start_date' => $replacementDate->toDateString(), 'assignment_type' => $data['assignment_type']],
+        ], fn (): array => DB::transaction(function () use ($company, $original, $data, $actor, $replacementDate, $lastDay, $replacement): array {
             $reason = trim((string) ($data['reason'] ?? ''));
 
             $this->end->handle($original, [
@@ -75,9 +80,14 @@ class ReplaceCompanyEmployeeAction
                 'position_id' => $data['position_id'] ?? $original->position_id,
                 'assignment_type' => $data['assignment_type'],
                 'start_date' => $replacementDate->toDateString(),
-                'salary_amount' => $data['salary_amount'],
-                'salary_currency' => strtoupper((string) $data['salary_currency']),
-                'salary_frequency' => $data['salary_frequency'],
+                // A Replacement's salary is inherited from the replaced Permanent (CreateWorkAssignmentAction ignores/validates these);
+                // a Permanent successor brings the salary HR entered.
+                ...($data['assignment_type'] === AssignmentType::Replacement->value ? array_intersect_key($data, array_flip(['salary_amount', 'salary_currency'])) : [
+                    'salary_amount' => $data['salary_amount'],
+                    'salary_currency' => strtoupper((string) $data['salary_currency']),
+                    'salary_frequency' => $data['salary_frequency'],
+                ]),
+                'acknowledge_temporary_as_replacement' => ($data['acknowledge_temporary_as_replacement'] ?? false) === true,
                 'notes' => $data['notes'] ?? null,
             ], $actor);
 
@@ -104,6 +114,6 @@ class ReplaceCompanyEmployeeAction
             ));
 
             return ['original' => $original->refresh()->load(['employee', 'position']), 'replacement' => $new->load(['employee', 'position'])];
-        });
+        }));
     }
 }

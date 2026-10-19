@@ -30,6 +30,7 @@ class EditCompanyAssignmentRequest extends FormRequest
             'salary_effective_from' => ['sometimes', 'date'],
             'salary_change_reason' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'correction_reason' => ['nullable', 'string', 'max:500'],
         ];
     }
 

@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import {
   dayBefore,
   formatCents,
+  isCorrectionReasonRequired,
+  isTemporaryWorker,
   isValidPeriod,
   shiftPeriod,
   startDateChangeWarning,
@@ -62,10 +64,36 @@ test('replace: not yourself, a sensible last day, nothing before the assignment 
   assert.ok(validateReplaceForm({ ...replace, replacement_date: '2025-12-31' }, '2026-01-01', 1).replacement_date);
 });
 
+const salary = { amount: '300', currency: 'USD', confirmed: true };
+
+test('a Replacement needs no salary of its own; a Permanent successor does', () => {
+  const noSalary = { ...replace, salary_amount: '', salary_currency: '' };
+  assert.deepEqual(validateReplaceForm(noSalary, '2026-01-01', 1), {}, 'Replacement: the salary is inherited from the replaced Permanent');
+  const permanent = validateReplaceForm({ ...noSalary, assignment_type: 'permanent' }, '2026-01-01', 1);
+  assert.ok(permanent.salary_amount && permanent.salary_currency);
+});
+
+test('the returning employee salary must be entered and explicitly confirmed, never assumed', () => {
+  assert.deepEqual(validateReturnForm('2026-10-21', '2026-10-01', salary), {});
+  assert.ok(validateReturnForm('2026-10-21', '2026-10-01', { ...salary, confirmed: false }).salary_confirmed);
+  assert.ok(validateReturnForm('2026-10-21', '2026-10-01', { ...salary, amount: '' }).salary_amount);
+  assert.ok(validateReturnForm('2026-10-21', '2026-10-01', { ...salary, amount: '0' }).salary_amount);
+  assert.ok(validateReturnForm('2026-10-21', '2026-10-01', { ...salary, currency: 'US' }).salary_currency);
+});
+
+test('the server asking for a correction reason and the Temporary-worker warning are recognised', () => {
+  assert.equal(isCorrectionReasonRequired({ code: 'CORRECTION_REASON_REQUIRED' }), true);
+  assert.equal(isCorrectionReasonRequired({ code: 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY' }), false);
+  assert.equal(isCorrectionReasonRequired(null), false);
+  assert.equal(isTemporaryWorker({ employment_type: 'temporary' }), true);
+  assert.equal(isTemporaryWorker({ employment_type: 'permanent' }), false);
+  assert.equal(isTemporaryWorker(null), false);
+});
+
 test('return and stop checks', () => {
-  assert.deepEqual(validateReturnForm('2026-10-21', '2026-10-01'), {});
-  assert.ok(validateReturnForm('2026-10-01', '2026-10-01').return_date);
-  assert.ok(validateReturnForm('', '2026-10-01').return_date);
+  assert.deepEqual(validateReturnForm('2026-10-21', '2026-10-01', salary), {});
+  assert.ok(validateReturnForm('2026-10-01', '2026-10-01', salary).return_date);
+  assert.ok(validateReturnForm('', '2026-10-01', salary).return_date);
   assert.deepEqual(validateStopForm('2026-10-20', 'contract ended', '2026-10-01'), {});
   assert.ok(validateStopForm('2026-09-30', 'contract ended', '2026-10-01').end_date);
   assert.ok(validateStopForm('2026-10-20', 'x', '2026-10-01').reason);
@@ -76,4 +104,5 @@ test('changing a start date warns, naming the first month it touches and keeping
   const warning = startDateChangeWarning('2026-10-10', '2026-08-20');
   assert.match(warning ?? '', /2026-08/);
   assert.match(warning ?? '', /2026-10-10/);
+  assert.match(warning ?? '', /Super Admin/, 'it says who can change a closed month');
 });

@@ -2,7 +2,34 @@
 
 export type PayrollRunStatus = 'draft' | 'reviewed' | 'approved' | 'finalized';
 export type PayrollPaymentStatus = 'unpaid' | 'paid';
-export type PayrollDeductionKind = 'replacement' | 'penalty' | 'advance' | 'absence' | 'adjustment' | 'unpaid_leave';
+export type PayrollDeductionKind = 'replacement' | 'penalty' | 'advance' | 'absence' | 'adjustment' | 'unpaid_leave' | 'overpayment_recovery';
+
+/** A Super Admin correction of an approved/finalized month, and the ledger that recovers an overpayment from later salaries. Amounts are USD cents. */
+export interface PayrollCorrection {
+  id: number;
+  employee_id: number;
+  employee_number: string | null;
+  employee_name: string | null;
+  period: string;
+  kind: 'overpayment' | 'underpayment';
+  action: string;
+  status: 'open' | 'recovered' | 'pending_policy';
+  recorded_net_cents: number;
+  corrected_net_cents: number;
+  difference_cents: number;
+  recovered_cents: number;
+  scheduled_cents: number;
+  outstanding_cents: number;
+  reason: string;
+  corrected_by: string | null;
+  corrected_at: string | null;
+  recoveries: { period: string; amount_cents: number; status: 'scheduled' | 'applied' }[];
+}
+
+export interface PayrollCorrectionsResponse {
+  corrections: PayrollCorrection[];
+  totals: { currency: string; overpaid_cents: number; recovered_cents: number; outstanding_cents: number; underpayments_pending_policy_cents: number };
+}
 
 export interface PayrollRunTotals {
   gross: string | null;

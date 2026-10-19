@@ -12,6 +12,7 @@ use App\Models\PayrollRun;
 use App\Support\ApiResponse;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\Payroll\PayrollRunCalculator;
+use App\Support\Hr\Payroll\RecoveryLedger;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
@@ -62,6 +63,8 @@ class GeneratePayrollRunAction
                     PayrollAdjustment::query()->whereIn('id', $line['adjustment_ids'])->update(['status' => 'applied', 'applied_in_item_id' => $item->id]);
                 }
             }
+
+            RecoveryLedger::syncFromRun($run);
 
             $run->update([
                 'status' => PayrollRun::STATUS_DRAFT,

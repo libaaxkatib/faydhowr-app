@@ -7,6 +7,7 @@ use App\Models\ClientCompany;
 use App\Models\Employee;
 use App\Models\EmployeeAttendance;
 use App\Models\EmployeeWorkAssignment;
+use App\Models\PayrollCorrection;
 use App\Models\PayrollItem;
 use App\Models\PayrollRun;
 use App\Models\Position;
@@ -226,7 +227,7 @@ class CompanyEmployeeManagementTest extends TestCase
             'replacement_employee_id' => $replacement->id, 'replacement_date' => '2026-10-21', 'assignment_type' => 'permanent',
             'salary_amount' => 100, 'salary_currency' => 'USD', 'salary_frequency' => 'monthly',
         ])->assertNotFound();
-        $this->as($this->admin)->postJson($this->url($this->company)."/{$foreign->id}/return", ['return_date' => '2026-10-21'])->assertNotFound();
+        $this->as($this->admin)->postJson($this->url($this->company)."/{$foreign->id}/return", $this->returnBody('2026-10-21'))->assertNotFound();
 
         $this->assertSame('active', $foreign->fresh()->status->value);
         $this->assertNull($foreign->fresh()->end_date);
@@ -269,13 +270,23 @@ class CompanyEmployeeManagementTest extends TestCase
         $before = Employee::query()->count();
         $snapshot = $employee->only(['employee_number', 'full_name', 'phone', 'status']);
 
-        $response = $this->as($this->admin)->postJson($this->url($this->company), $this->newAssignment(['employee_id' => $employee->id, 'assignment_type' => 'replacement']))->assertCreated();
+        $response = $this->as($this->admin)->postJson($this->url($this->company), $this->newAssignment(['employee_id' => $employee->id, 'assignment_type' => 'permanent']))->assertCreated();
 
         $this->assertSame($before, Employee::query()->count(), 'no second employee record');
         $this->assertSame($snapshot, $employee->fresh()->only(['employee_number', 'full_name', 'phone', 'status']), 'the registration data is untouched');
-        $this->assertSame('replacement', $response->json('data.assignment_type'));
+        $this->assertSame('permanent', $response->json('data.assignment_type'));
         $this->assertSame($this->company->id, $response->json('data.client_company_id'));
         $this->assertDatabaseHas('audit_logs', ['entity_type' => EmployeeWorkAssignment::class, 'entity_id' => $response->json('data.id'), 'action' => 'create']);
+    }
+
+    public function test_a_replacement_cannot_be_added_on_its_own_it_must_replace_a_permanent_assignment(): void
+    {
+        $employee = $this->makeEmployee();
+
+        $this->as($this->admin)->postJson($this->url($this->company), $this->newAssignment(['employee_id' => $employee->id, 'assignment_type' => 'replacement']))
+            ->assertUnprocessable()->assertJsonPath('error_code', 'REPLACEMENT_NEEDS_REPLACED_ASSIGNMENT');
+
+        $this->assertSame(0, EmployeeWorkAssignment::query()->where('employee_id', $employee->id)->count());
     }
 
     public function test_the_company_comes_from_the_url_not_from_the_body(): void
@@ -322,16 +333,26 @@ class CompanyEmployeeManagementTest extends TestCase
         $a = $this->place($employee, $this->company);
         $name = $employee->full_name;
 
-        $this->as($this->admin)->putJson($this->url($this->company)."/{$a->id}", ['position_id' => $this->driver->id, 'assignment_type' => 'replacement', 'notes' => 'covering'])
-            ->assertOk()->assertJsonPath('data.position_id', $this->driver->id)->assertJsonPath('data.assignment_type', 'replacement');
+        $this->as($this->admin)->putJson($this->url($this->company)."/{$a->id}", ['position_id' => $this->driver->id, 'notes' => 'covering'])
+            ->assertOk()->assertJsonPath('data.position_id', $this->driver->id)->assertJsonPath('data.assignment_type', 'permanent');
 
         $this->assertSame($name, $employee->fresh()->full_name);
         $log = AuditLog::query()->where('entity_type', EmployeeWorkAssignment::class)->where('entity_id', $a->id)->where('description', 'like', '%updated%')->latest('id')->firstOrFail();
         $this->assertSame('edited', $log->metadata['event']);
-        $this->assertEqualsCanonicalizing(['position_id', 'assignment_type', 'notes'], $log->metadata['changed_fields']);
-        $this->assertSame('permanent', $log->metadata['before']['assignment_type']);
-        $this->assertSame('replacement', $log->metadata['after']['assignment_type']);
+        $this->assertEqualsCanonicalizing(['position_id', 'notes'], $log->metadata['changed_fields']);
         $this->assertSame($this->cleaner->id, $log->metadata['before']['position_id']);
+    }
+
+    public function test_an_assignment_cannot_be_turned_into_a_replacement_by_editing_and_a_replacements_salary_cannot_be_typed_in(): void
+    {
+        $a = $this->place($this->makeEmployee(), $this->company, 300, '2026-01-01');
+        $this->as($this->admin)->putJson($this->url($this->company)."/{$a->id}", ['assignment_type' => 'replacement'])
+            ->assertUnprocessable()->assertJsonPath('error_code', 'USE_REPLACE_EMPLOYEE');
+
+        $replacementId = $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/replace", $this->replaceBody($this->makeEmployee(), ['assignment_type' => 'replacement']))->assertOk()->json('data.replacement.id');
+        $this->as($this->admin)->putJson($this->url($this->company)."/{$replacementId}", ['salary_amount' => 999, 'salary_effective_from' => '2026-11-01'])
+            ->assertUnprocessable()->assertJsonPath('error_code', 'REPLACEMENT_SALARY_IS_INHERITED');
+        $this->assertSame('300.00', (string) EmployeeWorkAssignment::query()->findOrFail($replacementId)->salary_amount);
     }
 
     public function test_a_salary_edit_keeps_the_old_salary_in_the_history_and_a_status_field_is_ignored(): void
@@ -368,37 +389,58 @@ class CompanyEmployeeManagementTest extends TestCase
             ->assertUnprocessable()->assertJsonPath('error_code', 'START_DATE_PASSES_SALARY_CHANGE');
     }
 
-    public function test_approved_payroll_is_never_rewritten_by_a_date_edit_a_stop_a_replace_or_a_return(): void
+    public function test_only_a_super_admin_can_change_what_approved_payroll_paid_and_only_the_affected_months_are_locked(): void
     {
         $a = $this->place($this->makeEmployee(), $this->company, 300, '2026-08-15');
         $spare = $this->makeEmployee();
         PayrollRun::query()->create(['period' => '2026-09', 'status' => 'approved']);
+        $hr = $this->tokenWithOnly(['hr.view', 'hr.manage']);
 
-        $this->as($this->admin)->putJson($this->url($this->company)."/{$a->id}", ['start_date' => '2026-08-20'])->assertUnprocessable()->assertJsonPath('error_code', 'PAYROLL_PERIOD_LOCKED');
-        $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-09-10', 'reason' => 'left early'])->assertUnprocessable()->assertJsonPath('error_code', 'PAYROLL_PERIOD_LOCKED');
-        $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/replace", [
+        // Moving the start inside August does not touch September, so September does not lock it.
+        $this->as($hr)->putJson($this->url($this->company)."/{$a->id}", ['start_date' => '2026-08-20'])->assertOk();
+
+        // Stopping or replacing inside September would change what September paid: not for an HR editor.
+        $this->as($hr)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-09-10', 'reason' => 'left early'])->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        $this->as($hr)->postJson($this->url($this->company)."/{$a->id}/replace", [
             'replacement_employee_id' => $spare->id, 'replacement_date' => '2026-09-11', 'assignment_type' => 'permanent',
             'salary_amount' => 200, 'salary_currency' => 'USD', 'salary_frequency' => 'monthly',
-        ])->assertUnprocessable()->assertJsonPath('error_code', 'PAYROLL_PERIOD_LOCKED');
+        ])->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+
+        // A Super Admin must give a reason, and without it nothing happens.
+        $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-09-10', 'reason' => 'left early'])->assertUnprocessable()->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');
 
         $fresh = $a->fresh();
-        $this->assertSame('2026-08-15', $fresh->start_date->toDateString());
+        $this->assertSame('2026-08-20', $fresh->start_date->toDateString());
         $this->assertSame('active', $fresh->status->value);
         $this->assertNull($fresh->end_date);
         $this->assertSame(0, EmployeeWorkAssignment::query()->where('employee_id', $spare->id)->count(), 'nothing half-done is left behind');
+        $this->assertSame(0, PayrollCorrection::query()->count());
 
-        // after the locked month the same actions are allowed
-        $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-10-10', 'reason' => 'left'])->assertOk();
+        // Months that the change does not reach stay open to everyone.
+        $this->as($hr)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-10-10', 'reason' => 'left'])->assertOk();
     }
 
     // ------------------------------------------------------------------ replace
 
     private function replaceBody(Employee $replacement, array $over = []): array
     {
-        return array_replace([
+        $body = array_replace([
             'replacement_employee_id' => $replacement->id, 'replacement_date' => '2026-10-16', 'assignment_type' => 'permanent',
             'position_id' => $this->cleaner->id, 'salary_amount' => 280, 'salary_currency' => 'USD', 'salary_frequency' => 'monthly',
         ], $over);
+
+        // A Replacement has no salary of its own: it inherits the replaced Permanent's monthly salary.
+        if ($body['assignment_type'] === 'replacement' && ! array_key_exists('salary_amount', $over)) {
+            unset($body['salary_amount'], $body['salary_currency'], $body['salary_frequency']);
+        }
+
+        return $body;
+    }
+
+    /** The returning employee's salary is never assumed: HR confirms (or edits) it, so the request always carries it. */
+    private function returnBody(string $date, array $over = []): array
+    {
+        return array_replace(['return_date' => $date, 'salary_amount' => 300, 'salary_currency' => 'USD', 'salary_frequency' => 'monthly'], $over);
     }
 
     public function test_replacing_an_employee_keeps_both_assignments_and_links_them(): void
@@ -484,7 +526,7 @@ class CompanyEmployeeManagementTest extends TestCase
         $replacementId = $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/replace", $this->replaceBody($stand, ['assignment_type' => 'replacement', 'replacement_date' => '2026-10-01']))->assertOk()->json('data.replacement.id');
         $a->refresh();
 
-        $result = $this->as($this->admin)->postJson($this->url($this->company)."/{$replacementId}/return", ['return_date' => '2026-10-21'])->assertOk();
+        $result = $this->as($this->admin)->postJson($this->url($this->company)."/{$replacementId}/return", $this->returnBody('2026-10-21'))->assertOk();
 
         $replacement = EmployeeWorkAssignment::query()->findOrFail($replacementId);
         $this->assertSame('ended', $replacement->status->value);
@@ -494,7 +536,7 @@ class CompanyEmployeeManagementTest extends TestCase
         $this->assertSame('2026-10-21', $returned->start_date->toDateString());
         $this->assertSame('permanent', $returned->assignment_type->value);
         $this->assertSame($replacementId, $returned->replaces_assignment_id);
-        $this->assertSame('300.00', (string) $returned->salary_amount, "the original's salary is carried over by default");
+        $this->assertSame('300.00', (string) $returned->salary_amount, 'the salary HR confirmed in the request');
         $this->assertSame($this->cleaner->id, $returned->position_id);
 
         $this->assertSame('ended', $a->fresh()->status->value, "the original's first assignment is kept as history");
@@ -506,15 +548,15 @@ class CompanyEmployeeManagementTest extends TestCase
     {
         $a = $this->place($this->makeEmployee(), $this->company, 300, '2026-01-01');
         $permanentId = $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/replace", $this->replaceBody($this->makeEmployee(), ['assignment_type' => 'permanent']))->assertOk()->json('data.replacement.id');
-        $this->as($this->admin)->postJson($this->url($this->company)."/{$permanentId}/return", ['return_date' => '2026-10-25'])->assertUnprocessable()->assertJsonPath('error_code', 'RETURN_NOT_A_REPLACEMENT');
+        $this->as($this->admin)->postJson($this->url($this->company)."/{$permanentId}/return", $this->returnBody('2026-10-25'))->assertUnprocessable()->assertJsonPath('error_code', 'RETURN_NOT_A_REPLACEMENT');
 
         $standalone = $this->place($this->makeEmployee(), $this->company, 100, '2026-01-01');
         $standalone->update(['assignment_type' => 'replacement']);
-        $this->as($this->admin)->postJson($this->url($this->company)."/{$standalone->id}/return", ['return_date' => '2026-10-25'])->assertUnprocessable()->assertJsonPath('error_code', 'RETURN_NO_ORIGINAL');
+        $this->as($this->admin)->postJson($this->url($this->company)."/{$standalone->id}/return", $this->returnBody('2026-10-25'))->assertUnprocessable()->assertJsonPath('error_code', 'RETURN_NO_ORIGINAL');
 
         $b = $this->place($this->makeEmployee(), $this->company, 300, '2026-01-01');
         $tempId = $this->as($this->admin)->postJson($this->url($this->company)."/{$b->id}/replace", $this->replaceBody($this->makeEmployee(), ['assignment_type' => 'replacement', 'replacement_date' => '2026-10-10']))->assertOk()->json('data.replacement.id');
-        $this->as($this->admin)->postJson($this->url($this->company)."/{$tempId}/return", ['return_date' => '2026-10-10'])->assertUnprocessable()->assertJsonPath('error_code', 'RETURN_BEFORE_REPLACEMENT_STARTED');
+        $this->as($this->admin)->postJson($this->url($this->company)."/{$tempId}/return", $this->returnBody('2026-10-10'))->assertUnprocessable()->assertJsonPath('error_code', 'RETURN_BEFORE_REPLACEMENT_STARTED');
         $this->assertSame('active', EmployeeWorkAssignment::query()->findOrFail($tempId)->status->value);
     }
 
@@ -556,7 +598,7 @@ class CompanyEmployeeManagementTest extends TestCase
     {
         $a = $this->place($this->makeEmployee(), $this->company, 300, '2026-01-01');
         $replacementId = $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/replace", $this->replaceBody($this->makeEmployee(), ['assignment_type' => 'replacement', 'replacement_date' => '2026-10-01']))->assertOk()->json('data.replacement.id');
-        $this->as($this->admin)->postJson($this->url($this->company)."/{$replacementId}/return", ['return_date' => '2026-10-20'])->assertOk();
+        $this->as($this->admin)->postJson($this->url($this->company)."/{$replacementId}/return", $this->returnBody('2026-10-20'))->assertOk();
         $other = $this->place($this->makeEmployee(), $this->other);
         $this->as($this->admin)->postJson($this->url($this->other)."/{$other->id}/stop", ['end_date' => '2026-10-20', 'reason' => 'elsewhere'])->assertOk();
 
@@ -578,7 +620,7 @@ class CompanyEmployeeManagementTest extends TestCase
         $run = PayrollRun::query()->create(['period' => '2026-09', 'status' => 'draft']);
         PayrollItem::query()->create(['payroll_run_id' => $run->id, 'period' => '2026-09', 'employee_id' => $a->employee_id, 'work_assignment_id' => $a->id, 'employee_name' => 'Original Person', 'employee_number' => $a->employee->employee_number, 'gross_cents' => 30000, 'net_cents' => 30000, 'eligible_days' => 30, 'days_in_month' => 30, 'calc_snapshot' => []]);
         $rid = $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/replace", $this->replaceBody($this->makeEmployee(), ['assignment_type' => 'replacement', 'replacement_date' => '2026-10-05']))->assertOk()->json('data.replacement.id');
-        $this->as($this->admin)->postJson($this->url($this->company)."/{$rid}/return", ['return_date' => '2026-10-20'])->assertOk();
+        $this->as($this->admin)->postJson($this->url($this->company)."/{$rid}/return", $this->returnBody('2026-10-20'))->assertOk();
 
         $item = PayrollItem::query()->where('work_assignment_id', $a->id)->sole();
         $this->assertSame(30000, (int) $item->net_cents);

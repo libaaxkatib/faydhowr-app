@@ -254,4 +254,25 @@ class MultiCompanyAndCurrencyPolicyTest extends TestCase
         $this->assertNull($row['payroll']['calculated']);
         $this->assertNotNull($row['payroll']['unavailable_reason']);
     }
+
+    public function test_totals_are_kept_per_currency_and_never_added_across_currencies(): void
+    {
+        $this->makeAssignment($this->makeEmployee(), $this->a, null, 300, '2026-01-01');
+        $this->makeAssignment($this->makeEmployee(), $this->a, null, 300, '2026-01-01');
+        $eur = $this->makeAssignment($this->makeEmployee(), $this->a, null, 200, '2026-01-01');
+        $eur->update(['salary_currency' => 'EUR']);
+        $eur->salaryHistories()->update(['currency' => 'EUR']);
+
+        $summary = $this->as($this->tokenWithOnly(['hr.view', 'hr.payroll.view']))->getJson("/api/v1/admin/hr/client-companies/{$this->a->id}/employees?period=2026-10")->assertOk()->json('data.summary');
+
+        $this->assertSame(['EUR' => 20000, 'USD' => 60000], collect($summary['contracted_monthly_salary_cents_by_currency'])->sortKeys()->all(), 'each currency has its own total: nothing is converted or added together');
+        $this->assertSame(['USD'], array_keys($summary['calculated_pay_by_currency']), 'calculated pay exists only for USD');
+        $this->assertSame(60000, $summary['calculated_pay_by_currency']['USD']['gross_cents'], 'the EUR salary is not in the USD payroll total');
+        $this->assertSame(1, $summary['calculated_pay_unavailable_count']);
+
+        // The payroll run itself: the EUR assignment gets no line and the USD total is untouched.
+        $run = $this->as($this->admin)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-10'])->assertCreated();
+        $this->assertSame('600.00', $run->json('data.totals.gross'));
+        $this->assertSame(2, $run->json('data.item_count'));
+    }
 }

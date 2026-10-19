@@ -8,7 +8,6 @@ use App\Models\Admin;
 use App\Models\AssignmentSalaryHistory;
 use App\Models\EmployeeWorkAssignment;
 use App\Support\ApiResponse;
-use App\Support\Hr\Payroll\PayrollPeriodLock;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -24,8 +23,6 @@ use Illuminate\Support\Facades\DB;
  */
 class ChangeAssignmentSalaryAction
 {
-    public function __construct(private readonly PayrollPeriodLock $lock = new PayrollPeriodLock) {}
-
     public function handle(
         EmployeeWorkAssignment $assignment,
         string $amount,
@@ -45,8 +42,8 @@ class ChangeAssignmentSalaryAction
             ));
         }
 
-        $this->lock->assertSalaryChangeAllowed($effective->toDateString());
-
+        // A salary change that reaches an approved or finalized month is handled one level up (ClosedPayrollCorrection), where the
+        // acting Super Admin and the correction reason are known.
         return DB::transaction(function () use ($assignment, $amount, $currency, $frequency, $effective, $reason, $actor) {
             $existing = AssignmentSalaryHistory::query()
                 ->where('work_assignment_id', $assignment->id)

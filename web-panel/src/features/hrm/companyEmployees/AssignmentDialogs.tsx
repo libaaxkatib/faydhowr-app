@@ -15,12 +15,15 @@ import {
   ASSIGNMENT_TYPE_LABELS,
   ASSIGNMENT_TYPE_OPTIONS,
   dayBefore,
+  isCorrectionReasonRequired,
+  isTemporaryWorker,
   startDateChangeWarning,
   validateAssignForm,
   validateReplaceForm,
   validateReturnForm,
   validateStopForm,
   type AssignmentTypeValue,
+  type ReturnFormErrors,
 } from '@/utils/companyEmployees';
 import { EmployeePicker } from '@/features/hrm/companyEmployees/EmployeePicker';
 import type { CompanyEmployeeCandidate, CompanyEmployeeRow } from '@/types/companyEmployees';
@@ -41,8 +44,10 @@ function useActionState(companyId: number) {
   const { show } = useToast();
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [serverFields, setServerFields] = useState<Record<string, string[]>>({});
+  const [needsCorrection, setNeedsCorrection] = useState(false);
 
   const failed = (error: unknown) => {
+    if (isCorrectionReasonRequired(error)) setNeedsCorrection(true);
     setServerMessage(friendlyErrorMessage(error, 'Something went wrong. Nothing was changed.'));
     setServerFields(error instanceof ApiClientError && error.isValidation ? (error.fieldErrors ?? {}) : {});
   };
@@ -53,12 +58,14 @@ function useActionState(companyId: number) {
     show(message);
     close();
   };
-  const reset = () => {
+  /** Clears the last error; `full` (a dialog being opened) also forgets that a correction reason was asked for. */
+  const reset = (full = false) => {
     setServerMessage(null);
     setServerFields({});
+    if (full) setNeedsCorrection(false);
   };
 
-  return { serverMessage, serverFields, failed, succeeded, reset };
+  return { serverMessage, serverFields, needsCorrection, failed, succeeded, reset };
 }
 
 function PositionSelect({ id, value, onChange, error }: { id: string; value: number | ''; onChange: (value: number | '') => void; error?: string }) {
@@ -77,12 +84,38 @@ function PositionSelect({ id, value, onChange, error }: { id: string; value: num
   );
 }
 
-function TypeSelect({ id, value, onChange, error, hint }: { id: string; value: AssignmentTypeValue | ''; onChange: (value: AssignmentTypeValue | '') => void; error?: string; hint?: string }) {
+function TypeSelect({ id, value, onChange, error, hint, options = ASSIGNMENT_TYPE_OPTIONS }: { id: string; value: AssignmentTypeValue | ''; onChange: (value: AssignmentTypeValue | '') => void; error?: string; hint?: string; options?: { value: string; label: string }[] }) {
   return (
     <FormField label="Type" htmlFor={id} required error={error} hint={hint ?? 'Permanent holds the position; Replacement covers for someone else. It is never assumed.'}>
-      <Select id={id} value={value} onChange={(event) => onChange(event.target.value as AssignmentTypeValue | '')} placeholder="Choose Permanent or Replacement…" options={ASSIGNMENT_TYPE_OPTIONS} />
+      <Select id={id} value={value} onChange={(event) => onChange(event.target.value as AssignmentTypeValue | '')} placeholder="Choose Permanent or Replacement…" options={options} />
     </FormField>
   );
+}
+
+const PERMANENT_ONLY = [{ value: 'permanent', label: 'Permanent' }];
+
+const money = (amount: number | string, currency: string) => `${Number(amount).toFixed(2)} ${currency} / month`;
+
+/**
+ * Shown only after the server said this change reaches an approved or finalized payroll month. Only a Super Admin can record such a
+ * change, and only with a reason; the closed month itself is never edited.
+ */
+function CorrectionReasonField({ visible, value, onChange, error }: { visible: boolean; value: string; onChange: (value: string) => void; error?: string }) {
+  if (!visible) return null;
+  return (
+    <div className="mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-3" data-testid="correction-reason">
+      <p className="mb-2 text-xs text-warning">
+        This change reaches payroll that is already approved or finalized. Only a Super Admin can record it, as a correction with a reason. The closed month stays exactly as it was; if someone was overpaid, the amount is deducted from their later salaries until it is repaid.
+      </p>
+      <FormField label="Correction reason" htmlFor="correction-reason" required error={error} hint="At least 5 characters. It is kept in the audit history.">
+        <input id="correction-reason" className={inputClasses} value={value} onChange={(event) => onChange(event.target.value)} />
+      </FormField>
+    </div>
+  );
+}
+
+function correctionError(state: { needsCorrection: boolean }, reason: string): string | undefined {
+  return state.needsCorrection && reason.trim().length < 5 ? 'Enter the correction reason (at least 5 characters).' : undefined;
 }
 
 function SalaryFields({
@@ -130,25 +163,25 @@ function Summary({ rows }: { rows: [string, ReactNode][] }) {
 export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }: { isOpen: boolean; onClose: () => void; companyId: number; companyName: string }) {
   const state = useActionState(companyId);
   const [picked, setPicked] = useState<CompanyEmployeeCandidate | null>(null);
-  const [type, setType] = useState<AssignmentTypeValue | ''>('');
   const [positionId, setPositionId] = useState<number | ''>('');
   const [startDate, setStartDate] = useState(today());
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USD');
   const [notes, setNotes] = useState('');
+  const [correctionReason, setCorrectionReason] = useState('');
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
 
   useEffect(() => {
     if (isOpen) {
       setPicked(null);
-      setType('');
       setPositionId('');
       setStartDate(today());
       setAmount('');
       setCurrency('USD');
       setNotes('');
+      setCorrectionReason('');
       setErrors({});
-      state.reset();
+      state.reset(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -157,13 +190,15 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
     mutationFn: () =>
       companyEmployeesApi.assign(companyId, {
         employee_id: Number(picked?.id),
-        assignment_type: type as AssignmentTypeValue,
+        // A Replacement is never added on its own: it takes over a Permanent employee's position through Replace Employee.
+        assignment_type: 'permanent',
         position_id: Number(positionId),
         start_date: startDate,
         salary_amount: Number(amount),
         salary_currency: currency,
         salary_frequency: 'monthly',
         notes: notes.trim() === '' ? null : notes.trim(),
+        ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}),
       }),
     onSuccess: () => state.succeeded('Employee added to the company.', onClose),
     onError: state.failed,
@@ -172,7 +207,8 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
   const submit = (event: FormEvent) => {
     event.preventDefault();
     state.reset();
-    const found = validateAssignForm({ employee_id: picked?.id ?? '', assignment_type: type, position_id: positionId, start_date: startDate, salary_amount: amount, salary_currency: currency });
+    const found: Record<string, string | undefined> = { ...validateAssignForm({ employee_id: picked?.id ?? '', assignment_type: 'permanent', position_id: positionId, start_date: startDate, salary_amount: amount, salary_currency: currency }), correction_reason: correctionError(state, correctionReason) };
+    if (found.correction_reason === undefined) delete found.correction_reason;
     setErrors(found);
     if (Object.keys(found).length === 0) mutation.mutate();
   };
@@ -193,7 +229,6 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
       <form onSubmit={submit} noValidate>
         <ErrorBanner message={state.serverMessage} />
         <EmployeePicker companyId={companyId} inputId="assign-picker" label="Registered employee" value={picked} onChange={setPicked} error={err('employee_id')} />
-        <TypeSelect id="assign-type" value={type} onChange={setType} error={err('assignment_type')} />
         <PositionSelect id="assign-position" value={positionId} onChange={setPositionId} error={err('position_id')} />
         <FormField label="Start date" htmlFor="assign-start" required error={err('start_date')}>
           <input id="assign-start" type="date" className={inputClasses} value={startDate} onChange={(event) => setStartDate(event.target.value)} />
@@ -202,7 +237,8 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
         <FormField label="Note" htmlFor="assign-notes">
           <input id="assign-notes" className={inputClasses} value={notes} onChange={(event) => setNotes(event.target.value)} />
         </FormField>
-        <p className="text-xs text-ink-muted">This places an existing employee at the company. Their HR registration is not changed and no second record is created.</p>
+        <CorrectionReasonField visible={state.needsCorrection} value={correctionReason} onChange={setCorrectionReason} error={err('correction_reason')} />
+        <p className="text-xs text-ink-muted">This places an existing employee at the company as a Permanent employee. Their HR registration is not changed and no second record is created. To put someone in the place of an existing employee, use Replace on that employee.</p>
       </form>
     </Modal>
   );
@@ -220,10 +256,12 @@ export function EditAssignmentDialog({ row, onClose, companyId }: { row: Company
   const [effectiveFrom, setEffectiveFrom] = useState(today());
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
+  const [correctionReason, setCorrectionReason] = useState('');
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
 
   useEffect(() => {
     if (row) {
+      setCorrectionReason('');
       setPositionId(row.position_id ?? '');
       setType(row.assignment_type);
       setStartDate(row.start_date);
@@ -233,12 +271,13 @@ export function EditAssignmentDialog({ row, onClose, companyId }: { row: Company
       setReason('');
       setNotes('');
       setErrors({});
-      state.reset();
+      state.reset(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row]);
 
-  const salaryChanged = row !== null && (Number(amount) !== Number(row.salary.amount) || currency !== row.salary.currency);
+  const isReplacement = row?.assignment_type === 'replacement';
+  const salaryChanged = row !== null && !isReplacement && (Number(amount) !== Number(row.salary.amount) || currency !== row.salary.currency);
   const warning = row ? startDateChangeWarning(row.start_date, startDate) : null;
 
   const mutation = useMutation({
@@ -250,6 +289,7 @@ export function EditAssignmentDialog({ row, onClose, companyId }: { row: Company
         ...(startDate !== r.start_date ? { start_date: startDate } : {}),
         ...(salaryChanged ? { salary_amount: Number(amount), salary_currency: currency, salary_effective_from: effectiveFrom, salary_change_reason: reason.trim() || null } : {}),
         ...(notes.trim() !== '' ? { notes: notes.trim() } : {}),
+        ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}),
       });
     },
     onSuccess: () => state.succeeded('Assignment updated.', onClose),
@@ -264,6 +304,8 @@ export function EditAssignmentDialog({ row, onClose, companyId }: { row: Company
     if (salaryChanged && (Number(amount) <= 0 || Number.isNaN(Number(amount)))) found.salary_amount = 'Enter a salary greater than zero.';
     if (salaryChanged && !/^[A-Za-z]{3}$/.test(currency)) found.salary_currency = 'Use a 3-letter currency code.';
     if (salaryChanged && effectiveFrom < (row?.start_date ?? '')) found.salary_effective_from = 'A salary cannot take effect before the assignment starts.';
+    const needed = correctionError(state, correctionReason);
+    if (needed) found.correction_reason = needed;
     setErrors(found);
     if (Object.keys(found).length === 0) mutation.mutate();
   };
@@ -285,15 +327,21 @@ export function EditAssignmentDialog({ row, onClose, companyId }: { row: Company
         <ErrorBanner message={state.serverMessage} />
         <p className="mb-4 text-xs text-ink-muted">These are the details of this company assignment only. The employee's own HR record (name, phone, status) is edited from the HR employee page.</p>
         <PositionSelect id="edit-position" value={positionId} onChange={setPositionId} error={err('position_id')} />
-        <TypeSelect id="edit-type" value={type} onChange={setType} error={err('assignment_type')} hint="Changing a Replacement to Permanent makes the position theirs; a Permanent holder cannot be 'returned from'." />
+        <TypeSelect id="edit-type" value={type} onChange={setType} error={err('assignment_type')} options={isReplacement ? ASSIGNMENT_TYPE_OPTIONS : PERMANENT_ONLY} hint={isReplacement ? "Changing a Replacement to Permanent makes the position theirs; a Permanent holder cannot be 'returned from'." : 'An assignment becomes a Replacement only through Replace Employee.'} />
         <FormField label="Start date" htmlFor="edit-start" required error={err('start_date')}>
           <input id="edit-start" type="date" className={inputClasses} value={startDate} onChange={(event) => setStartDate(event.target.value)} />
         </FormField>
         {warning && <div role="note" className="-mt-2 mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs text-warning">{warning}</div>}
-        <SalaryFields idPrefix="edit" amount={amount} currency={currency} onAmount={setAmount} onCurrency={setCurrency} errors={{ salary_amount: err('salary_amount'), salary_currency: err('salary_currency') }} />
+        {isReplacement ? (
+          <p className="mb-4 rounded-md border border-border bg-surface-muted px-3.5 py-2.5 text-xs text-ink-muted" data-testid="inherited-salary">
+            Salary: {row ? money(row.salary.amount, row.salary.currency) : ''}. A Replacement has no salary of its own; it uses the monthly salary of the Permanent employee whose position it holds{row?.replaces ? ` (${row.replaces.full_name})` : ''}, so it cannot be edited here.
+          </p>
+        ) : (
+          <SalaryFields idPrefix="edit" amount={amount} currency={currency} onAmount={setAmount} onCurrency={setCurrency} errors={{ salary_amount: err('salary_amount'), salary_currency: err('salary_currency') }} />
+        )}
         {salaryChanged && (
           <>
-            <FormField label="New salary applies from" htmlFor="edit-effective" required error={err('salary_effective_from')} hint="The old salary stays in the history and keeps applying before this date. Approved or finalized payroll months cannot be changed.">
+            <FormField label="New salary applies from" htmlFor="edit-effective" required error={err('salary_effective_from')} hint="The old salary stays in the history and keeps applying before this date. Approved or finalized payroll months are only changed by a Super Admin correction.">
               <input id="edit-effective" type="date" className={inputClasses} value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} />
             </FormField>
             <FormField label="Reason for the salary change" htmlFor="edit-reason">
@@ -304,6 +352,7 @@ export function EditAssignmentDialog({ row, onClose, companyId }: { row: Company
         <FormField label="Add a note" htmlFor="edit-notes">
           <input id="edit-notes" className={inputClasses} value={notes} onChange={(event) => setNotes(event.target.value)} />
         </FormField>
+        <CorrectionReasonField visible={state.needsCorrection} value={correctionReason} onChange={setCorrectionReason} error={err('correction_reason')} />
       </form>
     </Modal>
   );
@@ -322,11 +371,15 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USD');
   const [reason, setReason] = useState('');
+  const [correctionReason, setCorrectionReason] = useState('');
+  const [acknowledgeTemporary, setAcknowledgeTemporary] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const { data: positions } = useQuery({ queryKey: ['positions'], queryFn: hrApi.positions.list });
 
   useEffect(() => {
     if (row) {
+      setCorrectionReason('');
+      setAcknowledgeTemporary(false);
       setStep('form');
       setPicked(null);
       setReplacementDate(today() > row.start_date ? today() : row.start_date);
@@ -337,7 +390,7 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
       setCurrency(row.salary.currency);
       setReason('');
       setErrors({});
-      state.reset();
+      state.reset(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row]);
@@ -352,10 +405,11 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
         original_last_day: lastDay || null,
         assignment_type: type as AssignmentTypeValue,
         position_id: positionId === '' ? null : positionId,
-        salary_amount: Number(amount),
-        salary_currency: currency,
-        salary_frequency: 'monthly',
+        // A Replacement has no salary of its own: the server uses the replaced Permanent's. Only a Permanent successor brings one.
+        ...(type === 'replacement' ? {} : { salary_amount: Number(amount), salary_currency: currency, salary_frequency: 'monthly' }),
+        ...(acknowledgeTemporary ? { acknowledge_temporary_as_replacement: true } : {}),
         reason: reason.trim() || null,
+        ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}),
       }),
     onSuccess: () => state.succeeded('Employee replaced. Both assignments are kept in the history.', onClose),
     onError: (error) => {
@@ -371,7 +425,10 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
       { replacement_employee_id: picked?.id ?? '', replacement_date: replacementDate, original_last_day: lastDay, assignment_type: type, position_id: positionId, salary_amount: amount, salary_currency: currency },
       row?.start_date ?? '',
       row?.employee_id ?? 0,
-    );
+    ) as Record<string, string | undefined>;
+    if (type === 'replacement' && isTemporaryWorker(picked) && !acknowledgeTemporary) found.replacement_employee_id = 'This person is a Temporary worker. Confirm below that you really want a Replacement, or choose Permanent / correct the registration.';
+    const needed = correctionError(state, correctionReason);
+    if (needed) found.correction_reason = needed;
     setErrors(found);
     if (Object.keys(found).length === 0) setStep('review');
   };
@@ -411,11 +468,27 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
             <input id="replace-last" type="date" className={inputClasses} value={lastDay} placeholder={effectiveLastDay} onChange={(event) => setLastDay(event.target.value)} />
           </FormField>
           <TypeSelect id="replace-type" value={type} onChange={setType} error={err('assignment_type')} hint="Is the replacement meant to be Permanent, or a Replacement who may later be returned from? Choose explicitly." />
+          {type === 'replacement' && isTemporaryWorker(picked) && (
+            <div role="alert" className="-mt-2 mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs text-warning" data-testid="temporary-warning">
+              <p className="mb-1.5">{picked?.full_name} is registered as a Temporary worker. Temporary cover is recorded as Temporary cover (paid per verified day), not as a Replacement who takes over the position. Registering them as a Replacement is probably a mistake.</p>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" id="replace-ack-temporary" checked={acknowledgeTemporary} onChange={(event) => setAcknowledgeTemporary(event.target.checked)} />
+                I have checked, and I want a Replacement for this person anyway
+              </label>
+            </div>
+          )}
           <PositionSelect id="replace-position" value={positionId} onChange={setPositionId} error={err('position_id')} />
-          <SalaryFields idPrefix="replace" amount={amount} currency={currency} onAmount={setAmount} onCurrency={setCurrency} errors={{ salary_amount: err('salary_amount'), salary_currency: err('salary_currency') }} />
+          {type === 'replacement' ? (
+            <p className="mb-4 rounded-md border border-border bg-surface-muted px-3.5 py-2.5 text-xs text-ink-muted" data-testid="inherited-salary">
+              Salary: {money(row.salary.amount, row.salary.currency)}, the monthly salary of {row.full_name}. A Replacement has no salary of its own; it is paid from {row.full_name}'s salary for the calendar days it covers.
+            </p>
+          ) : (
+            <SalaryFields idPrefix="replace" amount={amount} currency={currency} onAmount={setAmount} onCurrency={setCurrency} errors={{ salary_amount: err('salary_amount'), salary_currency: err('salary_currency') }} />
+          )}
           <FormField label="Reason (optional)" htmlFor="replace-reason">
             <input id="replace-reason" className={inputClasses} value={reason} onChange={(event) => setReason(event.target.value)} />
           </FormField>
+          <CorrectionReasonField visible={state.needsCorrection} value={correctionReason} onChange={setCorrectionReason} error={err('correction_reason')} />
         </form>
       )}
       {step === 'review' && row && picked && (
@@ -430,7 +503,7 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
               ['Replacement employee', `${picked.full_name} (${picked.employee_number})`],
               ['Replacement starts', formatDate(replacementDate)],
               ['Replacement is', type === '' ? '—' : ASSIGNMENT_TYPE_LABELS[type]],
-              ['Salary', `${Number(amount).toFixed(2)} ${currency} / month`],
+              ['Salary', type === 'replacement' ? `${money(row.salary.amount, row.salary.currency)} (inherited from ${row.full_name})` : money(amount, currency)],
             ]}
           />
           <p className="text-xs text-ink-muted">The original employee stays an active HR employee. Both assignments stay in the history and no payroll record is changed.</p>
@@ -446,8 +519,12 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
   const state = useActionState(companyId);
   const [returnDate, setReturnDate] = useState(today());
   const [notes, setNotes] = useState('');
+  const [amount, setAmount] = useState('');
+  const [currency, setCurrency] = useState('USD');
+  const [salaryConfirmed, setSalaryConfirmed] = useState(false);
+  const [correctionReason, setCorrectionReason] = useState('');
   const [step, setStep] = useState<'form' | 'review'>('form');
-  const [error, setError] = useState<string | undefined>();
+  const [errors, setErrors] = useState<ReturnFormErrors & { correction_reason?: string }>({});
   const { data: history } = useQuery({
     queryKey: ['company-employee-history', companyId, 'return', row?.assignment_id],
     queryFn: () => companyEmployeesApi.history(companyId),
@@ -458,9 +535,14 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
     if (row) {
       setReturnDate(today() > row.start_date ? today() : dayAfter(row.start_date));
       setNotes('');
+      // The previous salary is only a proposal: HR must confirm or change it before saving.
+      setAmount(String(Number(row.replaces?.salary.amount ?? row.salary.amount)));
+      setCurrency(row.replaces?.salary.currency ?? row.salary.currency);
+      setSalaryConfirmed(false);
+      setCorrectionReason('');
       setStep('form');
-      setError(undefined);
-      state.reset();
+      setErrors({});
+      state.reset(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row]);
@@ -468,7 +550,14 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
   const original = history?.chain.find((entry) => entry.assignment_id === row?.replaces_assignment_id);
 
   const mutation = useMutation({
-    mutationFn: () => companyEmployeesApi.returnOriginal(companyId, row!.assignment_id, { return_date: returnDate, notes: notes.trim() || null }),
+    mutationFn: () => companyEmployeesApi.returnOriginal(companyId, row!.assignment_id, {
+        return_date: returnDate,
+        salary_amount: Number(amount),
+        salary_currency: currency,
+        salary_frequency: 'monthly',
+        notes: notes.trim() || null,
+        ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}),
+      }),
     onSuccess: () => state.succeeded('Original employee returned. All assignments are kept in the history.', onClose),
     onError: (e) => {
       state.failed(e);
@@ -479,9 +568,11 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
   const review = (event: FormEvent) => {
     event.preventDefault();
     state.reset();
-    const found = validateReturnForm(returnDate, row?.start_date ?? '');
-    setError(found.return_date);
-    if (!found.return_date) setStep('review');
+    const found: ReturnFormErrors & { correction_reason?: string } = validateReturnForm(returnDate, row?.start_date ?? '', { amount, currency, confirmed: salaryConfirmed });
+    const needed = correctionError(state, correctionReason);
+    if (needed) found.correction_reason = needed;
+    setErrors(found);
+    if (Object.keys(found).length === 0) setStep('review');
   };
 
   return (
@@ -514,13 +605,23 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
           />
           {step === 'form' && (
             <form onSubmit={review} noValidate>
-              <FormField label="Return date (first day back)" htmlFor="return-date" required error={error ?? state.serverFields.return_date?.[0]}>
+              <FormField label="Return date (first day back)" htmlFor="return-date" required error={errors.return_date ?? state.serverFields.return_date?.[0]}>
                 <input id="return-date" type="date" className={inputClasses} value={returnDate} onChange={(event) => setReturnDate(event.target.value)} />
               </FormField>
+              <SalaryFields idPrefix="return" amount={amount} currency={currency} onAmount={(v) => { setAmount(v); setSalaryConfirmed(false); }} onCurrency={(v) => { setCurrency(v); setSalaryConfirmed(false); }} errors={{ salary_amount: errors.salary_amount ?? state.serverFields.salary_amount?.[0], salary_currency: errors.salary_currency ?? state.serverFields.salary_currency?.[0] }} />
+              <p className="-mt-2 mb-3 text-xs text-ink-muted" data-testid="previous-salary">Previous salary: {row.replaces ? money(row.replaces.salary.amount, row.replaces.salary.currency) : 'not known'}. It is only a proposal: change it if the salary is different now.</p>
+              <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm text-ink">
+                  <input type="checkbox" id="return-salary-confirmed" checked={salaryConfirmed} onChange={(event) => setSalaryConfirmed(event.target.checked)} />
+                  I checked this salary for the new Permanent assignment
+                </label>
+                {errors.salary_confirmed && <p role="alert" className="mt-1 text-xs text-danger">{errors.salary_confirmed}</p>}
+              </div>
               <FormField label="Note (optional)" htmlFor="return-notes">
                 <input id="return-notes" className={inputClasses} value={notes} onChange={(event) => setNotes(event.target.value)} />
               </FormField>
-              <p className="text-xs text-ink-muted">The original employee gets a new assignment with the position and salary of their first one. Change them afterwards with Edit if they differ.</p>
+              <CorrectionReasonField visible={state.needsCorrection} value={correctionReason} onChange={setCorrectionReason} error={errors.correction_reason} />
+              <p className="text-xs text-ink-muted">The original employee gets a NEW Permanent assignment with their original position and the salary you confirm above. The Replacement's assignment ends the day before the return date and everything is kept in the history.</p>
             </form>
           )}
           {step === 'review' && (
@@ -530,6 +631,7 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
                 rows={[
                   [`${row.full_name}'s assignment`, `ends ${formatDate(dayBefore(returnDate))}`],
                   [original ? `${original.employee_name}` : 'Original employee', `starts again ${formatDate(returnDate)} as Permanent`],
+                  ['Confirmed salary', money(amount, currency)],
                 ]}
               />
               <p className="text-xs text-ink-muted">Nothing is deleted: the replacement's assignment, pay, attendance and history all stay.</p>
@@ -552,22 +654,24 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
   const state = useActionState(companyId);
   const [endDate, setEndDate] = useState(today());
   const [reason, setReason] = useState('');
-  const [errors, setErrors] = useState<{ end_date?: string; reason?: string }>({});
+  const [correctionReason, setCorrectionReason] = useState('');
+  const [errors, setErrors] = useState<{ end_date?: string; reason?: string; correction_reason?: string }>({});
   const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     if (row) {
       setEndDate(today() < row.start_date ? row.start_date : today());
+      setCorrectionReason('');
       setReason('');
       setErrors({});
       setConfirming(false);
-      state.reset();
+      state.reset(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row]);
 
   const mutation = useMutation({
-    mutationFn: () => companyEmployeesApi.stop(companyId, row!.assignment_id, { end_date: endDate, reason: reason.trim() }),
+    mutationFn: () => companyEmployeesApi.stop(companyId, row!.assignment_id, { end_date: endDate, reason: reason.trim(), ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}) }),
     onSuccess: () => state.succeeded("Assignment stopped. The employee's HR status was not changed.", onClose),
     onError: (e) => {
       state.failed(e);
@@ -578,7 +682,9 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
   const submit = (event: FormEvent) => {
     event.preventDefault();
     state.reset();
-    const found = validateStopForm(endDate, reason, row?.start_date ?? '');
+    const found: { end_date?: string; reason?: string; correction_reason?: string } = validateStopForm(endDate, reason, row?.start_date ?? '');
+    const needed = correctionError(state, correctionReason);
+    if (needed) found.correction_reason = needed;
     setErrors(found);
     if (Object.keys(found).length === 0) setConfirming(true);
   };
@@ -614,6 +720,7 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
           <FormField label="Reason" htmlFor="stop-reason" required error={errors.reason ?? state.serverFields.reason?.[0]}>
             <input id="stop-reason" className={inputClasses} value={reason} onChange={(event) => setReason(event.target.value)} />
           </FormField>
+          <CorrectionReasonField visible={state.needsCorrection} value={correctionReason} onChange={setCorrectionReason} error={errors.correction_reason} />
         </form>
       )}
       {row && confirming && (

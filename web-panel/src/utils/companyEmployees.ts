@@ -104,7 +104,8 @@ export interface ReplaceForm extends SalaryFields {
 }
 
 export function validateReplaceForm(f: ReplaceForm, originalStart: string, originalEmployeeId: number): FieldErrors<ReplaceForm> {
-  const errors: FieldErrors<ReplaceForm> = { ...salaryErrors(f) };
+  // A Replacement has no salary of its own (the server uses the replaced Permanent's), so only a Permanent successor needs one.
+  const errors: FieldErrors<ReplaceForm> = f.assignment_type === 'replacement' ? {} : { ...salaryErrors(f) };
   if (f.replacement_employee_id === '') errors.replacement_employee_id = 'Search and choose the replacement employee.';
   else if (f.replacement_employee_id === originalEmployeeId) errors.replacement_employee_id = 'An employee cannot replace themselves.';
   if (f.replacement_date === '') errors.replacement_date = 'Enter the replacement date.';
@@ -117,10 +118,33 @@ export function validateReplaceForm(f: ReplaceForm, originalStart: string, origi
   return errors;
 }
 
-export function validateReturnForm(returnDate: string, replacementStart: string): { return_date?: string } {
-  if (returnDate === '') return { return_date: 'Enter the return date.' };
-  if (returnDate <= replacementStart) return { return_date: `The replacement started on ${replacementStart}; the return date must be after that day.` };
-  return {};
+export interface ReturnFormErrors {
+  return_date?: string;
+  salary_amount?: string;
+  salary_currency?: string;
+  salary_confirmed?: string;
+}
+
+/** The returning employee's salary is never assumed: HR must enter (or keep) it and tick that they checked it. */
+export function validateReturnForm(returnDate: string, replacementStart: string, salary: { amount: string; currency: string; confirmed: boolean }): ReturnFormErrors {
+  const errors: ReturnFormErrors = {};
+  if (returnDate === '') errors.return_date = 'Enter the return date.';
+  else if (returnDate <= replacementStart) errors.return_date = `The replacement started on ${replacementStart}; the return date must be after that day.`;
+  const amount = Number(salary.amount);
+  if (salary.amount.trim() === '' || Number.isNaN(amount) || amount <= 0) errors.salary_amount = 'Enter the salary of the returning employee (greater than zero).';
+  if (!/^[A-Za-z]{3}$/.test(salary.currency.trim())) errors.salary_currency = 'Use a 3-letter currency code, for example USD.';
+  if (!salary.confirmed) errors.salary_confirmed = 'Confirm that you checked this salary. It is not assumed to be unchanged.';
+  return errors;
+}
+
+/** The server asks for a reason (Super Admin only) when a change would alter an approved or finalized payroll month. */
+export function isCorrectionReasonRequired(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'CORRECTION_REASON_REQUIRED';
+}
+
+/** A Temporary worker is paid per verified day of Temporary cover; registering one as a Replacement needs a deliberate HR decision. */
+export function isTemporaryWorker(candidate: { employment_type?: string | null } | null): boolean {
+  return candidate?.employment_type === 'temporary';
 }
 
 export function validateStopForm(endDate: string, reason: string, start: string): { end_date?: string; reason?: string } {
@@ -135,7 +159,7 @@ export function validateStopForm(endDate: string, reason: string, start: string)
 export function startDateChangeWarning(oldStart: string, newStart: string): string | null {
   if (oldStart === newStart || newStart === '') return null;
   const earlier = newStart < oldStart ? newStart : oldStart;
-  return `Changing the start date changes the payable days of every month from ${earlier.slice(0, 7)} on. The original date (${oldStart}) is kept in the history. Months whose payroll is approved or finalized cannot be changed; the server will refuse the edit and a payroll adjustment is needed.`;
+  return `Changing the start date changes the payable days of every month from ${earlier.slice(0, 7)} on. The original date (${oldStart}) is kept in the history. If an approved or finalized payroll month is really affected, only a Super Admin can make the change, with a reason: the closed month stays as it was and any overpayment is deducted from later salaries.`;
 }
 
 export const EVENT_LABELS: Record<string, string> = {

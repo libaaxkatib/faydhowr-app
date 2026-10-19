@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\V1\Admin\Hr\HrReportsController as AdminHrReportsCo
 use App\Http\Controllers\Api\V1\Admin\Hr\ImportController as AdminHrImportController;
 use App\Http\Controllers\Api\V1\Admin\Hr\MonthlyPaymentReportController as AdminMonthlyPaymentReportController;
 use App\Http\Controllers\Api\V1\Admin\Hr\OfficeStaffController as AdminOfficeStaffController;
+use App\Http\Controllers\Api\V1\Admin\Hr\PayrollCorrectionController as AdminPayrollCorrectionController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PayrollRunController as AdminPayrollRunController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PositionController as AdminPositionController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PracticalBatchController as AdminPracticalBatchController;
@@ -1505,6 +1506,8 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.view', 'throt
     Route::get('v1/admin/hr/temporary-replacements/{temporaryReplacement}/cost', [AdminTemporaryReplacementWorkdayController::class, 'cost'])
         ->whereNumber('temporaryReplacement')
         ->name('api.v1.admin.hr.temporary-replacements.cost');
+    Route::get('v1/admin/hr/payroll-corrections', [AdminPayrollCorrectionController::class, 'index'])
+        ->name('api.v1.admin.hr.payroll-corrections.index');
     Route::get('v1/admin/hr/payroll-runs', [AdminPayrollRunController::class, 'index'])
         ->name('api.v1.admin.hr.payroll-runs.index');
     Route::get('v1/admin/hr/payroll-runs/{payrollRun}', [AdminPayrollRunController::class, 'show'])

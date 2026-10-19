@@ -39,6 +39,7 @@ class AssignEmployeeToCompanyAction
                 'salary_frequency' => $data['salary_frequency'],
                 'notes' => $data['notes'] ?? null,
                 'override_capacity' => $data['override_capacity'] ?? false,
+                'correction_reason' => $data['correction_reason'] ?? null,
             ], $actor);
 
             event(AuditEvent::record(

@@ -63,6 +63,8 @@ final class PayrollSummaryPresenter
             'replacements' => array_map(fn (array $d): array => [...$d['detail'], 'description' => $d['description'], 'amount' => $fmt((int) $d['amount_cents'])], $of('replacement')),
             'unpaid_leave_deduction' => $fmt($sum('unpaid_leave')),
             'unpaid_leaves' => array_map(fn (array $d): array => [...$d['detail'], 'description' => $d['description'], 'amount' => $fmt((int) $d['amount_cents'])], $of('unpaid_leave')),
+            'overpayment_recovery_deduction' => $fmt($sum('overpayment_recovery')),
+            'overpayment_recoveries' => array_map(fn (array $d): array => [...$d['detail'], 'description' => $d['description'], 'amount' => $fmt((int) $d['amount_cents'])], $of('overpayment_recovery')),
             'adjustment' => $fmt((int) $line['adjustment_cents']),
             'net_payable' => $fmt((int) $line['net_cents']),
             'final_pay' => $line['calc_snapshot']['final_pay'] ?? null,
@@ -96,6 +98,7 @@ final class PayrollSummaryPresenter
             'gross_pay' => $zero, 'absent_days' => 0, 'absence_deduction' => $zero,
             'penalties' => [], 'penalty_deduction' => $zero, 'advances' => [], 'advance_deduction' => $zero,
             'replacement_deduction' => $zero, 'replacements' => [], 'unpaid_leave_deduction' => $zero, 'unpaid_leaves' => [],
+            'overpayment_recovery_deduction' => $zero, 'overpayment_recoveries' => [],
             'adjustment' => $zero, 'net_payable' => $zero, 'final_pay' => null, 'succession' => null,
             ...self::provenance($view),
         ];

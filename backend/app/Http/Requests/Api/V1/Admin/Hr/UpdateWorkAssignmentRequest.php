@@ -32,6 +32,7 @@ class UpdateWorkAssignmentRequest extends FormRequest
             'salary_effective_from' => ['sometimes', 'date'],
             'salary_change_reason' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string'],
+            'correction_reason' => ['nullable', 'string', 'max:500'],
         ];
     }
 

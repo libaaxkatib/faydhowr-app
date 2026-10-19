@@ -9,7 +9,10 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 
-/** The original employee returns on this date; the other fields only override what is carried over from their first assignment. */
+/**
+ * The original employee returns on this date as a NEW Permanent assignment. The salary is never assumed unchanged: HR must send the
+ * salary they confirm or edit (the screen proposes the previous one).
+ */
 class ReturnCompanyEmployeeRequest extends FormRequest
 {
     public function authorize(): bool
@@ -22,9 +25,10 @@ class ReturnCompanyEmployeeRequest extends FormRequest
         return [
             'return_date' => ['required', 'date'],
             'position_id' => ['sometimes', 'nullable', 'integer', 'exists:positions,id'],
-            'salary_amount' => ['sometimes', 'numeric', 'gt:0', 'max:9999999999.99'],
-            'salary_currency' => ['sometimes', 'string', 'size:3', 'alpha'],
-            'salary_frequency' => ['sometimes', Rule::in(SalaryFrequency::values())],
+            'salary_amount' => ['required', 'numeric', 'gt:0', 'max:9999999999.99'],
+            'salary_currency' => ['required', 'string', 'size:3', 'alpha'],
+            'salary_frequency' => ['required', Rule::in(SalaryFrequency::values())],
+            'correction_reason' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];
     }

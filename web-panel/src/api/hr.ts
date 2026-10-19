@@ -1,7 +1,7 @@
 import { apiRequest, apiRequestWithMeta, downloadAuthenticatedFile } from '@/api/client';
 import type { PageMeta } from '@/types/api';
 import type { OfficeStaffSummary } from '@/utils/officeStaff';
-import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollItem, PayrollRun } from '@/types/payroll';
+import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollCorrectionsResponse, PayrollItem, PayrollRun } from '@/types/payroll';
 import type {
   AttendanceRosterEntry,
   ClientCompany,
@@ -304,6 +304,8 @@ export const hrApi = {
   payrollRuns: {
     list: () => apiRequest<PayrollRun[]>('admin/hr/payroll-runs'),
     get: (id: number) => apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}`),
+    /** Super Admin corrections of approved/finalized months and the overpayment-recovery ledger (read-only). */
+    corrections: () => apiRequest<PayrollCorrectionsResponse>('admin/hr/payroll-corrections'),
     /** Creates the draft for a month, or regenerates it if one already exists (refused once approved/finalized). */
     generate: (period: string) => apiRequest<PayrollRun>('admin/hr/payroll-runs', { method: 'POST', body: { period } }),
     review: (id: number) => apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/review`, { method: 'PATCH' }),

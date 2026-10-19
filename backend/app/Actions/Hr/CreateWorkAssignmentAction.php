@@ -13,8 +13,11 @@ use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\WorkLocation;
 use App\Support\ApiResponse;
+use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\CompanyLocationResolver;
 use App\Support\Hr\ConcurrentAssignmentGuard;
+use App\Support\Hr\Payroll\ClosedPayrollCorrection;
+use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\PositionSuccession;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -39,7 +42,76 @@ use Illuminate\Support\Facades\DB;
  */
 class CreateWorkAssignmentAction
 {
+    public function __construct(private readonly ClosedPayrollCorrection $corrections = new ClosedPayrollCorrection) {}
+
+    /**
+     * An assignment that starts inside an approved or finalized payroll month changes what that month should have paid, so it is a
+     * correction (Super Admin only, with `correction_reason`) - see ClosedPayrollCorrection. Anything else is created as before.
+     *
+     * A REPLACEMENT is different from every other assignment: it has no salary of its own. It must name the assignment it replaces
+     * (`replaces_assignment_id`) and its salary basis is the monthly salary of the Permanent employee whose position it takes over,
+     * copied (with the date and the source assignment recorded) so the calculation can always be reproduced.
+     */
     public function handle(Employee $employee, array $data, Admin $actor): EmployeeWorkAssignment
+    {
+        if (($data['assignment_type'] ?? AssignmentType::Permanent->value) === AssignmentType::Replacement->value) {
+            $data = $this->withInheritedSalary($employee, $data);
+        }
+
+        $chainEmployees = ! empty($data['replaces_assignment_id'])
+            ? AssignmentChain::employeeIds(EmployeeWorkAssignment::query()->findOrFail($data['replaces_assignment_id']))
+            : [];
+
+        return $this->corrections->run(
+            $actor,
+            'assigned',
+            [$employee->id, ...$chainEmployees],
+            CarbonImmutable::parse($data['start_date'])->toDateString(),
+            $data['correction_reason'] ?? null,
+            ['assignment_id' => null, 'old' => null, 'new' => array_intersect_key($data, array_flip(['start_date', 'end_date', 'assignment_type', 'salary_amount', 'salary_currency', 'replaces_assignment_id']))],
+            fn (): EmployeeWorkAssignment => $this->create($employee, $data, $actor),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function withInheritedSalary(Employee $employee, array $data): array
+    {
+        if (empty($data['replaces_assignment_id'])) {
+            $this->fail('A Replacement takes over the position of a Permanent employee. Use Replace Employee and choose the assignment being replaced.', 'REPLACEMENT_NEEDS_REPLACED_ASSIGNMENT');
+        }
+
+        if ($employee->employment_type === 'temporary' && ($data['acknowledge_temporary_as_replacement'] ?? false) !== true) {
+            $this->fail("{$employee->full_name} ({$employee->employee_number}) is a Temporary employee. Temporary cover is recorded as a Temporary replacement (paid per verified day), not as a Replacement who takes over the position. Correct the assignment, or confirm that you really want a Replacement for this person.", 'TEMPORARY_REGISTERED_AS_REPLACEMENT');
+        }
+
+        $predecessor = EmployeeWorkAssignment::query()->findOrFail($data['replaces_assignment_id']);
+        $basis = AssignmentChain::inheritedSalary($predecessor, CarbonImmutable::parse($data['start_date']));
+
+        if ($basis === null) {
+            $this->fail('The Permanent assignment being replaced has no salary to inherit.', 'REPLACEMENT_NO_SALARY_BASIS');
+        }
+
+        $typed = isset($data['salary_amount']) && (PayrollMoney::toCents($data['salary_amount']) !== PayrollMoney::toCents($basis['amount'])
+            || strtoupper((string) ($data['salary_currency'] ?? $basis['currency'])) !== strtoupper($basis['currency']));
+
+        if ($typed) {
+            $this->fail("A Replacement's salary is the Permanent employee's salary ({$basis['amount']} {$basis['currency']} per month) and cannot be entered separately.", 'REPLACEMENT_SALARY_IS_INHERITED');
+        }
+
+        return [
+            ...$data,
+            'salary_amount' => $basis['amount'],
+            'salary_currency' => $basis['currency'],
+            'salary_frequency' => $basis['frequency'],
+            'salary_basis' => $basis,
+        ];
+    }
+
+    /** @param  array<string, mixed>  $data */
+    private function create(Employee $employee, array $data, Admin $actor): EmployeeWorkAssignment
     {
         $workLocation = ! empty($data['work_location_id'])
             ? WorkLocation::query()->findOrFail($data['work_location_id'])
@@ -77,7 +149,9 @@ class CreateWorkAssignmentAction
                 'amount' => $data['salary_amount'],
                 'currency' => $data['salary_currency'],
                 'frequency' => $data['salary_frequency'],
-                'reason' => 'Initial salary',
+                'reason' => isset($data['salary_basis'])
+                    ? "Inherited from Permanent assignment #{$data['salary_basis']['assignment_id']} (salary row effective {$data['salary_basis']['effective_from']}): a Replacement has no salary of its own"
+                    : 'Initial salary',
                 'changed_by' => $actor->id,
             ]);
 
@@ -87,10 +161,13 @@ class CreateWorkAssignmentAction
                 description: "Work assignment created for employee '{$employee->full_name}' ({$employee->employee_number}).".($predecessor ? " It takes over assignment #{$predecessor->id}." : ''),
                 entityType: EmployeeWorkAssignment::class,
                 entityId: $assignment->id,
-                metadata: $predecessor === null ? [] : [
-                    'replaces_assignment_id' => $predecessor->id,
-                    'predecessor_last_paid_day' => $predecessor->end_date->toDateString(),
-                    'uncovered_gap_days' => PositionSuccession::gapDays($predecessor->end_date, $assignment->start_date),
+                metadata: [
+                    ...($predecessor === null ? [] : [
+                        'replaces_assignment_id' => $predecessor->id,
+                        'predecessor_last_paid_day' => $predecessor->end_date->toDateString(),
+                        'uncovered_gap_days' => PositionSuccession::gapDays($predecessor->end_date, $assignment->start_date),
+                    ]),
+                    ...(isset($data['salary_basis']) ? ['salary_basis' => $data['salary_basis']] : []),
                 ],
             ));
 

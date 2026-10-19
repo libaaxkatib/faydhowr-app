@@ -16,6 +16,8 @@ class AssignmentSalaryHistoryTest extends TestCase
 
     private function changeAssignment(string $token, int $assignmentId, array $payload)
     {
+        $this->app['auth']->forgetGuards();
+
         return $this->withToken($token)->putJson("/api/v1/admin/hr/work-assignments/{$assignmentId}", $payload);
     }
 
@@ -97,18 +99,23 @@ class AssignmentSalaryHistoryTest extends TestCase
         $this->assertSame(1, $assignment->salaryHistories()->count());
     }
 
-    public function test_salary_changes_in_or_before_an_approved_or_finalized_month_are_refused(): void
+    public function test_salary_changes_that_alter_an_approved_or_finalized_month_need_a_super_admin_and_a_reason(): void
     {
         [, $token] = $this->superAdminToken();
+        $hrManager = $this->tokenWithOnly(['hr.view', 'hr.manage']);
         $assignment = $this->makeAssignment($this->makeEmployee(), $this->makeCompany(), null, 300, '2026-01-01');
         PayrollRun::query()->create(['period' => '2026-04', 'status' => 'finalized']);
 
-        $this->changeAssignment($token, $assignment->id, ['salary_amount' => 400, 'salary_effective_from' => '2026-04-15'])
-            ->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_PERIOD_LOCKED');
+        // Nobody but a Super Admin may change what a closed month paid - nothing is saved.
+        $this->changeAssignment($hrManager, $assignment->id, ['salary_amount' => 400, 'salary_effective_from' => '2026-04-15'])
+            ->assertStatus(403)->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        // A Super Admin must say why.
         $this->changeAssignment($token, $assignment->id, ['salary_amount' => 400, 'salary_effective_from' => '2026-02-01'])
-            ->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_PERIOD_LOCKED');
+            ->assertStatus(422)->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');
+        $this->assertSame(1, AssignmentSalaryHistory::query()->where('work_assignment_id', $assignment->id)->count());
 
-        $this->changeAssignment($token, $assignment->id, ['salary_amount' => 400, 'salary_effective_from' => '2026-05-01'])->assertOk();
+        // A change that leaves every closed month as it was is open to the normal HR editors.
+        $this->changeAssignment($hrManager, $assignment->id, ['salary_amount' => 400, 'salary_effective_from' => '2026-05-01'])->assertOk();
         $this->assertSame(2, AssignmentSalaryHistory::query()->where('work_assignment_id', $assignment->id)->count());
     }
 

@@ -21,6 +21,9 @@ class PayrollItemDeduction extends Model
 
     public const KIND_UNPAID_LEAVE = 'unpaid_leave';
 
+    /** A monthly instalment of an overpayment found in an earlier closed month (see PayrollCorrection). */
+    public const KIND_OVERPAYMENT_RECOVERY = 'overpayment_recovery';
+
     protected function casts(): array
     {
         return ['detail' => 'array'];

@@ -8,6 +8,7 @@ use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\PayrollRun;
 use App\Support\ApiResponse;
+use App\Support\Hr\Payroll\RecoveryLedger;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
@@ -41,6 +42,7 @@ class TransitionPayrollRunAction
         }
 
         $run->update(['status' => PayrollRun::STATUS_APPROVED, 'approved_at' => now(), 'approved_by' => $actor->id]);
+        RecoveryLedger::markApplied($run);
 
         return $this->audited($run, $actor, AuditAction::Approve, "Payroll {$run->period} approved.");
     }
@@ -52,6 +54,7 @@ class TransitionPayrollRunAction
         }
 
         $run->update(['status' => PayrollRun::STATUS_DRAFT, 'reviewed_at' => null, 'reviewed_by' => null, 'approved_at' => null, 'approved_by' => null]);
+        RecoveryLedger::markScheduled($run);
 
         return $this->audited($run, $actor, AuditAction::Update, "Payroll {$run->period} reopened to draft.", ['reason' => $reason]);
     }

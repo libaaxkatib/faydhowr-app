@@ -19,6 +19,7 @@ class EndWorkAssignmentRequest extends FormRequest
         return [
             'end_date' => ['required', 'date'],
             'note' => ['nullable', 'string'],
+            'correction_reason' => ['nullable', 'string', 'max:500'],
         ];
     }
 

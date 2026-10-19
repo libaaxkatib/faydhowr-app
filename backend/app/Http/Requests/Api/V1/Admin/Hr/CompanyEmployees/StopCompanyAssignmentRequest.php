@@ -20,6 +20,7 @@ class StopCompanyAssignmentRequest extends FormRequest
         return [
             'end_date' => ['required', 'date'],
             'reason' => ['required', 'string', 'min:3', 'max:500'],
+            'correction_reason' => ['nullable', 'string', 'max:500'],
         ];
     }
 

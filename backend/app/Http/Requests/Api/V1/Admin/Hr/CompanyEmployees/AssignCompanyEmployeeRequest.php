@@ -37,6 +37,7 @@ class AssignCompanyEmployeeRequest extends FormRequest
             'salary_currency' => ['required', 'string', 'size:3', 'alpha'],
             'salary_frequency' => ['required', Rule::in(SalaryFrequency::values())],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'correction_reason' => ['nullable', 'string', 'max:500'],
         ];
     }
 

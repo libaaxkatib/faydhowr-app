@@ -2,6 +2,7 @@
 
 namespace App\Support\Hr\Payroll;
 
+use App\Enums\AssignmentType;
 use App\Enums\AttendanceStatus;
 use App\Enums\LeaveType;
 use App\Enums\WorkAssignmentStatus;
@@ -12,9 +13,12 @@ use App\Models\EmployeeLeave;
 use App\Models\EmployeePenalty;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollAdjustment;
+use App\Models\PayrollCorrection;
 use App\Models\PayrollItemDeduction;
+use App\Models\PayrollRecoveryDeduction;
 use App\Models\TemporaryReplacement;
 use App\Models\TemporaryReplacementWorkday;
+use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\PositionSuccession;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -43,7 +47,7 @@ class PayrollRunCalculator
      * @param  list<int>|null  $employeeIds  limit the calculation to these employees (used by the per-employee summary); null = everyone. Period-wide orphan warnings are only produced for a full run.
      * @return array{items: list<array<string, mixed>>, warnings: list<string>, totals: array<string, int>}
      */
-    public function calculate(string $period, ?array $employeeIds = null): array
+    public function calculate(string $period, ?array $employeeIds = null, bool $withRecovery = true): array
     {
         [$first, $daysInMonth] = ProrationCalculator::month($period);
         $last = $first->modify('+'.($daysInMonth - 1).' days');
@@ -60,6 +64,9 @@ class PayrollRunCalculator
             ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $first->format('Y-m-d')))
             ->orderBy('id')
             ->get();
+
+        // Lines that share one position (Permanent -> Replacement -> returned Permanent) are rounded together so their cents add up.
+        $reconciled = $this->reconciledChainGross($period, $assignments);
 
         foreach ($assignments as $assignment) {
             $employee = $assignment->employee;
@@ -81,6 +88,7 @@ class PayrollRunCalculator
                     $salary,
                     $assignment->start_date->toDateString(),
                     $assignment->end_date?->toDateString(),
+                    $this->replacementRanges($assignment),
                 );
             } catch (\RuntimeException $e) {
                 $warnings[] = "Assignment #{$assignment->id} ({$employee->employee_number}): {$e->getMessage()}";
@@ -95,6 +103,13 @@ class PayrollRunCalculator
 
             if ($gross['eligible_days'] === 0) {
                 continue;
+            }
+
+            $remainderCents = 0;
+
+            if (isset($reconciled[$assignment->id])) {
+                $remainderCents = $reconciled[$assignment->id]['gross_cents'] - $gross['gross_cents'];
+                $gross['gross_cents'] = $reconciled[$assignment->id]['gross_cents'];
             }
 
             $deductions = [];
@@ -187,13 +202,19 @@ class PayrollRunCalculator
                     'salary_segments' => $gross['segments'],
                     'final_pay' => $this->finalPay($assignment, $employee, $first, $last, $gross),
                     'succession' => $this->succession($assignment, $period, $first, $last, $warnings),
-                    'rounding' => 'exact fraction rounded half-up to the cent once per line',
+                    'rounding' => 'exact fraction rounded half-up to the cent once per line; when several lines share one position (Permanent / Replacement / returned Permanent) the cent remainder goes to the LAST line of the position',
+                    'rounding_remainder_cents' => $remainderCents,
+                    'excluded_replacement_days' => $gross['excluded_days'],
                     'pending_replacements_not_deducted' => $pendingReplacements,
                     'unpaid_leave_pending_not_deducted' => $pendingLeaves,
                     'unpaid_leave_rule' => 'approved unpaid leave, calendar days inside the assignment dates: salary in effect that day / days in month, rounded once per leave',
                     'adjustments_applied' => $pending->map(fn ($a) => ['id' => $a->id, 'kind' => $a->kind, 'amount_cents' => $a->amount_cents, 'reason' => $a->reason])->all(),
                 ],
             ];
+        }
+
+        if ($withRecovery) {
+            $this->applyOverpaymentRecovery($period, $items);
         }
 
         if ($employeeIds === null) {
@@ -215,6 +236,179 @@ class PayrollRunCalculator
                 'net_cents' => (int) $collection->sum('net_cents'),
             ],
         ];
+    }
+
+    /**
+     * Calendar ranges of an assignment that a Replacement holds instead: the Permanent is not paid for them, so one position-day is
+     * never paid to two people even if the dates were entered overlapping.
+     *
+     * @return list<array{0: string, 1: ?string}>
+     */
+    private function replacementRanges(EmployeeWorkAssignment $assignment): array
+    {
+        return EmployeeWorkAssignment::query()
+            ->where('replaces_assignment_id', $assignment->id)
+            ->where('assignment_type', AssignmentType::Replacement->value)
+            ->where('status', '!=', WorkAssignmentStatus::Cancelled)
+            ->get()
+            ->map(fn (EmployeeWorkAssignment $successor): array => [$successor->start_date->toDateString(), $successor->end_date?->toDateString()])
+            ->all();
+    }
+
+    /**
+     * Rounding rule (owner decision): lines that share one position are rounded so that they add up exactly to the whole position's
+     * amount. Every line is rounded half-up to the cent EXCEPT the last one of the position (latest start date, then highest id),
+     * which takes whatever cent remainder is left. Deterministic: the order is fixed by the assignment dates, never random.
+     *
+     * @param  Collection<int, EmployeeWorkAssignment>  $assignments  the assignments being calculated
+     * @return array<int, array{gross_cents: int}> assignment id => reconciled gross, only for the last line of a position that needed one
+     */
+    private function reconciledChainGross(string $period, Collection $assignments): array
+    {
+        [, $daysInMonth] = ProrationCalculator::month($period);
+        $result = [];
+        $seen = [];
+
+        foreach ($assignments as $assignment) {
+            if (isset($seen[$assignment->id])) {
+                continue;
+            }
+
+            $chain = $this->chainOf($assignment);
+
+            foreach ($chain as $member) {
+                $seen[$member->id] = true;
+            }
+
+            if ($chain->count() < 2) {
+                continue;
+            }
+
+            $lines = [];
+
+            foreach ($chain->sortBy([['start_date', 'asc'], ['id', 'asc']]) as $member) {
+                $member->loadMissing('employee');
+
+                if ($member->employee === null || $member->employee->trashed() || $member->employee->employment_type === 'temporary') {
+                    continue;
+                }
+
+                try {
+                    $gross = $this->proration->monthlyGross($period, new SalaryTimeline($member->monthlySalaryPeriods()), $member->start_date->toDateString(), $member->end_date?->toDateString(), $this->replacementRanges($member));
+                } catch (\RuntimeException) {
+                    continue;
+                }
+
+                if ($gross['eligible_days'] > 0) {
+                    $lines[$member->id] = $gross;
+                }
+            }
+
+            if (count($lines) < 2) {
+                continue;
+            }
+
+            $target = PayrollMoney::roundDiv((int) array_sum(array_column($lines, 'numerator')), $daysInMonth);
+            $ids = array_keys($lines);
+            $lastId = end($ids);
+            $running = 0;
+
+            foreach ($lines as $id => $gross) {
+                if ($id === $lastId) {
+                    $result[$id] = ['gross_cents' => $target - $running];
+                } else {
+                    $running += $gross['gross_cents'];
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Every non-cancelled assignment linked to this one through replaces_assignment_id, in either direction (the position's chain).
+     *
+     * @return Collection<int, EmployeeWorkAssignment>
+     */
+    private function chainOf(EmployeeWorkAssignment $assignment): Collection
+    {
+        return AssignmentChain::members($assignment);
+    }
+
+    /**
+     * Overpayment recovery (owner rule): an overpayment found in an earlier, already closed month is repaid from the employee's
+     * later salaries. Each month deducts the LESSER of the balance still owed and the employee's payable salary that month (never
+     * more, never below zero); what cannot be taken carries forward. The balance owed in a month is the original overpayment minus
+     * what earlier months recovered, so recalculating or retrying can never deduct twice. A month without payable salary deducts
+     * nothing. The closed month itself is never touched.
+     *
+     * @param  list<array<string, mixed>>  $items
+     */
+    private function applyOverpaymentRecovery(string $period, array &$items): void
+    {
+        if ($items === []) {
+            return;
+        }
+
+        $corrections = PayrollCorrection::query()
+            ->where('kind', PayrollCorrection::KIND_OVERPAYMENT)
+            ->whereIn('employee_id', array_values(array_unique(array_column($items, 'employee_id'))))
+            ->where('period', '<', $period)
+            ->orderBy('id')
+            ->get();
+
+        foreach ($corrections->groupBy('employee_id') as $employeeId => $list) {
+            $lineIndexes = [];
+            $available = [];
+
+            foreach ($items as $index => $item) {
+                if ($item['employee_id'] === $employeeId) {
+                    $lineIndexes[] = $index;
+                    $available[$index] = max(0, (int) $item['net_cents']);
+                }
+            }
+
+            foreach ($list as $correction) {
+                $recoveredEarlier = (int) PayrollRecoveryDeduction::query()
+                    ->where('payroll_correction_id', $correction->id)->where('period', '<', $period)->sum('amount_cents');
+                $balance = (int) $correction->difference_cents - $recoveredEarlier;
+                $take = min($balance, (int) array_sum($available));
+
+                if ($balance <= 0 || $take <= 0) {
+                    continue;
+                }
+
+                $remaining = $take;
+
+                foreach ($lineIndexes as $index) {
+                    $part = min($remaining, $available[$index]);
+
+                    if ($part <= 0) {
+                        continue;
+                    }
+
+                    $items[$index]['deductions'][] = [
+                        'kind' => PayrollItemDeduction::KIND_OVERPAYMENT_RECOVERY,
+                        'source_type' => 'payroll_correction_a'.$items[$index]['work_assignment_id'],
+                        'source_id' => $correction->id,
+                        'amount_cents' => $part,
+                        'description' => "Recovery of overpayment from {$correction->period} (correction #{$correction->id}): ".PayrollMoney::format($take).' of '.PayrollMoney::format($balance).' still owed this month; '.PayrollMoney::format($balance - $take).' remains',
+                        'detail' => [
+                            'correction_id' => $correction->id,
+                            'source_period' => $correction->period,
+                            'original_overpayment_cents' => (int) $correction->difference_cents,
+                            'owed_before_cents' => $balance,
+                            'deducted_this_month_cents' => $take,
+                            'owed_after_cents' => $balance - $take,
+                        ],
+                    ];
+                    $items[$index]['other_deduction_cents'] += $part;
+                    $items[$index]['net_cents'] -= $part;
+                    $available[$index] -= $part;
+                    $remaining -= $part;
+                }
+            }
+        }
     }
 
     /**
@@ -263,7 +457,9 @@ class PayrollRunCalculator
                 $overlap = $predecessor->end_date === null
                     ? 'the assignment it replaces has no end date'
                     : 'it starts on '.$assignment->start_date->toDateString().' but the assignment it replaces is paid through '.$predecessor->end_date->toDateString();
-                $warnings[] = "DOUBLE PAY RISK: assignment #{$assignment->id} takes over assignment #{$predecessor->id}, but {$overlap}. Fix the dates before approving {$period}.";
+                $warnings[] = $assignment->assignment_type === AssignmentType::Replacement
+                    ? "Assignment #{$assignment->id} (Replacement) takes over assignment #{$predecessor->id}, but {$overlap}. The days the Replacement holds were NOT paid to the replaced assignment, so nobody is paid twice; fix the dates so the history is accurate."
+                    : "DOUBLE PAY RISK: assignment #{$assignment->id} takes over assignment #{$predecessor->id}, but {$overlap}. Fix the dates before approving {$period}.";
                 $result = ['replaces_assignment_id' => $predecessor->id, 'overlap' => true];
             } else {
                 $gap = PositionSuccession::gapDays($predecessor->end_date, $assignment->start_date);

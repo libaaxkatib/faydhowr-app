@@ -2,6 +2,7 @@
 
 namespace App\Actions\Hr\CompanyEmployees;
 
+use App\Enums\AssignmentType;
 use App\Enums\AttendanceStatus;
 use App\Enums\WorkAssignmentStatus;
 use App\Models\ClientCompany;
@@ -45,7 +46,7 @@ class ListCompanyEmployeesAction
         $daysInMonth = (int) $monthStart->daysInMonth;
 
         $assignments = EmployeeWorkAssignment::query()
-            ->with(['employee', 'position', 'salaryHistories', 'workLocation'])
+            ->with(['employee', 'position', 'salaryHistories', 'workLocation', 'replaces.employee'])
             ->where('client_company_id', $company->id)
             ->where('status', '!=', WorkAssignmentStatus::Cancelled)
             ->whereDate('start_date', '<=', $monthEnd->toDateString())
@@ -113,6 +114,14 @@ class ListCompanyEmployeesAction
             'work_location_name' => $a->workLocation?->name,
             'assignment_type' => $a->assignment_type?->value ?? 'permanent',
             'replaces_assignment_id' => $a->replaces_assignment_id,
+            // For a Replacement: whose position it holds and that employee's salary - the salary basis, and what Return proposes (HR still confirms it).
+            'replaces' => $a->assignment_type === AssignmentType::Replacement && $a->replaces !== null ? [
+                'assignment_id' => $a->replaces->id,
+                'employee_id' => $a->replaces->employee_id,
+                'employee_number' => $a->replaces->employee?->employee_number,
+                'full_name' => $a->replaces->employee?->full_name,
+                'salary' => ['amount' => (string) $a->replaces->salary_amount, 'currency' => $a->replaces->salary_currency, 'frequency' => $a->replaces->salary_frequency->value],
+            ] : null,
             'start_date' => $a->start_date->toDateString(),
             'end_date' => $a->end_date?->toDateString(),
             'status' => $a->status->value,

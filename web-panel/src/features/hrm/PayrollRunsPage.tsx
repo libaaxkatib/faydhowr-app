@@ -19,6 +19,7 @@ import { useToast } from '@/components/ui/useToast';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage, localMonth, localToday, nextMonth } from '@/utils/hrHelpers';
+import { PayrollCorrectionsPanel } from '@/features/hrm/PayrollCorrectionsPanel';
 import type {
   PayrollAdjustmentKind,
   PayrollDeductionDetail,
@@ -44,6 +45,7 @@ const DEDUCTION_LABEL: Record<PayrollDeductionKind, string> = {
   absence: 'Absence',
   adjustment: 'Adjustment',
   unpaid_leave: 'Unpaid leave',
+  overpayment_recovery: 'Overpayment recovery',
 };
 
 function money(value: string | null | undefined): string {
@@ -319,6 +321,8 @@ export function PayrollRunsPage() {
           onPay={setPayingItem}
         />
       )}
+
+      <PayrollCorrectionsPanel />
 
       <ConfirmDialog
         isOpen={confirming === 'approve'}

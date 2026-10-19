@@ -19,9 +19,11 @@ final class ProrationCalculator
 {
     /**
      * @param  string  $period  "YYYY-MM"
-     * @return array{period: string, days_in_month: int, eligible_days: int, gross_cents: int, segments: list<array{from: string, to: string, days: int, monthly_cents: int}>}
+     * @param  list<array{0: string, 1: ?string}>  $excludedRanges  inclusive calendar ranges ([from, to|null]) this assignment is NOT paid for because another
+     *                                                              assignment (a Replacement) holds the position then - the same position-day is never paid twice
+     * @return array{period: string, days_in_month: int, eligible_days: int, gross_cents: int, numerator: int, excluded_days: int, segments: list<array{from: string, to: string, days: int, monthly_cents: int}>}
      */
-    public function monthlyGross(string $period, SalaryTimeline $salary, ?string $employedFrom, ?string $employedTo = null): array
+    public function monthlyGross(string $period, SalaryTimeline $salary, ?string $employedFrom, ?string $employedTo = null, array $excludedRanges = []): array
     {
         [$first, $daysInMonth] = $this->month($period);
         $from = $employedFrom !== null ? new DateTimeImmutable($employedFrom) : null;
@@ -29,12 +31,19 @@ final class ProrationCalculator
 
         $numerator = 0;
         $eligibleDays = 0;
+        $excludedDays = 0;
         $segments = [];
 
         for ($offset = 0; $offset < $daysInMonth; $offset++) {
             $day = $first->modify("+{$offset} days");
 
             if (($from !== null && $day < $from) || ($to !== null && $day > $to)) {
+                continue;
+            }
+
+            if ($this->isExcluded($day->format('Y-m-d'), $excludedRanges)) {
+                $excludedDays++;
+
                 continue;
             }
 
@@ -61,8 +70,23 @@ final class ProrationCalculator
             'days_in_month' => $daysInMonth,
             'eligible_days' => $eligibleDays,
             'gross_cents' => PayrollMoney::roundDiv($numerator, $daysInMonth),
+            // The exact (unrounded) amount x days_in_month; payroll lines that share one position use it to reconcile cent remainders.
+            'numerator' => $numerator,
+            'excluded_days' => $excludedDays,
             'segments' => $segments,
         ];
+    }
+
+    /** @param  list<array{0: string, 1: ?string}>  $ranges */
+    private function isExcluded(string $iso, array $ranges): bool
+    {
+        foreach ($ranges as [$from, $to]) {
+            if ($iso >= $from && ($to === null || $iso <= $to)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -33,9 +33,12 @@ class ReplaceCompanyEmployeeRequest extends FormRequest
             'original_last_day' => ['nullable', 'date', 'before:replacement_date'],
             'assignment_type' => ['required', Rule::in(AssignmentType::values())],
             'position_id' => ['nullable', 'integer', 'exists:positions,id'],
-            'salary_amount' => ['required', 'numeric', 'gt:0', 'max:9999999999.99'],
-            'salary_currency' => ['required', 'string', 'size:3', 'alpha'],
-            'salary_frequency' => ['required', Rule::in(SalaryFrequency::values())],
+            // A Replacement has no salary of its own (it inherits the replaced Permanent's); a Permanent successor needs one.
+            'salary_amount' => ['required_unless:assignment_type,replacement', 'nullable', 'numeric', 'gt:0', 'max:9999999999.99'],
+            'salary_currency' => ['required_unless:assignment_type,replacement', 'nullable', 'string', 'size:3', 'alpha'],
+            'salary_frequency' => ['required_unless:assignment_type,replacement', 'nullable', Rule::in(SalaryFrequency::values())],
+            'acknowledge_temporary_as_replacement' => ['sometimes', 'boolean'],
+            'correction_reason' => ['nullable', 'string', 'max:500'],
             'reason' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];

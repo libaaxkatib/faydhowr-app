@@ -80,6 +80,7 @@ class SearchCompanyEmployeeCandidatesAction
             'status' => $e->status->value,
             'phone' => $e->phone,
             'category' => $e->category?->name,
+            'employment_type' => $e->employment_type,
             'current_companies' => $active->map(fn ($a): string => (string) ($a->clientCompany?->name ?? 'Fayadhowr Office'))->unique()->values()->all(),
             'already_here' => $here,
             'eligible' => $reason === null,

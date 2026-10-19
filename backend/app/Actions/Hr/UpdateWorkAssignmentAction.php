@@ -12,10 +12,11 @@ use App\Models\AssignmentSalaryHistory;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\WorkLocation;
 use App\Support\ApiResponse;
+use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\CompanyLocationResolver;
 use App\Support\Hr\ConcurrentAssignmentGuard;
+use App\Support\Hr\Payroll\ClosedPayrollCorrection;
 use App\Support\Hr\Payroll\PayrollMoney;
-use App\Support\Hr\Payroll\PayrollPeriodLock;
 use App\Support\Hr\PositionSuccession;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -33,16 +34,108 @@ use Illuminate\Http\Exceptions\HttpResponseException;
  */
 class UpdateWorkAssignmentAction
 {
-    public function __construct(private readonly ChangeAssignmentSalaryAction $salary, private readonly PayrollPeriodLock $lock = new PayrollPeriodLock) {}
+    public function __construct(private readonly ChangeAssignmentSalaryAction $salary, private readonly ClosedPayrollCorrection $corrections = new ClosedPayrollCorrection) {}
 
+    /**
+     * A change that would alter an approved or finalized payroll month is a correction: only a Super Admin may make it, with a reason
+     * (`correction_reason`), and the closed month is never edited (see ClosedPayrollCorrection). A change that leaves every closed
+     * month as it was is allowed as before.
+     */
     public function handle(EmployeeWorkAssignment $assignment, array $data, Admin $actor): EmployeeWorkAssignment
+    {
+        $this->guardTypeAndInheritedSalary($assignment, $data);
+
+        $earliest = $this->earliestPayrollDate($assignment, $data);
+
+        if ($earliest === null) {
+            return $this->apply($assignment, $data, $actor);
+        }
+
+        return $this->corrections->run(
+            $actor,
+            'edited',
+            AssignmentChain::employeeIds($assignment),
+            $earliest,
+            $data['correction_reason'] ?? null,
+            [
+                'assignment_id' => $assignment->id,
+                'old' => ['start_date' => $assignment->start_date?->toDateString(), 'end_date' => $assignment->end_date?->toDateString(), 'assignment_type' => $assignment->assignment_type?->value, 'salary_amount' => (string) $assignment->salary_amount, 'salary_currency' => $assignment->salary_currency],
+                'new' => array_intersect_key($data, array_flip(['start_date', 'end_date', 'assignment_type', 'salary_amount', 'salary_currency', 'salary_effective_from'])),
+            ],
+            fn (): EmployeeWorkAssignment => $this->apply($assignment, $data, $actor),
+        );
+    }
+
+    /**
+     * A Replacement's salary basis is the replaced Permanent's salary and is not typed in: it cannot be edited here, and an
+     * assignment cannot be turned into a Replacement by editing it (use Replace Employee, which links it to the one it replaces).
+     */
+    private function guardTypeAndInheritedSalary(EmployeeWorkAssignment $assignment, array $data): void
+    {
+        $current = $assignment->assignment_type ?? AssignmentType::Permanent;
+        $requested = isset($data['assignment_type']) ? AssignmentType::from($data['assignment_type']) : $current;
+
+        if ($requested === AssignmentType::Replacement && $current !== AssignmentType::Replacement) {
+            $this->fail('An assignment becomes a Replacement only through Replace Employee, which links it to the Permanent assignment it replaces and inherits that salary.', 'USE_REPLACE_EMPLOYEE');
+        }
+
+        if ($current === AssignmentType::Replacement && $requested === AssignmentType::Replacement) {
+            $changesSalary = (isset($data['salary_amount']) && PayrollMoney::toCents($data['salary_amount']) !== PayrollMoney::toCents($assignment->salary_amount))
+                || (isset($data['salary_currency']) && strtoupper((string) $data['salary_currency']) !== strtoupper((string) $assignment->salary_currency))
+                || (isset($data['salary_frequency']) && $data['salary_frequency'] !== $assignment->salary_frequency->value);
+
+            if ($changesSalary) {
+                $this->fail("A Replacement's salary is inherited from the Permanent employee whose position it takes over and cannot be edited here. Correct the salary of that Permanent assignment, or make this assignment Permanent first.", 'REPLACEMENT_SALARY_IS_INHERITED');
+            }
+        }
+    }
+
+    /** The first calendar date this edit can change pay for, or null when it cannot change pay at all. */
+    private function earliestPayrollDate(EmployeeWorkAssignment $assignment, array $data): ?string
+    {
+        $dates = [];
+
+        if (! empty($data['start_date'])) {
+            $old = $assignment->start_date?->toDateString();
+            $new = CarbonImmutable::parse($data['start_date'])->toDateString();
+
+            if ($old !== $new) {
+                $dates[] = $old === null ? $new : min($old, $new);
+            }
+        }
+
+        if (! empty($data['end_date'])) {
+            $old = $assignment->end_date?->toDateString();
+            $new = CarbonImmutable::parse($data['end_date'])->toDateString();
+
+            if ($old !== $new) {
+                $dates[] = CarbonImmutable::parse($old === null ? $new : min($old, $new))->addDay()->toDateString();
+            }
+        }
+
+        if (isset($data['assignment_type']) && $data['assignment_type'] !== ($assignment->assignment_type?->value ?? AssignmentType::Permanent->value)) {
+            $dates[] = $assignment->start_date->toDateString();
+        }
+
+        $salaryChanges = (isset($data['salary_amount']) && PayrollMoney::toCents($data['salary_amount']) !== PayrollMoney::toCents($assignment->salary_amount))
+            || (isset($data['salary_currency']) && strtoupper((string) $data['salary_currency']) !== strtoupper((string) $assignment->salary_currency))
+            || (isset($data['salary_frequency']) && $data['salary_frequency'] !== $assignment->salary_frequency->value)
+            || ! empty($data['salary_effective_from']);
+
+        if ($salaryChanges) {
+            $dates[] = $data['salary_effective_from'] ?? CarbonImmutable::now()->toDateString();
+        }
+
+        return $dates === [] ? null : min($dates);
+    }
+
+    private function apply(EmployeeWorkAssignment $assignment, array $data, Admin $actor): EmployeeWorkAssignment
     {
         if (! empty($data['work_location_id'])) {
             $this->completeLocation($assignment, (int) $data['work_location_id'], $data, $actor);
         }
 
         $this->guardSuccession($assignment, $data);
-        $this->guardPayrollDates($assignment, $data);
         $this->guardConcurrency($assignment, $data);
 
         $before = [
@@ -99,28 +192,6 @@ class UpdateWorkAssignmentAction
         $endValue = $data['end_date'] ?? $assignment->end_date;
 
         ConcurrentAssignmentGuard::assertAllowed($assignment->employee, $assignment->client_company_id, $start, $endValue === null ? null : CarbonImmutable::parse($endValue)->startOfDay(), $assignment->id);
-    }
-
-    /**
-     * Moving a start or last day changes the payable days of every payroll month from the earlier of the old and new date onward.
-     * That may not reach into an approved or finalized month.
-     */
-    private function guardPayrollDates(EmployeeWorkAssignment $assignment, array $data): void
-    {
-        foreach (['start_date', 'end_date'] as $field) {
-            if (! array_key_exists($field, $data) || $data[$field] === null) {
-                continue;
-            }
-
-            $old = $assignment->{$field}?->toDateString();
-            $new = CarbonImmutable::parse($data[$field])->toDateString();
-
-            if ($old === $new) {
-                continue;
-            }
-
-            $this->lock->assertAssignmentDateChangeAllowed($old === null ? $new : min($old, $new));
-        }
     }
 
     /**
