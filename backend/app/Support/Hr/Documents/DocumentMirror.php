@@ -6,6 +6,7 @@ use App\Enums\DocumentFileState;
 use App\Models\ClientCompanyAgreement;
 use App\Models\EmployeeDocument;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Storage;
 use League\Flysystem\FilesystemOperator;
 use Throwable;
@@ -49,6 +50,15 @@ final class DocumentMirror
         private readonly int $backoffMilliseconds = 250,
         private readonly ?string $agreementsDisk = null,
     ) {}
+
+    /**
+     * Why a run could not complete. A database that refuses to let the connecting role read a table (SQLSTATE 42501) is named
+     * as such instead of hiding behind a storage reason, so a missing grant on the read-only mirror role is diagnosed at once.
+     */
+    public static function abortReasonFor(Throwable $e, string $default): string
+    {
+        return $e instanceof QueryException && $e->getCode() === '42501' ? 'database_permission_denied' : $default;
+    }
 
     private function agreementsDisk(): string
     {
@@ -133,8 +143,8 @@ final class DocumentMirror
                 $this->eachItem(function (array $item) use ($mirrorDriver, $dryRun, $deep, &$counts, &$failures, &$entries): void {
                     $this->mirrorOne($item, $mirrorDriver, $dryRun, $deep, $counts, $failures, $entries);
                 });
-            } catch (Throwable) {
-                $aborted = 'mirror_unavailable';
+            } catch (Throwable $e) {
+                $aborted = self::abortReasonFor($e, 'mirror_unavailable');
             }
         }
 
@@ -179,8 +189,8 @@ final class DocumentMirror
                 $this->eachItem(function (array $item) use ($mirrorDriver, $execute, &$counts, &$failures): void {
                     $this->restoreOne($item, new DocumentFileInspector($item['disk']), $this->driver($item['disk']), $mirrorDriver, $execute, $counts, $failures);
                 }, $onlyDocumentIds, $onlyAgreementIds);
-            } catch (Throwable) {
-                $aborted = 'storage_unavailable';
+            } catch (Throwable $e) {
+                $aborted = self::abortReasonFor($e, 'storage_unavailable');
             }
         }
 

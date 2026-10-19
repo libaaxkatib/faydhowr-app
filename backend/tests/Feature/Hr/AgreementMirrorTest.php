@@ -4,6 +4,8 @@ namespace Tests\Feature\Hr;
 
 use App\Models\ClientCompany;
 use App\Models\ClientCompanyAgreement;
+use App\Support\Hr\Documents\DocumentMirror;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
@@ -256,5 +258,15 @@ class AgreementMirrorTest extends TestCase
 
         $this->assertTrue($check['ok']);
         $this->assertSame(0, $check['_exit']);
+    }
+
+    public function test_a_database_permission_error_is_named_as_such_and_other_errors_keep_their_reason(): void
+    {
+        $denied = new QueryException('pgsql', 'select 1', [], new \PDOException('permission denied for table client_company_agreements', 0));
+        $ref = new \ReflectionProperty(\Exception::class, 'code');
+        $ref->setValue($denied, '42501');
+
+        $this->assertSame('database_permission_denied', DocumentMirror::abortReasonFor($denied, 'mirror_unavailable'));
+        $this->assertSame('mirror_unavailable', DocumentMirror::abortReasonFor(new \RuntimeException('x'), 'mirror_unavailable'));
     }
 }
