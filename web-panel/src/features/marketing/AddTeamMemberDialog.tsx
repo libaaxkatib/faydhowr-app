@@ -30,13 +30,17 @@ export function AddTeamMemberDialog({ isOpen, onClose, teams }: AddTeamMemberDia
   const [clientErrors, setClientErrors] = useState<Partial<Record<keyof TeamMemberForm, string>>>({});
   const [serverErrors, setServerErrors] = useState<Record<string, string[]>>({});
 
+  // Reset only when the dialog opens (or its single possible team changes) - never on a mere re-render or refetch, which would
+  // wipe what the user is typing.
+  const onlyTeamId: number | '' = teams.length === 1 ? teams[0].id : '';
+
   useEffect(() => {
     if (isOpen) {
-      setForm({ ...emptyTeamMemberForm, team_id: teams.length === 1 ? teams[0].id : '' });
+      setForm({ ...emptyTeamMemberForm, team_id: onlyTeamId });
       setClientErrors({});
       setServerErrors({});
     }
-  }, [isOpen, teams]);
+  }, [isOpen, onlyTeamId]);
 
   const mutation = useMutation({
     mutationFn: () => marketingApi.employees.create(buildAddMemberPayload(form)),

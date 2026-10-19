@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { marketingApi } from '@/api/marketing';
@@ -36,8 +36,8 @@ export function MarketingEmployeesPage() {
   });
   const teams = useQuery({ queryKey: ['marketing-teams'], queryFn: marketingApi.teams.list, enabled: canSeeManagement });
 
-  const manageable = manageableTeams(teams.data);
-  const manageableIds = new Set(manageable.map((team) => team.id));
+  const manageable = useMemo(() => manageableTeams(teams.data), [teams.data]);
+  const manageableIds = useMemo(() => new Set(manageable.map((team) => team.id)), [manageable]);
 
   const statusMutation = useMutation({
     mutationFn: ({ employee, status }: { employee: MarketingEmployee; status: 'active' | 'inactive' }) => marketingApi.employees.update(employee.id, { status }),
