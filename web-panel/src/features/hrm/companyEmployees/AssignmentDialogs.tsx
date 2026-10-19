@@ -334,14 +334,14 @@ export function EditAssignmentDialog({ row, onClose, companyId }: { row: Company
         {warning && <div role="note" className="-mt-2 mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs text-warning">{warning}</div>}
         {isReplacement ? (
           <p className="mb-4 rounded-md border border-border bg-surface-muted px-3.5 py-2.5 text-xs text-ink-muted" data-testid="inherited-salary">
-            Salary: {row ? money(row.salary.amount, row.salary.currency) : ''}. A Replacement has no salary of its own; it uses the monthly salary of the Permanent employee whose position it holds{row?.replaces ? ` (${row.replaces.full_name})` : ''}, so it cannot be edited here.
+            Salary: {row ? money(row.salary.amount, row.salary.currency) : ''}. A Replacement has no salary of its own; it uses the monthly salary of the Permanent employee whose position it holds{row?.replaces ? ` (${row.replaces.full_name})` : ''}, so it cannot be edited here. When that Permanent salary changes, the new salary applies to the Replacement for the whole month of the change.
           </p>
         ) : (
           <SalaryFields idPrefix="edit" amount={amount} currency={currency} onAmount={setAmount} onCurrency={setCurrency} errors={{ salary_amount: err('salary_amount'), salary_currency: err('salary_currency') }} />
         )}
         {salaryChanged && (
           <>
-            <FormField label="New salary applies from" htmlFor="edit-effective" required error={err('salary_effective_from')} hint="The old salary stays in the history and keeps applying before this date. Approved or finalized payroll months are only changed by a Super Admin correction.">
+            <FormField label="New salary applies from" htmlFor="edit-effective" required error={err('salary_effective_from')} hint="The old salary stays in the history and keeps applying before this date. If a Replacement holds this position, the new salary applies to the Replacement for the whole month of the change. Approved or finalized payroll months are only changed by a Super Admin correction.">
               <input id="edit-effective" type="date" className={inputClasses} value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} />
             </FormField>
             <FormField label="Reason for the salary change" htmlFor="edit-reason">
@@ -470,7 +470,7 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
           <TypeSelect id="replace-type" value={type} onChange={setType} error={err('assignment_type')} hint="Is the replacement meant to be Permanent, or a Replacement who may later be returned from? Choose explicitly." />
           {type === 'replacement' && isTemporaryWorker(picked) && (
             <div role="alert" className="-mt-2 mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs text-warning" data-testid="temporary-warning">
-              <p className="mb-1.5">{picked?.full_name} is registered as a Temporary worker. Temporary cover is recorded as Temporary cover (paid per verified day), not as a Replacement who takes over the position. Registering them as a Replacement is probably a mistake.</p>
+              <p className="mb-1.5">{picked?.full_name} is registered as a Temporary worker. Temporary cover is recorded as Temporary cover (paid per verified day), not as a Replacement who takes over the position. Registering them as a Replacement is probably a mistake. Nothing is converted for you; if you go on, your confirmation is recorded in the audit history.</p>
               <label className="flex items-center gap-2">
                 <input type="checkbox" id="replace-ack-temporary" checked={acknowledgeTemporary} onChange={(event) => setAcknowledgeTemporary(event.target.checked)} />
                 I have checked, and I want a Replacement for this person anyway
@@ -480,7 +480,7 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
           <PositionSelect id="replace-position" value={positionId} onChange={setPositionId} error={err('position_id')} />
           {type === 'replacement' ? (
             <p className="mb-4 rounded-md border border-border bg-surface-muted px-3.5 py-2.5 text-xs text-ink-muted" data-testid="inherited-salary">
-              Salary: {money(row.salary.amount, row.salary.currency)}, the monthly salary of {row.full_name}. A Replacement has no salary of its own; it is paid from {row.full_name}'s salary for the calendar days it covers.
+              Salary: {money(row.salary.amount, row.salary.currency)}, the monthly salary of {row.full_name}. A Replacement has no salary of its own; it is paid from {row.full_name}'s salary for the calendar days it covers. If that salary changes, the new salary applies to the Replacement for the whole month of the change, not from the day it changed.
             </p>
           ) : (
             <SalaryFields idPrefix="replace" amount={amount} currency={currency} onAmount={setAmount} onCurrency={setCurrency} errors={{ salary_amount: err('salary_amount'), salary_currency: err('salary_currency') }} />

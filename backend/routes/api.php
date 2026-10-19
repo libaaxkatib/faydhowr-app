@@ -1500,6 +1500,13 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.manage', 'thr
     Route::patch('v1/admin/hr/payroll-runs/{payrollRun}/review', [AdminPayrollRunController::class, 'review'])
         ->whereNumber('payrollRun')
         ->name('api.v1.admin.hr.payroll-runs.review');
+    // Money outside payroll for a correction (underpayment paid by a Super Admin; debt repaid - Super Admin / HR Manager). The role is checked again in the action.
+    Route::post('v1/admin/hr/payroll-corrections/{payrollCorrection}/transactions', [AdminPayrollCorrectionController::class, 'store'])
+        ->whereNumber('payrollCorrection')
+        ->name('api.v1.admin.hr.payroll-corrections.transactions.store');
+    Route::post('v1/admin/hr/payroll-corrections/{payrollCorrection}/transactions/{transaction}/void', [AdminPayrollCorrectionController::class, 'void'])
+        ->whereNumber(['payrollCorrection', 'transaction'])
+        ->name('api.v1.admin.hr.payroll-corrections.transactions.void');
 });
 
 Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.view', 'throttle:admin-operations'])->group(function (): void {

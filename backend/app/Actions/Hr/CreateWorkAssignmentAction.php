@@ -56,6 +56,11 @@ class CreateWorkAssignmentAction
     {
         if (($data['assignment_type'] ?? AssignmentType::Permanent->value) === AssignmentType::Replacement->value) {
             $data = $this->withInheritedSalary($employee, $data);
+
+            // HR was warned that this person is a Temporary worker and chose to go on: the decision is kept (who, when) in the audit history.
+            if ($employee->employment_type === 'temporary') {
+                $data['temporary_confirmation'] = ['confirmed_by_admin_id' => $actor->id, 'confirmed_at' => now()->toIso8601String(), 'employee_id' => $employee->id, 'employment_type' => 'temporary'];
+            }
         }
 
         $chainEmployees = ! empty($data['replaces_assignment_id'])
@@ -168,6 +173,7 @@ class CreateWorkAssignmentAction
                         'uncovered_gap_days' => PositionSuccession::gapDays($predecessor->end_date, $assignment->start_date),
                     ]),
                     ...(isset($data['salary_basis']) ? ['salary_basis' => $data['salary_basis']] : []),
+                    ...(isset($data['temporary_confirmation']) ? ['temporary_registered_as_replacement_confirmed' => $data['temporary_confirmation']] : []),
                 ],
             ));
 

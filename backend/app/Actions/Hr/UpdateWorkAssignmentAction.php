@@ -85,7 +85,7 @@ class UpdateWorkAssignmentAction
                 || (isset($data['salary_frequency']) && $data['salary_frequency'] !== $assignment->salary_frequency->value);
 
             if ($changesSalary) {
-                $this->fail("A Replacement's salary is inherited from the Permanent employee whose position it takes over and cannot be edited here. Correct the salary of that Permanent assignment, or make this assignment Permanent first.", 'REPLACEMENT_SALARY_IS_INHERITED');
+                $this->fail("A Replacement's salary is inherited from the Permanent employee whose position it takes over and cannot be edited here. Change the salary of that Permanent assignment instead: the new salary then applies to this Replacement for the whole month of the change. Or make this assignment Permanent first.", 'REPLACEMENT_SALARY_IS_INHERITED');
             }
         }
     }
@@ -123,7 +123,8 @@ class UpdateWorkAssignmentAction
             || ! empty($data['salary_effective_from']);
 
         if ($salaryChanges) {
-            $dates[] = $data['salary_effective_from'] ?? CarbonImmutable::now()->toDateString();
+            // A Permanent salary change reaches any Replacement for the WHOLE month it takes effect in, so the first day of that month counts.
+            $dates[] = CarbonImmutable::parse($data['salary_effective_from'] ?? CarbonImmutable::now())->startOfMonth()->toDateString();
         }
 
         return $dates === [] ? null : min($dates);

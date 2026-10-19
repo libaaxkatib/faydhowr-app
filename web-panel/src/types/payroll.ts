@@ -13,22 +13,43 @@ export interface PayrollCorrection {
   period: string;
   kind: 'overpayment' | 'underpayment';
   action: string;
-  status: 'open' | 'recovered' | 'pending_policy';
+  status: 'open' | 'recovered' | 'settled';
+  currency: string;
+  employee_status: string | null;
+  has_open_assignment: boolean;
+  /** A debt that payroll can no longer collect (nobody is being paid): somebody has to follow it up. */
+  needs_follow_up: boolean;
   recorded_net_cents: number;
   corrected_net_cents: number;
   difference_cents: number;
   recovered_cents: number;
   scheduled_cents: number;
+  repaid_cents: number;
+  paid_cents: number;
   outstanding_cents: number;
+  available_to_settle_cents: number;
   reason: string;
   corrected_by: string | null;
   corrected_at: string | null;
   recoveries: { period: string; amount_cents: number; status: 'scheduled' | 'applied' }[];
+  transactions: PayrollCorrectionTransaction[];
+}
+
+export interface PayrollCorrectionTransaction {
+  id: number;
+  type: 'underpayment_payment' | 'debt_repayment';
+  amount_cents: number;
+  transaction_date: string | null;
+  note: string | null;
+  recorded_by: string | null;
+  voided: boolean;
+  void_reason: string | null;
+  voided_by: string | null;
 }
 
 export interface PayrollCorrectionsResponse {
   corrections: PayrollCorrection[];
-  totals: { currency: string; overpaid_cents: number; recovered_cents: number; outstanding_cents: number; underpayments_pending_policy_cents: number };
+  totals: { currency: string; overpaid_cents: number; recovered_cents: number; outstanding_cents: number; underpaid_cents: number; underpayments_paid_cents: number; underpayments_outstanding_cents: number };
 }
 
 export interface PayrollRunTotals {

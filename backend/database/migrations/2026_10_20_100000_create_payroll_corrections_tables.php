@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\Schema;
  * `payroll_corrections` keeps what the closed month recorded for the employee, what it should have been, the difference, who
  * corrected it and why - the closed payroll run and its lines are never edited. An OVERPAYMENT is recovered from later salaries:
  * `payroll_recovery_deductions` is the ledger of those monthly deductions (one row per correction and month, enforced by a unique
- * index so a retry or recalculation can never deduct twice). Two new tables. On PostgreSQL the existing CHECK on the deduction kinds is
+ * index so a retry or recalculation can never deduct twice), and `payroll_correction_transactions` holds the payments/repayments made
+ * outside a payroll run. Three new tables. On PostgreSQL the existing CHECK on the deduction kinds is
  * widened by one value ('overpayment_recovery'): the monthly recovery is stored as a deduction line of the payroll item, and without
  * this the database would refuse it. No existing row or value changes.
  */
@@ -33,7 +34,7 @@ return new class extends Migration
             $table->bigInteger('corrected_net_cents');
             $table->bigInteger('difference_cents'); // recorded - corrected: > 0 overpaid, < 0 underpaid
             $table->bigInteger('outstanding_cents')->default(0); // overpayment still to recover
-            $table->string('status', 24); // open | recovered | pending_policy
+            $table->string('status', 24); // open (still owed by / to the employee) | recovered (overpayment repaid) | settled (underpayment paid)
             $table->string('reason', 500);
             $table->json('old_values')->nullable();
             $table->json('new_values')->nullable();
@@ -58,6 +59,28 @@ return new class extends Migration
             $table->index(['period', 'status']);
         });
 
+        // Money that moves OUTSIDE a payroll run, always as its own traceable transaction: Super Admin paying an underpayment (also written to
+        // the employee payment ledger), or Super Admin / HR Manager recording that an employee repaid part of a debt. A transaction is never
+        // edited; a repayment recorded in error is voided (kept, with who/when/why). The idempotency key makes a retry a no-op.
+        Schema::create('payroll_correction_transactions', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('payroll_correction_id')->constrained('payroll_corrections')->restrictOnDelete();
+            $table->string('type', 24); // underpayment_payment | debt_repayment
+            $table->bigInteger('amount_cents');
+            $table->date('transaction_date');
+            $table->string('note', 500)->nullable();
+            $table->string('idempotency_key', 64);
+            $table->foreignId('employee_payment_id')->nullable()->constrained('employee_payments')->nullOnDelete();
+            $table->foreignId('recorded_by')->nullable()->constrained('admins')->nullOnDelete();
+            $table->timestamp('voided_at')->nullable();
+            $table->foreignId('voided_by')->nullable()->constrained('admins')->nullOnDelete();
+            $table->string('void_reason', 500)->nullable();
+            $table->timestamps();
+
+            $table->unique(['payroll_correction_id', 'idempotency_key']);
+            $table->index(['payroll_correction_id', 'type']);
+        });
+
         if (DB::getDriverName() === 'pgsql') {
             DB::statement('ALTER TABLE payroll_item_deductions DROP CONSTRAINT IF EXISTS payroll_item_deductions_kind_check');
             DB::statement("ALTER TABLE payroll_item_deductions ADD CONSTRAINT payroll_item_deductions_kind_check CHECK (kind IN ('replacement', 'penalty', 'advance', 'absence', 'adjustment', 'unpaid_leave', 'overpayment_recovery'))");
@@ -71,6 +94,7 @@ return new class extends Migration
             DB::statement("ALTER TABLE payroll_item_deductions ADD CONSTRAINT payroll_item_deductions_kind_check CHECK (kind IN ('replacement', 'penalty', 'advance', 'absence', 'adjustment', 'unpaid_leave'))");
         }
 
+        Schema::dropIfExists('payroll_correction_transactions');
         Schema::dropIfExists('payroll_recovery_deductions');
         Schema::dropIfExists('payroll_corrections');
     }

@@ -14,6 +14,7 @@ use App\Models\EmployeePenalty;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollAdjustment;
 use App\Models\PayrollCorrection;
+use App\Models\PayrollCorrectionTransaction;
 use App\Models\PayrollItemDeduction;
 use App\Models\PayrollRecoveryDeduction;
 use App\Models\TemporaryReplacement;
@@ -214,7 +215,7 @@ class PayrollRunCalculator
         }
 
         if ($withRecovery) {
-            $this->applyOverpaymentRecovery($period, $items);
+            $this->applyOverpaymentRecovery($period, $items, $warnings);
         }
 
         if ($employeeIds === null) {
@@ -343,8 +344,9 @@ class PayrollRunCalculator
      * nothing. The closed month itself is never touched.
      *
      * @param  list<array<string, mixed>>  $items
+     * @param  list<string>  $warnings
      */
-    private function applyOverpaymentRecovery(string $period, array &$items): void
+    private function applyOverpaymentRecovery(string $period, array &$items, array &$warnings): void
     {
         if ($items === []) {
             return;
@@ -371,14 +373,18 @@ class PayrollRunCalculator
             foreach ($list as $correction) {
                 $recoveredEarlier = (int) PayrollRecoveryDeduction::query()
                     ->where('payroll_correction_id', $correction->id)->where('period', '<', $period)->sum('amount_cents');
-                $balance = (int) $correction->difference_cents - $recoveredEarlier;
+                // Repayments recorded outside payroll (a person paying part of the debt back) also reduce what payroll may still take.
+                $repaid = $correction->transactionCents(PayrollCorrectionTransaction::TYPE_DEBT_REPAYMENT);
+                $balance = (int) $correction->difference_cents - $recoveredEarlier - $repaid;
                 $take = min($balance, (int) array_sum($available));
 
-                if ($balance <= 0 || $take <= 0) {
+                if ($balance <= 0) {
                     continue;
                 }
 
-                $remaining = $take;
+                // Leaving = every line of this employee this month has an end date (no open assignment).
+                $leaving = count(array_filter($lineIndexes, fn (int $i): bool => $items[$i]['calc_snapshot']['employment_window']['to'] !== null)) === count($lineIndexes);
+                $remaining = max(0, $take);
 
                 foreach ($lineIndexes as $index) {
                     $part = min($remaining, $available[$index]);
@@ -406,6 +412,14 @@ class PayrollRunCalculator
                     $items[$index]['net_cents'] -= $part;
                     $available[$index] -= $part;
                     $remaining -= $part;
+                }
+
+                // A leaving employee's final salary is taken up to what is available; whatever is left stays an outstanding debt.
+                $left = $balance - max(0, $take);
+
+                if ($leaving && $left > 0) {
+                    $name = $items[$lineIndexes[0]]['employee_number'];
+                    $warnings[] = "Employee {$name} has no open assignment: the final salary of {$period} was used up to what is available, and ".PayrollMoney::format($left)." USD of the overpayment from {$correction->period} (correction #{$correction->id}) stays an outstanding debt to be managed on the corrections ledger.";
                 }
             }
         }

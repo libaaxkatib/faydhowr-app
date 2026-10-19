@@ -19,12 +19,14 @@ class PayrollCorrection extends Model
 
     public const KIND_UNDERPAYMENT = 'underpayment';
 
+    /** Still owed: by the employee (overpayment) or to the employee (underpayment). */
     public const STATUS_OPEN = 'open';
 
+    /** An overpayment that has been paid back in full (payroll deductions and recorded repayments). */
     public const STATUS_RECOVERED = 'recovered';
 
-    /** Underpayments: recorded and visible, but no payment rule has been approved, so nothing is paid automatically. */
-    public const STATUS_PENDING_POLICY = 'pending_policy';
+    /** An underpayment that has been paid to the employee in full. */
+    public const STATUS_SETTLED = 'settled';
 
     protected function casts(): array
     {
@@ -51,20 +53,47 @@ class PayrollCorrection extends Model
         return $this->hasMany(PayrollRecoveryDeduction::class)->orderBy('period');
     }
 
-    /** What was recovered so far = the recoveries of approved/finalized months (a draft month is only scheduled). */
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(PayrollCorrectionTransaction::class)->orderBy('id');
+    }
+
+    /** What payroll deductions of approved/finalized months have recovered (a draft month is only scheduled). */
     public function recoveredCents(): int
     {
         return (int) $this->recoveries()->where('status', PayrollRecoveryDeduction::STATUS_APPLIED)->sum('amount_cents');
     }
 
-    /** Recomputes the outstanding balance from the ledger (the ledger is the source of truth) and closes the correction when repaid. */
+    /** Repayments / payments recorded outside payroll that have not been voided. */
+    public function transactionCents(string $type): int
+    {
+        return (int) $this->transactions()->where('type', $type)->whereNull('voided_at')->sum('amount_cents');
+    }
+
+    /**
+     * Overpayment: still to be recovered = the overpayment - applied payroll deductions - recorded repayments.
+     * Underpayment: still to be paid = the underpayment - payments recorded. The ledgers are the source of truth.
+     */
     public function refreshBalance(): void
     {
-        if ($this->kind !== self::KIND_OVERPAYMENT) {
-            return;
+        if ($this->kind === self::KIND_OVERPAYMENT) {
+            $outstanding = max(0, (int) $this->difference_cents - $this->recoveredCents() - $this->transactionCents(PayrollCorrectionTransaction::TYPE_DEBT_REPAYMENT));
+            $done = self::STATUS_RECOVERED;
+        } else {
+            $outstanding = max(0, abs((int) $this->difference_cents) - $this->transactionCents(PayrollCorrectionTransaction::TYPE_UNDERPAYMENT_PAYMENT));
+            $done = self::STATUS_SETTLED;
         }
 
-        $outstanding = max(0, $this->difference_cents - $this->recoveredCents());
-        $this->forceFill(['outstanding_cents' => $outstanding, 'status' => $outstanding === 0 ? self::STATUS_RECOVERED : self::STATUS_OPEN])->save();
+        $this->forceFill(['outstanding_cents' => $outstanding, 'status' => $outstanding === 0 ? $done : self::STATUS_OPEN])->save();
+    }
+
+    /** How much more may be recorded as a repayment/payment now: what is outstanding minus what draft payroll months already schedule. */
+    public function availableToSettleCents(): int
+    {
+        $scheduled = $this->kind === self::KIND_OVERPAYMENT
+            ? (int) $this->recoveries()->where('status', PayrollRecoveryDeduction::STATUS_SCHEDULED)->sum('amount_cents')
+            : 0;
+
+        return max(0, (int) $this->outstanding_cents - $scheduled);
     }
 }

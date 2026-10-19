@@ -23,8 +23,9 @@ use Illuminate\Support\Str;
  *     run uses). If no closed month changes, the change is allowed for whoever may make it - months it does not touch are not locked.
  *  3. If a closed month WOULD change, the change is accepted only from a Super Admin, with a reason; for anyone else the whole change
  *     is rolled back. The closed run and its lines are never edited: the difference is recorded as a PayrollCorrection.
- *  4. An overpayment is recovered from later salaries (see PayrollRunCalculator::applyOverpaymentRecovery). An underpayment is
- *     recorded and visible, but no repayment rule has been approved by the owner, so nothing is paid automatically.
+ *  4. An overpayment is recovered from later salaries (see PayrollRunCalculator::applyOverpaymentRecovery); what payroll cannot take
+ *     stays as an outstanding debt. An underpayment is recorded as an amount owed to the employee; it is paid ONLY by a Super Admin as a
+ *     separate, traceable transaction (RecordCorrectionTransactionAction) - never inside payroll and never by rewriting the closed month.
  */
 class ClosedPayrollCorrection
 {
@@ -194,8 +195,8 @@ class ClosedPayrollCorrection
                     'recorded_net_cents' => $recorded,
                     'corrected_net_cents' => $corrected,
                     'difference_cents' => $difference,
-                    'outstanding_cents' => $difference > 0 ? $difference : 0,
-                    'status' => $difference > 0 ? PayrollCorrection::STATUS_OPEN : PayrollCorrection::STATUS_PENDING_POLICY,
+                    'outstanding_cents' => abs($difference),
+                    'status' => PayrollCorrection::STATUS_OPEN,
                     'reason' => $reason,
                     'old_values' => $context['old'] ?? null,
                     'new_values' => $context['new'] ?? null,
@@ -221,7 +222,7 @@ class ClosedPayrollCorrection
                         'old_values' => $context['old'] ?? null,
                         'new_values' => $context['new'] ?? null,
                         'reason' => $reason,
-                        'recovery' => $difference > 0 ? 'deducted from the following salaries until repaid' : 'underpayment: no repayment rule approved, nothing paid automatically',
+                        'recovery' => $difference > 0 ? 'deducted from the following salaries until repaid; any balance stays an outstanding debt' : 'underpayment: owed to the employee, paid only by a Super Admin as a separate transaction',
                     ],
                 ));
             }

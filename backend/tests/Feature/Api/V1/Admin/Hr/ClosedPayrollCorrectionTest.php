@@ -359,8 +359,8 @@ class ClosedPayrollCorrectionTest extends TestCase
         $this->assertSame(15000, (int) $over->difference_cents, 'the original was paid 15 days too many');
         $this->assertSame($standIn->id, $under->employee_id);
         $this->assertSame(-15000, (int) $under->difference_cents, 'the replacement was never paid for 16-30 September');
-        $this->assertSame('pending_policy', $under->status, 'no repayment/payment rule is approved for underpayments: recorded, not paid');
-        $this->assertSame(0, (int) $under->outstanding_cents);
+        $this->assertSame('open', $under->status, 'an underpayment is an amount owed to the employee until a Super Admin pays it as a separate transaction');
+        $this->assertSame(15000, (int) $under->outstanding_cents, 'the amount owed is recorded separately from the closed payroll month');
 
         // No automatic payment appears in the next month for the underpaid employee.
         $this->close('2026-10', false);

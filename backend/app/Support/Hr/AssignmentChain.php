@@ -4,6 +4,7 @@ namespace App\Support\Hr;
 
 use App\Enums\WorkAssignmentStatus;
 use App\Models\EmployeeWorkAssignment;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
@@ -45,8 +46,9 @@ final class AssignmentChain
 
     /**
      * The monthly salary of the PERMANENT employee whose position this assignment takes over: walks back along replaces_assignment_id to
-     * the nearest Permanent assignment and returns its salary row in effect on $date (but not later than that assignment's own last
-     * day). Returns null when there is no Permanent assignment to inherit from.
+     * the nearest Permanent assignment and returns its salary row in effect at the END of the month of $date. Owner rule: a salary change of
+     * the Permanent applies to a Replacement for the whole month, whatever day it took effect, so the basis is the month's last salary.
+     * Returns null when there is no Permanent assignment to inherit from.
      *
      * @return array{assignment_id: int, amount: string, currency: string, frequency: string, effective_from: string}|null
      */
@@ -57,7 +59,7 @@ final class AssignmentChain
 
         while ($current !== null && $guard++ < 25) {
             if (($current->assignment_type?->value ?? 'permanent') === 'permanent') {
-                $asOf = $current->end_date !== null && $current->end_date->lt($date) ? $current->end_date : $date;
+                $asOf = CarbonImmutable::parse($date)->endOfMonth()->startOfDay();
                 $rows = $current->salaryHistories()->get();
                 $row = $rows->filter(fn ($r) => $r->effective_from->lte($asOf))->last() ?? $rows->first();
 

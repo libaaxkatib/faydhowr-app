@@ -109,6 +109,7 @@ class ReplaceCompanyEmployeeAction
                     'replacement_start_date' => $replacementDate->toDateString(),
                     'assignment_type' => $new->assignment_type->value,
                     'gap_days' => PositionSuccession::gapDays($lastDay, $replacementDate),
+                    'temporary_registered_as_replacement_confirmed' => $replacement->employment_type === 'temporary' && $new->assignment_type === AssignmentType::Replacement,
                     'reason' => $reason !== '' ? $reason : null,
                 ],
             ));
