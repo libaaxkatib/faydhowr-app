@@ -23,6 +23,12 @@ return [
     'hr_attachments_disk' => env('HR_ATTACHMENTS_DISK', 'local'),
 
     /*
+    | New client-company agreement uploads are OFF unless this is explicitly switched on. Owner decision: they stay disabled until
+    | the private bucket, the verified mirror and a restore drill have all passed. Existing agreements stay downloadable.
+    */
+    'hr_agreement_uploads_enabled' => (bool) env('HR_AGREEMENT_UPLOADS_ENABLED', false),
+
+    /*
     | Employee documents. New uploads are written to `hr_documents_disk`; every document row records the disk it was
     | written to, so documents uploaded earlier stay reachable after this setting changes. The default, 'local', is
     | today's behaviour: nothing changes until a deployment sets HR_DOCUMENTS_DISK (for example to `r2_documents`).

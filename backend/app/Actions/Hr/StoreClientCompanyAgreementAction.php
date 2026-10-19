@@ -7,7 +7,9 @@ use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\ClientCompany;
 use App\Models\ClientCompanyAgreement;
+use App\Support\ApiResponse;
 use App\Support\Hr\Documents\ClientCompanyAgreementStorage;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -21,6 +23,9 @@ use Throwable;
  * row records the disk and the checksum. If the row cannot be saved, the object this request wrote is removed again, so a
  * failed upload leaves neither a row nor a stray file. A storage problem (unreachable, misconfigured, not durable in
  * production) surfaces as DocumentStorageException (HTTP 503) and nothing is saved.
+ *
+ * Uploads are refused outright (HTTP 403, AGREEMENT_UPLOADS_DISABLED) unless filesystems.hr_agreement_uploads_enabled is on;
+ * it stays off until the mirror and a restore drill have passed. Nothing else about agreements is affected.
  */
 class StoreClientCompanyAgreementAction
 {
@@ -28,6 +33,14 @@ class StoreClientCompanyAgreementAction
 
     public function handle(ClientCompany $company, UploadedFile $file, ?string $notes, Admin $actor): ClientCompanyAgreement
     {
+        if (! config('filesystems.hr_agreement_uploads_enabled', false)) {
+            throw new HttpResponseException(ApiResponse::error(
+                'Agreement uploads are switched off until private storage, the verified mirror and a restore test have all passed. Nothing was saved.',
+                'AGREEMENT_UPLOADS_DISABLED',
+                403,
+            ));
+        }
+
         $stored = $this->storage->store($file, $company->id);
 
         try {

@@ -3,6 +3,7 @@
 namespace App\Support\Hr\Documents;
 
 use App\Enums\DocumentFileState;
+use App\Models\ClientCompanyAgreement;
 use App\Models\EmployeeDocument;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Storage;
@@ -26,6 +27,10 @@ use Throwable;
  *  - Nothing in the database is changed, and nothing is reported as copied/restored until its checksum has been read back.
  *  - Transient read/write failures are retried; what still fails is reported, never hidden.
  * Reports contain internal ids and counts only - no file names, paths or contents.
+ *
+ * Two kinds of file are covered, with identical rules: employee documents (on the primary disk) and client-company agreements
+ * (on the agreements disk, which defaults to the primary disk). Both land on the same mirror disk under their own path
+ * prefixes (`employees/...`, `client-companies/...`), so they can never collide.
  */
 final class DocumentMirror
 {
@@ -33,12 +38,83 @@ final class DocumentMirror
 
     public const LAST_RUN = '_mirror/last-run.json';
 
+    public const KIND_DOCUMENT = 'employee_document';
+
+    public const KIND_AGREEMENT = 'client_company_agreement';
+
     public function __construct(
         private readonly string $primaryDisk,
         private readonly string $mirrorDisk,
         private readonly int $attempts = 3,
         private readonly int $backoffMilliseconds = 250,
+        private readonly ?string $agreementsDisk = null,
     ) {}
+
+    private function agreementsDisk(): string
+    {
+        return $this->agreementsDisk ?? $this->primaryDisk;
+    }
+
+    /**
+     * Every file this mirror is responsible for, normalised: employee documents on the primary disk, then agreements on the
+     * agreements disk. Rows that record some other disk are not this mirror's business and are skipped.
+     *
+     * @param  list<int>|null  $onlyDocumentIds  restrict employee documents (null = all)
+     * @param  list<int>|null  $onlyAgreementIds  restrict agreements (null = all, unless documents are restricted)
+     * @param  callable(array{kind: string, id: int, owner_id: int, disk: string, path: string, size: int, sha256: string|null}): void  $each
+     */
+    private function eachItem(callable $each, ?array $onlyDocumentIds = null, ?array $onlyAgreementIds = null): void
+    {
+        if ($onlyAgreementIds === null || $onlyDocumentIds !== null) {
+            EmployeeDocument::query()
+                ->where('disk', $this->primaryDisk)
+                ->when($onlyDocumentIds !== null, fn ($q) => $q->whereIn('id', $onlyDocumentIds))
+                ->select(['id', 'employee_id', 'disk', 'file_path', 'file_size', 'sha256'])
+                ->chunkById(100, function ($documents) use ($each): void {
+                    foreach ($documents as $document) {
+                        $each([
+                            'kind' => self::KIND_DOCUMENT,
+                            'id' => (int) $document->id,
+                            'owner_id' => (int) $document->employee_id,
+                            'disk' => $this->primaryDisk,
+                            'path' => (string) $document->file_path,
+                            'size' => (int) $document->file_size,
+                            'sha256' => $document->sha256 !== null ? strtolower((string) $document->sha256) : null,
+                        ]);
+                    }
+                });
+        }
+
+        if ($onlyDocumentIds !== null && $onlyAgreementIds === null) {
+            return;
+        }
+
+        ClientCompanyAgreement::query()
+            ->where('disk', $this->agreementsDisk())
+            ->when($onlyAgreementIds !== null, fn ($q) => $q->whereIn('id', $onlyAgreementIds))
+            ->select(['id', 'client_company_id', 'disk', 'file_path', 'file_size', 'sha256'])
+            ->chunkById(100, function ($agreements) use ($each): void {
+                foreach ($agreements as $agreement) {
+                    $each([
+                        'kind' => self::KIND_AGREEMENT,
+                        'id' => (int) $agreement->id,
+                        'owner_id' => (int) $agreement->client_company_id,
+                        'disk' => $this->agreementsDisk(),
+                        'path' => (string) $agreement->file_path,
+                        'size' => (int) $agreement->file_size,
+                        'sha256' => $agreement->sha256 !== null ? strtolower((string) $agreement->sha256) : null,
+                    ]);
+                }
+            });
+    }
+
+    /** @param array{kind: string, id: int, owner_id: int} $item */
+    private function failureRow(array $item, string $reason): array
+    {
+        return $item['kind'] === self::KIND_AGREEMENT
+            ? ['kind' => self::KIND_AGREEMENT, 'agreement_id' => $item['id'], 'client_company_id' => $item['owner_id'], 'reason' => $reason]
+            : ['document_id' => $item['id'], 'employee_id' => $item['owner_id'], 'reason' => $reason];
+    }
 
     /** @return array<string, mixed> */
     public function mirror(bool $dryRun = false, bool $deep = false): array
@@ -54,14 +130,9 @@ final class DocumentMirror
             try {
                 $mirrorDriver = $this->driver($this->mirrorDisk);
 
-                EmployeeDocument::query()
-                    ->where('disk', $this->primaryDisk)
-                    ->select(['id', 'employee_id', 'disk', 'file_path', 'file_size', 'sha256'])
-                    ->chunkById(100, function ($documents) use ($mirrorDriver, $dryRun, $deep, &$counts, &$failures, &$entries): void {
-                        foreach ($documents as $document) {
-                            $this->mirrorOne($document, $mirrorDriver, $dryRun, $deep, $counts, $failures, $entries);
-                        }
-                    });
+                $this->eachItem(function (array $item) use ($mirrorDriver, $dryRun, $deep, &$counts, &$failures, &$entries): void {
+                    $this->mirrorOne($item, $mirrorDriver, $dryRun, $deep, $counts, $failures, $entries);
+                });
             } catch (Throwable) {
                 $aborted = 'mirror_unavailable';
             }
@@ -92,9 +163,10 @@ final class DocumentMirror
 
     /**
      * @param  list<int>|null  $onlyDocumentIds
+     * @param  list<int>|null  $onlyAgreementIds
      * @return array<string, mixed>
      */
-    public function restore(bool $execute, ?array $onlyDocumentIds = null): array
+    public function restore(bool $execute, ?array $onlyDocumentIds = null, ?array $onlyAgreementIds = null): array
     {
         $counts = array_fill_keys(['considered', 'present', 'restorable', 'restored', 'not_in_mirror', 'mirror_checksum_mismatch', 'unverifiable_no_recorded_checksum', 'restore_failed', 'primary_unavailable', 'invalid_reference'], 0);
         $failures = [];
@@ -102,19 +174,11 @@ final class DocumentMirror
 
         if ($aborted === null) {
             try {
-                $primaryInspector = new DocumentFileInspector($this->primaryDisk);
-                $primaryDriver = $this->driver($this->primaryDisk);
                 $mirrorDriver = $this->driver($this->mirrorDisk);
 
-                EmployeeDocument::query()
-                    ->where('disk', $this->primaryDisk)
-                    ->when($onlyDocumentIds !== null, fn ($q) => $q->whereIn('id', $onlyDocumentIds))
-                    ->select(['id', 'employee_id', 'disk', 'file_path', 'file_size', 'sha256'])
-                    ->chunkById(100, function ($documents) use ($primaryInspector, $primaryDriver, $mirrorDriver, $execute, &$counts, &$failures): void {
-                        foreach ($documents as $document) {
-                            $this->restoreOne($document, $primaryInspector, $primaryDriver, $mirrorDriver, $execute, $counts, $failures);
-                        }
-                    });
+                $this->eachItem(function (array $item) use ($mirrorDriver, $execute, &$counts, &$failures): void {
+                    $this->restoreOne($item, new DocumentFileInspector($item['disk']), $this->driver($item['disk']), $mirrorDriver, $execute, $counts, $failures);
+                }, $onlyDocumentIds, $onlyAgreementIds);
             } catch (Throwable) {
                 $aborted = 'storage_unavailable';
             }
@@ -179,11 +243,15 @@ final class DocumentMirror
     /** The reason the run cannot even start, or null. Never guesses: an unreachable disk is not an empty disk. */
     private function abortReason(): ?string
     {
-        if ($this->primaryDisk === $this->mirrorDisk) {
+        if ($this->primaryDisk === $this->mirrorDisk || $this->agreementsDisk() === $this->mirrorDisk) {
             return 'mirror_is_the_primary_disk';
         }
 
         if (! (new DocumentFileInspector($this->primaryDisk))->isStorageAvailable()) {
+            return 'primary_unavailable';
+        }
+
+        if ($this->agreementsDisk() !== $this->primaryDisk && ! (new DocumentFileInspector($this->agreementsDisk()))->isStorageAvailable()) {
             return 'primary_unavailable';
         }
 
@@ -199,13 +267,13 @@ final class DocumentMirror
      * @param  list<array<string, mixed>>  $failures
      * @param  list<array<string, mixed>>  $entries
      */
-    private function mirrorOne(EmployeeDocument $document, FilesystemOperator $mirrorDriver, bool $dryRun, bool $deep, array &$counts, array &$failures, array &$entries): void
+    private function mirrorOne(array $item, FilesystemOperator $mirrorDriver, bool $dryRun, bool $deep, array &$counts, array &$failures, array &$entries): void
     {
         $counts['considered']++;
-        $path = (string) $document->file_path;
-        $fail = function (string $reason, string $counter) use ($document, &$counts, &$failures): void {
+        $path = $item['path'];
+        $fail = function (string $reason, string $counter) use ($item, &$counts, &$failures): void {
             $counts[$counter]++;
-            $failures[] = ['document_id' => (int) $document->id, 'employee_id' => (int) $document->employee_id, 'reason' => $reason];
+            $failures[] = $this->failureRow($item, $reason);
         };
 
         if (! DocumentFileInspector::isUsableReference($path)) {
@@ -214,20 +282,20 @@ final class DocumentMirror
             return;
         }
 
-        $recorded = $document->sha256 !== null ? strtolower((string) $document->sha256) : null;
+        $recorded = $item['sha256'];
 
         if ($recorded === null) {
             $counts['without_recorded_checksum']++;
         }
 
-        $primary = new DocumentFileInspector($this->primaryDisk);
+        $primary = new DocumentFileInspector($item['disk']);
 
         // Routine runs stay cheap: a document whose mirror object already exists with the recorded size is accepted without
         // downloading or hashing anything (the source is only checked to still exist and be readable). A deep run (--deep, for
         // example weekly) re-reads and re-hashes everything; a same-size substitution is only caught there.
         if (! $deep) {
             try {
-                $mirrorHasIt = $mirrorDriver->fileExists($path) && $mirrorDriver->fileSize($path) === (int) $document->file_size;
+                $mirrorHasIt = $mirrorDriver->fileExists($path) && $mirrorDriver->fileSize($path) === $item['size'];
             } catch (Throwable) {
                 $mirrorHasIt = false; // fall through to the full path, which retries and reports honestly
             }
@@ -241,7 +309,7 @@ final class DocumentMirror
                     $fail('source_unavailable', 'source_unavailable');
                 } else {
                     $counts['already_present']++;
-                    $entries[] = $this->entry($document, $recorded, (int) $document->file_size, 'already_present');
+                    $entries[] = $this->entry($item, $recorded, $item['size'], 'already_present');
                 }
 
                 return;
@@ -304,7 +372,7 @@ final class DocumentMirror
 
                     if (hash_equals($expected, $existingSha)) {
                         $counts['already_present']++;
-                        $entries[] = $this->entry($document, $expected, $size, 'already_present');
+                        $entries[] = $this->entry($item, $expected, $size, 'already_present');
                     } else {
                         $fail('mirror_conflict', 'mirror_conflict'); // never overwritten, never removed
                     }
@@ -334,7 +402,7 @@ final class DocumentMirror
                 }
 
                 $counts['copied']++;
-                $entries[] = $this->entry($document, $expected, $size, 'copied');
+                $entries[] = $this->entry($item, $expected, $size, 'copied');
                 fclose($temp);
 
                 return;
@@ -357,13 +425,13 @@ final class DocumentMirror
      * @param  array<string, int>  $counts
      * @param  list<array<string, mixed>>  $failures
      */
-    private function restoreOne(EmployeeDocument $document, DocumentFileInspector $primaryInspector, FilesystemOperator $primaryDriver, FilesystemOperator $mirrorDriver, bool $execute, array &$counts, array &$failures): void
+    private function restoreOne(array $item, DocumentFileInspector $primaryInspector, FilesystemOperator $primaryDriver, FilesystemOperator $mirrorDriver, bool $execute, array &$counts, array &$failures): void
     {
         $counts['considered']++;
-        $path = (string) $document->file_path;
-        $note = function (string $reason, string $counter) use ($document, &$counts, &$failures): void {
+        $path = $item['path'];
+        $note = function (string $reason, string $counter) use ($item, &$counts, &$failures): void {
             $counts[$counter]++;
-            $failures[] = ['document_id' => (int) $document->id, 'employee_id' => (int) $document->employee_id, 'reason' => $reason];
+            $failures[] = $this->failureRow($item, $reason);
         };
 
         $state = $primaryInspector->inspect($path);
@@ -393,7 +461,7 @@ final class DocumentMirror
                 return;
             }
 
-            if ($document->sha256 === null) {
+            if ($item['sha256'] === null) {
                 $note('unverifiable_no_recorded_checksum', 'unverifiable_no_recorded_checksum');
 
                 return;
@@ -407,7 +475,7 @@ final class DocumentMirror
             $mirrorSha = DocumentFileInspector::hashStream($temp);
             $size = (int) (fstat($temp)['size'] ?? 0);
 
-            if (! hash_equals(strtolower((string) $document->sha256), $mirrorSha)) {
+            if (! hash_equals($item['sha256'], $mirrorSha)) {
                 fclose($temp);
                 $note('mirror_checksum_mismatch', 'mirror_checksum_mismatch');
 
@@ -507,10 +575,14 @@ final class DocumentMirror
         return $counts['source_missing'] + $counts['source_unavailable'] + $counts['source_checksum_mismatch'] + $counts['mirror_conflict'] + $counts['copy_failed'] + $counts['invalid_reference'] + $counts['manifest_failed'];
     }
 
-    /** @return array{document_id: int, employee_id: int, path: string, sha256: string|null, size: int, status: string} */
-    private function entry(EmployeeDocument $document, ?string $sha256, int $size, string $status): array
+    /** @return array<string, mixed> */
+    private function entry(array $item, ?string $sha256, int $size, string $status): array
     {
-        return ['document_id' => (int) $document->id, 'employee_id' => (int) $document->employee_id, 'path' => (string) $document->file_path, 'sha256' => $sha256, 'size' => $size, 'status' => $status];
+        if ($item['kind'] === self::KIND_AGREEMENT) {
+            return ['kind' => self::KIND_AGREEMENT, 'agreement_id' => $item['id'], 'client_company_id' => $item['owner_id'], 'path' => $item['path'], 'sha256' => $sha256, 'size' => $size, 'status' => $status];
+        }
+
+        return ['document_id' => $item['id'], 'employee_id' => $item['owner_id'], 'path' => $item['path'], 'sha256' => $sha256, 'size' => $size, 'status' => $status];
     }
 
     /** Removes an object this run JUST wrote and could not verify (its path was free before). The only delete in this class. */

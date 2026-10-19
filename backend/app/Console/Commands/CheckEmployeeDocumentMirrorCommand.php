@@ -28,7 +28,7 @@ class CheckEmployeeDocumentMirrorCommand extends Command
             return self::FAILURE;
         }
 
-        $result = (new DocumentMirror((string) config('filesystems.hr_documents_disk', 'local'), $mirror))->freshness(max(1, (int) $this->option('max-age-hours')));
+        $result = (new DocumentMirror((string) config('filesystems.hr_documents_disk', 'local'), $mirror, agreementsDisk: (string) config('filesystems.hr_attachments_disk', 'local')))->freshness(max(1, (int) $this->option('max-age-hours')));
 
         if ($this->option('json')) {
             $this->line((string) json_encode($result, JSON_PRETTY_PRINT));

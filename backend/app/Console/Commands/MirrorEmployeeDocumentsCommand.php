@@ -6,7 +6,8 @@ use App\Support\Hr\Documents\DocumentMirror;
 use Illuminate\Console\Command;
 
 /**
- * Copies employee documents from the primary disk to the recovery-mirror disk and verifies every copy by SHA-256.
+ * Copies employee documents and client-company agreements from their disks to the recovery-mirror disk and verifies every copy
+ * by SHA-256.
  *
  * Copy-only: nothing is ever deleted from, or overwritten on, either disk, and the database is not touched. Safe to run
  * repeatedly (what is already mirrored is recognised and skipped). Exits with a failure code if anything could not be
@@ -21,6 +22,7 @@ class MirrorEmployeeDocumentsCommand extends Command
 {
     protected $signature = 'hr:documents-mirror
         {--primary-disk= : Disk that holds the documents (default: filesystems.hr_documents_disk)}
+        {--agreements-disk= : Disk that holds client-company agreements (default: filesystems.hr_attachments_disk)}
         {--mirror-disk= : Disk that receives the recovery copy (default: filesystems.hr_documents_mirror_disk)}
         {--attempts=3 : Tries per document before it is reported as failed}
         {--dry-run : Report what would be copied without writing anything}
@@ -34,6 +36,7 @@ class MirrorEmployeeDocumentsCommand extends Command
     {
         $primary = (string) ($this->option('primary-disk') ?: config('filesystems.hr_documents_disk', 'local'));
         $mirror = (string) ($this->option('mirror-disk') ?: config('filesystems.hr_documents_mirror_disk'));
+        $agreements = (string) ($this->option('agreements-disk') ?: config('filesystems.hr_attachments_disk', $primary));
 
         if ($mirror === '') {
             $this->error('No recovery-mirror disk is configured (set HR_DOCUMENTS_MIRROR_DISK or pass --mirror-disk). Nothing was copied.');
@@ -41,7 +44,7 @@ class MirrorEmployeeDocumentsCommand extends Command
             return self::FAILURE;
         }
 
-        foreach ([$primary, $mirror] as $disk) {
+        foreach ([$primary, $agreements, $mirror] as $disk) {
             if (! is_array(config("filesystems.disks.{$disk}"))) {
                 $this->error("Unknown storage disk '{$disk}'. Nothing was copied.");
 
@@ -49,12 +52,12 @@ class MirrorEmployeeDocumentsCommand extends Command
             }
         }
 
-        $report = (new DocumentMirror($primary, $mirror, max(1, (int) $this->option('attempts'))))->mirror((bool) $this->option('dry-run'), (bool) $this->option('deep'));
+        $report = (new DocumentMirror($primary, $mirror, max(1, (int) $this->option('attempts')), agreementsDisk: $agreements))->mirror((bool) $this->option('dry-run'), (bool) $this->option('deep'));
 
         if ($this->option('json')) {
             $this->line((string) json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
         } else {
-            $this->info($report['dry_run'] ? 'Employee document mirror - dry run (nothing was written).' : 'Employee document mirror run finished.');
+            $this->info($report['dry_run'] ? 'Document and agreement mirror - dry run (nothing was written).' : 'Document and agreement mirror run finished.');
 
             if ($report['aborted'] !== null) {
                 $this->error('The run could not start: '.str_replace('_', ' ', (string) $report['aborted']).'. Nothing was reported as missing and nothing was copied.');
@@ -63,7 +66,9 @@ class MirrorEmployeeDocumentsCommand extends Command
             $this->table(['Measure', 'Count'], collect($report['counts'])->map(fn ($n, $k) => [str_replace('_', ' ', $k), (string) $n])->values()->all());
 
             if ($this->option('details') && $report['failures'] !== []) {
-                $this->table(['Document', 'Employee', 'Problem'], collect($report['failures'])->map(fn ($f) => [$f['document_id'], $f['employee_id'], $f['reason']])->all());
+                $this->table(['File', 'Owner', 'Problem'], collect($report['failures'])->map(fn ($f) => isset($f['agreement_id'])
+                    ? ['agreement '.$f['agreement_id'], 'company '.$f['client_company_id'], $f['reason']]
+                    : ['document '.$f['document_id'], 'employee '.$f['employee_id'], $f['reason']])->all());
             }
 
             $this->line($report['ok'] ? 'Every document was copied or already present, and verified.' : 'Some documents were NOT mirrored - see the counts above (use --details for ids).');
