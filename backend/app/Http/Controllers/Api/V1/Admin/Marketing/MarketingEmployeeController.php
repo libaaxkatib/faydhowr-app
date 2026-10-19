@@ -26,7 +26,7 @@ class MarketingEmployeeController extends Controller
 
     /**
      * Add Team Member: creates a Marketing Employee account and places it in a team. The role is fixed on the server (never
-     * taken from the request); only the Super Admin and a Marketing Manager of that team may do it.
+     * taken from the request); only the Super Admin and a Marketing Manager may do it (either team).
      */
     public function store(StoreMarketingTeamMemberRequest $request, CreateMarketingTeamMemberAction $action): JsonResponse
     {
@@ -42,11 +42,8 @@ class MarketingEmployeeController extends Controller
     {
         MarketingScope::requireUnrestricted($request->user(), 'Only the Marketing Manager can change team members.');
 
-        // Only Marketing Employee accounts, and only in a team the caller manages; anything else answers as if it did not exist.
-        $managesATeamOfTheirs = $request->user()->role === AdminRole::SuperAdmin
-            || $admin->marketingTeams()->pluck('marketing_teams.id')->contains(fn ($id) => MarketingScope::canManageTeam($request->user(), (int) $id));
-
-        if ($admin->role !== AdminRole::MarketingEmployee || ! $managesATeamOfTheirs) {
+        // Only Marketing Employee accounts (in either team); a manager, the Super Admin or any other account answers as if it did not exist.
+        if ($admin->role !== AdminRole::MarketingEmployee) {
             throw (new ModelNotFoundException)->setModel(Admin::class, [$admin->getKey()]);
         }
 

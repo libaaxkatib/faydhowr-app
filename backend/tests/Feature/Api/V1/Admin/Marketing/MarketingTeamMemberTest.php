@@ -104,22 +104,21 @@ class MarketingTeamMemberTest extends TestCase
         $this->assertStringNotContainsString('Str0ng-pass-1', (string) DB::table('audit_logs')->pluck('metadata')->implode(' '), 'no password reaches the audit log');
     }
 
-    public function test_a_marketing_manager_creates_members_only_in_their_own_team(): void
+    public function test_a_marketing_manager_creates_members_in_both_teams(): void
     {
-        $this->as($this->managerA)->postJson('/api/v1/admin/marketing/employees', $this->payload())->assertCreated();
-
+        $this->as($this->managerA)->postJson('/api/v1/admin/marketing/employees', $this->payload())->assertCreated()->assertJsonPath('data.teams.0.id', $this->teamA->id);
         $this->as($this->managerA)->postJson('/api/v1/admin/marketing/employees', $this->payload(['email' => 'other@example.test', 'phone' => '+252611000009', 'team_id' => $this->teamB->id]))
-            ->assertForbidden()->assertJsonPath('error_code', 'MARKETING_SCOPE_FORBIDDEN');
+            ->assertCreated()->assertJsonPath('data.teams.0.id', $this->teamB->id)->assertJsonPath('data.role', 'marketing_employee');
+        $this->as($this->managerB)->postJson('/api/v1/admin/marketing/employees', $this->payload(['email' => 'third@example.test', 'phone' => '+252611000010', 'team_id' => $this->teamA->id]))->assertCreated();
 
-        $this->assertDatabaseMissing('admins', ['email' => 'other@example.test']);
-        $this->assertSame(1, Admin::query()->where('role', AdminRole::MarketingEmployee)->count());
+        $this->assertSame(3, Admin::query()->where('role', AdminRole::MarketingEmployee)->count());
     }
 
-    public function test_a_marketing_manager_without_a_team_manages_nobody(): void
+    public function test_a_marketing_manager_needs_no_team_membership_to_manage_either_team(): void
     {
-        $this->as($this->managerNoTeam)->postJson('/api/v1/admin/marketing/employees', $this->payload())->assertForbidden();
-        $this->as($this->managerNoTeam)->postJson('/api/v1/admin/marketing/employees', $this->payload(['team_id' => $this->teamB->id]))->assertForbidden();
-        $this->assertSame(0, Admin::query()->where('role', AdminRole::MarketingEmployee)->count());
+        $this->as($this->managerNoTeam)->postJson('/api/v1/admin/marketing/employees', $this->payload())->assertCreated();
+        $this->as($this->managerNoTeam)->postJson('/api/v1/admin/marketing/employees', $this->payload(['email' => 'nb@example.test', 'phone' => '+252611000012', 'team_id' => $this->teamB->id]))->assertCreated();
+        $this->assertSame(2, Admin::query()->where('role', AdminRole::MarketingEmployee)->count());
     }
 
     public function test_the_role_cannot_be_chosen_through_the_request(): void
@@ -190,25 +189,32 @@ class MarketingTeamMemberTest extends TestCase
         $this->withToken($token)->getJson('/api/v1/admin/hr/employees')->assertForbidden();
     }
 
-    public function test_a_manager_changes_only_team_employees_of_their_own_team(): void
+    public function test_a_manager_changes_team_employees_of_either_team_but_never_other_account_types(): void
     {
         $inA = $this->account(AdminRole::MarketingEmployee, $this->teamA);
         $inB = $this->account(AdminRole::MarketingEmployee, $this->teamB);
+        $noTeam = $this->account(AdminRole::MarketingEmployee);
 
         $this->as($this->managerA)->patchJson("/api/v1/admin/marketing/employees/{$inA->id}", ['full_name' => 'Renamed', 'role' => 'super_admin', 'email' => 'hijack@example.test'])
             ->assertOk()->assertJsonPath('data.full_name', 'Renamed')->assertJsonPath('data.role', 'marketing_employee');
         $this->assertNotSame('hijack@example.test', $inA->fresh()->email, 'e-mail and role are not changed here');
         $this->assertSame(AdminRole::MarketingEmployee, $inA->fresh()->role);
 
-        $this->as($this->managerA)->patchJson("/api/v1/admin/marketing/employees/{$inB->id}", ['full_name' => 'Nope'])->assertNotFound();
+        $this->as($this->managerA)->patchJson("/api/v1/admin/marketing/employees/{$inB->id}", ['full_name' => 'Both teams'])->assertOk();
+        $this->as($this->managerA)->patchJson("/api/v1/admin/marketing/employees/{$noTeam->id}", ['status' => 'inactive'])->assertOk();
+        $this->assertSame('Both teams', $inB->fresh()->full_name);
+
+        // a manager, the Super Admin and every other account type answer as if they did not exist
         $this->as($this->managerA)->patchJson("/api/v1/admin/marketing/employees/{$this->managerB->id}", ['status' => 'inactive'])->assertNotFound();
         $this->as($this->managerA)->patchJson("/api/v1/admin/marketing/employees/{$this->superAdmin->id}", ['status' => 'inactive'])->assertNotFound();
-        $this->as($this->managerNoTeam)->patchJson("/api/v1/admin/marketing/employees/{$inA->id}", ['full_name' => 'Nope'])->assertNotFound();
-        $this->as($inA)->patchJson("/api/v1/admin/marketing/employees/{$inA->id}", ['full_name' => 'Self'])->assertForbidden();
+        $hr = $this->account(AdminRole::HrManager, null, marketingPermissions: false);
+        $this->as($this->managerA)->patchJson("/api/v1/admin/marketing/employees/{$hr->id}", ['status' => 'inactive'])->assertNotFound();
+        $this->as($inA)->patchJson("/api/v1/admin/marketing/employees/{$inB->id}", ['full_name' => 'Self'])->assertForbidden();
 
         $this->as($this->superAdmin)->patchJson("/api/v1/admin/marketing/employees/{$inB->id}", ['phone' => '+252611000555'])->assertOk();
         $this->assertSame('+252611000555', $inB->fresh()->phone);
         $this->assertSame(AdminRole::MarketingManager, $this->managerB->fresh()->role);
+        $this->assertSame('active', $hr->fresh()->status->value);
     }
 
     public function test_an_inactive_member_cannot_sign_in_or_call_the_api_and_can_be_reactivated(): void
@@ -233,33 +239,42 @@ class MarketingTeamMemberTest extends TestCase
     {
         $inB = $this->account(AdminRole::MarketingEmployee, $this->teamB);
         $free = $this->account(AdminRole::MarketingEmployee);
+        $member = $this->account(AdminRole::MarketingEmployee, $this->teamA);
 
-        // a manager of A cannot put anyone - nor themselves - into B, nor take anyone out of B
-        $this->as($this->managerA)->postJson("/api/v1/admin/marketing/teams/{$this->teamB->id}/members", ['admin_id' => $free->id])->assertForbidden();
-        $this->as($this->managerA)->postJson("/api/v1/admin/marketing/teams/{$this->teamB->id}/members", ['admin_id' => $this->managerA->id])->assertForbidden();
-        $this->as($this->managerA)->deleteJson("/api/v1/admin/marketing/teams/{$this->teamB->id}/members/{$inB->id}")->assertForbidden();
-        $this->assertFalse($this->teamB->members()->whereKey($free->id)->exists());
-        $this->assertFalse($this->teamB->members()->whereKey($this->managerA->id)->exists());
-        $this->assertTrue($this->teamB->members()->whereKey($inB->id)->exists());
+        // a Marketing Manager manages both teams
+        $this->as($this->managerA)->postJson("/api/v1/admin/marketing/teams/{$this->teamB->id}/members", ['admin_id' => $free->id])->assertOk();
+        $this->as($this->managerA)->deleteJson("/api/v1/admin/marketing/teams/{$this->teamB->id}/members/{$inB->id}")->assertOk();
+        $this->as($this->managerB)->postJson("/api/v1/admin/marketing/teams/{$this->teamA->id}/members", ['admin_id' => $inB->id])->assertOk();
+        $this->assertTrue($this->teamB->members()->whereKey($free->id)->exists());
+        $this->assertTrue($this->teamA->members()->whereKey($inB->id)->exists());
 
-        // inside their own team it works, but only marketing accounts can join
-        $this->as($this->managerA)->postJson("/api/v1/admin/marketing/teams/{$this->teamA->id}/members", ['admin_id' => $free->id])->assertOk();
+        // only marketing accounts can join
         $hr = $this->account(AdminRole::HrManager, null, marketingPermissions: false);
         $this->as($this->managerA)->postJson("/api/v1/admin/marketing/teams/{$this->teamA->id}/members", ['admin_id' => $hr->id])->assertUnprocessable()->assertJsonPath('error_code', 'INVALID_TEAM_MEMBER');
         $this->as($this->managerA)->postJson("/api/v1/admin/marketing/teams/{$this->teamA->id}/members", ['admin_id' => $this->superAdmin->id])->assertUnprocessable();
+        $this->assertFalse($this->teamA->members()->whereKey($hr->id)->exists());
 
-        // the Super Admin manages both
-        $this->as($this->superAdmin)->postJson("/api/v1/admin/marketing/teams/{$this->teamB->id}/members", ['admin_id' => $free->id])->assertOk();
-        $this->as($this->superAdmin)->deleteJson("/api/v1/admin/marketing/teams/{$this->teamB->id}/members/{$inB->id}")->assertOk();
+        // a team member - even holding marketing.manage - and any non-marketing account cannot change membership at all
+        $this->as($member)->postJson("/api/v1/admin/marketing/teams/{$this->teamB->id}/members", ['admin_id' => $member->id])->assertForbidden();
+        $this->as($member)->deleteJson("/api/v1/admin/marketing/teams/{$this->teamA->id}/members/{$free->id}")->assertForbidden();
+        $this->as($hr)->postJson("/api/v1/admin/marketing/teams/{$this->teamA->id}/members", ['admin_id' => $free->id])->assertForbidden();
+        $this->assertFalse($this->teamB->members()->whereKey($member->id)->exists());
+
+        $this->as($this->superAdmin)->postJson("/api/v1/admin/marketing/teams/{$this->teamB->id}/members", ['admin_id' => $member->id])->assertOk();
+        $this->as($this->superAdmin)->deleteJson("/api/v1/admin/marketing/teams/{$this->teamB->id}/members/{$member->id}")->assertOk();
     }
 
     public function test_the_team_list_tells_the_panel_which_teams_the_caller_may_manage(): void
     {
+        $member = $this->account(AdminRole::MarketingEmployee, $this->teamA);
         $byId = fn (Admin $who) => collect($this->as($who)->getJson('/api/v1/admin/marketing/teams')->assertOk()->json('data'))->pluck('can_manage_members', 'id');
+        $both = [$this->teamA->id, $this->teamB->id];
 
-        $this->assertSame([$this->teamA->id => true, $this->teamB->id => true], $byId($this->superAdmin)->only([$this->teamA->id, $this->teamB->id])->all());
-        $this->assertSame([$this->teamA->id => true, $this->teamB->id => false], $byId($this->managerA)->only([$this->teamA->id, $this->teamB->id])->all());
-        $this->assertSame([$this->teamA->id => false, $this->teamB->id => false], $byId($this->managerNoTeam)->only([$this->teamA->id, $this->teamB->id])->all());
+        foreach ([$this->superAdmin, $this->managerA, $this->managerB, $this->managerNoTeam] as $who) {
+            $this->assertSame([$this->teamA->id => true, $this->teamB->id => true], $byId($who)->only($both)->all());
+        }
+
+        $this->assertSame([$this->teamA->id => false], $byId($member)->all(), 'a team member sees only their own team and may manage none');
     }
 
     public function test_inactive_accounts_are_listed_only_on_request_and_only_for_unrestricted_callers(): void

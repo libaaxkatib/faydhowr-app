@@ -19,8 +19,8 @@ import type { MarketingEmployee } from '@/types/marketing';
  * Directory of Marketing Manager / Marketing Employee accounts, per docs/HRM_MARKETING_SRS.md §3/§4.2. It reuses the existing
  * Admin entity (GET /admin/marketing/employees) rather than a separate employee model.
  *
- * "Add Team Member" and the activate/deactivate action are shown only to the Super Admin and to a Marketing Manager for teams
- * they are authorised for - mirrored from the server's can_manage_members flag. Hiding a button is not the security: the server
+ * "Add Team Member" and the activate/deactivate action are shown only to the Super Admin and the Marketing Manager (who manage the
+ * members of both teams) - mirrored from the server's can_manage_members flag. Hiding a button is not the security: the server
  * refuses the same calls for everyone else.
  */
 export function MarketingEmployeesPage() {
@@ -37,7 +37,6 @@ export function MarketingEmployeesPage() {
   const teams = useQuery({ queryKey: ['marketing-teams'], queryFn: marketingApi.teams.list, enabled: canSeeManagement });
 
   const manageable = useMemo(() => manageableTeams(teams.data), [teams.data]);
-  const manageableIds = useMemo(() => new Set(manageable.map((team) => team.id)), [manageable]);
 
   const statusMutation = useMutation({
     mutationFn: ({ employee, status }: { employee: MarketingEmployee; status: 'active' | 'inactive' }) => marketingApi.employees.update(employee.id, { status }),
@@ -48,8 +47,8 @@ export function MarketingEmployeesPage() {
     onError: (err) => show(err instanceof Error ? err.message : 'Something went wrong.', 'error'),
   });
 
-  const canManage = (employee: MarketingEmployee) =>
-    employee.role === 'marketing_employee' && (isSuperAdmin || (employee.teams ?? []).some((team) => manageableIds.has(team.id)));
+  // The Super Admin and the Marketing Manager manage the members of both teams; the server decides (can_manage_members).
+  const canManage = (employee: MarketingEmployee) => employee.role === 'marketing_employee' && manageable.length > 0;
 
   return (
     <div>

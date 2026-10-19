@@ -29,3 +29,7 @@ test('only teams the server marked manageable are offered', () => {
   assert.deepEqual(manageableTeams([{ id: 1, can_manage_members: true }, { id: 2, can_manage_members: false }, { id: 3 }]).map((t) => t.id), [1]);
   assert.deepEqual(manageableTeams(undefined), []);
 });
+
+test('a Marketing Manager is offered both teams when the server marks both manageable', () => {
+  assert.deepEqual(manageableTeams([{ id: 1, can_manage_members: true }, { id: 2, can_manage_members: true }]).map((t) => t.id), [1, 2]);
+});
