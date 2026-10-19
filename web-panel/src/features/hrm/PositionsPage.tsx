@@ -68,7 +68,7 @@ export function PositionsPage() {
       setPendingDelete(null);
       setDeleteError(null);
     },
-    // A refusal ("still used by 2 employees â€¦") stays visible in the dialog instead of flashing past as a toast.
+    // A refusal ("still used by 2 employees …") stays visible in the dialog instead of flashing past as a toast.
     onError: (err) => setDeleteError(friendlyErrorMessage(err, 'Could not delete the position. Please try again.')),
   });
 
@@ -93,7 +93,7 @@ export function PositionsPage() {
       />
 
       <Card>
-        {isLoading && <LoadingState label="Loading positionsâ€¦" />}
+        {isLoading && <LoadingState label="Loading positions…" />}
         {error && <ErrorState error={error} onRetry={refetch} />}
         {data && data.length === 0 && <EmptyState icon="shield" title="No positions yet" />}
         {data && data.length > 0 && (
@@ -149,7 +149,7 @@ export function PositionsPage() {
       <ConfirmDialog
         isOpen={pendingDelete !== null}
         title="Delete position?"
-        description={`Delete â€œ${pendingDelete?.name ?? ''}â€? This cannot be undone. A position that employees, work assignments or workforce requests still use cannot be deleted.`}
+        description={`Delete "${pendingDelete?.name ?? ''}"? This cannot be undone. A position that employees, work assignments or workforce requests still use cannot be deleted.`}
         confirmLabel="Delete position"
         tone="danger"
         isLoading={deleteMutation.isPending}

@@ -254,59 +254,65 @@ export function HrReportsPage() {
             </CardBody>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Salary by Company</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {data.company_salary_totals.length === 0 ? (
-                <p className="text-sm text-ink-muted">No company-assigned salaries yet.</p>
-              ) : (
-                data.company_salary_totals.map((company) => (
-                  <div key={company.id} className="flex items-center justify-between text-sm">
-                    <span className="text-ink-muted">{company.name}</span>
-                    <span className="font-semibold text-ink">{company.total_salary} ({company.total_assignments})</span>
-                  </div>
-                ))
-              )}
-            </CardBody>
-          </Card>
+          {data.company_salary_totals !== undefined && (
+            <Card>
+              <CardHeader>
+                <h3 className="font-display text-sm font-bold text-ink">Salary by Company</h3>
+              </CardHeader>
+              <CardBody className="space-y-2">
+                {data.company_salary_totals.length === 0 ? (
+                  <p className="text-sm text-ink-muted">No company-assigned salaries yet.</p>
+                ) : (
+                  data.company_salary_totals.map((company) => (
+                    <div key={company.id} className="flex items-center justify-between text-sm">
+                      <span className="text-ink-muted">{company.name}</span>
+                      <span className="font-semibold text-ink">{company.total_salary} ({company.total_assignments})</span>
+                    </div>
+                  ))
+                )}
+              </CardBody>
+            </Card>
+          )}
 
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Penalties by Department</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {data.penalty_totals_by_department.length === 0 ? (
-                <p className="text-sm text-ink-muted">No penalties recorded in this range.</p>
-              ) : (
-                data.penalty_totals_by_department.map((department) => (
-                  <div key={department.id} className="flex items-center justify-between text-sm">
-                    <span className="text-ink-muted">{department.name}</span>
-                    <span className="font-semibold text-ink">{department.total_deducted} ({department.total_penalties})</span>
-                  </div>
-                ))
-              )}
-            </CardBody>
-          </Card>
+          {data.penalty_totals_by_department !== undefined && (
+            <Card>
+              <CardHeader>
+                <h3 className="font-display text-sm font-bold text-ink">Penalties by Department</h3>
+              </CardHeader>
+              <CardBody className="space-y-2">
+                {data.penalty_totals_by_department.length === 0 ? (
+                  <p className="text-sm text-ink-muted">No penalties recorded in this range.</p>
+                ) : (
+                  data.penalty_totals_by_department.map((department) => (
+                    <div key={department.id} className="flex items-center justify-between text-sm">
+                      <span className="text-ink-muted">{department.name}</span>
+                      <span className="font-semibold text-ink">{department.total_deducted} ({department.total_penalties})</span>
+                    </div>
+                  ))
+                )}
+              </CardBody>
+            </Card>
+          )}
 
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Advances by Department</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {data.advance_totals_by_department.length === 0 ? (
-                <p className="text-sm text-ink-muted">No salary advances recorded in this range.</p>
-              ) : (
-                data.advance_totals_by_department.map((department) => (
-                  <div key={department.id} className="flex items-center justify-between text-sm">
-                    <span className="text-ink-muted">{department.name}</span>
-                    <span className="font-semibold text-ink">{department.total_advanced} ({department.total_advances})</span>
-                  </div>
-                ))
-              )}
-            </CardBody>
-          </Card>
+          {data.advance_totals_by_department !== undefined && (
+            <Card>
+              <CardHeader>
+                <h3 className="font-display text-sm font-bold text-ink">Advances by Department</h3>
+              </CardHeader>
+              <CardBody className="space-y-2">
+                {data.advance_totals_by_department.length === 0 ? (
+                  <p className="text-sm text-ink-muted">No salary advances recorded in this range.</p>
+                ) : (
+                  data.advance_totals_by_department.map((department) => (
+                    <div key={department.id} className="flex items-center justify-between text-sm">
+                      <span className="text-ink-muted">{department.name}</span>
+                      <span className="font-semibold text-ink">{department.total_advanced} ({department.total_advances})</span>
+                    </div>
+                  ))
+                )}
+              </CardBody>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
@@ -362,23 +368,25 @@ export function HrReportsPage() {
             </CardBody>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Temporary Replacements by Company</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {data.replacement_totals_by_company.length === 0 ? (
-                <p className="text-sm text-ink-muted">No temporary replacements recorded.</p>
-              ) : (
-                data.replacement_totals_by_company.map((company) => (
-                  <div key={company.name} className="flex items-center justify-between text-sm">
-                    <span className="text-ink-muted">{company.name}</span>
-                    <span className="font-semibold text-ink">{company.total_paid} ({company.total_replacements})</span>
-                  </div>
-                ))
-              )}
-            </CardBody>
-          </Card>
+          {data.replacement_totals_by_company !== undefined && (
+            <Card>
+              <CardHeader>
+                <h3 className="font-display text-sm font-bold text-ink">Temporary Replacements by Company</h3>
+              </CardHeader>
+              <CardBody className="space-y-2">
+                {data.replacement_totals_by_company.length === 0 ? (
+                  <p className="text-sm text-ink-muted">No temporary replacements recorded.</p>
+                ) : (
+                  data.replacement_totals_by_company.map((company) => (
+                    <div key={company.name} className="flex items-center justify-between text-sm">
+                      <span className="text-ink-muted">{company.name}</span>
+                      <span className="font-semibold text-ink">{company.total_paid} ({company.total_replacements})</span>
+                    </div>
+                  ))
+                )}
+              </CardBody>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

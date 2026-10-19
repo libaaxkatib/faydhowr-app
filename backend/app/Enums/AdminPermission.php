@@ -116,7 +116,7 @@ enum AdminPermission: string
             self::HrPayrollView => 'View Payroll',
             self::HrPayrollManage => 'Prepare and Review Payroll',
             self::HrPayrollApprove => 'Approve, Finalize and Correct Payroll',
-            self::HrImport => 'Import HR Data (Super Admin only)',
+            self::HrImport => 'Import HR Data (HR Manager and Super Admin)',
             self::MarketingView => 'View Marketing',
             self::MarketingManage => 'Manage Marketing',
             self::MarketingAssign => 'Assign Marketing Work',

@@ -64,7 +64,7 @@ export function DepartmentsPage() {
       setPendingDelete(null);
       setDeleteError(null);
     },
-    // A refusal ("still used by 2 positions â€¦") stays visible in the dialog instead of flashing past as a toast.
+    // A refusal ("still used by 2 positions …") stays visible in the dialog instead of flashing past as a toast.
     onError: (err) => setDeleteError(friendlyErrorMessage(err, 'Could not delete the department. Please try again.')),
   });
 
@@ -89,7 +89,7 @@ export function DepartmentsPage() {
       />
 
       <Card>
-        {isLoading && <LoadingState label="Loading departmentsâ€¦" />}
+        {isLoading && <LoadingState label="Loading departments…" />}
         {error && <ErrorState error={error} onRetry={refetch} />}
         {data && data.length === 0 && <EmptyState icon="box" title="No departments yet" />}
         {data && data.length > 0 && (
@@ -139,7 +139,7 @@ export function DepartmentsPage() {
       <ConfirmDialog
         isOpen={pendingDelete !== null}
         title="Delete department?"
-        description={`Delete â€œ${pendingDelete?.name ?? ''}â€? This cannot be undone. A department that positions or employees still use cannot be deleted.`}
+        description={`Delete "${pendingDelete?.name ?? ''}"? This cannot be undone. A department that positions or employees still use cannot be deleted.`}
         confirmLabel="Delete department"
         tone="danger"
         isLoading={deleteMutation.isPending}

@@ -915,11 +915,12 @@ export interface HrReportsSummary {
     capacity: number | null;
     total: number;
   }[];
-  company_salary_totals: { id: number; name: string; total_salary: string; total_assignments: number }[];
+  /** The five pay sections below are omitted by the server for callers without hr.view (approved salary boundary). */
+  company_salary_totals?: { id: number; name: string; total_salary: string; total_assignments: number }[];
   workforce_request_breakdown: Partial<Record<WorkforceRequestStatus, number>>;
-  payment_totals_by_department: { id: number; name: string; total_paid: string; total_payments: number }[];
-  penalty_totals_by_department: { id: number; name: string; total_deducted: string; total_penalties: number }[];
-  advance_totals_by_department: { id: number; name: string; total_advanced: string; total_advances: number }[];
+  payment_totals_by_department?: { id: number; name: string; total_paid: string; total_payments: number }[];
+  penalty_totals_by_department?: { id: number; name: string; total_deducted: string; total_penalties: number }[];
+  advance_totals_by_department?: { id: number; name: string; total_advanced: string; total_advances: number }[];
   waiting_by_category: { id: number; name: string; total: number }[];
   waiting_by_gender: Partial<Record<EmployeeGender, number>>;
   waiting_by_location: { location: string; total: number }[];
@@ -943,7 +944,7 @@ export interface HrReportsSummary {
   }[];
   active_by_gender: Partial<Record<EmployeeGender, number>>;
   active_by_location: { location: string; total: number }[];
-  replacement_totals_by_company: { name: string; total_replacements: number; total_paid: string }[];
+  replacement_totals_by_company?: { name: string; total_replacements: number; total_paid: string }[];
   separation_reason_breakdown: Partial<Record<EmployeeSeparationReason, number>>;
   rehire_count_in_range: number;
   supervisors_since_range: number;
