@@ -34,6 +34,10 @@ class UpdateAdminPermissionsAction
             throw new DomainException('SUPER_ADMIN_ONLY_PERMISSION');
         }
 
+        if (AdminPermission::notGrantableTo($targetAdmin->role, $uniqueKeys) !== []) {
+            throw new DomainException('PERMISSION_NOT_GRANTABLE_TO_ROLE');
+        }
+
         $permissions = Permission::query()
             ->whereIn('key', $uniqueKeys)
             ->orderBy('group')

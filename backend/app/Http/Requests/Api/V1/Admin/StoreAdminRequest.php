@@ -49,7 +49,8 @@ class StoreAdminRequest extends FormRequest
                 Rule::unique('admins', 'phone')->whereNull('deleted_at'),
             ],
             'password' => ['required', 'string', Password::min(8)],
-            'role' => ['required', Rule::enum(AdminRole::class)],
+            // Super Admin is never assignable through the API or the panel.
+            'role' => ['required', Rule::enum(AdminRole::class)->except(AdminRole::SuperAdmin)],
             'status' => ['required', Rule::enum(AdminStatus::class)],
         ];
     }

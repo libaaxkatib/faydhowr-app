@@ -1205,12 +1205,17 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.reports.view', 'throt
         ->name('api.v1.admin.hr.reports.waiting-roster');
     Route::get('v1/admin/hr/reports/workforce-requests', [AdminHrReportsController::class, 'workforceRequestHistory'])
         ->name('api.v1.admin.hr.reports.workforce-requests');
-    Route::get('v1/admin/hr/reports/temporary-replacements', [AdminHrReportsController::class, 'temporaryReplacementHistory'])
-        ->name('api.v1.admin.hr.reports.temporary-replacements');
     Route::get('v1/admin/hr/reports/leaves', [AdminHrReportsController::class, 'leaves'])
         ->name('api.v1.admin.hr.reports.leaves');
     Route::get('v1/admin/hr/reports/performance-reviews', [AdminHrReportsController::class, 'performanceReviews'])
         ->name('api.v1.admin.hr.reports.performance-reviews');
+});
+
+// Approved salary boundary (owner decision: hr_view). These reports return pay amounts, so reaching them needs the permission
+// that gates salary everywhere else (hr.view) in addition to the reports permission. hr.reports.view alone never reveals pay.
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.reports.view', 'permission:hr.view', 'throttle:admin-operations'])->group(function (): void {
+    Route::get('v1/admin/hr/reports/temporary-replacements', [AdminHrReportsController::class, 'temporaryReplacementHistory'])
+        ->name('api.v1.admin.hr.reports.temporary-replacements');
     Route::get('v1/admin/hr/reports/financial-ledger', [AdminHrReportsController::class, 'financialLedger'])
         ->name('api.v1.admin.hr.reports.financial-ledger');
     Route::get('v1/admin/hr/reports/payroll-rollup', [AdminHrReportsController::class, 'payrollRollup'])
@@ -1421,9 +1426,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
         ->name('api.v1.admin.hr.temporary-replacements.workdays.void');
 });
 
-// HR Excel imports: reserved for Super Admin. Both the role check and the hr.import permission are required,
-// and hr.import can never be granted to another role (see AdminPermission::isSuperAdminOnly()).
-Route::middleware(['auth:sanctum', 'admin', 'super_admin', 'permission:hr.import', 'throttle:admin-operations'])->group(function (): void {
+// HR Excel imports: need the dedicated hr.import permission, which only the Super Admin (implicitly) and the HR Manager
+// role can hold - it can never be granted to another role (see AdminPermission::restrictedToRoles()).
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.import', 'throttle:admin-operations'])->group(function (): void {
     Route::get('v1/admin/hr/imports', [AdminHrImportController::class, 'index'])
         ->name('api.v1.admin.hr.imports.index');
     Route::post('v1/admin/hr/imports', [AdminHrImportController::class, 'store'])

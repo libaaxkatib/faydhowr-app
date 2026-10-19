@@ -21,8 +21,11 @@ class RoleBaselineIsolationTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** Proposed baselines (pending the owner's decisions listed in the matrix). */
-    private const HR_MANAGER = ['hr.view', 'hr.manage', 'hr.reports.view'];
+    /** Approved baselines (owner decision, 2026-10-19): the HR Manager has full authorised payroll access and the dedicated import permission. */
+    private const HR_MANAGER = ['hr.view', 'hr.manage', 'hr.reports.view', 'hr.payroll.view', 'hr.payroll.manage', 'hr.payroll.approve', 'hr.import'];
+
+    /** The earlier, narrower HR grant set: still blocked from payroll and imports. */
+    private const HR_WITHOUT_PAYROLL_OR_IMPORT = ['hr.view', 'hr.manage', 'hr.reports.view'];
 
     private const MARKETING_MANAGER = ['marketing.view', 'marketing.manage', 'marketing.assign', 'marketing.reports.view'];
 
@@ -83,15 +86,27 @@ class RoleBaselineIsolationTest extends TestCase
         ['GET', '/api/v1/admin/settings'],
     ];
 
-    public function test_the_hr_manager_baseline_reaches_hr_but_not_marketing_mobile_system_payroll_or_imports(): void
+    public function test_the_hr_manager_baseline_reaches_hr_payroll_and_imports_but_not_marketing_mobile_or_system(): void
     {
         $token = $this->tokenFor(AdminRole::HrManager, self::HR_MANAGER);
 
-        foreach (self::HR as [$method, $uri]) {
-            $this->assertSame(200, $this->httpStatus($token, $method, $uri), "HR Manager must reach $uri");
+        foreach ([...self::HR, ...self::HR_MONEY_AND_IMPORT] as [$method, $uri]) {
+            $this->assertContains($this->httpStatus($token, $method, $uri), [200, 422], "HR Manager must reach $uri");
         }
-        foreach ([...self::MARKETING, ...self::MOBILE, ...self::SYSTEM, ...self::HR_MONEY_AND_IMPORT] as [$method, $uri]) {
+        foreach ([...self::MARKETING, ...self::MOBILE, ...self::SYSTEM] as [$method, $uri]) {
             $this->assertSame(403, $this->httpStatus($token, $method, $uri), "HR Manager must not reach $uri");
+        }
+    }
+
+    public function test_an_hr_grant_set_without_the_payroll_and_import_keys_reaches_neither(): void
+    {
+        $token = $this->tokenFor(AdminRole::HrManager, self::HR_WITHOUT_PAYROLL_OR_IMPORT);
+
+        foreach (self::HR as [$method, $uri]) {
+            $this->assertSame(200, $this->httpStatus($token, $method, $uri), "must reach $uri");
+        }
+        foreach (self::HR_MONEY_AND_IMPORT as [$method, $uri]) {
+            $this->assertSame(403, $this->httpStatus($token, $method, $uri), "must not reach $uri");
         }
     }
 

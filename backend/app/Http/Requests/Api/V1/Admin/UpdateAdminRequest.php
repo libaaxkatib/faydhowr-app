@@ -57,7 +57,8 @@ class UpdateAdminRequest extends FormRequest
                     ->whereNull('deleted_at')
                     ->ignore($admin->id),
             ],
-            'role' => ['sometimes', 'required', Rule::enum(AdminRole::class)],
+            // Super Admin is never assignable; an existing Super Admin may keep the role it already holds.
+            'role' => ['sometimes', 'required', Rule::enum(AdminRole::class)->except($admin->role === AdminRole::SuperAdmin ? [] : [AdminRole::SuperAdmin])],
             'status' => ['sometimes', 'required', Rule::enum(AdminStatus::class)],
         ];
     }

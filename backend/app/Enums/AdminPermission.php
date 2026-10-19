@@ -189,14 +189,51 @@ enum AdminPermission: string
     /**
      * Permissions reserved for the Super Admin role. They are implicit for Super Admin and can never be
      * granted to another role or admin, whether through the Roles & Permissions screen, the direct
-     * admin-permission endpoint, or a stray database row (the resolver ignores such grants).
+     * admin-permission endpoint, or a stray database row (the resolver ignores such grants). None is
+     * reserved at present; hr.import is limited to the HR Manager role instead (see restrictedToRoles()).
      */
     public function isSuperAdminOnly(): bool
     {
+        return false;
+    }
+
+    /**
+     * Roles that may hold this permission besides the (implicit) Super Admin, or null when any role may.
+     * Owner decision 2026-10-19: the HR Manager gets a dedicated import permission, so hr.import can be
+     * granted to the HR Manager role and to no other role. A grant to any other role is refused by every
+     * grant endpoint and ignored by the resolver, even if a row is written straight into the database.
+     *
+     * @return list<AdminRole>|null
+     */
+    public function restrictedToRoles(): ?array
+    {
         return match ($this) {
-            self::HrImport => true,
-            default => false,
+            self::HrImport => [AdminRole::HrManager],
+            default => null,
         };
+    }
+
+    public function grantableTo(AdminRole $role): bool
+    {
+        if ($this->isSuperAdminOnly()) {
+            return false;
+        }
+
+        $roles = $this->restrictedToRoles();
+
+        return $roles === null || in_array($role, $roles, true);
+    }
+
+    /**
+     * @param  list<string>  $keys
+     * @return list<string> the keys that may not be held by $role
+     */
+    public static function notGrantableTo(AdminRole $role, array $keys): array
+    {
+        return array_values(array_filter(
+            $keys,
+            fn (string $key): bool => (self::tryFrom($key)?->grantableTo($role)) === false,
+        ));
     }
 
     /**

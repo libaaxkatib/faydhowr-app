@@ -24,8 +24,8 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * HR Excel imports. Every route is reserved for Super Admin (route middleware: super_admin and
- * permission:hr.import). Workflow: upload (stages and previews) -> confirm -> process (repeat until
+ * HR Excel imports. Every route needs the dedicated hr.import permission (Super Admin implicitly; grantable to the
+ * HR Manager role only). Workflow: upload (stages and previews) -> confirm -> process (repeat until
  * complete) -> report. Nothing is written to employees or companies before confirm.
  */
 class ImportController extends Controller

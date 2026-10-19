@@ -14,8 +14,9 @@ use Tests\Support\ImportFixtures;
 use Tests\TestCase;
 
 /**
- * The HR imports are reserved for Super Admin. The restriction is enforced by the route middleware (role
- * AND permission), the permission resolver, and every grant endpoint; none of them depends on the others.
+ * The HR imports need the dedicated hr.import permission, which only the Super Admin (implicitly) and the HR Manager role
+ * (owner decision 2026-10-19) can hold. The restriction is enforced by the route middleware, the permission resolver, and
+ * every grant endpoint; none of them depends on the others.
  */
 class ImportAuthorizationTest extends TestCase
 {
@@ -23,12 +24,12 @@ class ImportAuthorizationTest extends TestCase
     use ImportFixtures;
     use RefreshDatabase;
 
-    /** @return list<array{AdminRole}> */
+    /** @return list<array{AdminRole}> every role that may NOT hold hr.import: all but the Super Admin and the HR Manager */
     public static function nonSuperRoles(): array
     {
         return array_map(
             fn (AdminRole $role): array => [$role],
-            array_values(array_filter(AdminRole::cases(), fn (AdminRole $role): bool => $role !== AdminRole::SuperAdmin)),
+            array_values(array_filter(AdminRole::cases(), fn (AdminRole $role): bool => ! in_array($role, [AdminRole::SuperAdmin, AdminRole::HrManager], true))),
         );
     }
 
@@ -46,11 +47,19 @@ class ImportAuthorizationTest extends TestCase
         ];
     }
 
-    public function test_the_permission_is_reserved_for_super_admin(): void
+    public function test_the_permission_is_limited_to_the_hr_manager_role(): void
     {
-        $this->assertTrue(AdminPermission::HrImport->isSuperAdminOnly());
-        $this->assertSame(['hr.import'], AdminPermission::superAdminOnlyValues());
-        $this->assertFalse(AdminPermission::HrManage->isSuperAdminOnly());
+        $this->assertFalse(AdminPermission::HrImport->isSuperAdminOnly());
+        $this->assertSame([AdminRole::HrManager], AdminPermission::HrImport->restrictedToRoles());
+        $this->assertTrue(AdminPermission::HrImport->grantableTo(AdminRole::HrManager));
+
+        foreach (AdminRole::cases() as $role) {
+            if (! in_array($role, [AdminRole::HrManager], true)) {
+                $this->assertFalse(AdminPermission::HrImport->grantableTo($role), "hr.import must not be grantable to {$role->value}");
+            }
+        }
+
+        $this->assertNull(AdminPermission::HrManage->restrictedToRoles());
     }
 
     public function test_unauthenticated_requests_are_rejected_on_every_endpoint(): void
@@ -61,12 +70,12 @@ class ImportAuthorizationTest extends TestCase
     }
 
     #[DataProvider('nonSuperRoles')]
-    public function test_every_non_super_admin_role_is_denied_on_every_endpoint_even_with_all_hr_permissions(AdminRole $role): void
+    public function test_every_other_role_is_denied_on_every_endpoint_even_with_all_permissions(AdminRole $role): void
     {
         $admin = Admin::factory()->create(['role' => $role]);
 
-        // Every grantable permission, role-level AND direct.
-        $ids = Permission::query()->whereNotIn('key', AdminPermission::superAdminOnlyValues())->pluck('id');
+        // Every permission row, role-level AND direct - including a stray hr.import row.
+        $ids = Permission::query()->pluck('id');
         DB::table('admin_role_permissions')->insertOrIgnore($ids->map(fn ($id) => ['role' => $role->value, 'permission_id' => $id, 'created_at' => now(), 'updated_at' => now()])->all());
         $token = $admin->createToken('t')->plainTextToken;
 
@@ -76,7 +85,7 @@ class ImportAuthorizationTest extends TestCase
     }
 
     #[DataProvider('nonSuperRoles')]
-    public function test_a_stray_database_grant_of_hr_import_is_ignored_for_every_non_super_role(AdminRole $role): void
+    public function test_a_stray_database_grant_of_hr_import_is_ignored_for_every_role_but_the_hr_manager(AdminRole $role): void
     {
         $admin = Admin::factory()->create(['role' => $role]);
         $permissionId = Permission::query()->where('key', 'hr.import')->value('id');
@@ -91,7 +100,17 @@ class ImportAuthorizationTest extends TestCase
         $this->as($token)->getJson('/api/v1/admin/auth/permissions')->assertOk();
 
         $keys = array_column($this->as($token)->getJson('/api/v1/admin/auth/permissions')->json('data'), 'key');
-        $this->assertNotContains('hr.import', $keys, 'The resolver never honours a Super-Admin-only permission.');
+        $this->assertNotContains('hr.import', $keys, 'The resolver never honours hr.import for a role that may not hold it.');
+    }
+
+    public function test_the_hr_manager_reaches_the_imports_only_with_the_dedicated_permission(): void
+    {
+        $without = $this->tokenForRoleWith(AdminRole::HrManager, ['dashboard.view', 'hr.view', 'hr.manage', 'hr.reports.view']);
+        $this->as($without)->getJson(self::IMPORTS)->assertForbidden();
+
+        $with = $this->tokenForRoleWith(AdminRole::HrManager, ['hr.view', 'hr.manage', 'hr.import']);
+        $this->as($with)->getJson(self::IMPORTS)->assertOk();
+        $this->as($with)->post(self::IMPORTS, [], ['Accept' => 'application/json'])->assertStatus(422);
     }
 
     public function test_hr_manager_marketing_manager_and_mobile_app_manager_are_denied_with_their_realistic_grants(): void
@@ -116,6 +135,17 @@ class ImportAuthorizationTest extends TestCase
         }
     }
 
+    private function tokenForRoleWith(AdminRole $role, array $keys): string
+    {
+        $admin = Admin::factory()->create(['role' => $role]);
+
+        foreach ($keys as $key) {
+            DB::table('admin_permissions')->insert(['admin_id' => $admin->id, 'permission_id' => Permission::query()->where('key', $key)->value('id'), 'created_at' => now(), 'updated_at' => now()]);
+        }
+
+        return $admin->createToken('t')->plainTextToken;
+    }
+
     public function test_super_admin_can_reach_the_imports(): void
     {
         [, $token] = $this->importSuperAdmin();
@@ -134,34 +164,42 @@ class ImportAuthorizationTest extends TestCase
         $this->assertNotContains('hr.import', $keys);
     }
 
-    public function test_the_roles_and_permissions_screen_cannot_grant_hr_import_to_a_role(): void
+    public function test_the_roles_and_permissions_screen_grants_hr_import_to_the_hr_manager_role_only(): void
     {
         [, $super] = $this->importSuperAdmin();
 
-        $this->as($super)->putJson('/api/v1/admin/roles/hr_manager/permissions', ['permissions' => ['hr.view', 'hr.import']])
-            ->assertStatus(422)->assertJsonPath('error_code', 'SUPER_ADMIN_ONLY_PERMISSION');
+        foreach (['marketing_manager', 'mobile_app_manager', 'hr_employee', 'manager', 'sales'] as $other) {
+            $before = DB::table('admin_role_permissions')->where('role', $other)->count();
+            $this->as($super)->putJson("/api/v1/admin/roles/{$other}/permissions", ['permissions' => ['dashboard.view', 'hr.import']])
+                ->assertStatus(422)->assertJsonPath('error_code', 'PERMISSION_NOT_GRANTABLE_TO_ROLE');
+            $this->assertSame($before, DB::table('admin_role_permissions')->where('role', $other)->count(), "Nothing was written for {$other}.");
+        }
 
-        $this->assertSame(0, DB::table('admin_role_permissions')->where('role', 'hr_manager')->count(), 'Nothing was written.');
+        $this->as($super)->putJson('/api/v1/admin/roles/hr_manager/permissions', ['permissions' => ['hr.view', 'hr.import']])->assertOk();
+        $this->assertSame(2, DB::table('admin_role_permissions')->where('role', 'hr_manager')->count());
     }
 
-    public function test_the_direct_admin_permission_endpoint_cannot_grant_hr_import(): void
+    public function test_the_direct_admin_permission_endpoint_grants_hr_import_to_an_hr_manager_only(): void
     {
         [, $super] = $this->importSuperAdmin();
-        $target = Admin::factory()->create(['role' => AdminRole::HrManager]);
+        $marketing = Admin::factory()->create(['role' => AdminRole::MarketingManager]);
+        $hr = Admin::factory()->create(['role' => AdminRole::HrManager]);
 
-        $this->as($super)->putJson("/api/v1/admin/admins/{$target->id}/permissions", ['permissions' => ['hr.import']])
-            ->assertStatus(422)->assertJsonPath('error_code', 'SUPER_ADMIN_ONLY_PERMISSION');
+        $this->as($super)->putJson("/api/v1/admin/admins/{$marketing->id}/permissions", ['permissions' => ['hr.import']])
+            ->assertStatus(422)->assertJsonPath('error_code', 'PERMISSION_NOT_GRANTABLE_TO_ROLE');
+        $this->assertSame(0, DB::table('admin_permissions')->where('admin_id', $marketing->id)->count());
 
-        $this->assertSame(0, DB::table('admin_permissions')->where('admin_id', $target->id)->count());
+        $this->as($super)->putJson("/api/v1/admin/admins/{$hr->id}/permissions", ['permissions' => ['hr.view', 'hr.import']])->assertOk();
+        $this->assertSame(2, DB::table('admin_permissions')->where('admin_id', $hr->id)->count());
     }
 
-    public function test_the_grantable_catalogue_does_not_offer_hr_import(): void
+    public function test_the_catalogue_offers_hr_import_for_the_hr_manager_grant(): void
     {
         [, $super] = $this->importSuperAdmin();
 
         $keys = array_column($this->as($super)->getJson('/api/v1/admin/permissions')->assertOk()->json('data'), 'key');
 
-        $this->assertNotContains('hr.import', $keys);
+        $this->assertContains('hr.import', $keys);
         $this->assertContains('hr.manage', $keys);
     }
 

@@ -113,6 +113,11 @@ class PermissionController extends Controller
                     'SUPER_ADMIN_ONLY_PERMISSION',
                     422,
                 ),
+                'PERMISSION_NOT_GRANTABLE_TO_ROLE' => ApiResponse::error(
+                    'One or more permissions cannot be granted to this role (the import permission belongs to the HR Manager role only).',
+                    'PERMISSION_NOT_GRANTABLE_TO_ROLE',
+                    422,
+                ),
                 'INVALID_PERMISSIONS' => ApiResponse::error(
                     'One or more permissions are invalid.',
                     'INVALID_PERMISSIONS',

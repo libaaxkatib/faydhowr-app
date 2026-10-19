@@ -10,6 +10,7 @@ use App\Actions\Hr\ListFinancialLedgerAction;
 use App\Actions\Hr\ListTemporaryReplacementHistoryAction;
 use App\Actions\Hr\ListWaitingRosterAction;
 use App\Actions\Hr\ListWorkforceRequestHistoryAction;
+use App\Enums\AdminPermission;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Admin\Hr\GetHrReportsSummaryRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\GetPayrollRollupRequest;
@@ -24,12 +25,22 @@ use App\Http\Resources\Api\V1\Admin\Hr\EmployeePerformanceReviewResource;
 use App\Http\Resources\Api\V1\Admin\Hr\EmployeeResource;
 use App\Http\Resources\Api\V1\Admin\Hr\TemporaryReplacementResource;
 use App\Http\Resources\Api\V1\Admin\Hr\WorkforceRequestResource;
+use App\Support\AdminPermissionResolver;
 use App\Support\ApiResponse;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 
 class HrReportsController extends Controller
 {
+    /** Summary sections that carry pay amounts: shown only to callers who may read salary (hr.view). */
+    private const PAY_SECTIONS = [
+        'company_salary_totals',
+        'payment_totals_by_department',
+        'penalty_totals_by_department',
+        'advance_totals_by_department',
+        'replacement_totals_by_company',
+    ];
+
     public function summary(GetHrReportsSummaryRequest $request, GetHrReportsSummaryAction $action): JsonResponse
     {
         $summary = $action->handle(
@@ -37,6 +48,10 @@ class HrReportsController extends Controller
             $request->validated('to'),
             $request->only(['client_company_id', 'work_location_id', 'assignment_status']),
         );
+
+        if (! app(AdminPermissionResolver::class)->has($request->user(), AdminPermission::HrView->value, $request)) {
+            $summary = array_diff_key($summary, array_flip(self::PAY_SECTIONS));
+        }
 
         return ApiResponse::success('HR report summary retrieved successfully.', $summary);
     }
