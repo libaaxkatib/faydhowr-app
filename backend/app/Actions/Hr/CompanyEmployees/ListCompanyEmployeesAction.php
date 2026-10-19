@@ -108,6 +108,9 @@ class ListCompanyEmployeesAction
             'status' => $a->status->value,
             'salary' => $salary,
             'salary_changed_in_period' => $changedInPeriod,
+            // Whether this assignment still holds the position on the month's last day. A replaced employee and their replacement
+            // both appear in the month they overlap, but the position's agreed salary is counted once, for the one who holds it.
+            'holds_position_at_month_end' => $a->end_date === null || $a->end_date->toDateString() >= $monthEnd->toDateString(),
             'payable_days' => $payableDays,
             'days_in_month' => $daysInMonth,
             'attendance' => [
@@ -220,10 +223,13 @@ class ListCompanyEmployeesAction
         foreach ($rows as $row) {
             $currency = $row['salary']['currency'];
 
-            if ($row['salary']['frequency'] === 'monthly') {
-                $contracted[$currency] = ($contracted[$currency] ?? 0) + PayrollMoney::toCents($row['salary']['amount']);
-            } else {
-                $nonMonthly++;
+            // An assignment that ended inside the month is not in the agreed-salary total: its successor holds the position.
+            if ($row['holds_position_at_month_end']) {
+                if ($row['salary']['frequency'] === 'monthly') {
+                    $contracted[$currency] = ($contracted[$currency] ?? 0) + PayrollMoney::toCents($row['salary']['amount']);
+                } else {
+                    $nonMonthly++;
+                }
             }
 
             if (! $withPayroll) {
@@ -258,7 +264,8 @@ class ListCompanyEmployeesAction
             'payable_days_total' => array_sum(array_column($rows, 'payable_days')),
             'attendance_recorded_total' => array_sum(array_map(fn (array $r): int => $r['attendance']['recorded'], $rows)),
             'absent_marks_total' => array_sum(array_map(fn (array $r): int => $r['attendance']['absent'], $rows)),
-            // Contracted MONTHLY salaries, per currency. They are the agreed amounts, not what the month will pay.
+            // Agreed MONTHLY salaries of the assignments that still hold their position on the month's last day, per currency. They are
+            // the agreed amounts, not what the month will pay (calculated pay is separate).
             'contracted_monthly_salary_cents_by_currency' => $contracted,
             'contracted_non_monthly_count' => $nonMonthly,
         ];

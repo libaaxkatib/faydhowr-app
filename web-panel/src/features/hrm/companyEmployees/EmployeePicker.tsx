@@ -32,6 +32,9 @@ export function EmployeePicker({ companyId, value, onChange, label, error, exclu
     queryKey: ['company-employee-candidates', companyId, debounced],
     queryFn: () => companyEmployeesApi.candidates(companyId, debounced),
     enabled,
+    // Eligibility changes the moment someone is assigned, so a result is never reused from the cache.
+    gcTime: 0,
+    staleTime: 0,
   });
 
   if (value !== null) {

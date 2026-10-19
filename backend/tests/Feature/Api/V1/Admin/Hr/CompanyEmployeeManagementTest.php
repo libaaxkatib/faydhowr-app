@@ -422,6 +422,8 @@ class CompanyEmployeeManagementTest extends TestCase
 
         $rows = $this->as($this->admin)->getJson($this->url($this->company).'?period=2026-10')->json('data.employees');
         $this->assertCount(2, $rows, 'both people appear in the month they overlap it');
+        $summary = $this->as($this->admin)->getJson($this->url($this->company).'?period=2026-10')->json('data.summary');
+        $this->assertSame(['USD' => 28000], $summary['contracted_monthly_salary_cents_by_currency'], 'the position is counted once, for the person who holds it at month end');
         $this->assertSame(15, collect($rows)->firstWhere('assignment_id', $a->id)['payable_days']);
         $this->assertSame(16, collect($rows)->firstWhere('assignment_id', $new->id)['payable_days']);
     }

@@ -144,6 +144,8 @@ export const EVENT_LABELS: Record<string, string> = {
   returned: 'Returned',
   stopped: 'Stopped',
   edited: 'Edited',
+  ended: 'Assignment ended',
+  salary_changed: 'Salary changed',
   cancelled: 'Cancelled',
   changed: 'Changed',
 };

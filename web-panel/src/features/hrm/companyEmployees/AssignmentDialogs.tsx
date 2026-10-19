@@ -49,6 +49,7 @@ function useActionState(companyId: number) {
   const succeeded = (message: string, close: () => void) => {
     queryClient.invalidateQueries({ queryKey: ['company-employees', companyId] });
     queryClient.invalidateQueries({ queryKey: ['company-employee-history', companyId] });
+    queryClient.invalidateQueries({ queryKey: ['company-employee-candidates', companyId] });
     show(message);
     close();
   };

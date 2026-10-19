@@ -134,9 +134,9 @@ export function CompanyEmployeesPage() {
             detail={`${summary.days_in_month}-day month · ${summary.attendance_recorded_total} attendance marks recorded, ${summary.absent_marks_total} absent`}
           />
           <SummaryCard
-            label={`Agreed monthly salary — ${periodLabel(period)}`}
+            label={`Agreed monthly salary at month end — ${periodLabel(period)}`}
             value={totalsByCurrency(summary.contracted_monthly_salary_cents_by_currency).map((t) => t.text).join(' + ') || '—'}
-            detail={summary.contracted_non_monthly_count > 0 ? `${summary.contracted_non_monthly_count} non-monthly salary not included` : 'Each currency is totalled separately'}
+            detail={summary.contracted_non_monthly_count > 0 ? `${summary.contracted_non_monthly_count} non-monthly salary not included` : 'People still in post on the last day · each currency separately'}
           />
         </div>
       )}
@@ -176,7 +176,7 @@ export function CompanyEmployeesPage() {
                       </td>
                       <td className="px-3 py-3">{summary.payable_days_total} days</td>
                       <td className="px-3 py-3">
-                        <TotalLines title="Agreed monthly" totals={summary.contracted_monthly_salary_cents_by_currency} />
+                        <TotalLines title="Agreed monthly (in post at month end)" totals={summary.contracted_monthly_salary_cents_by_currency} />
                       </td>
                       {showPayroll && (
                         <td className="px-3 py-3">
@@ -260,7 +260,7 @@ function EmployeeRow({ row, showPayroll, canManage, onEdit, onReplace, onReturn,
 
   return (
     <tr className="align-top">
-      <td className="px-4 py-3">
+      <td className="min-w-[190px] px-4 py-3">
         <Link to={`/hr/employees/${row.employee_id}`} className="font-medium text-ink hover:text-primary hover:underline">{row.full_name}</Link>
         <span className="block text-xs text-ink-muted">{row.employee_number} · HR id {row.employee_id}</span>
       </td>

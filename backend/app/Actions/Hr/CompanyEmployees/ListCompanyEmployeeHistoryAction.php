@@ -14,6 +14,18 @@ class ListCompanyEmployeeHistoryAction
 {
     public const LIMIT = 200;
 
+    /** The label of an audit row written by the generic assignment actions (no event tag). */
+    private static function genericEvent(AuditLog $log): string
+    {
+        return match (true) {
+            $log->action->value === 'create' => 'assigned',
+            $log->action->value === 'cancel' => 'cancelled',
+            str_ends_with((string) $log->description, ' ended.') => 'ended',
+            str_contains((string) $log->description, 'Salary for work assignment') => 'salary_changed',
+            default => 'changed',
+        };
+    }
+
     /** @return array{events: list<array<string, mixed>>, chain: list<array<string, mixed>>} */
     public function handle(ClientCompany $company, ?int $employeeId = null): array
     {
@@ -42,7 +54,7 @@ class ListCompanyEmployeeHistoryAction
                 return [
                     'at' => $log->created_at?->toIso8601String(),
                     'by' => $log->admin?->full_name,
-                    'event' => $meta['event'] ?? ($log->action->value === 'create' ? 'assigned' : ($log->action->value === 'cancel' ? 'cancelled' : 'changed')),
+                    'event' => $meta['event'] ?? self::genericEvent($log),
                     'description' => $log->description,
                     'assignment_id' => $log->entity_id,
                     'employee_id' => $a?->employee_id,
