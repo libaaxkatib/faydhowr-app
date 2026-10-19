@@ -29,7 +29,15 @@ final class EmployeeDocumentStorage
 
     public function store(UploadedFile $file, int $employeeId): StoredDocumentFile
     {
-        $disk = $this->disk();
+        return $this->storeAt($file, $this->disk(), 'employees/'.$employeeId.'/documents/'.$file->hashName());
+    }
+
+    /**
+     * The verified write itself, for any private file this application keeps (employee documents, company agreements).
+     * The caller chooses the disk and a generated, random-named path; the guarantees above are identical.
+     */
+    public function storeAt(UploadedFile $file, string $disk, string $path): StoredDocumentFile
+    {
         $source = (string) $file->getRealPath();
 
         if ($source === '' || ! is_file($source)) {
@@ -38,7 +46,6 @@ final class EmployeeDocumentStorage
 
         $sha256 = (string) hash_file('sha256', $source);
         $size = (int) filesize($source);
-        $path = 'employees/'.$employeeId.'/documents/'.$file->hashName();
 
         if (! DocumentFileInspector::isUsableReference($path)) {
             throw DocumentStorageException::from('unusable_generated_name');

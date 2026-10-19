@@ -33,6 +33,15 @@ class DeleteClientCompanyAction
             );
         }
 
+        if ($clientCompany->agreements()->exists()) {
+            throw new HttpResponseException(
+                ApiResponse::error(
+                    'This client company cannot be deleted while it has stored agreements.',
+                    'CLIENT_COMPANY_HAS_AGREEMENTS',
+                    422,
+                ),
+            );
+        }
         $name = $clientCompany->name;
         $id = $clientCompany->id;
 

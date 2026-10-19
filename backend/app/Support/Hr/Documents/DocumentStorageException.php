@@ -27,7 +27,7 @@ final class DocumentStorageException extends RuntimeException
 
     public function report(): bool
     {
-        Log::error('Employee document could not be stored.', array_filter(['reason' => $this->reason, 'exception' => $this->causeClass]));
+        Log::error('A private file (employee document or company agreement) could not be stored.', array_filter(['reason' => $this->reason, 'exception' => $this->causeClass]));
 
         return true; // handled: do not let the framework log the exception (and its trace) a second time
     }

@@ -18,8 +18,11 @@ use Throwable;
  */
 class DocumentFileInspector
 {
-    /** Every employee document is written by Laravel to `employees/{employee id}/documents/{generated name}`. */
-    private const REFERENCE_PATTERN = '#\Aemployees/\d+/documents/[A-Za-z0-9._-]+\z#';
+    /**
+     * Every stored file is written under a generated name in one of two private folders: employee documents in
+     * `employees/{employee id}/documents/`, company agreements in `client-companies/{company id}/agreements/`.
+     */
+    private const REFERENCE_PATTERN = '#\A(?:employees/\d+/documents|client-companies/\d+/agreements)/[A-Za-z0-9._-]+\z#';
 
     public function __construct(private readonly string $disk = 'local') {}
 
@@ -46,7 +49,7 @@ class DocumentFileInspector
         return hash_final($context);
     }
 
-    /** A recorded path this application could have produced: no traversal, no absolute path, nothing outside the documents folders. */
+    /** A recorded path this application could have produced: no traversal, no absolute path, nothing outside the private file folders. */
     public static function isUsableReference(?string $path): bool
     {
         if ($path === null || $path === '' || strlen($path) > 500) {

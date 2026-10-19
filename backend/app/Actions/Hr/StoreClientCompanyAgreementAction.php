@@ -7,42 +7,68 @@ use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\ClientCompany;
 use App\Models\ClientCompanyAgreement;
+use App\Support\Hr\Documents\ClientCompanyAgreementStorage;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Throwable;
 
 /**
- * Stores an optional company agreement. Uploading again adds a NEW row and
- * leaves the earlier files as history (the newest row is the current
- * agreement). The disk comes from config('filesystems.hr_attachments_disk'),
- * so production can point it at S3-compatible storage with an env change only;
- * the disk used is recorded per row so old files stay reachable.
+ * Stores an optional company agreement. Uploading again adds a NEW row and leaves the earlier files as history (the
+ * newest row is the current agreement).
+ *
+ * The file is written to the configured private disk and verified (size and SHA-256 read back) BEFORE any row exists; the
+ * row records the disk and the checksum. If the row cannot be saved, the object this request wrote is removed again, so a
+ * failed upload leaves neither a row nor a stray file. A storage problem (unreachable, misconfigured, not durable in
+ * production) surfaces as DocumentStorageException (HTTP 503) and nothing is saved.
  */
 class StoreClientCompanyAgreementAction
 {
+    public function __construct(private readonly ClientCompanyAgreementStorage $storage) {}
+
     public function handle(ClientCompany $company, UploadedFile $file, ?string $notes, Admin $actor): ClientCompanyAgreement
     {
-        $disk = (string) config('filesystems.hr_attachments_disk', 'local');
-        $path = $file->store('client-companies/'.$company->id.'/agreements', $disk);
+        $stored = $this->storage->store($file, $company->id);
 
-        $agreement = ClientCompanyAgreement::query()->create([
-            'client_company_id' => $company->id,
-            'uploaded_by' => $actor->id,
-            'file_name' => $file->getClientOriginalName(),
-            'file_type' => $file->getMimeType() ?? 'application/octet-stream',
-            'file_size' => $file->getSize() ?: 0,
-            'disk' => $disk,
-            'file_path' => $path,
-            'notes' => $notes,
-        ]);
+        try {
+            return DB::transaction(function () use ($company, $file, $notes, $actor, $stored): ClientCompanyAgreement {
+                $agreement = ClientCompanyAgreement::query()->create([
+                    'client_company_id' => $company->id,
+                    'uploaded_by' => $actor->id,
+                    'file_name' => $this->displayName($file),
+                    'file_type' => $file->getMimeType() ?? 'application/octet-stream',
+                    'file_size' => $stored->size,
+                    'disk' => $stored->disk,
+                    'file_path' => $stored->path,
+                    'sha256' => $stored->sha256,
+                    'notes' => $notes,
+                ]);
 
-        event(AuditEvent::record(
-            action: AuditAction::Create,
-            admin: $actor,
-            description: "Agreement uploaded for client company '{$company->name}'.",
-            entityType: ClientCompanyAgreement::class,
-            entityId: $agreement->id,
-            metadata: ['client_company_id' => $company->id, 'file_name' => $agreement->file_name],
-        ));
+                event(AuditEvent::record(
+                    action: AuditAction::Create,
+                    admin: $actor,
+                    description: "Agreement uploaded for client company '{$company->name}'.",
+                    entityType: ClientCompanyAgreement::class,
+                    entityId: $agreement->id,
+                    metadata: ['client_company_id' => $company->id, 'file_name' => $agreement->file_name],
+                ));
 
-        return $agreement;
+                return $agreement;
+            });
+        } catch (Throwable $e) {
+            $this->storage->discard($stored);
+
+            throw $e;
+        }
+    }
+
+    /** The name shown to people: no folders, no control characters, at most 255 characters. */
+    private function displayName(UploadedFile $file): string
+    {
+        $name = basename(str_replace('\\', '/', $file->getClientOriginalName()));
+        $name = (string) preg_replace('/[\x00-\x1F\x7F]+/u', '', $name);
+        $name = trim(Str::limit($name, 255, ''));
+
+        return $name === '' ? 'agreement' : $name;
     }
 }

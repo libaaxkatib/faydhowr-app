@@ -8,11 +8,13 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Tests\Support\FakesDocumentDisk;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
 class ClientCompanyCategoryAndAgreementTest extends TestCase
 {
+    use FakesDocumentDisk;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -80,7 +82,7 @@ class ClientCompanyCategoryAndAgreementTest extends TestCase
 
     public function test_an_agreement_can_be_uploaded_listed_replaced_and_downloaded(): void
     {
-        Storage::fake('local');
+        $this->fakeLocalDisk(); // isolated folder: the verified write never creates a missing storage root
         [, $token] = $this->superAdminToken();
         $company = $this->makeCompany();
 
@@ -107,7 +109,7 @@ class ClientCompanyCategoryAndAgreementTest extends TestCase
 
     public function test_the_attachment_disk_is_configurable_and_recorded_on_the_row(): void
     {
-        Storage::fake('agreements_test');
+        $this->fakeDisk('agreements_test');
         config(['filesystems.hr_attachments_disk' => 'agreements_test']);
         [, $token] = $this->superAdminToken();
         $company = $this->makeCompany();
@@ -123,7 +125,7 @@ class ClientCompanyCategoryAndAgreementTest extends TestCase
 
     public function test_disallowed_file_types_are_rejected(): void
     {
-        Storage::fake('local');
+        $this->fakeLocalDisk(); // isolated folder: the verified write never creates a missing storage root
         [, $token] = $this->superAdminToken();
         $company = $this->makeCompany();
 
@@ -134,7 +136,7 @@ class ClientCompanyCategoryAndAgreementTest extends TestCase
 
     public function test_viewing_needs_hr_view_and_uploading_needs_hr_manage(): void
     {
-        Storage::fake('local');
+        $this->fakeLocalDisk(); // isolated folder: the verified write never creates a missing storage root
         $company = $this->makeCompany();
         $viewer = $this->tokenWithOnly(['hr.view']);
 
@@ -154,7 +156,7 @@ class ClientCompanyCategoryAndAgreementTest extends TestCase
 
     public function test_an_agreement_of_another_company_cannot_be_downloaded_through_this_one(): void
     {
-        Storage::fake('local');
+        $this->fakeLocalDisk(); // isolated folder: the verified write never creates a missing storage root
         [, $token] = $this->superAdminToken();
         $a = $this->makeCompany('A Co');
         $b = $this->makeCompany('B Co');
