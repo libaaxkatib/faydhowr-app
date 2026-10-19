@@ -1,6 +1,7 @@
 import { apiRequest, apiRequestWithMeta } from '@/api/client';
 import type { PageMeta } from '@/types/api';
 import type {
+  AddTeamMemberPayload,
   CommissionRate,
   CommissionRateType,
   CommissionRecord,
@@ -32,6 +33,12 @@ export const marketingApi = {
 
   employees: {
     list: () => apiRequest<MarketingEmployee[]>('admin/marketing/employees'),
+    /** For the management screen: inactive accounts too (only honoured for the Super Admin and Marketing Managers). */
+    listIncludingInactive: () => apiRequest<MarketingEmployee[]>('admin/marketing/employees', { query: { include_inactive: 1 } }),
+    /** Add Team Member: the role is fixed to Marketing Employee on the server. */
+    create: (payload: AddTeamMemberPayload) => apiRequest<MarketingEmployee>('admin/marketing/employees', { method: 'POST', body: payload }),
+    update: (id: number, payload: { full_name?: string; phone?: string; status?: 'active' | 'inactive' }) =>
+      apiRequest<MarketingEmployee>(`admin/marketing/employees/${id}`, { method: 'PATCH', body: payload }),
   },
 
   teams: {

@@ -14,6 +14,8 @@ class MarketingEmployeeResource extends JsonResource
             'full_name' => $this->full_name,
             'email' => $this->email,
             'role' => $this->role->value,
+            'phone' => $this->phone,
+            'status' => $this->status->value,
             'teams' => $this->whenLoaded('marketingTeams', fn () => $this->marketingTeams->map(fn ($team) => [
                 'id' => $team->id,
                 'name' => $team->name,

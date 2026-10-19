@@ -17,11 +17,11 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class ListMarketingEmployeesAction
 {
-    public function handle(Admin $actor): Collection
+    public function handle(Admin $actor, bool $includeInactive = false): Collection
     {
         $query = Admin::query()
             ->whereIn('role', [AdminRole::MarketingManager->value, AdminRole::MarketingEmployee->value])
-            ->where('status', AdminStatus::Active->value)
+            ->when(! ($includeInactive && MarketingScope::unrestricted($actor)), fn ($q) => $q->where('status', AdminStatus::Active->value))
             ->with('marketingTeams');
 
         if (! MarketingScope::unrestricted($actor)) {

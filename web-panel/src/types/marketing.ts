@@ -12,6 +12,8 @@ export interface MarketingTeam {
   name: string;
   description: string | null;
   members?: { id: number; full_name: string }[];
+  /** Whether the signed-in user may add, create or remove this team's members (the server enforces it). */
+  can_manage_members?: boolean;
 }
 
 export type MarketingEmployeeRole = 'marketing_manager' | 'marketing_employee';
@@ -21,7 +23,18 @@ export interface MarketingEmployee {
   full_name: string;
   email: string;
   role: MarketingEmployeeRole;
+  phone?: string | null;
+  status?: 'active' | 'inactive';
   teams?: { id: number; name: string }[];
+}
+
+export interface AddTeamMemberPayload {
+  full_name: string;
+  email: string;
+  phone: string;
+  password: string;
+  team_id: number;
+  status?: 'active' | 'inactive';
 }
 
 export interface FollowUpHistoryEntry {

@@ -139,6 +139,27 @@ final class MarketingScope
         }
     }
 
+    /**
+     * Who may add, create, change or remove the MEMBERS of a team. The Super Admin may manage every team. A Marketing Manager
+     * may manage only a team they themselves belong to (their authorised teams); seeing both teams for reading does not widen
+     * that. Everyone else may manage none.
+     */
+    public static function canManageTeam(Admin $actor, int $teamId): bool
+    {
+        if ($actor->role === AdminRole::SuperAdmin) {
+            return true;
+        }
+
+        return $actor->role === AdminRole::MarketingManager && in_array($teamId, self::teamIds($actor), true);
+    }
+
+    public static function guardTeamManagement(Admin $actor, int $teamId): void
+    {
+        if (! self::canManageTeam($actor, $teamId)) {
+            self::refuse('You can only manage the members of a team you are authorised for.');
+        }
+    }
+
     public static function requireUnrestricted(Admin $actor, string $message): void
     {
         if (! self::unrestricted($actor)) {

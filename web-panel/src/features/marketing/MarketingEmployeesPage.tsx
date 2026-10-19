@@ -1,36 +1,88 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { marketingApi } from '@/api/marketing';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Icon } from '@/components/ui/Icon';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { useToast } from '@/components/ui/useToast';
+import { useAuth } from '@/features/auth/useAuth';
+import { AddTeamMemberDialog } from '@/features/marketing/AddTeamMemberDialog';
+import { manageableTeams } from '@/utils/teamMemberForm';
+import type { MarketingEmployee } from '@/types/marketing';
 
 /**
- * Read-only directory of Marketing Manager / Marketing Employee accounts,
- * per docs/HRM_MARKETING_SRS.md §3/§4.2. Reuses the existing Admin entity
- * (via GET /admin/marketing/employees, scoped to the two marketing roles)
- * rather than a separate employee model — account creation/editing stays
- * under Super Admin's existing Admins screen.
+ * Directory of Marketing Manager / Marketing Employee accounts, per docs/HRM_MARKETING_SRS.md §3/§4.2. It reuses the existing
+ * Admin entity (GET /admin/marketing/employees) rather than a separate employee model.
+ *
+ * "Add Team Member" and the activate/deactivate action are shown only to the Super Admin and to a Marketing Manager for teams
+ * they are authorised for - mirrored from the server's can_manage_members flag. Hiding a button is not the security: the server
+ * refuses the same calls for everyone else.
  */
 export function MarketingEmployeesPage() {
-  const { data, isLoading, error, refetch } = useQuery({ queryKey: ['marketing-employees'], queryFn: marketingApi.employees.list });
+  const queryClient = useQueryClient();
+  const { show } = useToast();
+  const { admin, isSuperAdmin } = useAuth();
+  const canSeeManagement = isSuperAdmin || admin?.role === 'marketing_manager';
+  const [isAddOpen, setIsAddOpen] = useState(false);
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['marketing-employees', canSeeManagement],
+    queryFn: canSeeManagement ? marketingApi.employees.listIncludingInactive : marketingApi.employees.list,
+  });
+  const teams = useQuery({ queryKey: ['marketing-teams'], queryFn: marketingApi.teams.list, enabled: canSeeManagement });
+
+  const manageable = manageableTeams(teams.data);
+  const manageableIds = new Set(manageable.map((team) => team.id));
+
+  const statusMutation = useMutation({
+    mutationFn: ({ employee, status }: { employee: MarketingEmployee; status: 'active' | 'inactive' }) => marketingApi.employees.update(employee.id, { status }),
+    onSuccess: (_result, { status }) => {
+      queryClient.invalidateQueries({ queryKey: ['marketing-employees'] });
+      show(status === 'active' ? 'Account activated.' : 'Account deactivated.');
+    },
+    onError: (err) => show(err instanceof Error ? err.message : 'Something went wrong.', 'error'),
+  });
+
+  const canManage = (employee: MarketingEmployee) =>
+    employee.role === 'marketing_employee' && (isSuperAdmin || (employee.teams ?? []).some((team) => manageableIds.has(team.id)));
 
   return (
     <div>
-      <PageHeader title="Employees" breadcrumb={[{ label: 'Marketing', to: '/marketing' }, { label: 'Employees' }]} />
+      <PageHeader
+        title="Employees"
+        breadcrumb={[{ label: 'Marketing', to: '/marketing' }, { label: 'Employees' }]}
+        actions={
+          manageable.length > 0 ? (
+            <Button onClick={() => setIsAddOpen(true)}>
+              <Icon name="plus" size={15} />
+              Add Team Member
+            </Button>
+          ) : undefined
+        }
+      />
 
       <Card>
         {isLoading && <LoadingState label="Loading marketing employees…" />}
         {error && <ErrorState error={error} onRetry={refetch} />}
-        {data && data.length === 0 && <EmptyState icon="users" title="No marketing employees yet" description="Grant the Marketing Manager or Marketing Employee role to an admin account to see them here." />}
+        {data && data.length === 0 && (
+          <EmptyState icon="users" title="No marketing employees yet" description="Use Add Team Member to create the first account for a team." />
+        )}
         {data && data.length > 0 && (
           <div className="divide-y divide-border">
             {data.map((employee) => (
               <div key={employee.id} className="flex items-center justify-between px-5 py-3.5">
                 <div>
-                  <p className="text-sm font-medium text-ink">{employee.full_name}</p>
+                  <p className="text-sm font-medium text-ink">
+                    {employee.full_name}
+                    {employee.status === 'inactive' && (
+                      <span className="ml-2 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-danger">Inactive</span>
+                    )}
+                  </p>
                   <p className="text-xs text-ink-muted">{employee.email}</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -48,12 +100,24 @@ export function MarketingEmployeesPage() {
                   <span className="rounded-full bg-secondary-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-secondary">
                     {employee.role === 'marketing_manager' ? 'Manager' : 'Employee'}
                   </span>
+                  {canManage(employee) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      isLoading={statusMutation.isPending && statusMutation.variables?.employee.id === employee.id}
+                      onClick={() => statusMutation.mutate({ employee, status: employee.status === 'inactive' ? 'active' : 'inactive' })}
+                    >
+                      {employee.status === 'inactive' ? 'Activate' : 'Deactivate'}
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         )}
       </Card>
+
+      <AddTeamMemberDialog isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} teams={manageable} />
     </div>
   );
 }

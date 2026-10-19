@@ -1573,6 +1573,11 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:marketing.manage', 'thro
     Route::delete('v1/admin/marketing/teams/{team}', [AdminMarketingTeamController::class, 'destroy'])
         ->whereNumber('team')
         ->name('api.v1.admin.marketing.teams.destroy');
+    Route::post('v1/admin/marketing/employees', [AdminMarketingEmployeeController::class, 'store'])
+        ->name('api.v1.admin.marketing.employees.store');
+    Route::patch('v1/admin/marketing/employees/{admin}', [AdminMarketingEmployeeController::class, 'update'])
+        ->whereNumber('admin')
+        ->name('api.v1.admin.marketing.employees.update');
     Route::post('v1/admin/marketing/teams/{team}/members', [AdminMarketingTeamController::class, 'addMember'])
         ->whereNumber('team')
         ->name('api.v1.admin.marketing.teams.members.store');
