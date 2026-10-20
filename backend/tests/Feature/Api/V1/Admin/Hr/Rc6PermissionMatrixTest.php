@@ -208,6 +208,30 @@ class Rc6PermissionMatrixTest extends TestCase
         $this->assertSame(2, PayrollPaymentVoid::query()->count());
     }
 
+    public function test_moving_an_existing_person_to_a_stage_is_for_the_super_admin_and_the_hr_manager_only(): void
+    {
+        $person = $this->makeEmployee('waiting');
+        $person->update(['registration_origin' => 'existing']);
+        $uri = "/api/v1/admin/hr/employees/{$person->id}/move-stage";
+        $body = ['stage' => 'need_training', 'reason' => 'Matrix test: moved by the owner'];
+
+        // Everybody else is refused - including a caller that holds hr.manage but is not an HR Manager (the role is checked on the server).
+        foreach (array_keys(self::BASELINE) as $who) {
+            if ($who === 'hr_manager') {
+                continue;
+            }
+
+            $this->assertSame(403, $this->httpStatus($who, 'POST', $uri, $body), "{$who}: stage move");
+        }
+
+        $this->assertSame(401, $this->httpStatus(null, 'POST', $uri, $body));
+        $this->assertSame('waiting', $person->fresh()->status->value, 'nothing was moved by a refused caller');
+
+        $this->assertSame(200, $this->httpStatus('hr_manager', 'POST', $uri, $body), 'the HR Manager may move an existing person');
+        $this->assertSame(200, $this->httpStatus('super_admin', 'POST', $uri, ['stage' => 'waiting', 'reason' => 'Matrix test: and back again']), 'the Super Admin may too');
+        $this->assertSame('waiting', $person->fresh()->status->value);
+    }
+
     public function test_hr_and_marketing_stay_separate_and_the_mobile_app_manager_reaches_neither(): void
     {
         $this->assertMatrix('GET', '/api/v1/admin/marketing/records', ['super_admin', 'marketing_manager']);

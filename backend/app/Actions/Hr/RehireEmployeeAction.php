@@ -9,6 +9,7 @@ use App\Models\Admin;
 use App\Models\Employee;
 use App\Models\EmployeeStatusHistory;
 use App\Support\ApiResponse;
+use App\Support\Hr\EmployeeRegistrationWorkflow;
 use App\Support\Hr\EmployeeTransitionGuard;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +23,10 @@ use Illuminate\Support\Facades\DB;
  */
 class RehireEmployeeAction
 {
-    public function __construct(private readonly EmployeeTransitionGuard $guard) {}
+    public function __construct(
+        private readonly EmployeeTransitionGuard $guard,
+        private readonly EmployeeRegistrationWorkflow $workflow = new EmployeeRegistrationWorkflow,
+    ) {}
 
     public function handle(Employee $employee, ?string $note, Admin $actor): Employee
     {
@@ -37,6 +41,7 @@ class RehireEmployeeAction
         }
 
         $this->guard->authorize(EmployeeStatus::Inactive, EmployeeStatus::Active, EmployeeTransitionGuard::CONTEXT_REHIRE, $actor);
+        $this->workflow->requireEligible($employee, 'cannot be rehired to Active');
 
         return DB::transaction(function () use ($employee, $note, $actor) {
             $employee->update(['status' => EmployeeStatus::Active]);

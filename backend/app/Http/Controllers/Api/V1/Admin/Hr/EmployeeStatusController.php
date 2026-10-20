@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api\V1\Admin\Hr;
 
 use App\Actions\Hr\BulkActivateEmployeesAction;
 use App\Actions\Hr\ConfirmEmployeeGuarantorAction;
+use App\Actions\Hr\MoveExistingEmployeeToStageAction;
 use App\Actions\Hr\UpdateEmployeeStatusAction;
 use App\Enums\EmployeeStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Admin\Hr\BulkActivateEmployeesRequest;
+use App\Http\Requests\Api\V1\Admin\Hr\MoveEmployeeStageRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\UpdateEmployeeStatusRequest;
 use App\Http\Resources\Api\V1\Admin\Hr\EmployeeResource;
 use App\Models\Employee;
@@ -27,6 +29,16 @@ class EmployeeStatusController extends Controller
         );
 
         return ApiResponse::success('Employee status updated successfully.', new EmployeeResource($employee));
+    }
+
+    /**
+     * Moves ONE existing registered person to a chosen stage (Super Admin / HR Manager, with a reason; see the action).
+     */
+    public function moveStage(MoveEmployeeStageRequest $request, Employee $employee, MoveExistingEmployeeToStageAction $action): JsonResponse
+    {
+        $employee = $action->handle($employee, $request->validated('stage'), $request->validated('reason'), $request->user());
+
+        return ApiResponse::success('Employee moved to the new stage successfully.', new EmployeeResource($employee));
     }
 
     /**

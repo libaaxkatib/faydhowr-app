@@ -12,6 +12,7 @@ use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\TemporaryReplacement;
 use App\Support\ApiResponse;
+use App\Support\Hr\EmployeeRegistrationWorkflow;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
@@ -45,6 +46,8 @@ class CreateTemporaryReplacementAction
                 ),
             );
         }
+
+        (new EmployeeRegistrationWorkflow)->requireEligible($replacementEmployee, 'cannot cover a company position', 'EMPLOYEE_REGISTRATION_INCOMPLETE');
 
         if ((int) $replacementEmployee->id === (int) $workAssignment->employee_id) {
             throw new HttpResponseException(

@@ -4,6 +4,7 @@ namespace App\Actions\Hr;
 
 use App\Enums\AuditAction;
 use App\Enums\EmployeePipelineStage;
+use App\Enums\EmployeeRegistrationOrigin;
 use App\Enums\EmployeeStatus;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
@@ -58,6 +59,7 @@ class CreateEmployeeAction
                 ...$attributes,
                 'employee_number' => $this->codeGenerator->next(),
                 'status' => EmployeeStatus::Applicant,
+                'registration_origin' => EmployeeRegistrationOrigin::New,
                 'pipeline_stage' => EmployeePipelineStage::DamiinNeeded,
                 'created_by' => $actor->id,
             ]);

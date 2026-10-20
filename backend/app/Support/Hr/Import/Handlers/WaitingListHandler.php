@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Models\ImportBatch;
 use App\Models\ImportRow;
 use App\Support\Hr\EmployeeDuplicateFinder;
+use App\Support\Hr\EmployeeRegistrationWorkflow;
 use App\Support\Hr\EmployeeTransitionGuard;
 use App\Support\Hr\Import\ImportNormalizer;
 use App\Support\Hr\Import\ImportTypeHandler;
@@ -35,6 +36,7 @@ final class WaitingListHandler implements ImportTypeHandler
     public function __construct(
         private readonly MoveEmployeeToWaitingAction $moveToWaiting,
         private readonly EmployeeTransitionGuard $guard,
+        private readonly EmployeeRegistrationWorkflow $workflow = new EmployeeRegistrationWorkflow,
     ) {}
 
     public function type(): ImportType
@@ -102,6 +104,10 @@ final class WaitingListHandler implements ImportTypeHandler
             return StagedRow::invalid('TRANSITION_NOT_ALLOWED', "The matched employee is {$employee->status->label()}; an {$employee->status->label()} employee cannot be moved to Waiting by an import.", $payload, $nameKey, $phoneKey, $meta);
         }
 
+        if ($this->workflow->blocks($employee)) {
+            return StagedRow::invalid('REGISTRATION_WORKFLOW_INCOMPLETE', 'The matched person is a new registration that has not completed the registration workflow (still missing: '.implode(', ', $this->workflow->missing($employee)).'). An import cannot move them to Waiting.', $payload, $nameKey, $phoneKey, $meta);
+        }
+
         return StagedRow::valid($payload, $nameKey, $phoneKey, $meta, Employee::class, $employee->id, 'Confident match; will be moved to Waiting.');
     }
 
@@ -126,6 +132,10 @@ final class WaitingListHandler implements ImportTypeHandler
 
         if ($this->guard->evaluate($employee->status, EmployeeStatus::Waiting, EmployeeTransitionGuard::CONTEXT_WAITING_IMPORT) !== EmployeeTransitionGuard::DECISION_NORMAL) {
             return RowOutcome::skipped('TRANSITION_NOT_ALLOWED', 'The employee status changed after the preview and can no longer be moved to Waiting by an import.', Employee::class, $employee->id);
+        }
+
+        if ($this->workflow->blocks($employee)) {
+            return RowOutcome::skipped('REGISTRATION_WORKFLOW_INCOMPLETE', 'The person is a new registration that has not completed the registration workflow, so an import cannot move them to Waiting. Nothing was changed.', Employee::class, $employee->id);
         }
 
         $note = "Waiting-list import #{$batch->id}, row {$row->row_number}.";

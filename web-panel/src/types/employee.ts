@@ -704,6 +704,25 @@ export interface PayrollSummary {
 
 export type EmploymentType = 'permanent' | 'temporary';
 
+export interface RegistrationWorkflowStep {
+  key: 'guarantor' | 'contract' | 'uniform' | 'training' | 'practice';
+  label: string;
+  done: boolean;
+}
+
+export interface RegistrationWorkflowSummary {
+  origin: 'existing' | 'new' | 'office_staff';
+  origin_label: string;
+  /** True only for a new registration. */
+  applies: boolean;
+  complete: boolean;
+  /** A Super Admin override (with a reason) moved this person past the workflow. */
+  override_recorded: boolean;
+  eligible_for_waiting_and_company: boolean;
+  steps: RegistrationWorkflowStep[];
+  missing: string[];
+}
+
 export interface Employee {
   id: number;
   employee_number: string;
@@ -736,6 +755,10 @@ export interface Employee {
   position_name: string | null;
   status: EmployeeStatus;
   pipeline_stage: EmployeePipelineStage | null;
+  /** existing = registered before the registration workflow (managed one by one by stage); new = must complete the workflow; office_staff = hired directly. */
+  registration_origin: 'existing' | 'new' | 'office_staff';
+  /** Detail view only: the origin and, for a new registration, each required step with whether its record exists. */
+  registration_workflow?: RegistrationWorkflowSummary;
   guarantor_confirmed_at: string | null;
   /** Historical migration data - the population that originally needed Damiin. Never rewritten when Damiin is completed; see damiin_completed for the active-work-queue state. */
   guarantor_needed: boolean;

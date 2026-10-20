@@ -7,6 +7,7 @@ use App\Enums\EmployeeStatus;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\Employee;
+use App\Support\Hr\EmployeeRegistrationWorkflow;
 use App\Support\Hr\EmployeeTransitionGuard;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -36,6 +37,7 @@ class BulkActivateEmployeesAction
         private readonly UpdateEmployeeStatusAction $statusAction,
         private readonly RehireEmployeeAction $rehireAction,
         private readonly EmployeeTransitionGuard $guard,
+        private readonly EmployeeRegistrationWorkflow $workflow = new EmployeeRegistrationWorkflow,
     ) {}
 
     /**
@@ -106,11 +108,23 @@ class BulkActivateEmployeesAction
 
         // Inactive employees return through Rehire (a normal step); everyone else is checked by the
         // lifecycle guard. A change that is not a normal step needs a Super Admin override reason.
-        $needsOverride = $employee->status !== EmployeeStatus::Inactive
-            && $this->guard->evaluate($employee->status, EmployeeStatus::Active) === EmployeeTransitionGuard::DECISION_OVERRIDE_REQUIRED;
+        // A new registration that has not completed the registration workflow is held back too (only a Super Admin override, with a
+        // reason, gets it through; a separated one has no override path here).
+        $workflowBlocked = $this->workflow->blocks($employee);
+
+        if ($workflowBlocked && $employee->status === EmployeeStatus::Inactive) {
+            return [...$base, 'to_status' => 'active', 'outcome' => 'failed', 'code' => 'REGISTRATION_WORKFLOW_INCOMPLETE', 'message' => 'New registration that has not completed the registration workflow; still missing: '.implode(', ', $this->workflow->missing($employee)).'.'];
+        }
+
+        $needsOverride = $workflowBlocked || ($employee->status !== EmployeeStatus::Inactive
+            && $this->guard->evaluate($employee->status, EmployeeStatus::Active) === EmployeeTransitionGuard::DECISION_OVERRIDE_REQUIRED);
         $hasReason = $overrideReason !== null && trim($overrideReason) !== '';
 
         if ($needsOverride && ! $hasReason) {
+            if ($workflowBlocked) {
+                return [...$base, 'to_status' => 'active', 'outcome' => $dryRun ? 'requires_override' : 'failed', 'code' => 'REGISTRATION_WORKFLOW_INCOMPLETE', 'message' => 'New registration that has not completed the registration workflow; still missing: '.implode(', ', $this->workflow->missing($employee)).'. Only a Super Admin override with a reason can activate them.'];
+            }
+
             return [...$base, 'to_status' => 'active', 'outcome' => $dryRun ? 'requires_override' : 'failed', 'code' => 'TRANSITION_OVERRIDE_REQUIRED', 'message' => "{$employee->status->label()} to Active is not a normal lifecycle step; it needs a Super Admin override with a reason."];
         }
 

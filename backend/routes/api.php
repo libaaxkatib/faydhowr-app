@@ -1262,6 +1262,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::patch('v1/admin/hr/employees/{employee}/status', [AdminEmployeeStatusController::class, 'update'])
         ->whereNumber('employee')
         ->name('api.v1.admin.hr.employees.status');
+    Route::post('v1/admin/hr/employees/{employee}/move-stage', [AdminEmployeeStatusController::class, 'moveStage'])
+        ->whereNumber('employee')
+        ->name('api.v1.admin.hr.employees.move-stage');
     Route::post('v1/admin/hr/employees/bulk-activate', [AdminEmployeeStatusController::class, 'bulkActivate'])
         ->name('api.v1.admin.hr.employees.bulk-activate');
     Route::patch('v1/admin/hr/employees/{employee}/separate', [AdminEmployeeSeparationController::class, 'separate'])

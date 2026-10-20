@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\EmployeeGender;
 use App\Enums\EmployeePipelineStage;
+use App\Enums\EmployeeRegistrationOrigin;
 use App\Enums\EmployeeStatus;
 use App\Enums\WorkAssignmentStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -35,6 +36,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'department_id',
     'position_id',
     'status',
+    'registration_origin',
     'employment_type',
     'pipeline_stage',
     'guarantor_confirmed_at',
@@ -71,6 +73,7 @@ class Employee extends Model
             'gender' => EmployeeGender::class,
             'status' => EmployeeStatus::class,
             'pipeline_stage' => EmployeePipelineStage::class,
+            'registration_origin' => EmployeeRegistrationOrigin::class,
             'guarantor_confirmed_at' => 'datetime',
             'guarantor_needed' => 'boolean',
             'waiting_since' => 'datetime',

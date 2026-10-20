@@ -8,6 +8,7 @@ use App\Models\ClientCompany;
 use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Support\ApiResponse;
+use App\Support\Hr\EmployeeRegistrationWorkflow;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -48,6 +49,9 @@ final class CompanyAssignmentGuard
         if ($employee->status !== EmployeeStatus::Active) {
             self::fail("Employee {$employee->employee_number} is {$employee->status->value} in HR. Only an Active employee can be assigned to a company; complete the HR steps first.", 'EMPLOYEE_NOT_ACTIVE');
         }
+
+        // A NEW registration must have completed the registration workflow (or carry a recorded Super Admin override).
+        (new EmployeeRegistrationWorkflow)->requireEligible($employee, 'cannot be added as a company employee', 'EMPLOYEE_REGISTRATION_INCOMPLETE');
     }
 
     public static function date(string $value): CarbonImmutable

@@ -18,7 +18,9 @@ import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { useAuth } from '@/features/auth/useAuth';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
+import { MoveStageDialog } from '@/features/hrm/MoveStageDialog';
 import { StatusOverrideDialog } from '@/features/hrm/StatusOverrideDialog';
+import { advanceBlockedByWorkflow, canOfferStageMove } from '@/utils/registrationWorkflow';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { formatDate, formatDateTime, initialsOf } from '@/utils/formatters';
 import { assignmentLabel, friendlyErrorMessage, isWorkplaceMissing, localToday, OFFICE_LABEL } from '@/utils/hrHelpers';
@@ -125,8 +127,9 @@ export function EmployeeDetailPage() {
   const canChangeDocumentCategory = hasPermission('hr.manage');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { isSuperAdmin: canOverrideStatus } = useAuth();
+  const { isSuperAdmin: canOverrideStatus, admin } = useAuth();
   const [isOverrideOpen, setIsOverrideOpen] = useState(false);
+  const [isMoveStageOpen, setIsMoveStageOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [assessmentNotes, setAssessmentNotes] = useState('');
   const [isAssignOpen, setIsAssignOpen] = useState(false);
@@ -436,6 +439,8 @@ export function EmployeeDetailPage() {
 
   const statusFlowIndex = STATUS_FLOW.indexOf(employee.status);
   const nextStatus = statusFlowIndex === -1 ? undefined : STATUS_FLOW[statusFlowIndex + 1];
+  const advanceBlocked = advanceBlockedByWorkflow(employee.registration_workflow, nextStatus);
+  const canMoveStage = canOfferStageMove(admin?.role, employee.registration_origin, employee.status);
   const missingProfileFields = PROFILE_COMPLETENESS_FIELDS.filter((field) => !field.isPresent(employee)).map((field) => field.label);
 
   return (
@@ -574,11 +579,58 @@ export function EmployeeDetailPage() {
               )}
             </div>
 
+            {employee.registration_workflow && (
+              <div className="mt-6 border-t border-border pt-5" data-testid="registration-workflow">
+                <div className="mb-2 flex items-center gap-2">
+                  <p className="text-xs font-medium text-ink-faint">Registration</p>
+                  <StatusBadge
+                    status={employee.registration_workflow.origin}
+                    label={employee.registration_workflow.origin_label}
+                    tone={employee.registration_workflow.applies ? 'warning' : 'info'}
+                  />
+                </div>
+                {employee.registration_workflow.applies ? (
+                  <>
+                    <ul className="space-y-1 text-sm">
+                      {employee.registration_workflow.steps.map((step) => (
+                        <li key={step.key} className={step.done ? 'text-success' : 'text-ink-muted'} data-testid={`registration-step-${step.key}`}>
+                          {step.done ? '✓' : '○'} {step.label}
+                          <span className="sr-only">{step.done ? ' (done)' : ' (not done)'}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {employee.registration_workflow.complete ? (
+                      <p className="mt-2 text-xs text-ink-muted">Every step is recorded. This person can go on the Waiting List and be added to a company.</p>
+                    ) : employee.registration_workflow.override_recorded ? (
+                      <p className="mt-2 text-xs text-ink-muted">Steps are missing, but a Super Admin override with a reason is recorded, so this person is allowed through.</p>
+                    ) : (
+                      <p className="mt-2 text-xs text-ink-muted">
+                        A new registration reaches the Waiting List, Active status and a company only after every step above is recorded, in order. The
+                        server refuses anything else. Only a Super Admin can override, with a written reason.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-ink-muted">
+                    {employee.registration_workflow.origin === 'existing'
+                      ? 'Registered before the registration workflow. No steps are required; a Super Admin or HR Manager can move this person to the stage they need.'
+                      : 'Registered directly as office staff; the recruitment steps do not apply.'}
+                  </p>
+                )}
+              </div>
+            )}
+
             <PermissionGate module="hr">
               <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-border pt-5">
                 {employee.status !== 'applicant' && nextStatus && (
-                  <Button size="sm" isLoading={statusMutation.isPending} onClick={() => statusMutation.mutate(nextStatus)}>
+                  <Button size="sm" isLoading={statusMutation.isPending} disabled={advanceBlocked} onClick={() => statusMutation.mutate(nextStatus)}
+                    title={advanceBlocked ? 'Complete the registration steps first' : undefined}>
                     Advance to {nextStatus[0].toUpperCase() + nextStatus.slice(1)}
+                  </Button>
+                )}
+                {canMoveStage && (
+                  <Button variant="outline" size="sm" onClick={() => setIsMoveStageOpen(true)}>
+                    Move to stage…
                   </Button>
                 )}
                 {employee.status === 'active' && (
@@ -1385,6 +1437,8 @@ export function EmployeeDetailPage() {
           isLoading={endAssignmentMutation.isPending}
         />
       )}
+
+      {canMoveStage && <MoveStageDialog isOpen={isMoveStageOpen} employee={employee} onClose={() => setIsMoveStageOpen(false)} onDone={invalidate} />}
 
       {canOverrideStatus && (
         <StatusOverrideDialog isOpen={isOverrideOpen} employee={employee} onClose={() => setIsOverrideOpen(false)} onDone={invalidate} />

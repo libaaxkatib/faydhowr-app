@@ -6,6 +6,7 @@ use App\Enums\AdminPermission;
 use App\Enums\EmployeeDocumentVerificationStatus;
 use App\Models\Admin;
 use App\Support\AdminPermissionResolver;
+use App\Support\Hr\EmployeeRegistrationWorkflow;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -62,6 +63,9 @@ class EmployeeResource extends JsonResource
             'status' => $this->status->value,
             'employment_type' => $this->employment_type ?? 'permanent',
             'pipeline_stage' => $this->pipeline_stage?->value,
+            'registration_origin' => $this->registration_origin?->value ?? 'new',
+            // The detail view loads the guarantor; lists do not, so the five record checks are only run for one person at a time.
+            'registration_workflow' => $this->when($this->relationLoaded('guarantor'), fn () => (new EmployeeRegistrationWorkflow)->summary($this->resource)),
             'guarantor_confirmed_at' => $this->guarantor_confirmed_at?->toIso8601String(),
             'guarantor_needed' => $this->guarantor_needed,
             // Computed, never stored: guarantor_needed itself is historical migration

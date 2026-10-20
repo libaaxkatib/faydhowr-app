@@ -11,6 +11,7 @@ use App\Models\Employee;
 use App\Models\WorkforceRequest;
 use App\Models\WorkforceRequestMatch;
 use App\Support\ApiResponse;
+use App\Support\Hr\EmployeeRegistrationWorkflow;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
@@ -35,6 +36,9 @@ class ConfirmWorkforceRequestMatchAction
                 ),
             );
         }
+
+        // A new registration that has not completed the registration workflow cannot be matched to a client's request.
+        (new EmployeeRegistrationWorkflow)->requireEligible($employee, 'cannot be matched to a client request');
 
         if (in_array($request->status, [WorkforceRequestStatus::Fulfilled, WorkforceRequestStatus::Cancelled], true)) {
             throw new HttpResponseException(

@@ -3,6 +3,7 @@
 namespace App\Support\Hr\ExcelMigration;
 
 use App\Enums\AuditAction;
+use App\Enums\EmployeeRegistrationOrigin;
 use App\Enums\EmployeeSeparationReason;
 use App\Enums\EmployeeStatus;
 use App\Events\Audit\AuditEvent;
@@ -98,6 +99,8 @@ final class ExcelMigrationCommitter
                     'employee_category_id' => $categoryIdsByName[$person->matchedCategory],
                     'category_specialization' => $person->categorySpecialization,
                     'status' => $status,
+                    // People from the existing workbook are existing records (managed one by one by stage).
+                    'registration_origin' => EmployeeRegistrationOrigin::Existing,
                     'pipeline_stage' => $person->pipelineStage,
                     'guarantor_needed' => $person->guarantorNeedFlag,
                     'waiting_since' => $person->waitingSince,

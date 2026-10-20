@@ -3,6 +3,7 @@
 namespace App\Actions\Hr;
 
 use App\Enums\AuditAction;
+use App\Enums\EmployeeRegistrationOrigin;
 use App\Enums\EmployeeStatus;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
@@ -79,6 +80,7 @@ class RegisterOfficeStaffAction
                 'location' => $data['location'] ?? null,
                 'employee_category_id' => $category->id,
                 'status' => EmployeeStatus::Active,
+                'registration_origin' => EmployeeRegistrationOrigin::OfficeStaff,
                 'employment_type' => 'permanent',
                 'application_date' => CarbonImmutable::now()->toDateString(),
                 'joining_date' => $data['start_date'],

@@ -7,6 +7,7 @@ use App\Enums\WorkAssignmentStatus;
 use App\Models\ClientCompany;
 use App\Models\Employee;
 use App\Support\Hr\ConcurrentAssignmentGuard;
+use App\Support\Hr\EmployeeRegistrationWorkflow;
 
 /**
  * The searchable employee picker. It searches the existing HR register by its unique identifiers (HR id, employee number) and,
@@ -68,6 +69,7 @@ class SearchCompanyEmployeeCandidatesAction
 
         $reason = match (true) {
             $e->status !== EmployeeStatus::Active => "{$e->status->value} in HR - only Active employees can be assigned",
+            (new EmployeeRegistrationWorkflow)->blocks($e) => 'new registration - the registration workflow (guarantor, contract, uniform, training, practice) is not complete',
             $here => 'already has an active assignment at this company',
             ! ConcurrentAssignmentGuard::enabled() && $elsewhere->isNotEmpty() => 'already assigned at '.$elsewhere->map(fn ($a): string => (string) $a->clientCompany?->name)->unique()->implode(', ').'; multiple-company assignments are not enabled',
             default => null,

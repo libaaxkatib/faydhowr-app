@@ -16,6 +16,7 @@ use App\Support\ApiResponse;
 use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\CompanyLocationResolver;
 use App\Support\Hr\ConcurrentAssignmentGuard;
+use App\Support\Hr\EmployeeRegistrationWorkflow;
 use App\Support\Hr\Payroll\ClosedPayrollCorrection;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\PositionSuccession;
@@ -54,6 +55,9 @@ class CreateWorkAssignmentAction
      */
     public function handle(Employee $employee, array $data, Admin $actor): EmployeeWorkAssignment
     {
+        // Direct API too: a new registration that has not completed the registration workflow gets no assignment at all.
+        (new EmployeeRegistrationWorkflow)->requireEligible($employee, 'cannot be given a work assignment', 'EMPLOYEE_REGISTRATION_INCOMPLETE');
+
         if (($data['assignment_type'] ?? AssignmentType::Permanent->value) === AssignmentType::Replacement->value) {
             $data = $this->withInheritedSalary($employee, $data);
 

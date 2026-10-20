@@ -8,6 +8,7 @@ use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\Employee;
 use App\Models\EmployeeStatusHistory;
+use App\Support\Hr\EmployeeRegistrationWorkflow;
 use App\Support\Hr\EmployeeTransitionGuard;
 use Illuminate\Support\Facades\DB;
 
@@ -19,7 +20,10 @@ use Illuminate\Support\Facades\DB;
  */
 class UpdateEmployeeStatusAction
 {
-    public function __construct(private readonly EmployeeTransitionGuard $guard) {}
+    public function __construct(
+        private readonly EmployeeTransitionGuard $guard,
+        private readonly EmployeeRegistrationWorkflow $workflow = new EmployeeRegistrationWorkflow,
+    ) {}
 
     public function handle(
         Employee $employee,
@@ -37,6 +41,11 @@ class UpdateEmployeeStatusAction
             $from = $locked->status;
 
             $usedOverride = $this->guard->authorize($from, $status, EmployeeTransitionGuard::CONTEXT_STATUS_UPDATE, $actor, $overrideReason);
+
+            // A NEW registration cannot become Waiting / Approved / Active before the registration workflow is complete; only a Super
+            // Admin can go around it, with a written reason that is recorded. Existing records are not held to this.
+            $missing = $this->workflow->protects($status) && $this->workflow->blocks($locked) ? $this->workflow->missing($locked) : [];
+            $usedOverride = $this->workflow->authorizeStatusChange($locked, $status, $actor, $overrideReason) ?? $usedOverride;
 
             $locked->update([
                 'status' => $status,
@@ -60,6 +69,10 @@ class UpdateEmployeeStatusAction
 
             if ($usedOverride !== null) {
                 $metadata += ['override' => true, 'override_reason' => $usedOverride];
+            }
+
+            if ($missing !== []) {
+                $metadata += ['registration_workflow_override' => true, 'registration_steps_missing' => $missing];
             }
 
             event(AuditEvent::record(

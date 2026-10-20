@@ -8,6 +8,7 @@ use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\Employee;
 use App\Models\EmployeeStatusHistory;
+use App\Support\Hr\EmployeeRegistrationWorkflow;
 use App\Support\Hr\EmployeeTransitionGuard;
 use Illuminate\Support\Facades\DB;
 
@@ -19,7 +20,10 @@ use Illuminate\Support\Facades\DB;
  */
 class MoveEmployeeToWaitingAction
 {
-    public function __construct(private readonly EmployeeTransitionGuard $guard) {}
+    public function __construct(
+        private readonly EmployeeTransitionGuard $guard,
+        private readonly EmployeeRegistrationWorkflow $workflow = new EmployeeRegistrationWorkflow,
+    ) {}
 
     public function handle(Employee $employee, string $note, Admin $actor, int $importBatchId): Employee
     {
@@ -28,6 +32,7 @@ class MoveEmployeeToWaitingAction
             $from = $locked->status;
 
             $this->guard->authorize($from, EmployeeStatus::Waiting, EmployeeTransitionGuard::CONTEXT_WAITING_IMPORT, $actor);
+            $this->workflow->requireEligible($locked, 'cannot be moved to the Waiting List by an import');
 
             $previousStage = $locked->pipeline_stage?->value;
 

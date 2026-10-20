@@ -360,6 +360,9 @@ export const hrApi = {
         method: 'PATCH',
         body: { status, note, ...(overrideReason ? { override_reason: overrideReason } : {}) },
       }),
+    /** Super Admin / HR Manager: moves ONE existing registered person to a pipeline stage or the Waiting List, with a reason. */
+    moveStage: (id: number, stage: string, reason: string) =>
+      apiRequest<Employee>(`admin/hr/employees/${id}/move-stage`, { method: 'POST', body: { stage, reason } }),
     separate: (id: number, payload: MarkEmployeeSeparatedPayload) =>
       apiRequest<Employee>(`admin/hr/employees/${id}/separate`, { method: 'PATCH', body: payload }),
     rehire: (id: number, note?: string | null) =>
