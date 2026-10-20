@@ -117,6 +117,8 @@ test('row codes read as sentences and unknown codes are shown as-is', () => {
   assert.equal(rowCodeText('NAME_CONFLICT'), 'Phone matches, name differs');
   assert.equal(rowCodeText('NO_MATCH'), 'No matching employee');
   assert.equal(rowCodeText('BRAND_NEW_CODE'), 'BRAND_NEW_CODE');
+  assert.match(rowCodeText('REGISTRATION_WORKFLOW_INCOMPLETE'), /New registration/);
+  assert.match(describeImportError('FORBIDDEN', 'x'), /Super Admin or an HR Manager/);
   assert.equal(rowCodeText(null), '');
 });
 

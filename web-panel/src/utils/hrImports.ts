@@ -135,7 +135,7 @@ const ERROR_TEXT: Record<string, string> = {
   IMPORT_CANCELLED: 'This import was cancelled.',
   IMPORT_EXPIRED: 'The details of this import were deleted. Upload the file again.',
   PREVIEW_ONLY: 'This is a read-only preview. It cannot be confirmed.',
-  FORBIDDEN: 'Imports are reserved for Super Admin.',
+  FORBIDDEN: 'Imports are reserved for a Super Admin or an HR Manager who holds the Import HR Data permission.',
 };
 
 /** Plain-language text for an API error code; falls back to the server message. */
@@ -170,6 +170,7 @@ export const ROW_CODE_TEXT: Record<string, string> = {
   ARCHIVED_MATCH: 'Only matches an archived record',
   ALREADY_WAITING: 'Already on the waiting list',
   TRANSITION_NOT_ALLOWED: 'Status cannot move to Waiting',
+  REGISTRATION_WORKFLOW_INCOMPLETE: 'New registration - the guarantor, contract, uniform, training and practical steps are not complete',
   ALREADY_ACTIVE: 'Already Active',
   IDENTITY_MISMATCH: 'Employee number or name does not match the plan',
   EMPLOYEE_NOT_FOUND: 'Employee not found',

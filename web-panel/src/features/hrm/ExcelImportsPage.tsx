@@ -139,7 +139,7 @@ export function ExcelImportsPage() {
         </CardHeader>
         <CardBody className="space-y-4">
           <p className="text-sm text-ink-muted">
-            Only a Super Admin can import. Uploading only <strong>checks</strong> the file and shows a preview. Nothing is
+            Only a Super Admin or an HR Manager with the Import HR Data permission can import. Uploading only <strong>checks</strong> the file and shows a preview. Nothing is
             added or changed until you confirm, existing records are never updated, and the file itself is not kept.
           </p>
 
