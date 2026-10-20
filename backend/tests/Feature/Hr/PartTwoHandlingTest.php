@@ -160,7 +160,11 @@ class PartTwoHandlingTest extends TestCase
         $untouched = [$this->snapshot($twin), $this->snapshot($manual)];
 
         // 1. A dry run writes nothing.
-        $this->applyPlan($plan, false);
+        $dryReport = $this->dir.DIRECTORY_SEPARATOR.'dry.csv';
+        $this->applyPlan($plan, false, $dryReport);
+        $dry = $this->readReport($dryReport);
+        $this->assertSame('failed', $this->outcome($dry, 'assignments', 'MACHADTARTIIL')['outcome'], 'the preview already says the second company is refused while the policy is OFF');
+        $this->assertSame('would_set_shift', $this->outcome($dry, 'assignments', 'MOGADISHUSPECIALIST')['outcome']);
         $this->assertSame($before, [ClientCompany::query()->count(), EmployeeWorkAssignment::query()->count(), Employee::query()->count(), EmployeeStatusHistory::query()->count(), $this->snapshot($applicant)]);
 
         // 2. Commit with the multiple-company switch OFF: everyone is done except the second company of row 58, which is refused.

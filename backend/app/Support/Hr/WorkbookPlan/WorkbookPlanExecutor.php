@@ -16,6 +16,8 @@ use App\Models\Admin;
 use App\Models\ClientCompany;
 use App\Models\ClientCompanyAlias;
 use App\Models\Employee;
+use App\Support\Hr\ConcurrentAssignmentGuard;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
@@ -204,6 +206,17 @@ class WorkbookPlanExecutor
             }
 
             if ($dryRun) {
+                // The preview must tell the truth: a second company for the same person is refused while the Super Admin policy is OFF
+                // (a company that this very run would register is a different company from every existing one, hence id 0).
+                try {
+                    ConcurrentAssignmentGuard::assertAllowed($employee, $company?->id ?? 0, CarbonImmutable::parse($row['start_date'])->startOfDay(), null);
+                } catch (HttpResponseException $e) {
+                    $payload = $e->getResponse()->getData(true);
+                    $results[] = [...$base, 'outcome' => 'failed', 'code' => $payload['error_code'] ?? 'FAILED', 'message' => $payload['message'] ?? 'Failed.'];
+
+                    continue;
+                }
+
                 $results[] = [...$base, 'outcome' => 'would_assign', 'code' => null, 'message' => "Would assign at {$row['salary']} USD monthly from {$row['start_date']}".($shift !== '' ? ", {$shift} shift" : '').'.'];
 
                 continue;
