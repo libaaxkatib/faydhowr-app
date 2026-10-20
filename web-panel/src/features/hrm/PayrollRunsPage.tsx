@@ -20,6 +20,8 @@ import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage, localMonth, localToday, nextMonth } from '@/utils/hrHelpers';
 import { PayrollCorrectionsPanel } from '@/features/hrm/PayrollCorrectionsPanel';
+import { useAuth } from '@/features/auth/useAuth';
+import { canVoidPayrollPayment, validateWriteOffReason } from '@/utils/payrollCorrections';
 import type {
   PayrollAdjustmentKind,
   PayrollDeductionDetail,
@@ -84,6 +86,9 @@ export function PayrollRunsPage() {
   const { hasPermission } = useEffectivePermissions();
   const canManage = hasPermission('hr.payroll.manage');
   const canApprove = hasPermission('hr.payroll.approve');
+  const { admin } = useAuth();
+  // Voiding a payment marked paid: Super Admin or HR Manager (the server checks the role and the permission again).
+  const canVoid = canApprove && canVoidPayrollPayment(admin?.role);
   // The list contains employees' payment numbers, so the server requires hr.manage as well as payroll access.
   const canDownloadPaymentList = hasPermission('hr.manage');
 
@@ -93,6 +98,7 @@ export function PayrollRunsPage() {
   const [isReopenOpen, setIsReopenOpen] = useState(false);
   const [adjustingItem, setAdjustingItem] = useState<PayrollItem | null>(null);
   const [payingItem, setPayingItem] = useState<PayrollItem | null>(null);
+  const [voidingItem, setVoidingItem] = useState<PayrollItem | null>(null);
 
   const { data: runs, isLoading, error, refetch } = useQuery({ queryKey: ['payroll-runs'], queryFn: hrApi.payrollRuns.list });
 
@@ -185,6 +191,17 @@ export function PayrollRunsPage() {
       show(`Adjustment recorded. It will apply in the ${monthLabel(result.applies_in_period)} payroll.`);
     },
     onError: (err) => show(friendlyErrorMessage(err, 'Could not record the adjustment.'), 'error'),
+  });
+
+  const voidMutation = useMutation({
+    mutationFn: ({ itemId, reason }: { itemId: number; reason: string }) => hrApi.payrollRuns.voidPayment(itemId, reason),
+    onSuccess: () => {
+      refresh(selectedRunId ?? undefined);
+      queryClient.invalidateQueries({ queryKey: ['payroll-corrections'] });
+      setVoidingItem(null);
+      show('Payment voided. A linked reversal was recorded and the line can be paid again.');
+    },
+    onError: (err) => show(friendlyErrorMessage(err, 'Could not void this payment. Nothing was changed.'), 'error'),
   });
 
   const payMutation = useMutation({
@@ -319,6 +336,8 @@ export function PayrollRunsPage() {
           onExport={() => exportMutation.mutate(run)}
           onAdjust={setAdjustingItem}
           onPay={setPayingItem}
+          canVoid={canVoid}
+          onVoid={setVoidingItem}
         />
       )}
 
@@ -363,6 +382,15 @@ export function PayrollRunsPage() {
         />
       )}
 
+      {voidingItem && (
+        <VoidPaymentModal
+          item={voidingItem}
+          onClose={() => setVoidingItem(null)}
+          onConfirm={(reason) => voidMutation.mutate({ itemId: voidingItem.id, reason })}
+          isLoading={voidMutation.isPending}
+        />
+      )}
+
       {payingItem && (
         <MarkPaidModal
           item={payingItem}
@@ -387,6 +415,8 @@ function RunDetail({
   onExport,
   onAdjust,
   onPay,
+  canVoid,
+  onVoid,
 }: {
   run: PayrollRun;
   canManage: boolean;
@@ -399,6 +429,8 @@ function RunDetail({
   onExport: () => void;
   onAdjust: (item: PayrollItem) => void;
   onPay: (item: PayrollItem) => void;
+  canVoid: boolean;
+  onVoid: (item: PayrollItem) => void;
 }) {
   const status = RUN_STATUS[run.status];
   const trail = [
@@ -474,7 +506,7 @@ function RunDetail({
         {!run.items || run.items.length === 0 ? (
           <EmptyState icon="credit-card" title="No payroll lines" description="No employee had an active assignment with a salary in this month." />
         ) : (
-          <ItemsTable run={run} canApprove={canApprove} onAdjust={onAdjust} onPay={onPay} />
+          <ItemsTable run={run} canApprove={canApprove} onAdjust={onAdjust} onPay={onPay} canVoid={canVoid} onVoid={onVoid} />
         )}
       </CardBody>
     </Card>
@@ -486,11 +518,15 @@ function ItemsTable({
   canApprove,
   onAdjust,
   onPay,
+  canVoid,
+  onVoid,
 }: {
   run: PayrollRun;
   canApprove: boolean;
   onAdjust: (item: PayrollItem) => void;
   onPay: (item: PayrollItem) => void;
+  canVoid: boolean;
+  onVoid: (item: PayrollItem) => void;
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const isFinalized = run.status === 'finalized';
@@ -556,6 +592,11 @@ function ItemsTable({
                     ) : (
                       <span className="text-xs text-ink-faint">{isFinalized ? 'Not paid yet' : '—'}</span>
                     )}
+                    {(item.payment_voids?.length ?? 0) > 0 && (
+                      <span className="mt-1 block text-xs text-warning" data-testid="payment-voided-note">
+                        {item.payment_voids!.length} earlier payment{item.payment_voids!.length > 1 ? 's' : ''} voided (kept in the ledger)
+                      </span>
+                    )}
                   </td>
                   {isFinalized && canApprove && (
                     <td className="whitespace-nowrap px-3 py-3">
@@ -563,6 +604,9 @@ function ItemsTable({
                         <Button size="sm" variant="outline" onClick={() => onAdjust(item)}>Record adjustment</Button>
                         {item.payment_status !== 'paid' && (
                           <Button size="sm" onClick={() => onPay(item)}>Mark paid</Button>
+                        )}
+                        {item.payment_status === 'paid' && canVoid && (
+                          <Button size="sm" variant="outline" onClick={() => onVoid(item)}>Void payment</Button>
                         )}
                       </div>
                     </td>
@@ -757,6 +801,43 @@ function AdjustmentModal({
 
       <FormField label="Reason" htmlFor="adj-reason" required hint="At least 10 characters. This is kept in the audit log.">
         <textarea id="adj-reason" rows={3} maxLength={500} className={inputClasses + ' h-auto py-2'} value={reason} onChange={(e) => setReason(e.target.value)} />
+      </FormField>
+    </Modal>
+  );
+}
+
+function VoidPaymentModal({
+  item,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  item: PayrollItem;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+  isLoading: boolean;
+}) {
+  const [reason, setReason] = useState('');
+  const problem = reason !== '' ? validateWriteOffReason(reason) : null;
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Void this payment"
+      size="sm"
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" isLoading={isLoading} disabled={validateWriteOffReason(reason) !== null} onClick={() => onConfirm(reason.trim())}>Void payment</Button>
+        </>
+      }
+    >
+      <p className="mb-3 text-sm text-ink-muted">
+        This cancels the payment of {money(item.net)} marked as paid to {item.employee_name ?? 'the employee'} for {monthLabel(item.period)}. The original payment is not edited or deleted: a linked reversal is added to the payment ledger, the line goes back to "not paid" and can be paid again. It is recorded in the audit history.
+      </p>
+      <FormField label="Reason" htmlFor="void-payroll-reason" required error={problem ?? undefined} hint="Required, at least 5 characters.">
+        <input id="void-payroll-reason" maxLength={500} className={inputClasses} value={reason} onChange={(e) => setReason(e.target.value)} />
       </FormField>
     </Modal>
   );

@@ -1551,6 +1551,10 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.approve', 'th
     Route::post('v1/admin/hr/payroll-items/{payrollItem}/pay', [AdminPayrollRunController::class, 'pay'])
         ->whereNumber('payrollItem')
         ->name('api.v1.admin.hr.payroll-items.pay');
+    // Voiding a payment marked paid: the role (Super Admin / HR Manager) is checked again in the action.
+    Route::post('v1/admin/hr/payroll-items/{payrollItem}/void-payment', [AdminPayrollRunController::class, 'voidPayment'])
+        ->whereNumber('payrollItem')
+        ->name('api.v1.admin.hr.payroll-items.void-payment');
 });
 
 Route::middleware(['auth:sanctum', 'admin', 'permission:reconciliation.view', 'throttle:admin-operations'])->group(function (): void {

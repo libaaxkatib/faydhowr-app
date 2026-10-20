@@ -325,6 +325,9 @@ export const hrApi = {
       downloadAuthenticatedFile(`admin/hr/reports/monthly-payment-list?period=${encodeURIComponent(period)}`, `payment-list-${period}.xlsx`),
     addAdjustment: (itemId: number, payload: CreatePayrollAdjustmentPayload) =>
       apiRequest<PayrollAdjustmentResult>(`admin/hr/payroll-items/${itemId}/adjustments`, { method: 'POST', body: payload }),
+    /** Voids a payment marked paid (Super Admin / HR Manager, reason required): a linked reversal is added, nothing is edited or deleted. */
+    voidPayment: (itemId: number, reason: string) =>
+      apiRequest<PayrollItem>(`admin/hr/payroll-items/${itemId}/void-payment`, { method: 'POST', body: { reason } }),
     markPaid: (itemId: number, paymentDate?: string) =>
       apiRequest<PayrollItem>(`admin/hr/payroll-items/${itemId}/pay`, { method: 'POST', body: paymentDate ? { payment_date: paymentDate } : {} }),
   },

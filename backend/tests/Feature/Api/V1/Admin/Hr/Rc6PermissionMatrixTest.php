@@ -5,8 +5,11 @@ namespace Tests\Feature\Api\V1\Admin\Hr;
 use App\Enums\AdminRole;
 use App\Models\Admin;
 use App\Models\ClientCompany;
+use App\Models\EmployeePayment;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollCorrection;
+use App\Models\PayrollItem;
+use App\Models\PayrollPaymentVoid;
 use App\Models\PayrollRun;
 use App\Models\Permission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -166,6 +169,43 @@ class Rc6PermissionMatrixTest extends TestCase
         $this->assertSame(401, $this->httpStatus(null, 'POST', $voidUrl, ['reason' => 'Matrix test void']));
         $this->assertSame(200, $this->httpStatus('super_admin', 'POST', $voidUrl, ['reason' => 'Matrix test void']));
         $this->assertSame(401, $this->httpStatus(null, 'POST', "/api/v1/admin/hr/payroll-corrections/{$debt->id}/transactions", $repayment + ['idempotency_key' => 'anon-key']));
+    }
+
+    public function test_voiding_a_payroll_payment_is_open_to_the_super_admin_and_the_hr_manager_only(): void
+    {
+        $run = PayrollRun::query()->create(['period' => '2026-09', 'status' => 'finalized']);
+        $lines = [];
+
+        // Two paid lines (a payroll line marked paid has a payment-ledger row linked to it).
+        foreach ([1, 2] as $n) {
+            $employee = $this->makeEmployee();
+            $assignment = $this->makeAssignment($employee, $this->company, null, 300, '2026-01-01');
+            $payment = EmployeePayment::query()->create(['employee_id' => $employee->id, 'payment_date' => '2026-10-01', 'amount' => '300.00', 'currency' => 'USD']);
+            $item = PayrollItem::query()->create([
+                'payroll_run_id' => $run->id, 'period' => '2026-09', 'employee_id' => $employee->id, 'work_assignment_id' => $assignment->id, 'employee_name' => 'Matrix '.$n,
+                'employee_number' => $employee->employee_number, 'eligible_days' => 30, 'days_in_month' => 30, 'gross_cents' => 30000, 'net_cents' => 30000, 'calc_snapshot' => [],
+                'payment_status' => 'paid', 'paid_at' => now(), 'employee_payment_id' => $payment->id,
+            ]);
+            $payment->update(['payroll_item_id' => $item->id]);
+            $lines[$n] = $item;
+        }
+
+        $body = ['reason' => 'Matrix test void'];
+
+        foreach (array_keys(self::BASELINE) as $who) {
+            if ($who === 'hr_manager') {
+                continue; // the HR Manager baseline is allowed; tested on its own line below
+            }
+
+            $this->assertSame(403, $this->httpStatus($who, 'POST', "/api/v1/admin/hr/payroll-items/{$lines[1]->id}/void-payment", $body), "{$who}: void of a payroll payment");
+        }
+
+        $this->assertSame(401, $this->httpStatus(null, 'POST', "/api/v1/admin/hr/payroll-items/{$lines[1]->id}/void-payment", $body));
+        $this->assertSame('paid', $lines[1]->fresh()->payment_status, 'nothing was voided by a refused caller');
+
+        $this->assertSame(200, $this->httpStatus('hr_manager', 'POST', "/api/v1/admin/hr/payroll-items/{$lines[1]->id}/void-payment", $body), 'the HR Manager may void');
+        $this->assertSame(200, $this->httpStatus('super_admin', 'POST', "/api/v1/admin/hr/payroll-items/{$lines[2]->id}/void-payment", $body), 'the Super Admin may void');
+        $this->assertSame(2, PayrollPaymentVoid::query()->count());
     }
 
     public function test_hr_and_marketing_stay_separate_and_the_mobile_app_manager_reaches_neither(): void

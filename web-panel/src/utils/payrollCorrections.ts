@@ -18,6 +18,11 @@ export function canVoidPayment(role: string | null | undefined): boolean {
   return role === 'super_admin';
 }
 
+/** A payroll payment marked Paid can be voided by a Super Admin or an HR Manager (the server checks the role again). */
+export function canVoidPayrollPayment(role: string | null | undefined): boolean {
+  return role === 'super_admin' || role === 'hr_manager';
+}
+
 /** A write-off needs a real reason (the server requires at least 5 characters too). */
 export function validateWriteOffReason(reason: string): string | null {
   return reason.trim().length >= 5 ? null : 'Give the reason for writing this debt off (at least 5 characters).';

@@ -53,9 +53,26 @@ export interface PayrollCorrectionTransaction {
   voided_by: string | null;
 }
 
+/** A payroll payment marked Paid that was later voided: the original payment stays, a linked reversal was added. */
+export interface PayrollPaymentVoidRow {
+  id: number;
+  employee_id: number;
+  employee_number: string | null;
+  employee_name: string | null;
+  period: string | null;
+  payroll_item_id: number;
+  original_payment_id: number;
+  reversal_payment_id: number;
+  amount_cents: number;
+  reason: string;
+  voided_by: string | null;
+  voided_at: string | null;
+}
+
 export interface PayrollCorrectionsResponse {
   corrections: PayrollCorrection[];
-  totals: { currency: string; overpaid_cents: number; recovered_cents: number; written_off_cents: number; outstanding_cents: number; underpaid_cents: number; underpayments_paid_cents: number; underpayments_outstanding_cents: number };
+  payroll_payment_voids: PayrollPaymentVoidRow[];
+  totals: { currency: string; overpaid_cents: number; recovered_cents: number; written_off_cents: number; payroll_payments_voided_cents: number; outstanding_cents: number; underpaid_cents: number; underpayments_paid_cents: number; underpayments_outstanding_cents: number };
 }
 
 export interface PayrollRunTotals {
@@ -115,6 +132,8 @@ export interface PayrollItem {
   net: string;
   payment_status: PayrollPaymentStatus;
   paid_at: string | null;
+  /** Earlier payments of this line that were voided (each kept in the ledger with a linked reversal). */
+  payment_voids?: { id: number; amount: string; reason: string; voided_at: string | null }[];
   deductions?: PayrollItemDeduction[];
   calc_snapshot?: PayrollCalcSnapshot | null;
 }

@@ -29,6 +29,13 @@ class PayrollItemResource extends JsonResource
             'net' => PayrollMoney::format((int) $this->net_cents),
             'payment_status' => $this->payment_status,
             'paid_at' => $this->paid_at?->toIso8601String(),
+            // Earlier payments of this line that were voided (each kept, with its linked reversal).
+            'payment_voids' => $this->whenLoaded('paymentVoids', fn () => $this->paymentVoids->map(fn ($v): array => [
+                'id' => $v->id,
+                'amount' => PayrollMoney::format((int) $v->amount_cents),
+                'reason' => $v->reason,
+                'voided_at' => $v->created_at?->toIso8601String(),
+            ])->values()->all()),
             'deductions' => $this->whenLoaded('deductions', fn () => $this->deductions->map(fn ($d) => [
                 'kind' => $d->kind,
                 'description' => $d->description,

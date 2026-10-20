@@ -44,6 +44,12 @@ class PayrollItem extends Model
         return $this->hasMany(PayrollItemDeduction::class);
     }
 
+    /** Payments of this line that were voided (each with its linked reversal). */
+    public function paymentVoids(): HasMany
+    {
+        return $this->hasMany(PayrollPaymentVoid::class);
+    }
+
     public function adjustments(): HasMany
     {
         return $this->hasMany(PayrollAdjustment::class);

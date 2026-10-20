@@ -6,6 +6,7 @@ use App\Actions\Hr\CreatePayrollAdjustmentAction;
 use App\Actions\Hr\GeneratePayrollRunAction;
 use App\Actions\Hr\MarkPayrollItemPaidAction;
 use App\Actions\Hr\TransitionPayrollRunAction;
+use App\Actions\Hr\VoidPayrollPaymentAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Admin\Hr\CreatePayrollAdjustmentRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\GeneratePayrollRunRequest;
@@ -20,6 +21,7 @@ use App\Support\Hr\Payroll\PayrollRunSheetMapper;
 use App\Support\Hr\Payroll\PayrollWorkbookExporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PayrollRunController extends Controller
@@ -31,7 +33,7 @@ class PayrollRunController extends Controller
 
     public function show(PayrollRun $payrollRun): JsonResponse
     {
-        $payrollRun->load(['items' => fn ($q) => $q->orderBy('company_name')->orderBy('employee_name'), 'items.deductions', 'generatedBy', 'reviewedBy', 'approvedBy', 'finalizedBy']);
+        $payrollRun->load(['items' => fn ($q) => $q->orderBy('company_name')->orderBy('employee_name'), 'items.deductions', 'items.paymentVoids', 'generatedBy', 'reviewedBy', 'approvedBy', 'finalizedBy']);
 
         return ApiResponse::success('Payroll run retrieved successfully.', new PayrollRunResource($payrollRun));
     }
@@ -93,5 +95,19 @@ class PayrollRunController extends Controller
     public function pay(MarkPayrollItemPaidRequest $request, PayrollItem $payrollItem, MarkPayrollItemPaidAction $action): JsonResponse
     {
         return ApiResponse::success('Payroll line marked paid.', new PayrollItemResource($action->handle($payrollItem, $request->validated('payment_date'), $request->user())));
+    }
+
+    /** Voids a payment marked paid (Super Admin / HR Manager, reason required): a linked reversal is added, nothing is edited or deleted. */
+    public function voidPayment(Request $request, PayrollItem $payrollItem, VoidPayrollPaymentAction $action): JsonResponse
+    {
+        $validator = Validator::make($request->all(), ['reason' => ['required', 'string', 'min:5', 'max:500']]);
+
+        if ($validator->fails()) {
+            return ApiResponse::error('The given data was invalid.', 'VALIDATION_ERROR', 422, $validator->errors());
+        }
+
+        $item = $action->handle($payrollItem, (string) $request->input('reason'), $request->user());
+
+        return ApiResponse::success('Payment voided. A linked reversal was recorded; the line can be paid again.', new PayrollItemResource($item->load('paymentVoids')));
     }
 }

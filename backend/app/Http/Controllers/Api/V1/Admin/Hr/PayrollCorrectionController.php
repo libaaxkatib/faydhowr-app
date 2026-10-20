@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollCorrection;
 use App\Models\PayrollCorrectionTransaction;
+use App\Models\PayrollPaymentVoid;
 use App\Models\PayrollRecoveryDeduction;
 use App\Support\ApiResponse;
 use App\Support\Hr\Payroll\PayrollMoney;
@@ -100,16 +101,33 @@ class PayrollCorrectionController extends Controller
             ];
         })->values();
 
+        $voids = PayrollPaymentVoid::query()->with(['employee:id,employee_number,full_name', 'item:id,period', 'voidedBy:id,full_name'])->orderByDesc('id')->limit(200)->get()->map(fn (PayrollPaymentVoid $v): array => [
+            'id' => $v->id,
+            'employee_id' => $v->employee_id,
+            'employee_number' => $v->employee?->employee_number,
+            'employee_name' => $v->employee?->full_name,
+            'period' => $v->item?->period,
+            'payroll_item_id' => $v->payroll_item_id,
+            'original_payment_id' => $v->original_payment_id,
+            'reversal_payment_id' => $v->reversal_payment_id,
+            'amount_cents' => (int) $v->amount_cents,
+            'reason' => $v->reason,
+            'voided_by' => $v->voidedBy?->full_name,
+            'voided_at' => $v->created_at?->toIso8601String(),
+        ])->values();
+
         $over = $rows->where('kind', PayrollCorrection::KIND_OVERPAYMENT);
         $under = $rows->where('kind', PayrollCorrection::KIND_UNDERPAYMENT);
 
         return ApiResponse::success('Payroll corrections retrieved successfully.', [
             'corrections' => $rows,
+            'payroll_payment_voids' => $voids,
             'totals' => [
                 'currency' => PayrollMoney::CURRENCY,
                 'overpaid_cents' => (int) $over->sum('difference_cents'),
                 'recovered_cents' => (int) ($over->sum('recovered_cents') + $over->sum('repaid_cents')),
                 'written_off_cents' => (int) $over->sum('written_off_cents'),
+                'payroll_payments_voided_cents' => (int) $voids->sum('amount_cents'),
                 'outstanding_cents' => (int) $over->sum('outstanding_cents'),
                 'underpaid_cents' => (int) abs($under->sum('difference_cents')),
                 'underpayments_paid_cents' => (int) $under->sum('paid_cents'),

@@ -44,3 +44,10 @@ test('a write-off needs a real reason', () => {
   assert.notEqual(validateWriteOffReason('   '), null);
   assert.notEqual(validateWriteOffReason('no'), null);
 });
+
+test('a payroll payment marked paid can be voided by a Super Admin or an HR Manager only', async () => {
+  const { canVoidPayrollPayment } = await import('./payrollCorrections.ts');
+  assert.equal(canVoidPayrollPayment('super_admin'), true);
+  assert.equal(canVoidPayrollPayment('hr_manager'), true);
+  for (const role of ['marketing_manager', 'mobile_app_manager', 'hr_employee', 'sales', undefined, null]) assert.equal(canVoidPayrollPayment(role), false);
+});

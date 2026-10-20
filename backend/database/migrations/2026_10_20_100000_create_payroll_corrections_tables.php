@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Schema;
  * `payroll_corrections` keeps what the closed month recorded for the employee, what it should have been, the difference, who
  * corrected it and why - the closed payroll run and its lines are never edited. An OVERPAYMENT is recovered from later salaries:
  * `payroll_recovery_deductions` is the ledger of those monthly deductions (one row per correction and month, enforced by a unique
- * index so a retry or recalculation can never deduct twice), and `payroll_correction_transactions` holds the payments/repayments made
- * outside a payroll run. Three new tables. On PostgreSQL the existing CHECK on the deduction kinds is
+ * index so a retry or recalculation can never deduct twice), `payroll_correction_transactions` holds the payments/repayments made
+ * outside a payroll run, and `payroll_payment_voids` records the voiding of a payroll "Mark as paid" payment. Four new tables. On PostgreSQL the existing CHECK on the deduction kinds is
  * widened by one value ('overpayment_recovery'): the monthly recovery is stored as a deduction line of the payroll item, and without
  * this the database would refuse it. No existing row or value changes.
  */
@@ -87,6 +87,22 @@ return new class extends Migration
             $table->index(['payroll_correction_id', 'type']);
         });
 
+        // The linked correction entry of a voided PAYROLL payment ("Mark as paid"): one row per voided payment, never edited. The original
+        // employee payment is untouched; the reversal is a negative employee_payments row linked by reverses_payment_id.
+        Schema::create('payroll_payment_voids', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('payroll_item_id')->constrained('payroll_items')->restrictOnDelete();
+            $table->foreignId('employee_id')->constrained('employees')->restrictOnDelete();
+            $table->foreignId('original_payment_id')->unique()->constrained('employee_payments')->restrictOnDelete();
+            $table->foreignId('reversal_payment_id')->unique()->constrained('employee_payments')->restrictOnDelete();
+            $table->bigInteger('amount_cents');
+            $table->string('reason', 500);
+            $table->foreignId('voided_by')->nullable()->constrained('admins')->nullOnDelete();
+            $table->timestamps();
+
+            $table->index(['payroll_item_id']);
+        });
+
         // A payment recorded for an underpayment can be voided by a Super Admin: the original payment row stays untouched and a linked row with
         // the negative amount is added, so every total that sums the payment ledger reconciles. One reversal per payment (unique).
         Schema::table('employee_payments', function (Blueprint $table): void {
@@ -105,6 +121,8 @@ return new class extends Migration
             DB::statement('ALTER TABLE payroll_item_deductions DROP CONSTRAINT IF EXISTS payroll_item_deductions_kind_check');
             DB::statement("ALTER TABLE payroll_item_deductions ADD CONSTRAINT payroll_item_deductions_kind_check CHECK (kind IN ('replacement', 'penalty', 'advance', 'absence', 'adjustment', 'unpaid_leave'))");
         }
+
+        Schema::dropIfExists('payroll_payment_voids');
 
         Schema::table('employee_payments', function (Blueprint $table): void {
             $table->dropConstrainedForeignId('reverses_payment_id');

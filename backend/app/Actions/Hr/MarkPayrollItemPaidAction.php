@@ -42,13 +42,17 @@ class MarkPayrollItemPaidAction
                 $this->fail('There is no positive net amount to pay on this line.', 'PAYROLL_ITEM_NOTHING_TO_PAY');
             }
 
+            // The payment-ledger row of a line can carry the link to it only once (unique): when an earlier payment of this line was voided and
+            // the line is paid again, the new row is tied to the line through the line's own employee_payment_id and says so in its note.
+            $earlier = EmployeePayment::query()->where('payroll_item_id', $item->id)->first();
+
             $payment = EmployeePayment::query()->create([
                 'employee_id' => $item->employee_id,
-                'payroll_item_id' => $item->id,
+                'payroll_item_id' => $earlier === null ? $item->id : null,
                 'payment_date' => $paymentDate ?? now()->toDateString(),
                 'amount' => PayrollMoney::format($item->net_cents),
                 'currency' => PayrollMoney::CURRENCY,
-                'notes' => "Payroll {$item->period}",
+                'notes' => "Payroll {$item->period}".($earlier === null ? '' : " (line #{$item->id}, paid again after payment #{$earlier->id} was voided)"),
                 'paid_by' => $actor->id,
             ]);
 

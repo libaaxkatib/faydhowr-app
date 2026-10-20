@@ -33,7 +33,7 @@ export function PayrollCorrectionsPanel() {
   const [dialog, setDialog] = useState<{ correction: PayrollCorrection; mode: 'settle' | 'write_off' } | null>(null);
   const [voiding, setVoiding] = useState<{ correction: PayrollCorrection; transaction: PayrollCorrectionTransaction } | null>(null);
 
-  if (isLoading || error || !data || data.corrections.length === 0) return null;
+  if (isLoading || error || !data || (data.corrections.length === 0 && (data.payroll_payment_voids?.length ?? 0) === 0)) return null;
 
   const money = (cents: number) => formatCents(cents, data.totals.currency);
   const mayManage = hasPermission('hr.payroll.manage');
@@ -45,7 +45,7 @@ export function PayrollCorrectionsPanel() {
         <h3 className="font-display text-sm font-bold text-ink">Corrections of closed payroll, overpayment recovery and underpayments</h3>
       </CardHeader>
       <CardBody>
-        <dl className="mb-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-7">
+        <dl className="mb-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-8">
           <div><dt className="text-xs text-ink-muted">Overpaid in closed months</dt><dd className="font-medium">{money(data.totals.overpaid_cents)}</dd></div>
           <div><dt className="text-xs text-ink-muted">Recovered so far</dt><dd className="font-medium">{money(data.totals.recovered_cents)}</dd></div>
           <div><dt className="text-xs text-ink-muted">Written off</dt><dd className="font-medium">{money(data.totals.written_off_cents)}</dd></div>
@@ -53,6 +53,7 @@ export function PayrollCorrectionsPanel() {
           <div><dt className="text-xs text-ink-muted">Underpaid in closed months</dt><dd className="font-medium">{money(data.totals.underpaid_cents)}</dd></div>
           <div><dt className="text-xs text-ink-muted">Underpayments paid</dt><dd className="font-medium">{money(data.totals.underpayments_paid_cents)}</dd></div>
           <div><dt className="text-xs text-ink-muted">Still to pay to employees</dt><dd className="font-medium">{money(data.totals.underpayments_outstanding_cents)}</dd></div>
+          <div><dt className="text-xs text-ink-muted">Payroll payments voided</dt><dd className="font-medium">{money(data.totals.payroll_payments_voided_cents ?? 0)}</dd></div>
         </dl>
         <p className="mb-3 text-xs text-ink-muted">
           The closed month is never changed. An overpayment is taken from the employee's later salaries (never more than that month's pay, and from the final salary when they leave); what is left stays a debt that a Super Admin or an HR Manager manages here. A Super Admin can write off what cannot be recovered (with a reason; the debt and its history stay). An underpayment is owed to the employee and is paid only by a Super Admin, as a separate recorded payment, which only a Super Admin can void (a linked reversal is added; nothing is deleted).
@@ -121,6 +122,34 @@ export function PayrollCorrectionsPanel() {
             </tbody>
           </table>
         </div>
+        {(data.payroll_payment_voids?.length ?? 0) > 0 && (
+          <div className="mt-5" data-testid="payroll-payment-voids">
+            <h4 className="mb-2 text-sm font-semibold text-ink">Payroll payments voided</h4>
+            <p className="mb-2 text-xs text-ink-muted">A payment marked paid was cancelled by a Super Admin or an HR Manager. The original payment stays in the payment ledger; a linked reversal of the same amount was added, and the payroll line can be paid again.</p>
+            <table className="w-full text-left text-sm">
+              <thead className="text-xs text-ink-muted">
+                <tr>
+                  <th className="py-1.5 pr-3 font-medium">Employee</th>
+                  <th className="py-1.5 pr-3 font-medium">Month</th>
+                  <th className="py-1.5 pr-3 font-medium">Amount voided</th>
+                  <th className="py-1.5 pr-3 font-medium">Payments (original → reversal)</th>
+                  <th className="py-1.5 font-medium">Reason and who</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.payroll_payment_voids.map((v) => (
+                  <tr key={v.id} className="border-t border-border align-top">
+                    <td className="py-2 pr-3">{v.employee_name} <span className="text-xs text-ink-muted">({v.employee_number})</span></td>
+                    <td className="py-2 pr-3">{v.period}</td>
+                    <td className="py-2 pr-3">{money(v.amount_cents)}</td>
+                    <td className="py-2 pr-3 text-xs text-ink-muted">#{v.original_payment_id} → #{v.reversal_payment_id}</td>
+                    <td className="py-2 text-xs text-ink-muted">{v.reason}<br />{v.voided_by ?? '—'}{v.voided_at ? `, ${formatDate(v.voided_at)}` : ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </CardBody>
       {dialog && <SettlementDialog correction={dialog.correction} mode={dialog.mode} onClose={() => setDialog(null)} />}
       {voiding && <VoidDialog correction={voiding.correction} transaction={voiding.transaction} onClose={() => setVoiding(null)} />}
