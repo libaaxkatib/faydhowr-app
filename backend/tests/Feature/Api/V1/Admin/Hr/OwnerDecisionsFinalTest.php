@@ -257,7 +257,8 @@ class OwnerDecisionsFinalTest extends TestCase
         $this->void($this->super, $owed, $payment, 'Trying again')->assertUnprocessable()->assertJsonPath('error_code', 'TRANSACTION_ALREADY_VOIDED');
         $this->assertSame(2, EmployeePayment::query()->count());
         try {
-            EmployeePayment::query()->create(['employee_id' => $employee->id, 'reverses_payment_id' => $original->id, 'payment_date' => '2026-12-20', 'amount' => '-100.00', 'currency' => 'USD']);
+            // A savepoint: on PostgreSQL a failed statement aborts the surrounding transaction, so the attempt runs in its own nested one.
+            DB::transaction(fn () => EmployeePayment::query()->create(['employee_id' => $employee->id, 'reverses_payment_id' => $original->id, 'payment_date' => '2026-12-20', 'amount' => '-100.00', 'currency' => 'USD']));
             $this->fail('a second reversal of the same payment must be impossible');
         } catch (QueryException) {
             $this->assertSame(2, EmployeePayment::query()->count());
