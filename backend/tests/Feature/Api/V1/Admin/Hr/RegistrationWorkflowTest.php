@@ -569,6 +569,94 @@ class RegistrationWorkflowTest extends TestCase
         $this->as($marketing)->postJson("/api/v1/admin/hr/client-companies/{$this->company->id}/employees", $this->assignBody(Employee::query()->findOrFail($new['id'])))->assertForbidden();
     }
 
+    // ---------------------------------------------------------------- the six owner decisions, pinned one by one
+
+    public function test_decision_1_practical_completes_the_workflow_only_when_approved(): void
+    {
+        $workflow = new EmployeeRegistrationWorkflow;
+
+        foreach (['ku_celis_practical', 'rejected'] as $result) {
+            $id = $this->register()['id'];
+            $this->guarantor($id);
+            $this->contract($id);
+            $this->uniform($id);
+            $this->training($id);
+            $this->practical($id, $result);
+
+            $steps = collect($workflow->steps(Employee::query()->findOrFail($id)))->keyBy('key');
+            $this->assertTrue($steps['guarantor']['done'] && $steps['contract']['done'] && $steps['uniform']['done'] && $steps['training']['done']);
+            $this->assertFalse($steps['practice']['done'], "{$result} must not count as completing practice");
+            $this->assertTrue($workflow->blocks(Employee::query()->findOrFail($id)));
+        }
+
+        // A repeat attempt that is finally Approved does complete it (the latest decision counts).
+        $id = $this->register()['id'];
+        $this->guarantor($id);
+        $this->contract($id);
+        $this->uniform($id);
+        $this->training($id);
+        $this->practical($id, 'ku_celis_practical');
+        $this->assertFalse($workflow->isComplete(Employee::query()->findOrFail($id)));
+        $this->practical($id, 'approved');
+        $this->assertTrue($workflow->isComplete(Employee::query()->findOrFail($id)));
+    }
+
+    public function test_decision_3_a_recorded_override_covers_every_later_step_without_a_second_override_and_is_fully_audited(): void
+    {
+        $admin = Admin::query()->where('role', AdminRole::SuperAdmin)->firstOrFail();
+        $id = $this->register()['id'];
+        $reason = 'Owner approved: trained abroad, skip the local steps';
+        $this->setStatus($this->super, $id, 'recruitment')->assertOk();
+        $this->setStatus($this->super, $id, 'practical')->assertOk();
+        $this->setStatus($this->super, $id, 'waiting', ['override_reason' => $reason])->assertOk();
+
+        // Complete audit record: history row and audit event carry actor, reason, from/to and what was missing.
+        $history = EmployeeStatusHistory::query()->where('employee_id', $id)->where('to_status', 'waiting')->firstOrFail();
+        $this->assertSame(['practical', 'waiting', 'override', $reason, $admin->id], [$history->from_status->value, $history->to_status->value, $history->source, $history->override_reason, $history->changed_by]);
+        $this->assertNotNull($history->created_at);
+        $audit = AuditLog::query()->where('entity_type', Employee::class)->where('entity_id', $id)->get()->first(fn ($l) => ($l->metadata['registration_workflow_override'] ?? false) === true);
+        $this->assertSame($admin->id, $audit->admin_id);
+        $this->assertSame([$reason, 'practical', 'waiting'], [$audit->metadata['override_reason'], $audit->metadata['from_status'], $audit->metadata['to_status']]);
+        $this->assertSame(['Guarantor verified', 'Contract signed', 'Uniform confirmed', 'Training completed', 'Practical approved'], $audit->metadata['registration_steps_missing']);
+
+        // Later steps need no second override, for the HR Manager as well: Active, company, matching, separation and rehire.
+        $this->setStatus($this->hrManager, $id, 'active')->assertOk();
+        $this->as($this->hrManager)->postJson("/api/v1/admin/hr/client-companies/{$this->company->id}/employees", $this->assignBody(Employee::query()->findOrFail($id)))->assertCreated();
+        $this->as($this->super)->patchJson($this->url($id, '/separate'), ['reason' => 'resigned', 'separation_date' => now()->toDateString(), 'rehire_eligible' => true])->assertOk();
+        $this->as($this->hrManager)->patchJson($this->url($id, '/rehire'), [])->assertOk()->assertJsonPath('data.status', 'active');
+        $this->assertSame(1, EmployeeStatusHistory::query()->where('employee_id', $id)->where('source', 'override')->count(), 'only the one override was ever needed');
+    }
+
+    public function test_decision_3_a_separated_new_registration_can_only_come_back_through_a_super_admin_override_with_a_reason(): void
+    {
+        $e = $this->newPerson('inactive');
+
+        $this->as($this->hrManager)->patchJson($this->url($e->id, '/rehire'), [])->assertStatus(422)->assertJsonPath('error_code', 'REGISTRATION_WORKFLOW_INCOMPLETE');
+        $this->setStatus($this->hrManager, $e->id, 'active', ['override_reason' => 'Please let this person back in'])->assertStatus(403);
+        $this->setStatus($this->super, $e->id, 'active')->assertStatus(422);
+        $this->assertDatabaseHas('employees', ['id' => $e->id, 'status' => 'inactive']);
+
+        $this->setStatus($this->super, $e->id, 'active', ['override_reason' => 'Owner approved this person coming back'])->assertOk();
+        $this->assertSame('override', EmployeeStatusHistory::query()->where('employee_id', $e->id)->where('to_status', 'active')->value('source'));
+    }
+
+    public function test_decision_4_office_staff_are_exempt_but_a_new_registration_cannot_be_enrolled_as_office_staff_to_skip_the_workflow(): void
+    {
+        $office = $this->makeEmployee('active');
+        $office->update(['registration_origin' => 'office_staff']);
+        $this->as($this->hrManager)->postJson("/api/v1/admin/hr/client-companies/{$this->company->id}/employees", $this->assignBody($office))->assertCreated();
+
+        $position = Position::query()->create(['name' => 'Office Clerk X']);
+        $staff = ['position_id' => $position->id, 'monthly_salary' => '150', 'start_date' => now()->toDateString(), 'emergency_contact_name' => 'Emergency Person', 'emergency_contact_phone' => '0615333444', 'guarantor_name' => 'Guarantor Person', 'guarantor_phone' => '0615555666'];
+
+        $blocked = $this->newPerson('active');
+        $this->as($this->super)->postJson('/api/v1/admin/hr/office-staff/assign', ['employee_id' => $blocked->id, ...$staff])->assertStatus(422)->assertJsonPath('error_code', 'EMPLOYEE_REGISTRATION_INCOMPLETE');
+        $this->assertDatabaseMissing('employee_work_assignments', ['employee_id' => $blocked->id]);
+
+        // Existing records are not held to it.
+        $this->as($this->super)->postJson('/api/v1/admin/hr/office-staff/assign', ['employee_id' => $this->existing('active')->id, ...$staff])->assertSuccessful();
+    }
+
     public function test_an_existing_person_listed_in_the_register_shows_that_they_are_not_held_to_the_workflow(): void
     {
         $e = $this->existing('waiting');

@@ -74,6 +74,22 @@ class ExcelMigrationCommitterTest extends TestCase
         self::assertSame(EmployeeStatus::Applicant, $history->to_status);
     }
 
+    public function test_people_from_the_workbook_migration_are_existing_records_not_new_registrations(): void
+    {
+        // The test base class gives a person built without an origin the "existing" origin; remove that so only the committer decides.
+        Employee::flushEventListeners();
+
+        $report = new ExcelMigrationReport;
+        $report->readyToImport = [
+            $this->buildPerson(['normalizedPhone' => '615000777', 'fullName' => 'Workbook Person', 'matchedCategory' => 'Home Team', 'status' => EmployeeStatus::Applicant, 'pipelineStage' => EmployeePipelineStage::DamiinNeeded]),
+        ];
+
+        app(ExcelMigrationCommitter::class)->commit($report, null, 'x.xlsx');
+
+        self::assertSame('existing', Employee::query()->sole()->registration_origin->value);
+        self::assertSame('existing', Employee::query()->toBase()->value('registration_origin'));
+    }
+
     public function test_secondary_contact_is_written_to_dedicated_columns_not_appended_to_notes(): void
     {
         $report = new ExcelMigrationReport;
