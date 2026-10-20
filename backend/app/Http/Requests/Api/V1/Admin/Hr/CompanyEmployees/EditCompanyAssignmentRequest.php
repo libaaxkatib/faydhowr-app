@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api\V1\Admin\Hr\CompanyEmployees;
 
+use App\Enums\AssignmentShift;
 use App\Enums\AssignmentType;
 use App\Enums\SalaryFrequency;
 use App\Support\ApiResponse;
@@ -30,6 +31,7 @@ class EditCompanyAssignmentRequest extends FormRequest
             'salary_effective_from' => ['sometimes', 'date'],
             'salary_change_reason' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'shift' => ['sometimes', 'nullable', Rule::in(AssignmentShift::values())],
             'correction_reason' => ['nullable', 'string', 'max:500'],
         ];
     }

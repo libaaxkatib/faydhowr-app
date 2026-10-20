@@ -12,6 +12,30 @@ export const ASSIGNMENT_TYPE_OPTIONS = [
   { value: 'replacement', label: 'Replacement' },
 ];
 
+export type ShiftValue = 'day' | 'night';
+
+export const SHIFT_LABELS: Record<ShiftValue, string> = { day: 'Day shift', night: 'Night shift' };
+
+export const SHIFT_OPTIONS = [
+  { value: 'day', label: 'Day shift' },
+  { value: 'night', label: 'Night shift' },
+];
+
+/** What the screens show for the shift of an assignment. An assignment that never had one is "Not recorded" - it is never assumed. */
+export function assignmentShiftLabel(shift: string | null | undefined): string {
+  return shift === 'day' || shift === 'night' ? SHIFT_LABELS[shift] : 'Not recorded';
+}
+
+/**
+ * The shift part of an EDIT: sent only when HR changed it, so editing anything else never touches the shift. An empty choice means
+ * "not recorded" and clears it. The shift never carries salary, dates, type or company.
+ */
+export function assignmentShiftEdit(current: string | null | undefined, chosen: ShiftValue | ''): { shift?: ShiftValue | null } {
+  const before: ShiftValue | '' = current === 'day' || current === 'night' ? current : '';
+  if (chosen === before) return {};
+  return { shift: chosen === '' ? null : chosen };
+}
+
 // ---------------------------------------------------------------- months
 
 export function currentPeriod(now: Date = new Date()): string {

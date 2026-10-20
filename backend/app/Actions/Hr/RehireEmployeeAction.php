@@ -44,14 +44,15 @@ class RehireEmployeeAction
         $this->workflow->requireEligible($employee, 'cannot be rehired to Active');
 
         return DB::transaction(function () use ($employee, $note, $actor) {
-            $employee->update(['status' => EmployeeStatus::Active]);
+            $previousStage = $employee->pipeline_stage;
+            $employee->update(['status' => EmployeeStatus::Active, 'pipeline_stage' => null]);
 
             EmployeeStatusHistory::query()->create([
                 'employee_id' => $employee->id,
                 'from_status' => EmployeeStatus::Inactive,
                 'to_status' => EmployeeStatus::Active,
                 'changed_by' => $actor->id,
-                'note' => $note ?: 'Rehired.',
+                'note' => trim(($note ?: 'Rehired.').($previousStage === null ? '' : " Pipeline stage '{$previousStage->label()}' cleared because the person is Active again (kept here as history).")),
             ]);
 
             event(AuditEvent::record(

@@ -10,8 +10,10 @@ use App\Models\EmployeeSeparation;
 use App\Models\EmployeeStatusHistory;
 use App\Models\EmployeeWorkAssignment;
 use App\Support\Hr\WorkbookPlan\WorkbookPlanExecutor;
+use App\Support\Hr\WorkbookPlan\WorkbookPlanReader;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -106,9 +108,9 @@ class PartTwoHandlingTest extends TestCase
         return $hit[0];
     }
 
-    private function planRow(int $sourceRow, Employee $e, string $status, string $company, string $salary): array
+    private function planRow(int $sourceRow, Employee $e, string $status, string $company, string $salary, string $shift = ''): array
     {
-        return [$sourceRow, $e->id, $e->employee_number, WorkbookPlanExecutor::nameKey($e->full_name), $status, $company, $salary, '2026-10-01'];
+        return [$sourceRow, $e->id, $e->employee_number, WorkbookPlanExecutor::nameKey($e->full_name), $status, $company, $salary, '2026-10-01', $shift];
     }
 
     private function snapshot(Employee $e): array
@@ -118,7 +120,7 @@ class PartTwoHandlingTest extends TestCase
 
     public function test_the_part_two_rules_on_safe_local_fixtures(): void
     {
-        $header = ['source_row', 'employee_id', 'employee_number', 'name_key', 'expected_status', 'company', 'salary', 'start_date'];
+        $header = ['source_row', 'employee_id', 'employee_number', 'name_key', 'expected_status', 'company', 'salary', 'start_date', 'shift'];
         $companyA = $this->makeCompany('MOGADISHUSPECIALIST');
         $this->makeCompany('MACHADTARTIIL');
         $this->makeCompany('ILEYS ACADEMY');
@@ -139,6 +141,8 @@ class PartTwoHandlingTest extends TestCase
         // Row 58: already works at MOGADISHUSPECIALIST for 250.
         $two = $this->makeEmployee('active');
         $first = $this->makeAssignment($two, $companyA, null, 250, '2026-10-01');
+        $firstAtStart = (array) DB::table('employee_work_assignments')->where('id', $first->id)->first();
+        $this->assertNull($firstAtStart['shift'], 'the existing assignment has no shift on record (nothing assumed)');
 
         foreach ([$waiting, $applicant, $twin, $manual, $rehire, $two] as $e) {
             $this->assertSame('existing', $e->fresh()->registration_origin->value, 'everybody in these fixtures is an existing record');
@@ -148,7 +152,9 @@ class PartTwoHandlingTest extends TestCase
             $this->planRow(2, $waiting, 'waiting', 'HORSEED HOSPITAL', '200'),
             $this->planRow(3, $applicant, 'applicant', 'HORSEED HOSPITAL', '150'),
             $this->planRow(53, $rehire, 'inactive', 'ILEYS ACADEMY', '130'),
-            $this->planRow(58, $two, 'active', 'MACHADTARTIIL', '120'),
+            // Row 58: ONE person, TWO companies, two shifts - two plan rows for the same employee, each with its own company.
+            $this->planRow(58, $two, 'active', 'MOGADISHUSPECIALIST', '250', 'night'),
+            $this->planRow(58, $two, 'active', 'MACHADTARTIIL', '120', 'day'),
         ]);
         $before = [ClientCompany::query()->count(), EmployeeWorkAssignment::query()->count(), Employee::query()->count(), EmployeeStatusHistory::query()->count(), $this->snapshot($applicant)];
         $untouched = [$this->snapshot($twin), $this->snapshot($manual)];
@@ -162,6 +168,10 @@ class PartTwoHandlingTest extends TestCase
         $this->applyPlan($plan, true, $report);
         $r = $this->readReport($report);
         $this->assertSame('failed', $this->outcome($r, 'assignments', 'MACHADTARTIIL')['outcome'], 'a second company is refused while the Super Admin switch is off');
+        $this->assertSame('shift_set', $this->outcome($r, 'assignments', 'MOGADISHUSPECIALIST')['outcome'], 'the night shift is recorded on the EXISTING assignment');
+        $afterShift = (array) DB::table('employee_work_assignments')->where('id', $first->id)->first();
+        $this->assertSame(['shift'], array_values(array_diff(array_keys(array_diff_assoc($afterShift, $firstAtStart)), ['updated_at'])), 'only the shift changed on the existing assignment: salary, dates, company and type are identical');
+        $this->assertSame('night', $afterShift['shift']);
         $this->assertSame('assigned', $this->outcome($r, 'assignments', 'ILEYS ACADEMY')['outcome']);
         $this->assertSame(1, EmployeeWorkAssignment::query()->where('employee_id', $two->id)->count());
 
@@ -169,9 +179,11 @@ class PartTwoHandlingTest extends TestCase
         $applicant->refresh();
         $this->assertSame('active', $applicant->status->value);
         $this->assertSame('existing', $applicant->registration_origin->value);
+        $this->assertNull($applicant->pipeline_stage, 'an Active person is out of the pipeline (owner rule 2026-10-20); the old stage stays in the history');
         $history = EmployeeStatusHistory::query()->where('employee_id', $applicant->id)->where('to_status', 'active')->firstOrFail();
         $this->assertSame(['applicant', 'override', self::OVERRIDE, $this->admin->id], [$history->from_status->value, $history->source, $history->override_reason, $history->changed_by]);
         $this->assertStringContainsString(self::LABEL.' row 3', (string) $history->note, 'the source row is on the history');
+        $this->assertStringContainsString("Pipeline stage 'Need Training' cleared", (string) $history->note, 'the previous stage is kept as history');
         $audit = AuditLog::query()->where('entity_type', Employee::class)->where('entity_id', $applicant->id)->get()->first(fn ($l) => ($l->metadata['override'] ?? false) === true);
         $this->assertNotNull($audit);
         $this->assertSame(self::OVERRIDE, $audit->metadata['override_reason']);
@@ -197,6 +209,7 @@ class PartTwoHandlingTest extends TestCase
         $this->assertCount(2, $assignments, 'two separate assignments, not one overwritten or combined');
         $this->assertSame($before58, (array) DB::table('employee_work_assignments')->where('id', $first->id)->first(), 'the existing MOGADISHUSPECIALIST assignment is unchanged (every column, including updated_at)');
         $this->assertSame(['250.00', '120.00'], $assignments->map(fn ($a) => (string) $a->salary_amount)->all());
+        $this->assertSame(['night', 'day'], $assignments->map(fn ($a) => $a->shift?->value)->all(), 'row 58: night at MOGADISHUSPECIALIST, day at MACHADTARTIIL');
         $this->assertNotSame($assignments[0]->client_company_id, $assignments[1]->client_company_id);
         $this->assertSame('MACHADTARTIIL', ClientCompany::query()->findOrFail($assignments[1]->client_company_id)->name);
         $this->assertSame(['USD', 'USD'], $assignments->pluck('salary_currency')->all());
@@ -211,9 +224,51 @@ class PartTwoHandlingTest extends TestCase
         $this->assertSame(0, EmployeeWorkAssignment::query()->whereIn('employee_id', [$twin->id, $manual->id])->count());
     }
 
+    public function test_the_plan_may_list_one_person_for_two_companies_but_not_twice_for_the_same_one_and_a_wrong_shift_is_reported_not_overwritten(): void
+    {
+        $header = ['source_row', 'employee_id', 'employee_number', 'name_key', 'expected_status', 'company', 'salary', 'start_date', 'shift'];
+        $this->makeCompany('Co One');
+        $this->makeCompany('Co Two');
+        $e = $this->makeEmployee('active');
+        $reader = new WorkbookPlanReader;
+
+        $ok = $this->csv('ok.csv', $header, [$this->planRow(1, $e, 'active', 'Co One', '100', 'night'), $this->planRow(1, $e, 'active', 'Co Two', '50', 'day')]);
+        $this->assertCount(2, $reader->employees($ok));
+
+        $dup = $this->csv('dup.csv', $header, [$this->planRow(1, $e, 'active', 'Co One', '100', 'night'), $this->planRow(2, $e, 'active', 'co one', '100', 'day')]);
+        $this->expectException(InvalidArgumentException::class);
+        $reader->employees($dup);
+    }
+
+    public function test_a_shift_that_is_not_day_or_night_or_conflicts_with_the_record_changes_nothing(): void
+    {
+        $header = ['source_row', 'employee_id', 'employee_number', 'name_key', 'expected_status', 'company', 'salary', 'start_date', 'shift'];
+        $co = $this->makeCompany('Co One');
+        $e = $this->makeEmployee('active');
+        $a = $this->makeAssignment($e, $co, null, 100, '2026-10-01');
+        $a->update(['shift' => 'day']);
+        $report = $this->dir.DIRECTORY_SEPARATOR.'r.csv';
+
+        $plan = $this->csv('p.csv', $header, [$this->planRow(1, $e, 'active', 'Co One', '100', 'night')]);
+        $this->applyPlan($plan, true, $report);
+        $this->assertSame('SHIFT_CONFLICT', $this->outcome($this->readReport($report), 'assignments', 'Co One')['code']);
+        $this->assertSame('day', $a->fresh()->shift->value, 'a shift already on record is never overwritten by a plan');
+
+        $plan = $this->csv('p2.csv', $header, [$this->planRow(1, $e, 'active', 'Co One', '100', 'dusk')]);
+        $this->applyPlan($plan, true, $report);
+        $this->assertSame('INVALID_SHIFT', $this->outcome($this->readReport($report), 'assignments', 'Co One')['code']);
+
+        // A salary that differs from the record is not 'fixed' by a shift row either.
+        $b = $this->makeAssignment($this->makeEmployee('active'), $co, null, 100, '2026-10-01');
+        $plan = $this->csv('p3.csv', $header, [$this->planRow(1, $b->employee, 'active', 'Co One', '999', 'night')]);
+        $this->applyPlan($plan, true, $report);
+        $this->assertSame('SALARY_DIFFERS_FROM_RECORD', $this->outcome($this->readReport($report), 'assignments', 'Co One')['code']);
+        $this->assertNull($b->fresh()->shift);
+    }
+
     public function test_a_wrong_identity_in_the_plan_changes_nothing_and_a_new_registration_is_never_activated_without_an_override(): void
     {
-        $header = ['source_row', 'employee_id', 'employee_number', 'name_key', 'expected_status', 'company', 'salary', 'start_date'];
+        $header = ['source_row', 'employee_id', 'employee_number', 'name_key', 'expected_status', 'company', 'salary', 'start_date', 'shift'];
         $this->makeCompany('HORSEED HOSPITAL');
         $person = $this->makeEmployee('applicant');
         $newcomer = $this->makeEmployee('waiting');

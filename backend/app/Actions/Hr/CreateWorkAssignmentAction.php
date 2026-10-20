@@ -142,6 +142,7 @@ class CreateWorkAssignmentAction
                 'replaces_assignment_id' => $predecessor?->id,
                 'position_id' => $data['position_id'] ?? null,
                 'assignment_type' => $data['assignment_type'] ?? AssignmentType::Permanent->value,
+                'shift' => $data['shift'] ?? null,
                 'start_date' => $data['start_date'],
                 'end_date' => $data['end_date'] ?? null,
                 'salary_amount' => $data['salary_amount'],
@@ -177,6 +178,7 @@ class CreateWorkAssignmentAction
                         'uncovered_gap_days' => PositionSuccession::gapDays($predecessor->end_date, $assignment->start_date),
                     ]),
                     ...(isset($data['salary_basis']) ? ['salary_basis' => $data['salary_basis']] : []),
+                    ...(isset($data['shift']) ? ['shift' => $data['shift']] : []),
                     ...(isset($data['temporary_confirmation']) ? ['temporary_registered_as_replacement_confirmed' => $data['temporary_confirmation']] : []),
                 ],
             ));

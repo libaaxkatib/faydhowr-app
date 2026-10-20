@@ -41,7 +41,8 @@ class ListEmployeesAction
         }
 
         if (! empty($filters['pipeline_stage'])) {
-            $query->where('pipeline_stage', $filters['pipeline_stage']);
+            // A stage queue lists people who are in the pipeline; an Active (working) person is never in one.
+            $query->where('pipeline_stage', $filters['pipeline_stage'])->where('status', '!=', 'active');
         }
 
         if (! empty($filters['employee_category_id'])) {

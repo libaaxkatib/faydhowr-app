@@ -698,7 +698,7 @@ export function EmployeeDetailPage() {
                       <p className="mt-1 text-xs italic text-warning">Workplace not set yet</p>
                     )}
                     <p className="mt-1 text-xs text-ink-muted">
-                      {assignment.position_name ?? 'No position set'} · {assignment.salary_amount} {assignment.salary_currency} / {assignment.salary_frequency}
+                      {assignment.position_name ?? 'No position set'} · {assignment.salary_amount} {assignment.salary_currency} / {assignment.salary_frequency}{assignment.shift ? ` · ${assignment.shift === 'night' ? 'Night shift' : 'Day shift'}` : ''}
                     </p>
                     <p className="mt-1 text-xs text-ink-faint">Since {formatDate(assignment.start_date)}</p>
                     <PermissionGate module="hr">

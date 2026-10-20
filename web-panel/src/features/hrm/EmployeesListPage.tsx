@@ -276,7 +276,7 @@ export function EmployeesListPage({
         cell: ({ row }) => (
           <div className="flex flex-wrap items-center gap-1.5">
             <StatusBadge status={row.original.status} />
-            {row.original.pipeline_stage && (
+            {row.original.pipeline_stage && row.original.status !== 'active' && (
               <StatusBadge
                 status={row.original.pipeline_stage}
                 label={PIPELINE_STAGE_LABELS[row.original.pipeline_stage]}

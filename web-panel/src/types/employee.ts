@@ -277,6 +277,8 @@ export interface WorkAssignment {
   succession_gap_days?: number;
   position_id: number | null;
   position_name: string | null;
+  /** Day or night shift of this assignment; null = not recorded. */
+  shift?: 'day' | 'night' | null;
   start_date: string;
   end_date: string | null;
   salary_amount: string;

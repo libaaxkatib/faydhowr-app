@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AssignmentShift;
 use App\Enums\AssignmentType;
 use App\Enums\SalaryFrequency;
 use App\Enums\WorkAssignmentStatus;
@@ -20,6 +21,7 @@ use RuntimeException;
     'replaces_assignment_id',
     'position_id',
     'assignment_type',
+    'shift',
     'start_date',
     'end_date',
     'salary_amount',
@@ -42,6 +44,7 @@ class EmployeeWorkAssignment extends Model
             'salary_frequency' => SalaryFrequency::class,
             'status' => WorkAssignmentStatus::class,
             'assignment_type' => AssignmentType::class,
+            'shift' => AssignmentShift::class,
         ];
     }
 

@@ -8,6 +8,7 @@ use App\Enums\EmployeeRegistrationOrigin;
 use App\Enums\EmployeeStatus;
 use App\Enums\WorkAssignmentStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -99,6 +100,15 @@ class Employee extends Model
     public function position(): BelongsTo
     {
         return $this->belongsTo(Position::class);
+    }
+
+    /**
+     * People who are in a recruitment pipeline stage right now. Someone who is Active (working) is out of the pipeline, whatever an
+     * old record still says, so Active people never count in a stage queue, a stage count or a stage filter.
+     */
+    public function scopeInLivePipeline(Builder $query): Builder
+    {
+        return $query->whereNotNull('pipeline_stage')->where('status', '!=', EmployeeStatus::Active->value);
     }
 
     public function createdBy(): BelongsTo

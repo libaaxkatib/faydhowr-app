@@ -20,6 +20,7 @@ import { formatDate } from '@/utils/formatters';
 import {
   ASSIGNMENT_TYPE_LABELS,
   ASSIGNMENT_TYPE_OPTIONS,
+  assignmentShiftLabel,
   currentPeriod,
   formatCents,
   formatMoney,
@@ -154,6 +155,7 @@ export function CompanyEmployeesPage() {
                     <th className="px-4 py-3">Employee</th>
                     <th className="px-3 py-3">Position</th>
                     <th className="px-3 py-3">Type</th>
+                    <th className="px-3 py-3">Shift</th>
                     <th className="px-3 py-3">Start</th>
                     <th className="px-3 py-3">Workdays</th>
                     <th className="px-3 py-3">Salary</th>
@@ -277,6 +279,9 @@ function EmployeeRow({ row, showPayroll, canManage, onEdit, onReplace, onReturn,
             Needs correction: Temporary worker registered as a Replacement. No payroll until corrected.
           </span>
         )}
+      </td>
+      <td className="px-3 py-3 text-ink" data-testid="shift-cell">
+        {row.shift === null ? <span className="text-ink-faint">Not recorded</span> : assignmentShiftLabel(row.shift)}
       </td>
       <td className="px-3 py-3 text-ink">
         {formatDate(row.start_date)}

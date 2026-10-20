@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  assignmentShiftEdit,
+  assignmentShiftLabel,
   dayBefore,
   formatCents,
   isCorrectionReasonRequired,
@@ -105,4 +107,20 @@ test('changing a start date warns, naming the first month it touches and keeping
   assert.match(warning ?? '', /2026-08/);
   assert.match(warning ?? '', /2026-10-10/);
   assert.match(warning ?? '', /Super Admin/, 'it says who can change a closed month');
+});
+
+test('a shift is shown as Day or Night, and an assignment without one is Not recorded (never assumed)', () => {
+  assert.equal(assignmentShiftLabel('day'), 'Day shift');
+  assert.equal(assignmentShiftLabel('night'), 'Night shift');
+  assert.equal(assignmentShiftLabel(null), 'Not recorded');
+  assert.equal(assignmentShiftLabel(undefined), 'Not recorded');
+  assert.equal(assignmentShiftLabel('evening'), 'Not recorded');
+});
+
+test('an edit sends the shift only when HR changed it, and an empty choice clears it', () => {
+  assert.deepEqual(assignmentShiftEdit(null, ''), {}, 'unchanged unknown: nothing is sent');
+  assert.deepEqual(assignmentShiftEdit('day', 'day'), {}, 'unchanged: nothing is sent, so editing the salary never touches the shift');
+  assert.deepEqual(assignmentShiftEdit(null, 'night'), { shift: 'night' });
+  assert.deepEqual(assignmentShiftEdit('day', 'night'), { shift: 'night' });
+  assert.deepEqual(assignmentShiftEdit('night', ''), { shift: null });
 });

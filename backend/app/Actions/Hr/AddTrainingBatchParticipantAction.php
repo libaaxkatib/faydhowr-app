@@ -4,6 +4,7 @@ namespace App\Actions\Hr;
 
 use App\Enums\AuditAction;
 use App\Enums\EmployeePipelineStage;
+use App\Enums\EmployeeStatus;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\Employee;
@@ -22,7 +23,7 @@ class AddTrainingBatchParticipantAction
 {
     public function handle(TrainingBatch $batch, Employee $employee, Admin $actor): TrainingBatch
     {
-        if ($employee->pipeline_stage !== EmployeePipelineStage::NeedTraining) {
+        if ($employee->status === EmployeeStatus::Active || $employee->pipeline_stage !== EmployeePipelineStage::NeedTraining) {
             throw new HttpResponseException(
                 ApiResponse::error(
                     "Employee '{$employee->full_name}' is not currently eligible for training (must be in the Need Training queue).",

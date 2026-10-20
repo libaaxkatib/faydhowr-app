@@ -33,6 +33,8 @@ export interface CompanyEmployeeRow {
   position_name: string | null;
   work_location_name: string | null;
   assignment_type: AssignmentType;
+  /** Day or night shift of THIS assignment; null = not recorded (never assumed). */
+  shift: 'day' | 'night' | null;
   replaces_assignment_id: number | null;
   /** A Temporary worker confirmed as a Replacement: no payroll line is calculated for these days until the classification is corrected. */
   needs_correction: boolean;
@@ -122,6 +124,7 @@ export interface CompanyChainEntry {
   employee_name: string | null;
   position_name: string | null;
   assignment_type: AssignmentType;
+  shift: 'day' | 'night' | null;
   status: string;
   start_date: string;
   end_date: string | null;
@@ -142,6 +145,8 @@ export interface AssignmentPayload {
   salary_currency: string;
   salary_frequency: string;
   notes?: string | null;
+  /** Optional: day or night. Left out = not recorded. */
+  shift?: 'day' | 'night' | null;
   correction_reason?: string | null;
 }
 
@@ -159,6 +164,8 @@ export interface ReplacePayload {
   acknowledge_temporary_as_replacement?: boolean;
   reason?: string | null;
   notes?: string | null;
+  /** Left out = the replacement takes over the shift of the position it replaces. */
+  shift?: 'day' | 'night' | null;
   correction_reason?: string | null;
 }
 
@@ -183,6 +190,8 @@ export interface EditPayload {
   salary_effective_from?: string;
   salary_change_reason?: string | null;
   notes?: string | null;
+  /** Sent only when HR changed it; null clears it (not recorded). Never affects pay. */
+  shift?: 'day' | 'night' | null;
   /** Needed (and only accepted from a Super Admin) when the change alters an approved or finalized payroll month. */
   correction_reason?: string | null;
 }

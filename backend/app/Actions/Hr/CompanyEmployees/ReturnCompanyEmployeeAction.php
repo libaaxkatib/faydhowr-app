@@ -85,6 +85,8 @@ class ReturnCompanyEmployeeAction
                 'replaces_assignment_id' => $replacement->id,
                 'position_id' => array_key_exists('position_id', $data) ? $data['position_id'] : $original->position_id,
                 'assignment_type' => AssignmentType::Permanent->value,
+                // The person returns to the position as it is run now: the shift of the replacement unless HR chooses another one.
+                'shift' => array_key_exists('shift', $data) ? $data['shift'] : $replacement->shift?->value,
                 'start_date' => $returnDate->toDateString(),
                 'salary_amount' => $data['salary_amount'],
                 'salary_currency' => strtoupper((string) $data['salary_currency']),
@@ -108,6 +110,7 @@ class ReturnCompanyEmployeeAction
                     'replacement_last_day' => $lastDay->toDateString(),
                     'returned_assignment_id' => $returned->id,
                     'return_date' => $returnDate->toDateString(),
+                    'shift' => $returned->shift?->value,
                     'previous_salary' => ['amount' => (string) $original->salary_amount, 'currency' => $original->salary_currency],
                     'confirmed_salary' => ['amount' => number_format((float) $data['salary_amount'], 2, '.', ''), 'currency' => strtoupper((string) $data['salary_currency'])],
                 ],

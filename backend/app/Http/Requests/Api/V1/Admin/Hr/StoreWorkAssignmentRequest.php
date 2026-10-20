@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api\V1\Admin\Hr;
 
+use App\Enums\AssignmentShift;
 use App\Enums\AssignmentType;
 use App\Enums\EmployeeStatus;
 use App\Enums\SalaryFrequency;
@@ -42,6 +43,7 @@ class StoreWorkAssignmentRequest extends FormRequest
             'acknowledge_temporary_as_replacement' => ['sometimes', 'boolean'],
             'correction_reason' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string'],
+            'shift' => ['sometimes', 'nullable', Rule::in(AssignmentShift::values())],
             'override_capacity' => ['sometimes', 'boolean'],
         ];
     }

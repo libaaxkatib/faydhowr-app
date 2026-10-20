@@ -33,6 +33,7 @@ class AssignEmployeeToCompanyAction
                 'work_location_id' => $data['work_location_id'] ?? null,
                 'position_id' => $data['position_id'] ?? null,
                 'assignment_type' => $data['assignment_type'],
+                'shift' => $data['shift'] ?? null,
                 'start_date' => $data['start_date'],
                 'salary_amount' => $data['salary_amount'],
                 'salary_currency' => strtoupper((string) $data['salary_currency']),
@@ -48,7 +49,7 @@ class AssignEmployeeToCompanyAction
                 description: "Employee '{$employee->full_name}' ({$employee->employee_number}) added to company '{$company->name}'.",
                 entityType: EmployeeWorkAssignment::class,
                 entityId: $assignment->id,
-                metadata: ['event' => 'assigned', 'company_id' => $company->id, 'employee_id' => $employee->id, 'assignment_type' => $assignment->assignment_type->value, 'start_date' => $assignment->start_date->toDateString()],
+                metadata: ['event' => 'assigned', 'company_id' => $company->id, 'employee_id' => $employee->id, 'assignment_type' => $assignment->assignment_type->value, 'shift' => $assignment->shift?->value, 'start_date' => $assignment->start_date->toDateString()],
             ));
 
             return $assignment;

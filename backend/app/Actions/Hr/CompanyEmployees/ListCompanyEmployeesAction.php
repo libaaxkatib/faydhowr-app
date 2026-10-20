@@ -114,6 +114,7 @@ class ListCompanyEmployeesAction
             'position_name' => $a->position?->name,
             'work_location_name' => $a->workLocation?->name,
             'assignment_type' => $a->assignment_type?->value ?? 'permanent',
+            'shift' => $a->shift?->value,
             'replaces_assignment_id' => $a->replaces_assignment_id,
             // A Temporary worker confirmed as a Replacement: no payroll for these days until the classification is corrected.
             'needs_correction' => UnresolvedTemporaryReplacements::isUnresolved($a),

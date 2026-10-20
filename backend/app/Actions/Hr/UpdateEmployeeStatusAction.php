@@ -47,8 +47,13 @@ class UpdateEmployeeStatusAction
             $missing = $this->workflow->protects($status) && $this->workflow->blocks($locked) ? $this->workflow->missing($locked) : [];
             $usedOverride = $this->workflow->authorizeStatusChange($locked, $status, $actor, $overrideReason) ?? $usedOverride;
 
+            // Becoming Active takes the person out of the recruitment pipeline: the stage is cleared on the record, and kept in the
+            // history below (never invented, never deleted).
+            $previousStage = $status === EmployeeStatus::Active ? $locked->pipeline_stage : null;
+
             $locked->update([
                 'status' => $status,
+                'pipeline_stage' => $status === EmployeeStatus::Active ? null : $locked->pipeline_stage,
                 'waiting_since' => $from === EmployeeStatus::Waiting && $status !== EmployeeStatus::Waiting
                     ? null
                     : $locked->waiting_since,
@@ -59,13 +64,17 @@ class UpdateEmployeeStatusAction
                 'from_status' => $from,
                 'to_status' => $status,
                 'changed_by' => $actor->id,
-                'note' => $note,
+                'note' => $previousStage === null ? $note : trim(($note ? $note.' ' : '')."Pipeline stage '{$previousStage->label()}' cleared because the person is now Active (the stage is kept here as history)."),
                 'override_reason' => $usedOverride,
                 'source' => $usedOverride !== null ? 'override' : $source,
                 'import_batch_id' => $importBatchId,
             ]);
 
             $metadata = ['from_status' => $from->value, 'to_status' => $status->value];
+
+            if ($previousStage !== null) {
+                $metadata += ['previous_pipeline_stage' => $previousStage->value, 'pipeline_stage_cleared' => true];
+            }
 
             if ($usedOverride !== null) {
                 $metadata += ['override' => true, 'override_reason' => $usedOverride];

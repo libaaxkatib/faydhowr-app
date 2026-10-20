@@ -148,6 +148,7 @@ class UpdateWorkAssignmentAction
             'start_date' => $assignment->start_date?->toDateString(),
             'end_date' => $assignment->end_date?->toDateString(),
             'notes' => $assignment->notes,
+            'shift' => $assignment->shift?->value,
         ];
         $oldStart = $assignment->start_date?->toDateString();
 
@@ -159,6 +160,8 @@ class UpdateWorkAssignmentAction
             'start_date' => $data['start_date'] ?? $assignment->start_date,
             'end_date' => $data['end_date'] ?? $assignment->end_date,
             'notes' => array_key_exists('notes', $data) ? $data['notes'] : $assignment->notes,
+            // The shift is information only: editing it never touches salary, dates, type or company.
+            'shift' => array_key_exists('shift', $data) ? $data['shift'] : $assignment->shift?->value,
         ]);
 
         $this->moveFirstSalaryRowWithTheStart($assignment, $oldStart);
@@ -169,6 +172,7 @@ class UpdateWorkAssignmentAction
             'start_date' => $assignment->start_date?->toDateString(),
             'end_date' => $assignment->end_date?->toDateString(),
             'notes' => $assignment->notes,
+            'shift' => $assignment->shift?->value,
         ];
         $changed = array_keys(array_filter($after, fn ($value, string $key): bool => $value !== $before[$key], ARRAY_FILTER_USE_BOTH));
 

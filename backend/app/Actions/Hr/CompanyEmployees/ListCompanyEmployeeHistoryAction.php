@@ -72,6 +72,7 @@ class ListCompanyEmployeeHistoryAction
             'employee_name' => $a->employee?->full_name,
             'position_name' => $a->position?->name,
             'assignment_type' => $a->assignment_type?->value ?? 'permanent',
+            'shift' => $a->shift?->value,
             'status' => $a->status->value,
             'start_date' => $a->start_date->toDateString(),
             'end_date' => $a->end_date?->toDateString(),

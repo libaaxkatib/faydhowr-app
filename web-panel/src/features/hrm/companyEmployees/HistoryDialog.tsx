@@ -6,7 +6,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatDate, formatDateTime } from '@/utils/formatters';
-import { ASSIGNMENT_TYPE_LABELS, EVENT_LABELS } from '@/utils/companyEmployees';
+import { ASSIGNMENT_TYPE_LABELS, assignmentShiftLabel, EVENT_LABELS } from '@/utils/companyEmployees';
 
 interface HistoryDialogProps {
   isOpen: boolean;
@@ -42,7 +42,7 @@ export function HistoryDialog({ isOpen, onClose, companyId, companyName, employe
                 <li key={entry.assignment_id} className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5">
                   <span>
                     <span className="font-medium text-ink">{entry.employee_name}</span>{' '}
-                    <span className="text-xs text-ink-muted">({entry.employee_number}) · {entry.position_name ?? 'no position'} · {ASSIGNMENT_TYPE_LABELS[entry.assignment_type]}</span>
+                    <span className="text-xs text-ink-muted">({entry.employee_number}) · {entry.position_name ?? 'no position'} · {ASSIGNMENT_TYPE_LABELS[entry.assignment_type]} · {assignmentShiftLabel(entry.shift)}</span>
                     {entry.replaces_assignment_id !== null && <span className="ml-2 text-xs text-ink-faint">took over from assignment #{entry.replaces_assignment_id}</span>}
                   </span>
                   <span className="text-xs text-ink-muted">

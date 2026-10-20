@@ -5,6 +5,8 @@ namespace App\Support\Hr\WorkbookPlan;
 use App\Actions\Hr\BulkActivateEmployeesAction;
 use App\Actions\Hr\CreateClientCompanyAction;
 use App\Actions\Hr\CreateWorkAssignmentAction;
+use App\Actions\Hr\UpdateWorkAssignmentAction;
+use App\Enums\AssignmentShift;
 use App\Enums\AuditAction;
 use App\Enums\EmployeeStatus;
 use App\Enums\WorkAssignmentStatus;
@@ -36,6 +38,7 @@ class WorkbookPlanExecutor
         private readonly CreateClientCompanyAction $createCompany,
         private readonly BulkActivateEmployeesAction $bulkActivate,
         private readonly CreateWorkAssignmentAction $createAssignment,
+        private readonly UpdateWorkAssignmentAction $updateAssignment,
     ) {}
 
     public static function nameKey(?string $name): string
@@ -87,6 +90,13 @@ class WorkbookPlanExecutor
      */
     public function status(array $employees, string $note, ?string $joiningDate, bool $dryRun, ?Admin $actor, ?string $overrideReason = null, string $source = self::DEFAULT_SOURCE): array
     {
+        // One person can be on several rows (one per company); the status step handles each person once.
+        $employees = array_values(array_reduce($employees, function (array $carry, array $e): array {
+            $carry[(int) $e['employee_id']] ??= $e;
+
+            return $carry;
+        }, []));
+
         $records = array_map(fn (array $e): array => [
             'employee_id' => (int) $e['employee_id'],
             'source_ref' => $source.' row '.$e['source_row'],
@@ -145,14 +155,56 @@ class WorkbookPlanExecutor
                 continue;
             }
 
-            if ($company !== null && $employee->workAssignments()->where('status', WorkAssignmentStatus::Active)->where('client_company_id', $company->id)->exists()) {
-                $results[] = [...$base, 'outcome' => 'already_assigned', 'code' => null, 'message' => 'Already has an active assignment at this company; nothing created.'];
+            $shift = trim((string) ($row['shift'] ?? ''));
+
+            if ($shift !== '' && ! in_array($shift, AssignmentShift::values(), true)) {
+                $results[] = [...$base, 'outcome' => 'failed', 'code' => 'INVALID_SHIFT', 'message' => "Shift '{$shift}' is not day or night; nothing is guessed."];
+
+                continue;
+            }
+
+            $existing = $company === null ? null : $employee->workAssignments()->where('status', WorkAssignmentStatus::Active)->where('client_company_id', $company->id)->first();
+
+            if ($existing !== null) {
+                // The assignment is already there. Only its (still empty) shift may be recorded, through the audited edit; salary, dates,
+                // type and company are never touched, and a different shift already on record is reported, not overwritten.
+                if ($shift === '' || $existing->shift?->value === $shift) {
+                    $results[] = [...$base, 'outcome' => 'already_assigned', 'code' => null, 'message' => 'Already has an active assignment at this company; nothing created.'];
+
+                    continue;
+                }
+
+                if ($existing->shift !== null) {
+                    $results[] = [...$base, 'outcome' => 'failed', 'code' => 'SHIFT_CONFLICT', 'message' => "The assignment already has the {$existing->shift->value} shift on record; the plan says {$shift}. Nothing changed."];
+
+                    continue;
+                }
+
+                if ((int) round(((float) $existing->salary_amount) * 100) !== (int) round(((float) $row['salary']) * 100)) {
+                    $results[] = [...$base, 'outcome' => 'failed', 'code' => 'SALARY_DIFFERS_FROM_RECORD', 'message' => "The existing assignment pays {$existing->salary_amount}, the plan row says {$row['salary']}; the shift is not recorded on a different assignment."];
+
+                    continue;
+                }
+
+                if ($dryRun) {
+                    $results[] = [...$base, 'outcome' => 'would_set_shift', 'code' => null, 'message' => "Would record the {$shift} shift on the existing assignment (nothing else changes)."];
+
+                    continue;
+                }
+
+                try {
+                    $this->updateAssignment->handle($existing, ['shift' => $shift], $actor);
+                    $results[] = [...$base, 'outcome' => 'shift_set', 'code' => null, 'message' => "Recorded the {$shift} shift on the existing assignment."];
+                } catch (HttpResponseException $e) {
+                    $payload = $e->getResponse()->getData(true);
+                    $results[] = [...$base, 'outcome' => 'failed', 'code' => $payload['error_code'] ?? 'FAILED', 'message' => $payload['message'] ?? 'Failed.'];
+                }
 
                 continue;
             }
 
             if ($dryRun) {
-                $results[] = [...$base, 'outcome' => 'would_assign', 'code' => null, 'message' => "Would assign at {$row['salary']} USD monthly from {$row['start_date']}."];
+                $results[] = [...$base, 'outcome' => 'would_assign', 'code' => null, 'message' => "Would assign at {$row['salary']} USD monthly from {$row['start_date']}".($shift !== '' ? ", {$shift} shift" : '').'.'];
 
                 continue;
             }
@@ -164,6 +216,7 @@ class WorkbookPlanExecutor
                     'salary_amount' => $row['salary'],
                     'salary_currency' => 'USD',
                     'salary_frequency' => 'monthly',
+                    'shift' => $shift !== '' ? $shift : null,
                     'notes' => 'Assigned from the approved company workbook, '.$source.' row '.$row['source_row'].'.',
                 ], $actor);
                 $results[] = [...$base, 'outcome' => 'assigned', 'code' => null, 'message' => 'Assigned.'];

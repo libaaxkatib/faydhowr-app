@@ -14,9 +14,11 @@ import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import {
   ASSIGNMENT_TYPE_LABELS,
   ASSIGNMENT_TYPE_OPTIONS,
+  assignmentShiftEdit,
   dayBefore,
   isCorrectionReasonRequired,
   isTemporaryWorker,
+  SHIFT_OPTIONS,
   startDateChangeWarning,
   validateAssignForm,
   validateReplaceForm,
@@ -24,6 +26,7 @@ import {
   validateStopForm,
   type AssignmentTypeValue,
   type ReturnFormErrors,
+  type ShiftValue,
 } from '@/utils/companyEmployees';
 import { EmployeePicker } from '@/features/hrm/companyEmployees/EmployeePicker';
 import type { CompanyEmployeeCandidate, CompanyEmployeeRow } from '@/types/companyEmployees';
@@ -93,6 +96,15 @@ function TypeSelect({ id, value, onChange, error, hint, options = ASSIGNMENT_TYP
 }
 
 const PERMANENT_ONLY = [{ value: 'permanent', label: 'Permanent' }];
+
+/** Day or night shift of the assignment. Optional and information only: it never changes salary, dates, type or company. */
+function ShiftSelect({ id, value, onChange, hint }: { id: string; value: ShiftValue | ''; onChange: (value: ShiftValue | '') => void; hint?: string }) {
+  return (
+    <FormField label="Shift" htmlFor={id} hint={hint ?? 'Day or night. Optional - leave it empty if it is not known.'}>
+      <Select id={id} value={value} onChange={(event) => onChange(event.target.value as ShiftValue | '')} placeholder="Not recorded" options={SHIFT_OPTIONS} />
+    </FormField>
+  );
+}
 
 const money = (amount: number | string, currency: string) => `${Number(amount).toFixed(2)} ${currency} / month`;
 
@@ -164,6 +176,7 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
   const state = useActionState(companyId);
   const [picked, setPicked] = useState<CompanyEmployeeCandidate | null>(null);
   const [positionId, setPositionId] = useState<number | ''>('');
+  const [shift, setShift] = useState<ShiftValue | ''>('');
   const [startDate, setStartDate] = useState(today());
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USD');
@@ -175,6 +188,7 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
     if (isOpen) {
       setPicked(null);
       setPositionId('');
+      setShift('');
       setStartDate(today());
       setAmount('');
       setCurrency('USD');
@@ -198,6 +212,7 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
         salary_currency: currency,
         salary_frequency: 'monthly',
         notes: notes.trim() === '' ? null : notes.trim(),
+        ...(shift !== '' ? { shift } : {}),
         ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}),
       }),
     onSuccess: () => state.succeeded('Employee added to the company.', onClose),
@@ -230,6 +245,7 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
         <ErrorBanner message={state.serverMessage} />
         <EmployeePicker companyId={companyId} inputId="assign-picker" label="Registered employee" value={picked} onChange={setPicked} error={err('employee_id')} />
         <PositionSelect id="assign-position" value={positionId} onChange={setPositionId} error={err('position_id')} />
+        <ShiftSelect id="assign-shift" value={shift} onChange={setShift} />
         <FormField label="Start date" htmlFor="assign-start" required error={err('start_date')}>
           <input id="assign-start" type="date" className={inputClasses} value={startDate} onChange={(event) => setStartDate(event.target.value)} />
         </FormField>
@@ -249,6 +265,7 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
 export function EditAssignmentDialog({ row, onClose, companyId }: { row: CompanyEmployeeRow | null; onClose: () => void; companyId: number }) {
   const state = useActionState(companyId);
   const [positionId, setPositionId] = useState<number | ''>('');
+  const [shift, setShift] = useState<ShiftValue | ''>('');
   const [type, setType] = useState<AssignmentTypeValue | ''>('');
   const [startDate, setStartDate] = useState('');
   const [amount, setAmount] = useState('');
@@ -263,6 +280,7 @@ export function EditAssignmentDialog({ row, onClose, companyId }: { row: Company
     if (row) {
       setCorrectionReason('');
       setPositionId(row.position_id ?? '');
+      setShift(row.shift ?? '');
       setType(row.assignment_type);
       setStartDate(row.start_date);
       setAmount(String(Number(row.salary.amount)));
@@ -289,6 +307,7 @@ export function EditAssignmentDialog({ row, onClose, companyId }: { row: Company
         ...(startDate !== r.start_date ? { start_date: startDate } : {}),
         ...(salaryChanged ? { salary_amount: Number(amount), salary_currency: currency, salary_effective_from: effectiveFrom, salary_change_reason: reason.trim() || null } : {}),
         ...(notes.trim() !== '' ? { notes: notes.trim() } : {}),
+        ...assignmentShiftEdit(r.shift, shift),
         ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}),
       });
     },
@@ -327,6 +346,7 @@ export function EditAssignmentDialog({ row, onClose, companyId }: { row: Company
         <ErrorBanner message={state.serverMessage} />
         <p className="mb-4 text-xs text-ink-muted">These are the details of this company assignment only. The employee's own HR record (name, phone, status) is edited from the HR employee page.</p>
         <PositionSelect id="edit-position" value={positionId} onChange={setPositionId} error={err('position_id')} />
+        <ShiftSelect id="edit-shift" value={shift} onChange={setShift} hint="Changing the shift does not change the salary, the dates or the company." />
         <TypeSelect id="edit-type" value={type} onChange={setType} error={err('assignment_type')} options={isReplacement ? ASSIGNMENT_TYPE_OPTIONS : PERMANENT_ONLY} hint={isReplacement ? "Changing a Replacement to Permanent makes the position theirs; a Permanent holder cannot be 'returned from'." : 'An assignment becomes a Replacement only through Replace Employee.'} />
         <FormField label="Start date" htmlFor="edit-start" required error={err('start_date')}>
           <input id="edit-start" type="date" className={inputClasses} value={startDate} onChange={(event) => setStartDate(event.target.value)} />
@@ -368,6 +388,7 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
   const [lastDay, setLastDay] = useState('');
   const [type, setType] = useState<AssignmentTypeValue | ''>('');
   const [positionId, setPositionId] = useState<number | ''>('');
+  const [shift, setShift] = useState<ShiftValue | ''>('');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USD');
   const [reason, setReason] = useState('');
@@ -386,6 +407,7 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
       setLastDay('');
       setType('');
       setPositionId(row.position_id ?? '');
+      setShift(row.shift ?? '');
       setAmount(String(Number(row.salary.amount)));
       setCurrency(row.salary.currency);
       setReason('');
@@ -408,6 +430,8 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
         // A Replacement has no salary of its own: the server uses the replaced Permanent's. Only a Permanent successor brings one.
         ...(type === 'replacement' ? {} : { salary_amount: Number(amount), salary_currency: currency, salary_frequency: 'monthly' }),
         ...(acknowledgeTemporary ? { acknowledge_temporary_as_replacement: true } : {}),
+        // Left out = the replacement takes over the shift of the position; sent only when HR chose a different one.
+        ...assignmentShiftEdit(row!.shift, shift),
         reason: reason.trim() || null,
         ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}),
       }),
@@ -478,6 +502,7 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
             </div>
           )}
           <PositionSelect id="replace-position" value={positionId} onChange={setPositionId} error={err('position_id')} />
+          <ShiftSelect id="replace-shift" value={shift} onChange={setShift} hint="Empty = the replacement takes over the shift of this position." />
           {type === 'replacement' ? (
             <p className="mb-4 rounded-md border border-border bg-surface-muted px-3.5 py-2.5 text-xs text-ink-muted" data-testid="inherited-salary">
               Salary: {money(row.salary.amount, row.salary.currency)}, the monthly salary of {row.full_name}. A Replacement has no salary of its own; it is paid from {row.full_name}'s salary for the calendar days it covers. If that salary changes, the new salary applies to the Replacement for the whole month of the change, not from the day it changed.
@@ -518,6 +543,7 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
 export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: { row: CompanyEmployeeRow | null; onClose: () => void; companyId: number; companyName: string }) {
   const state = useActionState(companyId);
   const [returnDate, setReturnDate] = useState(today());
+  const [shift, setShift] = useState<ShiftValue | ''>('');
   const [notes, setNotes] = useState('');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USD');
@@ -535,6 +561,7 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
     if (row) {
       setReturnDate(today() > row.start_date ? today() : dayAfter(row.start_date));
       setNotes('');
+      setShift('');
       // The previous salary is only a proposal: HR must confirm or change it before saving.
       setAmount(String(Number(row.replaces?.salary.amount ?? row.salary.amount)));
       setCurrency(row.replaces?.salary.currency ?? row.salary.currency);
@@ -556,6 +583,7 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
         salary_currency: currency,
         salary_frequency: 'monthly',
         notes: notes.trim() || null,
+        ...(shift !== '' ? { shift } : {}),
         ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}),
       }),
     onSuccess: () => state.succeeded('Original employee returned. All assignments are kept in the history.', onClose),
@@ -617,6 +645,7 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
                 </label>
                 {errors.salary_confirmed && <p role="alert" className="mt-1 text-xs text-danger">{errors.salary_confirmed}</p>}
               </div>
+              <ShiftSelect id="return-shift" value={shift} onChange={setShift} hint="Empty = the returning employee gets the shift of the position as it is run now." />
               <FormField label="Note (optional)" htmlFor="return-notes">
                 <input id="return-notes" className={inputClasses} value={notes} onChange={(event) => setNotes(event.target.value)} />
               </FormField>

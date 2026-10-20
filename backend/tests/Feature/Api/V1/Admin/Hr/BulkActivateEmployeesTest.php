@@ -77,8 +77,12 @@ class BulkActivateEmployeesTest extends TestCase
         }
 
         $this->assertNull($waiting->waiting_since, 'Leaving Waiting clears the waiting clock.');
-        $this->assertSame('need_training', $applicant->pipeline_stage->value, 'No completion is invented: the pipeline stage is untouched.');
+        // Owner rule 2026-10-20: an Active person is out of the pipeline. The stage is cleared on the record and kept in the history;
+        // no completion (training, practical, ...) is invented.
+        $this->assertNull($applicant->pipeline_stage, 'An Active person is not in a pipeline stage.');
+        $this->assertStringContainsString("Pipeline stage 'Need Training' cleared", (string) EmployeeStatusHistory::query()->where('employee_id', $applicant->id)->latest('id')->value('note'));
         $this->assertDatabaseCount('employee_historical_completions', 0);
+        $this->assertSame(0, DB::table('training_batch_participants')->where('employee_id', $applicant->id)->count());
     }
 
     public function test_an_applicant_cannot_be_activated_without_a_super_admin_override_reason(): void

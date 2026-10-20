@@ -79,6 +79,8 @@ class ReplaceCompanyEmployeeAction
                 'replaces_assignment_id' => $original->id,
                 'position_id' => $data['position_id'] ?? $original->position_id,
                 'assignment_type' => $data['assignment_type'],
+                // The replacement takes over the position, so the shift of the position carries over unless HR chooses another one.
+                'shift' => array_key_exists('shift', $data) ? $data['shift'] : $original->shift?->value,
                 'start_date' => $replacementDate->toDateString(),
                 // A Replacement's salary is inherited from the replaced Permanent (CreateWorkAssignmentAction ignores/validates these);
                 // a Permanent successor brings the salary HR entered.
@@ -108,6 +110,7 @@ class ReplaceCompanyEmployeeAction
                     'replacement_employee_id' => $replacement->id,
                     'replacement_start_date' => $replacementDate->toDateString(),
                     'assignment_type' => $new->assignment_type->value,
+                    'shift' => $new->shift?->value,
                     'gap_days' => PositionSuccession::gapDays($lastDay, $replacementDate),
                     'temporary_registered_as_replacement_confirmed' => $replacement->employment_type === 'temporary' && $new->assignment_type === AssignmentType::Replacement,
                     'reason' => $reason !== '' ? $reason : null,

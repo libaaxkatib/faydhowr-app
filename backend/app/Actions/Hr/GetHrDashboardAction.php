@@ -51,7 +51,7 @@ class GetHrDashboardAction
             ->count();
 
         $pipelineCounts = Employee::query()
-            ->whereNotNull('pipeline_stage')
+            ->inLivePipeline()
             ->selectRaw('pipeline_stage, count(*) as total')
             ->groupBy('pipeline_stage')
             ->pluck('total', 'pipeline_stage');

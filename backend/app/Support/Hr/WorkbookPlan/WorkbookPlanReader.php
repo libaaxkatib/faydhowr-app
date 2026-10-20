@@ -12,6 +12,9 @@ use InvalidArgumentException;
  *    " @ rows 170,171" as its source reference.
  *  employees: source_row, employee_id, employee_number, name_key,
  *    expected_status, company, salary, start_date
+ *    optional columns: shift (day|night, only ever recorded on the assignment of that row), payment_account_number
+ *    An employee may appear on more than one row ONLY for different companies (one person working two companies); the same
+ *    employee at the same company twice is refused.
  */
 final class WorkbookPlanReader
 {
@@ -65,10 +68,10 @@ final class WorkbookPlanReader
             $rows[] = $row;
         }
 
-        $ids = array_column($rows, 'employee_id');
+        $pairs = array_map(fn (array $r): string => $r['employee_id'].'|'.mb_strtolower(trim($r['company'])), $rows);
 
-        if (count($ids) !== count(array_unique($ids))) {
-            throw new InvalidArgumentException('Employees file lists the same employee_id more than once.');
+        if (count($pairs) !== count(array_unique($pairs))) {
+            throw new InvalidArgumentException('Employees file lists the same employee_id more than once for the same company.');
         }
 
         return $rows;
