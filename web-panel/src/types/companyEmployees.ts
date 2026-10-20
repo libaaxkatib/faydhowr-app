@@ -34,6 +34,9 @@ export interface CompanyEmployeeRow {
   work_location_name: string | null;
   assignment_type: AssignmentType;
   replaces_assignment_id: number | null;
+  /** A Temporary worker confirmed as a Replacement: no payroll line is calculated for these days until the classification is corrected. */
+  needs_correction: boolean;
+  needs_correction_reason: string | null;
   /** For a Replacement: the Permanent employee whose position it holds and that employee's salary (the salary basis, and what Return proposes). */
   replaces: { assignment_id: number; employee_id: number; employee_number: string | null; full_name: string | null; salary: CompanyEmployeeSalary } | null;
   start_date: string;

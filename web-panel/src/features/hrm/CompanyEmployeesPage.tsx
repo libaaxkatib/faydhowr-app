@@ -272,6 +272,11 @@ function EmployeeRow({ row, showPayroll, canManage, onEdit, onReplace, onReturn,
       <td className="px-3 py-3 text-ink">{row.position_name ?? <span className="text-ink-faint">—</span>}</td>
       <td className="px-3 py-3">
         <StatusBadge status={row.assignment_type} label={ASSIGNMENT_TYPE_LABELS[row.assignment_type]} tone={row.assignment_type === 'replacement' ? 'warning' : 'neutral'} />
+        {row.needs_correction && (
+          <span role="note" data-testid="needs-correction" title={row.needs_correction_reason ?? undefined} className="mt-1 block text-xs text-danger">
+            Needs correction: Temporary worker registered as a Replacement. No payroll until corrected.
+          </span>
+        )}
       </td>
       <td className="px-3 py-3 text-ink">
         {formatDate(row.start_date)}

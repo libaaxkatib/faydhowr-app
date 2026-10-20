@@ -15,6 +15,8 @@ class EmployeePaymentResource extends JsonResource
             'amount' => $this->amount,
             'currency' => $this->currency,
             'notes' => $this->notes,
+            'is_reversal' => $this->reverses_payment_id !== null,
+            'reverses_payment_id' => $this->reverses_payment_id,
             'paid_by' => $this->whenLoaded('paidBy', fn () => $this->paidBy?->full_name),
             'created_at' => $this->created_at?->toIso8601String(),
         ];

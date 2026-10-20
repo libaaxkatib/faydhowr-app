@@ -18,15 +18,16 @@ use Illuminate\Support\Facades\Validator;
 
 /**
  * The corrections ledger: Super Admin corrections of approved/finalized payroll, the overpayments recovered from later salaries, the
- * debts that remain, and the underpayments owed. Reading needs hr.payroll.view. Recording a payment or repayment needs hr.payroll.manage
- * AND the right role (checked again in the action): Super Admin pays underpayments; Super Admin and HR Manager manage debts.
+ * debts that remain, and the underpayments owed. Reading needs hr.payroll.view. Recording a payment, repayment or write-off, or voiding one,
+ * needs hr.payroll.manage AND the right role (checked again in the action): the Super Admin pays/voids underpayments and writes debts off;
+ * Super Admin and HR Manager record or void debt repayments.
  */
 class PayrollCorrectionController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
         $corrections = PayrollCorrection::query()
-            ->with(['employee:id,employee_number,full_name,status', 'correctedBy:id,full_name', 'recoveries', 'transactions.recordedBy:id,full_name', 'transactions.voidedBy:id,full_name'])
+            ->with(['employee:id,employee_number,full_name,status', 'correctedBy:id,full_name', 'recoveries', 'transactions.recordedBy:id,full_name', 'transactions.voidedBy:id,full_name', 'transactions.reversal'])
             ->when($request->filled('employee_id'), fn ($q) => $q->where('employee_id', (int) $request->query('employee_id')))
             ->when($request->filled('status'), fn ($q) => $q->where('status', (string) $request->query('status')))
             ->when($request->filled('period'), fn ($q) => $q->where('period', (string) $request->query('period')))
@@ -42,8 +43,8 @@ class PayrollCorrectionController extends Controller
         $rows = $corrections->map(function (PayrollCorrection $c) use ($openEmployees): array {
             $applied = (int) $c->recoveries->where('status', PayrollRecoveryDeduction::STATUS_APPLIED)->sum('amount_cents');
             $scheduled = (int) $c->recoveries->where('status', PayrollRecoveryDeduction::STATUS_SCHEDULED)->sum('amount_cents');
-            $active = $c->transactions->whereNull('voided_at');
-            $settled = (int) $active->sum('amount_cents');
+            $sum = fn (string $type): int => (int) $c->transactions->where('type', $type)->whereNull('voided_at')->sum('amount_cents');
+            $paid = $sum(PayrollCorrectionTransaction::TYPE_UNDERPAYMENT_PAYMENT) - $sum(PayrollCorrectionTransaction::TYPE_UNDERPAYMENT_REVERSAL);
             $hasOpenAssignment = $openEmployees->has($c->employee_id);
 
             return [
@@ -65,8 +66,9 @@ class PayrollCorrectionController extends Controller
                 'difference_cents' => (int) $c->difference_cents,
                 'recovered_cents' => $applied,
                 'scheduled_cents' => $scheduled,
-                'repaid_cents' => $c->kind === PayrollCorrection::KIND_OVERPAYMENT ? $settled : 0,
-                'paid_cents' => $c->kind === PayrollCorrection::KIND_UNDERPAYMENT ? $settled : 0,
+                'repaid_cents' => $sum(PayrollCorrectionTransaction::TYPE_DEBT_REPAYMENT),
+                'written_off_cents' => $sum(PayrollCorrectionTransaction::TYPE_DEBT_WRITE_OFF),
+                'paid_cents' => $paid,
                 'outstanding_cents' => (int) $c->outstanding_cents,
                 'available_to_settle_cents' => max(0, (int) $c->outstanding_cents - ($c->kind === PayrollCorrection::KIND_OVERPAYMENT ? $scheduled : 0)),
                 'reason' => $c->reason,
@@ -85,8 +87,13 @@ class PayrollCorrectionController extends Controller
                     'amount_cents' => (int) $t->amount_cents,
                     'transaction_date' => $t->transaction_date?->toDateString(),
                     'note' => $t->note,
+                    'reason' => $t->reason,
+                    'balance_before_cents' => $t->balance_before_cents,
+                    'balance_after_cents' => $t->balance_after_cents,
+                    'reverses_transaction_id' => $t->reverses_transaction_id,
                     'recorded_by' => $t->recordedBy?->full_name,
-                    'voided' => $t->isVoided(),
+                    'recorded_at' => $t->created_at?->toIso8601String(),
+                    'voided' => $t->voided_at !== null || $t->reversal !== null,
                     'void_reason' => $t->void_reason,
                     'voided_by' => $t->voidedBy?->full_name,
                 ])->values()->all(),
@@ -102,6 +109,7 @@ class PayrollCorrectionController extends Controller
                 'currency' => PayrollMoney::CURRENCY,
                 'overpaid_cents' => (int) $over->sum('difference_cents'),
                 'recovered_cents' => (int) ($over->sum('recovered_cents') + $over->sum('repaid_cents')),
+                'written_off_cents' => (int) $over->sum('written_off_cents'),
                 'outstanding_cents' => (int) $over->sum('outstanding_cents'),
                 'underpaid_cents' => (int) abs($under->sum('difference_cents')),
                 'underpayments_paid_cents' => (int) $under->sum('paid_cents'),
@@ -114,10 +122,11 @@ class PayrollCorrectionController extends Controller
     public function store(Request $request, PayrollCorrection $payrollCorrection, RecordCorrectionTransactionAction $action): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'type' => ['required', 'in:'.PayrollCorrectionTransaction::TYPE_UNDERPAYMENT_PAYMENT.','.PayrollCorrectionTransaction::TYPE_DEBT_REPAYMENT],
+            'type' => ['required', 'in:'.PayrollCorrectionTransaction::TYPE_UNDERPAYMENT_PAYMENT.','.PayrollCorrectionTransaction::TYPE_DEBT_REPAYMENT.','.PayrollCorrectionTransaction::TYPE_DEBT_WRITE_OFF],
             'amount' => ['required', 'numeric', 'gt:0', 'max:9999999999.99'],
             'transaction_date' => ['required', 'date', 'before_or_equal:today'],
             'note' => ['nullable', 'string', 'max:500'],
+            'reason' => ['required_if:type,'.PayrollCorrectionTransaction::TYPE_DEBT_WRITE_OFF, 'nullable', 'string', 'min:5', 'max:500'],
             'idempotency_key' => ['required', 'string', 'min:8', 'max:64'],
         ]);
 
@@ -133,6 +142,7 @@ class PayrollCorrectionController extends Controller
             $request->filled('note') ? (string) $request->input('note') : null,
             (string) $request->input('idempotency_key'),
             $request->user(),
+            $request->filled('reason') ? (string) $request->input('reason') : null,
         );
 
         return ApiResponse::success($result['replayed'] ? 'This transaction was already recorded; nothing was added.' : 'Transaction recorded.', [
@@ -157,6 +167,6 @@ class PayrollCorrectionController extends Controller
 
         $correction = $action->handle($transaction, (string) $request->input('reason'), $request->user());
 
-        return ApiResponse::success('Repayment voided. The debt is restored.', ['outstanding_cents' => (int) $correction->outstanding_cents, 'status' => $correction->status]);
+        return ApiResponse::success('Transaction voided. The balance is restored.', ['outstanding_cents' => (int) $correction->outstanding_cents, 'status' => $correction->status]);
     }
 }

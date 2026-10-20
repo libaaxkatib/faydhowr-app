@@ -306,8 +306,8 @@ export const hrApi = {
     get: (id: number) => apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}`),
     /** Super Admin corrections of approved/finalized months and the overpayment-recovery ledger (read-only). */
     corrections: () => apiRequest<PayrollCorrectionsResponse>('admin/hr/payroll-corrections'),
-    /** An underpayment paid (Super Admin) or a debt repayment received (Super Admin / HR Manager): always its own transaction, retried safely by the key. */
-    recordCorrectionTransaction: (id: number, payload: { type: 'underpayment_payment' | 'debt_repayment'; amount: number; transaction_date: string; note?: string | null; idempotency_key: string }) =>
+    /** An underpayment paid (Super Admin), a debt repayment received (Super Admin / HR Manager) or a debt written off (Super Admin, reason required): always its own transaction, retried safely by the key. */
+    recordCorrectionTransaction: (id: number, payload: { type: 'underpayment_payment' | 'debt_repayment' | 'debt_write_off'; amount: number; transaction_date: string; note?: string | null; reason?: string | null; idempotency_key: string }) =>
       apiRequest<{ transaction_id: number; replayed: boolean; outstanding_cents: number; status: string }>(`admin/hr/payroll-corrections/${id}/transactions`, { method: 'POST', body: payload }),
     voidCorrectionTransaction: (id: number, transactionId: number, reason: string) =>
       apiRequest<{ outstanding_cents: number; status: string }>(`admin/hr/payroll-corrections/${id}/transactions/${transactionId}/void`, { method: 'POST', body: { reason } }),

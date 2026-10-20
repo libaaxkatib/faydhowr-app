@@ -77,7 +77,9 @@ class PayrollRunCalculator
             }
 
             if ($employee->employment_type === 'temporary') {
-                $warnings[] = "Assignment #{$assignment->id} belongs to a Temporary employee ({$employee->employee_number}); Temporary pay is the replacement cost deducted from the covered Permanent employee, so no payroll line was created.";
+                $warnings[] = $assignment->assignment_type === AssignmentType::Replacement
+                    ? "UNRESOLVED: assignment #{$assignment->id} registers Temporary worker {$employee->employee_number} as a Replacement. No payroll line was calculated for these days; correct the classification before payroll is calculated."
+                    : "Assignment #{$assignment->id} belongs to a Temporary employee ({$employee->employee_number}); Temporary pay is the replacement cost deducted from the covered Permanent employee, so no payroll line was created.";
 
                 continue;
             }
@@ -375,7 +377,9 @@ class PayrollRunCalculator
                     ->where('payroll_correction_id', $correction->id)->where('period', '<', $period)->sum('amount_cents');
                 // Repayments recorded outside payroll (a person paying part of the debt back) also reduce what payroll may still take.
                 $repaid = $correction->transactionCents(PayrollCorrectionTransaction::TYPE_DEBT_REPAYMENT);
-                $balance = (int) $correction->difference_cents - $recoveredEarlier - $repaid;
+                // A Super Admin write-off forgives part of the debt: payroll must never deduct what was written off.
+                $writtenOff = $correction->transactionCents(PayrollCorrectionTransaction::TYPE_DEBT_WRITE_OFF);
+                $balance = (int) $correction->difference_cents - $recoveredEarlier - $repaid - $writtenOff;
                 $take = min($balance, (int) array_sum($available));
 
                 if ($balance <= 0) {

@@ -187,10 +187,7 @@ class OwnerDecisionsUpdateTest extends TestCase
         $events = AuditLog::query()->where('entity_type', PayrollCorrection::class)->where('entity_id', $under->id)->get()->pluck('metadata.event')->filter()->values()->all();
         $this->assertSame(['payroll_corrected', 'underpayment_paid', 'underpayment_paid'], $events);
 
-        // A payment already written to the payment ledger cannot be voided away.
-        $transaction = PayrollCorrectionTransaction::query()->firstOrFail();
-        $this->as($this->super)->postJson("/api/v1/admin/hr/payroll-corrections/{$under->id}/transactions/{$transaction->id}/void", ['reason' => 'Trying to undo a payment'])
-            ->assertUnprocessable()->assertJsonPath('error_code', 'TRANSACTION_NOT_VOIDABLE');
+        // Voiding a payment is a separate, Super Admin-only action with its own linked reversal (see OwnerDecisionsFinalTest).
     }
 
     // ------------------------------------------------------------------ 2. a leaving employee's debt

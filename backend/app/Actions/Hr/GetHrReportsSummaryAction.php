@@ -129,7 +129,7 @@ class GetHrReportsSummaryAction
             ->join('employees', 'employees.id', '=', 'employee_payments.employee_id')
             ->join('departments', 'departments.id', '=', 'employees.department_id')
             ->whereBetween('employee_payments.payment_date', [$from, $to])
-            ->selectRaw('departments.id, departments.name, sum(employee_payments.amount) as total_paid, count(*) as total_payments')
+            ->selectRaw('departments.id, departments.name, sum(employee_payments.amount) as total_paid, sum(case when employee_payments.reverses_payment_id is null then 1 else -1 end) as total_payments')
             ->groupBy('departments.id', 'departments.name')
             ->orderBy('departments.name')
             ->get()

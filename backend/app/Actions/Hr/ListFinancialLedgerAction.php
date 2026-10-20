@@ -33,6 +33,9 @@ class ListFinancialLedgerAction
                 'currency' => $p->currency,
                 'reason' => null,
                 'notes' => $p->notes,
+                // A voided payment keeps its row; a linked negative row cancels it, so the ledger total reconciles.
+                'is_reversal' => $p->reverses_payment_id !== null,
+                'reverses_payment_id' => $p->reverses_payment_id,
             ]));
         }
 

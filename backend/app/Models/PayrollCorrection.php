@@ -25,6 +25,9 @@ class PayrollCorrection extends Model
     /** An overpayment that has been paid back in full (payroll deductions and recorded repayments). */
     public const STATUS_RECOVERED = 'recovered';
 
+    /** An overpayment whose remaining debt was cleared by a Super Admin write-off (the debt record and its repayments are kept). */
+    public const STATUS_WRITTEN_OFF = 'written_off';
+
     /** An underpayment that has been paid to the employee in full. */
     public const STATUS_SETTLED = 'settled';
 
@@ -77,10 +80,13 @@ class PayrollCorrection extends Model
     public function refreshBalance(): void
     {
         if ($this->kind === self::KIND_OVERPAYMENT) {
-            $outstanding = max(0, (int) $this->difference_cents - $this->recoveredCents() - $this->transactionCents(PayrollCorrectionTransaction::TYPE_DEBT_REPAYMENT));
-            $done = self::STATUS_RECOVERED;
+            $writtenOff = $this->transactionCents(PayrollCorrectionTransaction::TYPE_DEBT_WRITE_OFF);
+            $outstanding = max(0, (int) $this->difference_cents - $this->recoveredCents() - $this->transactionCents(PayrollCorrectionTransaction::TYPE_DEBT_REPAYMENT) - $writtenOff);
+            $done = $writtenOff > 0 ? self::STATUS_WRITTEN_OFF : self::STATUS_RECOVERED;
         } else {
-            $outstanding = max(0, abs((int) $this->difference_cents) - $this->transactionCents(PayrollCorrectionTransaction::TYPE_UNDERPAYMENT_PAYMENT));
+            // Payments minus the reversals that cancelled some of them.
+            $paid = $this->transactionCents(PayrollCorrectionTransaction::TYPE_UNDERPAYMENT_PAYMENT) - $this->transactionCents(PayrollCorrectionTransaction::TYPE_UNDERPAYMENT_REVERSAL);
+            $outstanding = max(0, abs((int) $this->difference_cents) - $paid);
             $done = self::STATUS_SETTLED;
         }
 

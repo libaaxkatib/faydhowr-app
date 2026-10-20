@@ -470,7 +470,7 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
           <TypeSelect id="replace-type" value={type} onChange={setType} error={err('assignment_type')} hint="Is the replacement meant to be Permanent, or a Replacement who may later be returned from? Choose explicitly." />
           {type === 'replacement' && isTemporaryWorker(picked) && (
             <div role="alert" className="-mt-2 mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs text-warning" data-testid="temporary-warning">
-              <p className="mb-1.5">{picked?.full_name} is registered as a Temporary worker. Temporary cover is recorded as Temporary cover (paid per verified day), not as a Replacement who takes over the position. Registering them as a Replacement is probably a mistake. Nothing is converted for you; if you go on, your confirmation is recorded in the audit history.</p>
+              <p className="mb-1.5">{picked?.full_name} is registered as a Temporary worker. Temporary cover is recorded as Temporary cover (paid per verified day), not as a Replacement who takes over the position. Registering them as a Replacement is probably a mistake. Nothing is converted for you. If you go on, your confirmation is recorded in the audit history, but NO payroll line is calculated for these days and payroll for the month cannot be calculated until the employee type (or this record) is corrected.</p>
               <label className="flex items-center gap-2">
                 <input type="checkbox" id="replace-ack-temporary" checked={acknowledgeTemporary} onChange={(event) => setAcknowledgeTemporary(event.target.checked)} />
                 I have checked, and I want a Replacement for this person anyway

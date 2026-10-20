@@ -8,6 +8,7 @@ use App\Models\Admin;
 use App\Models\Employee;
 use App\Support\ApiResponse;
 use App\Support\Hr\EmployeeDuplicateFinder;
+use App\Support\Hr\UnresolvedTemporaryReplacements;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Arr;
 
@@ -45,6 +46,12 @@ class UpdateEmployeeAction
             ));
         }
 
+        $oldType = $employee->employment_type;
+        // Replacements of this employee that are unresolved (a Temporary worker confirmed as a Replacement) BEFORE this edit.
+        $unresolvedBefore = $oldType === 'temporary' && array_key_exists('employment_type', $attributes)
+            ? UnresolvedTemporaryReplacements::query()->where('employee_id', $employee->id)->get()
+            : collect();
+
         $employee->update($attributes);
 
         event(AuditEvent::record(
@@ -53,12 +60,22 @@ class UpdateEmployeeAction
             description: "Employee '{$employee->full_name}' ({$employee->employee_number}) updated.",
             entityType: Employee::class,
             entityId: $employee->id,
-            metadata: $matches->isEmpty() ? null : [
-                'duplicate_override' => true,
-                'reason' => $reason,
-                'matched_employee_ids' => $matches->pluck('id')->all(),
-            ],
+            metadata: [
+                ...($matches->isEmpty() ? [] : [
+                    'duplicate_override' => true,
+                    'reason' => $reason,
+                    'matched_employee_ids' => $matches->pluck('id')->all(),
+                ]),
+                ...($oldType !== $employee->employment_type ? ['employment_type' => ['from' => $oldType, 'to' => $employee->employment_type]] : []),
+            ] ?: null,
         ));
+
+        // The correction of a Temporary worker who was confirmed as a Replacement: recorded on each assignment it resolves (who, when, how).
+        foreach ($unresolvedBefore as $assignment) {
+            if (! UnresolvedTemporaryReplacements::isUnresolved($assignment->refresh())) {
+                UnresolvedTemporaryReplacements::auditResolved($assignment, 'employee_type_changed', $actor, ['employment_type_from' => $oldType, 'employment_type_to' => $employee->employment_type]);
+            }
+        }
 
         return $employee->load(['category', 'department', 'position']);
     }

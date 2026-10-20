@@ -13,7 +13,7 @@ export interface PayrollCorrection {
   period: string;
   kind: 'overpayment' | 'underpayment';
   action: string;
-  status: 'open' | 'recovered' | 'settled';
+  status: 'open' | 'recovered' | 'written_off' | 'settled';
   currency: string;
   employee_status: string | null;
   has_open_assignment: boolean;
@@ -25,6 +25,7 @@ export interface PayrollCorrection {
   recovered_cents: number;
   scheduled_cents: number;
   repaid_cents: number;
+  written_off_cents: number;
   paid_cents: number;
   outstanding_cents: number;
   available_to_settle_cents: number;
@@ -37,11 +38,16 @@ export interface PayrollCorrection {
 
 export interface PayrollCorrectionTransaction {
   id: number;
-  type: 'underpayment_payment' | 'debt_repayment';
+  type: 'underpayment_payment' | 'underpayment_payment_reversal' | 'debt_repayment' | 'debt_write_off';
   amount_cents: number;
   transaction_date: string | null;
   note: string | null;
+  reason: string | null;
+  balance_before_cents: number | null;
+  balance_after_cents: number | null;
+  reverses_transaction_id: number | null;
   recorded_by: string | null;
+  recorded_at: string | null;
   voided: boolean;
   void_reason: string | null;
   voided_by: string | null;
@@ -49,7 +55,7 @@ export interface PayrollCorrectionTransaction {
 
 export interface PayrollCorrectionsResponse {
   corrections: PayrollCorrection[];
-  totals: { currency: string; overpaid_cents: number; recovered_cents: number; outstanding_cents: number; underpaid_cents: number; underpayments_paid_cents: number; underpayments_outstanding_cents: number };
+  totals: { currency: string; overpaid_cents: number; recovered_cents: number; written_off_cents: number; outstanding_cents: number; underpaid_cents: number; underpayments_paid_cents: number; underpayments_outstanding_cents: number };
 }
 
 export interface PayrollRunTotals {

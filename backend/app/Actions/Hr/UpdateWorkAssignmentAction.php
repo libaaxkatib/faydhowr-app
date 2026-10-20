@@ -18,6 +18,7 @@ use App\Support\Hr\ConcurrentAssignmentGuard;
 use App\Support\Hr\Payroll\ClosedPayrollCorrection;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\PositionSuccession;
+use App\Support\Hr\UnresolvedTemporaryReplacements;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
@@ -139,6 +140,8 @@ class UpdateWorkAssignmentAction
         $this->guardSuccession($assignment, $data);
         $this->guardConcurrency($assignment, $data);
 
+        $wasUnresolved = UnresolvedTemporaryReplacements::isUnresolved($assignment);
+
         $before = [
             'position_id' => $assignment->position_id,
             'assignment_type' => $assignment->assignment_type?->value ?? AssignmentType::Permanent->value,
@@ -178,6 +181,10 @@ class UpdateWorkAssignmentAction
             // The original values are kept here, so a changed start date, position or type can always be traced back.
             metadata: ['event' => 'edited', 'changed_fields' => $changed, 'before' => array_intersect_key($before, array_flip($changed)), 'after' => array_intersect_key($after, array_flip($changed))],
         ));
+
+        if ($wasUnresolved && ! UnresolvedTemporaryReplacements::isUnresolved($assignment)) {
+            UnresolvedTemporaryReplacements::auditResolved($assignment, 'assignment_type_changed', $actor, ['assignment_type_from' => 'replacement', 'assignment_type_to' => $assignment->assignment_type->value]);
+        }
 
         return $assignment->load(['workLocation.clientCompany', 'clientCompany', 'position']);
     }

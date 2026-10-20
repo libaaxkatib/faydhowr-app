@@ -10,6 +10,7 @@ use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
 use App\Models\TemporaryReplacement;
 use App\Support\ApiResponse;
+use App\Support\Hr\UnresolvedTemporaryReplacements;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
@@ -36,6 +37,8 @@ class CancelWorkAssignmentAction
             $this->fail('This assignment has Temporary replacement records; end it instead of cancelling.', 'WORK_ASSIGNMENT_HAS_REPLACEMENTS');
         }
 
+        $wasUnresolved = UnresolvedTemporaryReplacements::isUnresolved($assignment);
+
         $assignment->update([
             'status' => WorkAssignmentStatus::Cancelled,
             'notes' => trim(($assignment->notes ? $assignment->notes."\n" : '').'Cancelled: '.$reason),
@@ -49,6 +52,10 @@ class CancelWorkAssignmentAction
             entityId: $assignment->id,
             metadata: ['reason' => $reason],
         ));
+
+        if ($wasUnresolved) {
+            UnresolvedTemporaryReplacements::auditResolved($assignment, 'replacement_cancelled', $actor, ['reason' => $reason]);
+        }
 
         return $assignment->load(['workLocation.clientCompany', 'clientCompany', 'position']);
     }

@@ -11,6 +11,7 @@ use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\Payroll\PayrollPeriodView;
+use App\Support\Hr\UnresolvedTemporaryReplacements;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Throwable;
@@ -114,6 +115,9 @@ class ListCompanyEmployeesAction
             'work_location_name' => $a->workLocation?->name,
             'assignment_type' => $a->assignment_type?->value ?? 'permanent',
             'replaces_assignment_id' => $a->replaces_assignment_id,
+            // A Temporary worker confirmed as a Replacement: no payroll for these days until the classification is corrected.
+            'needs_correction' => UnresolvedTemporaryReplacements::isUnresolved($a),
+            'needs_correction_reason' => UnresolvedTemporaryReplacements::isUnresolved($a) ? UnresolvedTemporaryReplacements::REASON : null,
             // For a Replacement: whose position it holds and that employee's salary - the salary basis, and what Return proposes (HR still confirms it).
             'replaces' => $a->assignment_type === AssignmentType::Replacement && $a->replaces !== null ? [
                 'assignment_id' => $a->replaces->id,
@@ -209,7 +213,9 @@ class ListCompanyEmployeesAction
         $line = $info['lines'][$a->id] ?? null;
 
         if ($line === null) {
-            return ['calculated' => null, 'unavailable_reason' => 'No payroll line exists for this assignment in this month.'];
+            return ['calculated' => null, 'unavailable_reason' => UnresolvedTemporaryReplacements::isUnresolved($a)
+                ? UnresolvedTemporaryReplacements::REASON
+                : 'No payroll line exists for this assignment in this month.'];
         }
 
         return [

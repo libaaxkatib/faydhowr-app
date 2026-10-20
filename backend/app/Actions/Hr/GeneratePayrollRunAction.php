@@ -13,6 +13,7 @@ use App\Support\ApiResponse;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\Payroll\PayrollRunCalculator;
 use App\Support\Hr\Payroll\RecoveryLedger;
+use App\Support\Hr\UnresolvedTemporaryReplacements;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
@@ -38,6 +39,19 @@ class GeneratePayrollRunAction
                     "Payroll for {$period} is {$run->status} and can no longer be regenerated. Use a payroll adjustment for corrections.",
                     'PAYROLL_RUN_LOCKED',
                     422,
+                ));
+            }
+
+            // A Temporary worker confirmed as a Replacement but still classified as Temporary has no payroll line and must be corrected first:
+            // the month is not calculated until HR fixes the record (nothing is converted automatically). The rollback also removes a draft just created.
+            $unresolved = UnresolvedTemporaryReplacements::query($period)->get();
+
+            if ($unresolved->isNotEmpty()) {
+                throw new HttpResponseException(ApiResponse::error(
+                    "Payroll for {$period} cannot be calculated yet: ".$unresolved->count().' record(s) register a Temporary worker as a Replacement ('.UnresolvedTemporaryReplacements::describe($unresolved).'). '.UnresolvedTemporaryReplacements::REASON,
+                    'PAYROLL_UNRESOLVED_TEMPORARY_REPLACEMENT',
+                    422,
+                    ['assignments' => $unresolved->map(fn ($a): array => ['assignment_id' => $a->id, 'employee_number' => $a->employee?->employee_number, 'employee_name' => $a->employee?->full_name, 'start_date' => $a->start_date->toDateString(), 'end_date' => $a->end_date?->toDateString()])->all()],
                 ));
             }
 

@@ -9,6 +9,20 @@ export function canPayUnderpayment(role: string | null | undefined): boolean {
   return role === 'super_admin';
 }
 
+/** Only a Super Admin writes a debt off, and only a Super Admin voids a payment made to an employee. */
+export function canWriteOff(role: string | null | undefined): boolean {
+  return role === 'super_admin';
+}
+
+export function canVoidPayment(role: string | null | undefined): boolean {
+  return role === 'super_admin';
+}
+
+/** A write-off needs a real reason (the server requires at least 5 characters too). */
+export function validateWriteOffReason(reason: string): string | null {
+  return reason.trim().length >= 5 ? null : 'Give the reason for writing this debt off (at least 5 characters).';
+}
+
 /** A Super Admin or an HR Manager manages the debt of an employee (record a repayment, void a mistaken one). */
 export function canManageDebt(role: string | null | undefined): boolean {
   return role === 'super_admin' || role === 'hr_manager';
@@ -32,5 +46,6 @@ export function validateSettlementAmount(amount: string, availableCents: number)
 export const CORRECTION_STATUS_LABEL: Record<string, string> = {
   open: 'Still open',
   recovered: 'Fully recovered',
+  written_off: 'Written off',
   settled: 'Paid in full',
 };

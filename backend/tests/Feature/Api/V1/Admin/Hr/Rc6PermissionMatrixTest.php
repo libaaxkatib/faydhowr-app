@@ -142,6 +142,9 @@ class Rc6PermissionMatrixTest extends TestCase
             $debtStatus = $this->httpStatus($who, 'POST', "/api/v1/admin/hr/payroll-corrections/{$debt->id}/transactions", $repayment + ['idempotency_key' => "debt-{$who}-key"]);
             $payStatus = $this->httpStatus($who, 'POST', "/api/v1/admin/hr/payroll-corrections/{$owed->id}/transactions", $payment + ['idempotency_key' => "pay-{$who}-key"]);
 
+            $writeOff = $this->httpStatus($who, 'POST', "/api/v1/admin/hr/payroll-corrections/{$debt->id}/transactions", ['type' => 'debt_write_off', 'amount' => 1, 'reason' => 'Matrix test write-off', 'transaction_date' => '2026-10-01', 'idempotency_key' => "wo-{$who}-key"]);
+            $this->assertSame($who === 'super_admin' ? 201 : 403, $writeOff, "{$who}: debt write-off");
+
             $mayManageDebt = in_array($who, ['super_admin', 'hr_manager'], true);
             $mayPay = $who === 'super_admin';
 
@@ -149,8 +152,19 @@ class Rc6PermissionMatrixTest extends TestCase
             $this->assertSame($mayPay ? 201 : 403, $payStatus, "{$who}: underpayment payment");
         }
 
-        $this->assertSame(2, $debt->transactions()->count(), 'only the Super Admin and the HR Manager recorded a repayment');
+        $this->assertSame(3, $debt->transactions()->count(), 'the Super Admin and the HR Manager recorded a repayment, and only the Super Admin wrote off');
         $this->assertSame(1, $owed->transactions()->count(), 'only the Super Admin recorded a payment');
+
+        // Voiding the payment (a linked reversal): Super Admin only.
+        $payment = $owed->transactions()->sole();
+        $voidUrl = "/api/v1/admin/hr/payroll-corrections/{$owed->id}/transactions/{$payment->id}/void";
+
+        foreach (array_keys(self::BASELINE) as $who) {
+            $this->assertSame(403, $this->httpStatus($who, 'POST', $voidUrl, ['reason' => 'Matrix test void']), "{$who}: void of a payment");
+        }
+
+        $this->assertSame(401, $this->httpStatus(null, 'POST', $voidUrl, ['reason' => 'Matrix test void']));
+        $this->assertSame(200, $this->httpStatus('super_admin', 'POST', $voidUrl, ['reason' => 'Matrix test void']));
         $this->assertSame(401, $this->httpStatus(null, 'POST', "/api/v1/admin/hr/payroll-corrections/{$debt->id}/transactions", $repayment + ['idempotency_key' => 'anon-key']));
     }
 
