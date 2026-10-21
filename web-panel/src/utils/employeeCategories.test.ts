@@ -13,3 +13,9 @@ test('recruitment pickers leave out Office Staff, but keep it for an employee wh
   assert.deepEqual(recruitmentCategories([{ id: 9, name: ' office staff ' }]).map((c) => c.id), [], 'letter case and spacing do not matter');
   assert.equal(OFFICE_STAFF_CATEGORY, 'Office Staff');
 });
+
+test('archived categories are not offered for new registrations, but the one an employee already has is kept', () => {
+  const all = [{ id: 1, name: 'General Cleaning' }, { id: 2, name: 'Old trade', archived: true }, { id: 3, name: 'Cooking', archived: false }];
+  assert.deepEqual(recruitmentCategories(all).map((c) => c.id), [1, 3]);
+  assert.deepEqual(recruitmentCategories(all, 2).map((c) => c.id), [1, 2, 3]);
+});

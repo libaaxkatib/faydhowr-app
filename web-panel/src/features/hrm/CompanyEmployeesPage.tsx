@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { companyEmployeesApi } from '@/api/companyEmployees';
@@ -40,7 +40,11 @@ import type { AssignmentType, CompanyAssignmentStatus, CompanyEmployeeRow } from
  */
 export function CompanyEmployeesPage() {
   const params = useParams();
+  const location = useLocation();
   const companyId = Number(params.id);
+  // Back to the Companies & Workplaces list exactly as it was left (its category filter included), when we came from there.
+  const fromState = (location.state as { fromPath?: string } | null)?.fromPath;
+  const backToList = typeof fromState === 'string' && fromState.startsWith('/hr/companies') ? fromState : '/hr/companies';
   const { hasPermission } = useEffectivePermissions();
   const canManage = hasPermission('hr.manage');
 
@@ -76,7 +80,7 @@ export function CompanyEmployeesPage() {
     <div>
       <PageHeader
         title={companyName}
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Companies', to: '/hr/companies' }, { label: companyName }]}
+        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Companies & Workplaces', to: backToList }, { label: companyName }]}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => setHistory('all')}>
@@ -317,18 +321,69 @@ function EmployeeRow({ row, showPayroll, canManage, onEdit, onReplace, onReturn,
       </td>
       <td className="px-3 py-3">
         <div className="flex flex-wrap justify-end gap-1.5">
-          <Link to={`/hr/employees/${row.employee_id}`} className="inline-flex h-8 items-center rounded-sm border border-border px-2.5 text-xs font-semibold text-ink hover:bg-surface-alt" aria-label={`View ${row.full_name}`}>View</Link>
-          <Button variant="outline" size="sm" onClick={() => onHistory(row)} aria-label={`History of ${row.full_name}`}>History</Button>
-          {canManage && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => onEdit(row)} aria-label={`Edit ${row.full_name}`}>Edit</Button>
-              {open && <Button variant="outline" size="sm" onClick={() => onReplace(row)} aria-label={`Replace ${row.full_name}`}>Replace</Button>}
-              {canReturn && <Button variant="outline" size="sm" onClick={() => onReturn(row)} aria-label={`Return original employee for ${row.full_name}`}>Return</Button>}
-              {open && <Button variant="outline" size="sm" onClick={() => onStop(row)} aria-label={`Stop ${row.full_name}`}>Stop</Button>}
-            </>
-          )}
+          <Link to={`/hr/employees/${row.employee_id}`} state={{ fromPath: `${window.location.pathname}${window.location.search}`, fromLabel: 'Company employees' }} className="inline-flex h-8 items-center rounded-sm border border-border px-2.5 text-xs font-semibold text-ink hover:bg-surface-alt" aria-label={`View ${row.full_name}`}>View</Link>
+          {canManage && <Button variant="outline" size="sm" onClick={() => onEdit(row)} aria-label={`Edit ${row.full_name}`}>Edit</Button>}
+          <RowMenu
+            label={`More actions for ${row.full_name}`}
+            items={[
+              { label: 'History', ariaLabel: `History of ${row.full_name}`, onClick: () => onHistory(row) },
+              ...(canManage && open ? [{ label: 'Replace', ariaLabel: `Replace ${row.full_name}`, onClick: () => onReplace(row) }] : []),
+              ...(canManage && canReturn ? [{ label: 'Return original employee', ariaLabel: `Return original employee for ${row.full_name}`, onClick: () => onReturn(row) }] : []),
+              ...(canManage && open ? [{ label: 'Stop', ariaLabel: `Stop ${row.full_name}`, onClick: () => onStop(row), danger: true }] : []),
+            ]}
+          />
         </div>
       </td>
     </tr>
+  );
+}
+
+/** The less common row actions behind one "More" button, so the Actions column stays narrow. Closes on selection, outside click and Escape. */
+function RowMenu({ label, items }: { label: string; items: { label: string; ariaLabel: string; onClick: () => void; danger?: boolean }[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <Button variant="outline" size="sm" aria-haspopup="menu" aria-expanded={open} aria-label={label} onClick={() => setOpen((value) => !value)}>
+        More
+        <Icon name="chevron-down" size={12} />
+      </Button>
+      {open && (
+        <div role="menu" className="absolute right-0 z-20 mt-1 min-w-[10rem] rounded-md border border-border bg-surface py-1 shadow-card">
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              aria-label={item.ariaLabel}
+              onClick={() => {
+                setOpen(false);
+                item.onClick();
+              }}
+              className={`block w-full px-3 py-1.5 text-left text-xs font-medium hover:bg-surface-alt ${item.danger ? 'text-danger' : 'text-ink'}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

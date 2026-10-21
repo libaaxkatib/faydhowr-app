@@ -36,6 +36,7 @@ class HrManagerCrossModuleAccessTest extends TestCase
      */
     private const HR_PERMISSIONS = [
         AdminPermission::DashboardView,
+        AdminPermission::HrDashboardView,
         AdminPermission::HrView,
         AdminPermission::HrManage,
         AdminPermission::HrReportsView,
@@ -61,6 +62,7 @@ class HrManagerCrossModuleAccessTest extends TestCase
     {
         $admin = Admin::factory()->create(['role' => AdminRole::HrManager]);
         $this->assignRolePermissions(AdminRole::HrManager, [
+            AdminPermission::HrDashboardView,
             AdminPermission::HrView,
             AdminPermission::HrManage,
         ]);

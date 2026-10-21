@@ -21,6 +21,7 @@ final class MonthlyPaymentReportExporter
         'Employee number', 'Employee name', 'Company / Guri', 'Company category', 'Monthly salary (USD)',
         'Days paid', 'Days in month', 'Gross pay (USD)', 'Deductions (USD)', 'Adjustments (USD)',
         'Payment amount (USD)', 'Payment / account number', 'Payment status', 'Data checks',
+        'Internal employee ID', 'Payment number source',
     ];
 
     private const MONEY_FORMAT = '#,##0.00';
@@ -49,8 +50,11 @@ final class MonthlyPaymentReportExporter
     {
         $s = $report['summary'];
         $ws->setTitle('Summary');
-        $this->text($ws, 'A1', 'Monthly employee payment report');
+        $this->text($ws, 'A1', 'Monthly employee payment report'.($s['company_filter'] ? ' - '.($report['company_name'] ?? 'one company') : ''));
         $ws->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        if ($s['company_filter']) {
+            $this->text($ws, 'A2', "Company list: only this company's employees and its own lines are included; the total below is this company's total.");
+        }
 
         $facts = [
             ['Reporting month', $report['period']],
@@ -65,6 +69,8 @@ final class MonthlyPaymentReportExporter
             ['Employees missing a salary', $s['missing_salary']],
             ['Employees missing a company assignment', $s['missing_company']],
             ['Active employees not in this payroll (see sheet "Not in payroll")', $s['not_in_payroll']],
+            ['Employees whose number is the registration phone used as a fallback (no payment number recorded)', $s['phone_fallback']],
+            ['Imported payment numbers that differ from the registration phone (review)', $s['register_mismatch']],
         ];
         $row = 3;
         foreach ($facts as [$label, $value]) {
@@ -141,7 +147,7 @@ final class MonthlyPaymentReportExporter
     private function detailSheet(Worksheet $ws, array $report): void
     {
         $ws->setTitle('Employees');
-        $this->text($ws, 'A1', "Employees to pay - {$report['period']} (USD)".($report['is_estimate'] ? ' - ESTIMATE' : ''));
+        $this->text($ws, 'A1', "Employees to pay - {$report['period']} (USD)".($report['summary']['company_filter'] ? ' - '.($report['company_name'] ?? 'one company') : '').($report['is_estimate'] ? ' - ESTIMATE' : ''));
         $ws->getStyle('A1')->getFont()->setBold(true)->setSize(14);
         $this->text($ws, 'A2', 'Payment amount is the payroll engine\'s net payable for the month (after proration, deductions and adjustments). Highlighted cells need attention before paying.');
         $this->header($ws, 4, self::DETAIL_HEADERS);
@@ -160,6 +166,11 @@ final class MonthlyPaymentReportExporter
             $this->money($ws, "J{$rowNumber}", $this->usd($r['adjustment_cents']));
             $this->money($ws, "K{$rowNumber}", $this->usd($r['net_cents']));
             $r['payment_account'] === null ? $this->missing($ws, "L{$rowNumber}") : $this->text($ws, "L{$rowNumber}", $r['payment_account']);
+            if ($r['payment_is_fallback']) {
+                $this->fill($ws, "L{$rowNumber}", self::MISSING_FILL);
+            }
+            $this->text($ws, "O{$rowNumber}", (string) $r['employee_id']);
+            $this->text($ws, "P{$rowNumber}", (string) $r['payment_account_source']);
             $this->text($ws, "M{$rowNumber}", (string) $r['payment_status']);
             $this->text($ws, "N{$rowNumber}", $r['flags'] === [] ? 'OK' : implode('; ', $r['flags']));
             if ($r['company'] === MonthlyPaymentReportBuilder::CATEGORY_UNASSIGNED || in_array(MonthlyPaymentReportBuilder::FLAG_NO_COMPANY, $r['flags'], true)) {
@@ -172,9 +183,15 @@ final class MonthlyPaymentReportExporter
         }
 
         $last = max($rowNumber - 1, 4);
-        $ws->setAutoFilter("A4:N{$last}");
+        $ws->setAutoFilter("A4:P{$last}");
         $ws->freezePane('C5');
-        foreach (['A' => 16, 'B' => 32, 'C' => 30, 'D' => 20, 'E' => 18, 'F' => 11, 'G' => 13, 'H' => 16, 'I' => 16, 'J' => 16, 'K' => 20, 'L' => 26, 'M' => 34, 'N' => 46] as $col => $width) {
+
+        // The total of what is listed (for a company list: that company's total). Written below the filtered table, as a number.
+        $totalRow = $last + 2;
+        $this->text($ws, "A{$totalRow}", $report['summary']['company_filter'] ? 'Company total' : 'Total');
+        $this->money($ws, "K{$totalRow}", $this->usd($report['summary']['total_net_cents']));
+        $ws->getStyle("A{$totalRow}:K{$totalRow}")->getFont()->setBold(true);
+        foreach (['A' => 16, 'B' => 32, 'C' => 30, 'D' => 20, 'E' => 18, 'F' => 11, 'G' => 13, 'H' => 16, 'I' => 16, 'J' => 16, 'K' => 20, 'L' => 26, 'M' => 34, 'N' => 46, 'O' => 14, 'P' => 46] as $col => $width) {
             $ws->getColumnDimension($col)->setWidth($width);
         }
     }

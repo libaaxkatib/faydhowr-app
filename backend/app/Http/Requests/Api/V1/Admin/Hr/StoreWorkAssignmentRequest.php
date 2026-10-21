@@ -45,6 +45,7 @@ class StoreWorkAssignmentRequest extends FormRequest
             'notes' => ['nullable', 'string'],
             'shift' => ['sometimes', 'nullable', Rule::in(AssignmentShift::values())],
             'override_capacity' => ['sometimes', 'boolean'],
+            'confirm_additional_company' => ['sometimes', 'boolean'],
         ];
     }
 

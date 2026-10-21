@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AdminRole;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,11 +13,13 @@ class HrPolicy extends Model
     /** One employee may hold concurrent assignments at more than one company. OFF unless the Super Admin turns it on. */
     public const MULTI_COMPANY_ASSIGNMENTS = 'multi_company_assignments';
 
-    /** @var array<string, array{label: string, description: string}> */
+    /** @var array<string, array{label: string, description: string, changeable_by: list<AdminRole>}> */
     public const CATALOG = [
         self::MULTI_COMPANY_ASSIGNMENTS => [
             'label' => 'Allow one employee to work for more than one company',
             'description' => 'Off: an employee can hold one assignment at a time. On: an employee may hold assignments at different companies at the same time; each keeps its own company, position, dates, salary and history.',
+            // Owner decision (Phase 2): a routine HR switch, so the HR Manager may change it as well as the Super Admin. Its value is never changed by code.
+            'changeable_by' => [AdminRole::SuperAdmin, AdminRole::HrManager],
         ],
     ];
 
@@ -28,6 +31,12 @@ class HrPolicy extends Model
     public function changedBy(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'changed_by');
+    }
+
+    /** May this role switch this policy? (Anyone else - including a Manager holding hr.manage directly - may only read it.) */
+    public static function roleMayChange(string $key, AdminRole $role): bool
+    {
+        return in_array($role, self::CATALOG[$key]['changeable_by'] ?? [AdminRole::SuperAdmin], true);
     }
 
     /** A policy with no row is OFF. */

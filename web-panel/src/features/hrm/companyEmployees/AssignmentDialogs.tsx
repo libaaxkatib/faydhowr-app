@@ -10,7 +10,8 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate } from '@/utils/formatters';
-import { friendlyErrorMessage } from '@/utils/hrHelpers';
+import { additionalCompanyQuestion, friendlyErrorMessage } from '@/utils/hrHelpers';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   ASSIGNMENT_TYPE_LABELS,
   ASSIGNMENT_TYPE_OPTIONS,
@@ -29,6 +30,7 @@ import {
   type ShiftValue,
 } from '@/utils/companyEmployees';
 import { EmployeePicker } from '@/features/hrm/companyEmployees/EmployeePicker';
+import { CreatePositionDialog } from '@/features/hrm/QuickCreateDialogs';
 import type { CompanyEmployeeCandidate, CompanyEmployeeRow } from '@/types/companyEmployees';
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -73,6 +75,7 @@ function useActionState(companyId: number) {
 
 function PositionSelect({ id, value, onChange, error }: { id: string; value: number | ''; onChange: (value: number | '') => void; error?: string }) {
   const { data: positions } = useQuery({ queryKey: ['positions'], queryFn: hrApi.positions.list });
+  const [creating, setCreating] = useState(false);
 
   return (
     <FormField label="Position" htmlFor={id} required error={error}>
@@ -83,6 +86,10 @@ function PositionSelect({ id, value, onChange, error }: { id: string; value: num
         placeholder="Choose a position…"
         options={(positions ?? []).map((p) => ({ value: String(p.id), label: p.name }))}
       />
+      <button type="button" onClick={() => setCreating(true)} className="mt-1 text-xs font-semibold text-primary hover:underline">
+        + Create Position
+      </button>
+      <CreatePositionDialog isOpen={creating} onClose={() => setCreating(false)} onCreated={(position) => onChange(position.id)} />
     </FormField>
   );
 }
@@ -183,9 +190,11 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
   const [notes, setNotes] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
+  const [question, setQuestion] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      setQuestion(null);
       setPicked(null);
       setPositionId('');
       setShift('');
@@ -201,7 +210,7 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
   }, [isOpen]);
 
   const mutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (confirmAdditional: boolean) =>
       companyEmployeesApi.assign(companyId, {
         employee_id: Number(picked?.id),
         // A Replacement is never added on its own: it takes over a Permanent employee's position through Replace Employee.
@@ -214,9 +223,15 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
         notes: notes.trim() === '' ? null : notes.trim(),
         ...(shift !== '' ? { shift } : {}),
         ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}),
+        ...(confirmAdditional ? { confirm_additional_company: true } : {}),
       }),
     onSuccess: () => state.succeeded('Employee added to the company.', onClose),
-    onError: state.failed,
+    // The server asks for an explicit yes before a person who already works for another company is given a second one.
+    onError: (error) => {
+      const asked = additionalCompanyQuestion(error);
+      if (asked !== null) setQuestion(asked);
+      else state.failed(error);
+    },
   });
 
   const submit = (event: FormEvent) => {
@@ -225,11 +240,24 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
     const found: Record<string, string | undefined> = { ...validateAssignForm({ employee_id: picked?.id ?? '', assignment_type: 'permanent', position_id: positionId, start_date: startDate, salary_amount: amount, salary_currency: currency }), correction_reason: correctionError(state, correctionReason) };
     if (found.correction_reason === undefined) delete found.correction_reason;
     setErrors(found);
-    if (Object.keys(found).length === 0) mutation.mutate();
+    if (Object.keys(found).length === 0) mutation.mutate(false);
   };
   const err = (field: string) => errors[field] ?? state.serverFields[field]?.[0];
 
   return (
+    <>
+    <ConfirmDialog
+      isOpen={question !== null}
+      title="Assign to an additional company?"
+      description={question ?? ''}
+      confirmLabel="Yes, assign to both"
+      isLoading={mutation.isPending}
+      onCancel={() => setQuestion(null)}
+      onConfirm={() => {
+        setQuestion(null);
+        mutation.mutate(true);
+      }}
+    />
     <Modal
       isOpen={isOpen}
       onClose={onClose}
@@ -257,6 +285,7 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
         <p className="text-xs text-ink-muted">This places an existing employee at the company as a Permanent employee. Their HR registration is not changed and no second record is created. To put someone in the place of an existing employee, use Replace on that employee.</p>
       </form>
     </Modal>
+    </>
   );
 }
 

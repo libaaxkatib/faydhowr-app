@@ -77,9 +77,10 @@ class MultiCompanyAndCurrencyPolicyTest extends TestCase
         $this->getJson('/api/v1/admin/hr/policies')->assertUnauthorized();
     }
 
-    public function test_only_the_super_admin_can_switch_it_and_every_change_is_audited_with_the_reason(): void
+    public function test_only_the_super_admin_and_the_hr_manager_role_can_switch_it_and_every_change_is_audited_with_the_reason(): void
     {
         $url = '/api/v1/admin/hr/policies/'.HrPolicy::MULTI_COMPANY_ASSIGNMENTS;
+        // A holder of the HR permissions whose ROLE is not Super Admin or HR Manager (the HR Manager role itself may switch it: see Phase2HrAccessTest).
         $hrManager = $this->tokenWithOnly(['hr.view', 'hr.manage', 'hr.reports.view', 'hr.payroll.view', 'hr.payroll.manage', 'hr.payroll.approve']);
 
         $this->as($hrManager)->putJson($url, ['enabled' => true, 'reason' => 'I would like it'])->assertForbidden();
@@ -175,7 +176,16 @@ class MultiCompanyAndCurrencyPolicyTest extends TestCase
         $this->switchOn();
         $employee = $this->makeEmployee();
         $this->as($this->admin)->postJson("/api/v1/admin/hr/client-companies/{$this->a->id}/employees", $this->assignBody($employee, ['start_date' => '2026-01-01', 'salary_amount' => 300]))->assertCreated();
-        $this->as($this->admin)->postJson("/api/v1/admin/hr/client-companies/{$this->b->id}/employees", $this->assignBody($employee, ['start_date' => '2026-10-11', 'salary_amount' => 150, 'salary_currency' => 'EUR']))->assertCreated();
+        // Adding a second company needs an explicit confirmation that names the employee, the current company and the new one; without it nothing is saved.
+        $refused = $this->as($this->admin)->postJson("/api/v1/admin/hr/client-companies/{$this->b->id}/employees", $this->assignBody($employee, ['start_date' => '2026-10-11', 'salary_amount' => 150, 'salary_currency' => 'EUR']))
+            ->assertUnprocessable()->assertJsonPath('error_code', 'ADDITIONAL_COMPANY_CONFIRMATION_REQUIRED');
+        $this->assertStringContainsString($employee->employee_number, $refused->json('message'));
+        $this->assertStringContainsString('Company A', $refused->json('message'));
+        $this->assertStringContainsString('Company B', $refused->json('message'));
+        $this->assertSame('Company B', $refused->json('errors.new_company'));
+        $this->assertSame(['Company A'], array_column($refused->json('errors.current_assignments'), 'company'));
+        $this->assertSame(1, EmployeeWorkAssignment::query()->where('employee_id', $employee->id)->count(), 'nothing was saved without the confirmation');
+        $this->as($this->admin)->postJson("/api/v1/admin/hr/client-companies/{$this->b->id}/employees", $this->assignBody($employee, ['start_date' => '2026-10-11', 'salary_amount' => 150, 'salary_currency' => 'EUR', 'confirm_additional_company' => true]))->assertCreated();
 
         $rowsA = $this->as($this->admin)->getJson("/api/v1/admin/hr/client-companies/{$this->a->id}/employees?period=2026-10")->json('data');
         $rowsB = $this->as($this->admin)->getJson("/api/v1/admin/hr/client-companies/{$this->b->id}/employees?period=2026-10")->json('data');

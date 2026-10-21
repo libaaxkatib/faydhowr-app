@@ -43,6 +43,9 @@ use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeSeparationController as AdminEm
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeStatusController as AdminEmployeeStatusController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeUniformController as AdminEmployeeUniformController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeWorkAssignmentController as AdminEmployeeWorkAssignmentController;
+use App\Http\Controllers\Api\V1\Admin\Hr\FacilityComplaintController as AdminFacilityComplaintController;
+use App\Http\Controllers\Api\V1\Admin\Hr\FacilityInspectionController as AdminFacilityInspectionController;
+use App\Http\Controllers\Api\V1\Admin\Hr\FacilityReportController as AdminFacilityReportController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrDashboardController as AdminHrDashboardController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrPolicyController as AdminHrPolicyController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrReportsController as AdminHrReportsController;
@@ -1140,9 +1143,12 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:goods_receipts.manage'])
         ->name('api.v1.goods-receipts.store');
 });
 
+// The HR Dashboard has its own permission (hr.dashboard.view); every other HR read endpoint stays on hr.view.
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.dashboard.view', 'throttle:admin-operations'])
+    ->get('v1/admin/hr/dashboard', [AdminHrDashboardController::class, 'show'])
+    ->name('api.v1.admin.hr.dashboard');
+
 Route::middleware(['auth:sanctum', 'admin', 'permission:hr.view', 'throttle:admin-operations'])->group(function (): void {
-    Route::get('v1/admin/hr/dashboard', [AdminHrDashboardController::class, 'show'])
-        ->name('api.v1.admin.hr.dashboard');
     Route::get('v1/admin/hr/departments', [AdminDepartmentController::class, 'index'])
         ->name('api.v1.admin.hr.departments.index');
     Route::get('v1/admin/hr/positions', [AdminPositionController::class, 'index'])
@@ -1244,6 +1250,21 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::delete('v1/admin/hr/departments/{department}', [AdminDepartmentController::class, 'destroy'])
         ->whereNumber('department')
         ->name('api.v1.admin.hr.departments.destroy');
+
+    Route::post('v1/admin/hr/employee-categories', [AdminEmployeeCategoryController::class, 'store'])
+        ->name('api.v1.admin.hr.employee-categories.store');
+    Route::put('v1/admin/hr/employee-categories/{employeeCategory}', [AdminEmployeeCategoryController::class, 'update'])
+        ->whereNumber('employeeCategory')
+        ->name('api.v1.admin.hr.employee-categories.update');
+    Route::post('v1/admin/hr/employee-categories/{employeeCategory}/archive', [AdminEmployeeCategoryController::class, 'archive'])
+        ->whereNumber('employeeCategory')
+        ->name('api.v1.admin.hr.employee-categories.archive');
+    Route::post('v1/admin/hr/employee-categories/{employeeCategory}/restore', [AdminEmployeeCategoryController::class, 'restore'])
+        ->whereNumber('employeeCategory')
+        ->name('api.v1.admin.hr.employee-categories.restore');
+    Route::delete('v1/admin/hr/employee-categories/{employeeCategory}', [AdminEmployeeCategoryController::class, 'destroy'])
+        ->whereNumber('employeeCategory')
+        ->name('api.v1.admin.hr.employee-categories.destroy');
 
     Route::post('v1/admin/hr/positions', [AdminPositionController::class, 'store'])
         ->name('api.v1.admin.hr.positions.store');
@@ -1464,10 +1485,11 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'permission:
         ->name('api.v1.admin.hr.company-employees.stop');
 });
 
-// HR policies: anyone who may view HR can see them; only the Super Admin can change one (route role check + the action re-checks).
+// HR policies: anyone who may view HR can see them; the roles each policy lists (Super Admin, and the HR Manager for the multi-company switch)
+// can change it - the route needs hr.manage and the action re-checks the role and the policy's own list.
 Route::middleware(['auth:sanctum', 'admin', 'permission:hr.view', 'throttle:admin-operations'])->get('v1/admin/hr/policies', [AdminHrPolicyController::class, 'index'])
     ->name('api.v1.admin.hr.policies.index');
-Route::middleware(['auth:sanctum', 'admin', 'super_admin', 'throttle:admin-operations'])->put('v1/admin/hr/policies/{key}', [AdminHrPolicyController::class, 'update'])
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:admin-operations'])->put('v1/admin/hr/policies/{key}', [AdminHrPolicyController::class, 'update'])
     ->name('api.v1.admin.hr.policies.update');
 
 // HR Excel imports: need the dedicated hr.import permission, which only the Super Admin (implicitly) and the HR Manager
@@ -1526,6 +1548,58 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.view', 'throt
     Route::get('v1/admin/hr/payroll-runs/{payrollRun}/export', [AdminPayrollRunController::class, 'export'])
         ->whereNumber('payrollRun')
         ->name('api.v1.admin.hr.payroll-runs.export');
+});
+
+// Facility Inspections, complaints and their reports (Phase 2). Reading needs hr.inspections.view, writing hr.inspections.manage, the report
+// also hr.reports.view. Records are voided with a reason, never deleted. Due/overdue states are calculated when asked: no scheduler is involved.
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.inspections.view', 'throttle:admin-operations'])->group(function (): void {
+    Route::get('v1/admin/hr/facility-inspections/status', [AdminFacilityInspectionController::class, 'status'])
+        ->name('api.v1.admin.hr.facility-inspections.status');
+    Route::get('v1/admin/hr/facility-inspections', [AdminFacilityInspectionController::class, 'index'])
+        ->name('api.v1.admin.hr.facility-inspections.index');
+    Route::get('v1/admin/hr/facility-inspections/{facilityInspection}', [AdminFacilityInspectionController::class, 'show'])
+        ->whereNumber('facilityInspection')
+        ->name('api.v1.admin.hr.facility-inspections.show');
+    Route::get('v1/admin/hr/facility-complaints', [AdminFacilityComplaintController::class, 'index'])
+        ->name('api.v1.admin.hr.facility-complaints.index');
+    Route::get('v1/admin/hr/facility-complaints/{facilityComplaint}', [AdminFacilityComplaintController::class, 'show'])
+        ->whereNumber('facilityComplaint')
+        ->name('api.v1.admin.hr.facility-complaints.show');
+});
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.inspections.view', 'permission:hr.reports.view', 'throttle:admin-operations'])
+    ->get('v1/admin/hr/reports/facility', [AdminFacilityReportController::class, 'show'])
+    ->name('api.v1.admin.hr.reports.facility');
+
+Route::middleware(['auth:sanctum', 'admin', 'permission:hr.inspections.manage', 'throttle:admin-operations'])->group(function (): void {
+    Route::get('v1/admin/hr/facility-inspections/company-employees/{clientCompany}', [AdminFacilityInspectionController::class, 'companyEmployees'])
+        ->whereNumber('clientCompany')
+        ->name('api.v1.admin.hr.facility-inspections.company-employees');
+    Route::post('v1/admin/hr/facility-inspections', [AdminFacilityInspectionController::class, 'store'])
+        ->name('api.v1.admin.hr.facility-inspections.store');
+    Route::put('v1/admin/hr/facility-inspections/{facilityInspection}', [AdminFacilityInspectionController::class, 'update'])
+        ->whereNumber('facilityInspection')
+        ->name('api.v1.admin.hr.facility-inspections.update');
+    Route::post('v1/admin/hr/facility-inspections/{facilityInspection}/void', [AdminFacilityInspectionController::class, 'void'])
+        ->whereNumber('facilityInspection')
+        ->name('api.v1.admin.hr.facility-inspections.void');
+    Route::put('v1/admin/hr/facility-inspection-schedules/{clientCompany}', [AdminFacilityInspectionController::class, 'setSchedule'])
+        ->whereNumber('clientCompany')
+        ->name('api.v1.admin.hr.facility-inspection-schedules.set');
+    Route::post('v1/admin/hr/facility-complaints', [AdminFacilityComplaintController::class, 'store'])
+        ->name('api.v1.admin.hr.facility-complaints.store');
+    Route::put('v1/admin/hr/facility-complaints/{facilityComplaint}', [AdminFacilityComplaintController::class, 'update'])
+        ->whereNumber('facilityComplaint')
+        ->name('api.v1.admin.hr.facility-complaints.update');
+    Route::post('v1/admin/hr/facility-complaints/{facilityComplaint}/status', [AdminFacilityComplaintController::class, 'transition'])
+        ->whereNumber('facilityComplaint')
+        ->name('api.v1.admin.hr.facility-complaints.status');
+    Route::post('v1/admin/hr/facility-complaints/{facilityComplaint}/satisfaction', [AdminFacilityComplaintController::class, 'satisfaction'])
+        ->whereNumber('facilityComplaint')
+        ->name('api.v1.admin.hr.facility-complaints.satisfaction');
+    Route::post('v1/admin/hr/facility-complaints/{facilityComplaint}/void', [AdminFacilityComplaintController::class, 'void'])
+        ->whereNumber('facilityComplaint')
+        ->name('api.v1.admin.hr.facility-complaints.void');
 });
 
 // The monthly payment list contains employees' payment/account numbers: it needs payroll access AND the

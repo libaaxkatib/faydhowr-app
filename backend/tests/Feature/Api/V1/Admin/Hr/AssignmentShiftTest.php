@@ -218,7 +218,7 @@ class AssignmentShiftTest extends TestCase
         $this->as($this->super)->putJson('/api/v1/admin/hr/policies/multi_company_assignments', ['enabled' => true, 'reason' => 'One employee works a night and a day shift at two companies'])->assertOk();
 
         $one = $this->as($this->hr)->postJson($this->url($this->a), $this->body($e, ['shift' => 'night', 'salary_amount' => 250]))->assertCreated()->json('data.id');
-        $two = $this->as($this->hr)->postJson($this->url($this->b), $this->body($e, ['shift' => 'day', 'salary_amount' => 120]))->assertCreated()->json('data.id');
+        $two = $this->as($this->hr)->postJson($this->url($this->b), $this->body($e, ['shift' => 'day', 'salary_amount' => 120, 'confirm_additional_company' => true]))->assertCreated()->json('data.id');
         $this->assertNotSame($one, $two);
         $beforeTwo = $this->raw($two);
 

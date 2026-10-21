@@ -21,8 +21,10 @@ use Carbon\CarbonImmutable;
  * lines; their amounts are added into one row so nobody is listed or counted twice. Company totals
  * keep each line under its own company, so company totals still add up to the grand total.
  *
- * The payment/account number is the employee's own payment_account_number. The registration phone
- * is never used as a substitute: an employee without one is reported as missing.
+ * The payment/account number follows PaymentNumber::resolve (owner decision 6): the stored payroll/payment number - imported from the
+ * Excel sources or typed by HR - always wins; ONLY when none is stored the registration phone is shown, labelled as a fallback and
+ * flagged; with neither, the number is reported as missing. Nothing is ever written back. An optional company filter produces the list
+ * of one company only (only that company's lines are counted, so its total is that company's total).
  */
 class MonthlyPaymentReportBuilder
 {
@@ -33,6 +35,10 @@ class MonthlyPaymentReportBuilder
     public const CATEGORY_UNASSIGNED = 'No company';
 
     public const FLAG_NO_PAYMENT_NUMBER = 'Missing payment number';
+
+    public const FLAG_PHONE_FALLBACK = 'Payment number missing: registration phone used as a fallback';
+
+    public const FLAG_REGISTER_MISMATCH = 'Imported payment number differs from the registration phone: review';
 
     public const FLAG_NO_SALARY = 'Missing salary';
 
@@ -45,7 +51,7 @@ class MonthlyPaymentReportBuilder
     /**
      * @return array<string, mixed>
      */
-    public function build(string $period): array
+    public function build(string $period, ?int $clientCompanyId = null): array
     {
         $view = $this->periodView->forPeriod($period);
         $lines = collect($view['lines']);
@@ -67,6 +73,18 @@ class MonthlyPaymentReportBuilder
             ->whereIn('id', $lines->pluck('work_assignment_id')->all() ?: [0])
             ->get()
             ->keyBy('id');
+
+        // One company only: keep the lines whose assignment belongs to that company (an employee who works for two companies appears
+        // only with the line of the selected one, so the company total is exactly that company's).
+        if ($clientCompanyId !== null) {
+            $lines = $lines->filter(function (array $line) use ($assignments, $clientCompanyId): bool {
+                $assignment = $assignments->get($line['work_assignment_id']);
+                $company = $assignment?->clientCompany ?? $assignment?->workLocation?->clientCompany;
+
+                return $company !== null && (int) $company->id === $clientCompanyId;
+            })->values();
+        }
+
         $employees = Employee::query()->whereIn('id', $lines->pluck('employee_id')->unique()->all() ?: [0])->get()->keyBy('id');
 
         $rows = [];
@@ -97,7 +115,7 @@ class MonthlyPaymentReportBuilder
                 'line_count' => 0,
                 'payment_statuses' => [],
                 'company_missing' => false,
-                'payment_account' => $this->cleanAccount($employee?->payment_account_number),
+                'payment' => $employee !== null ? PaymentNumber::resolve($employee) : ['number' => null, 'label' => PaymentNumber::LABEL_MISSING, 'is_fallback' => false, 'needs_review' => false],
             ];
 
             $row['companies'][$companyName] = true;
@@ -122,7 +140,8 @@ class MonthlyPaymentReportBuilder
         $rows = array_map(fn (array $row): array => $this->finishRow($row, $view), array_values($rows));
         usort($rows, fn (array $a, array $b): int => [$a['company'], $a['employee_name'], $a['employee_number']] <=> [$b['company'], $b['employee_name'], $b['employee_number']]);
 
-        $notInPayroll = $this->employeesNotInPayroll($period, $monthStart, $monthEnd, array_column($rows, 'employee_id'));
+        // A company list is about that company's people only; the active-but-unassigned list belongs to the all-company report.
+        $notInPayroll = $clientCompanyId === null ? $this->employeesNotInPayroll($period, $monthStart, $monthEnd, array_column($rows, 'employee_id')) : [];
 
         return [
             'period' => $period,
@@ -133,7 +152,7 @@ class MonthlyPaymentReportBuilder
             'rows' => $rows,
             'not_in_payroll' => $notInPayroll,
             'warnings' => $view['warnings'],
-            'summary' => $this->summary($rows, $companyTotals, $notInPayroll, $view),
+            'summary' => [...$this->summary($rows, $companyTotals, $notInPayroll, $view), 'company_filter' => $clientCompanyId !== null],
         ];
     }
 
@@ -183,13 +202,6 @@ class MonthlyPaymentReportBuilder
         return $timeline->monthlyCentsOn($day);
     }
 
-    private function cleanAccount(?string $value): ?string
-    {
-        $value = $value === null ? '' : trim($value);
-
-        return $value === '' ? null : $value;
-    }
-
     /**
      * @param  array<string, mixed>  $row
      * @param  array<string, mixed>  $view
@@ -203,8 +215,14 @@ class MonthlyPaymentReportBuilder
         sort($categories);
         $flags = [];
 
-        if ($row['payment_account'] === null) {
+        if ($row['payment']['number'] === null) {
             $flags[] = self::FLAG_NO_PAYMENT_NUMBER;
+        }
+        if ($row['payment']['is_fallback']) {
+            $flags[] = self::FLAG_PHONE_FALLBACK;
+        }
+        if ($row['payment']['needs_review']) {
+            $flags[] = self::FLAG_REGISTER_MISMATCH;
         }
         if ($row['salary_missing']) {
             $flags[] = self::FLAG_NO_SALARY;
@@ -229,7 +247,9 @@ class MonthlyPaymentReportBuilder
             'deductions_cents' => $row['deductions_cents'],
             'adjustment_cents' => $row['adjustment_cents'],
             'net_cents' => $row['net_cents'],
-            'payment_account' => $row['payment_account'],
+            'payment_account' => $row['payment']['number'],
+            'payment_account_source' => $row['payment']['label'],
+            'payment_is_fallback' => $row['payment']['is_fallback'],
             'payment_status' => $this->paymentStatus($row['payment_statuses'], $view),
             'flags' => $flags,
         ];
@@ -334,6 +354,8 @@ class MonthlyPaymentReportBuilder
             'total_deductions_cents' => array_sum(array_column($rows, 'deductions_cents')),
             'total_adjustment_cents' => array_sum(array_column($rows, 'adjustment_cents')),
             'missing_payment_number' => $count(self::FLAG_NO_PAYMENT_NUMBER),
+            'phone_fallback' => $count(self::FLAG_PHONE_FALLBACK),
+            'register_mismatch' => $count(self::FLAG_REGISTER_MISMATCH),
             'missing_salary' => $count(self::FLAG_NO_SALARY),
             'missing_company' => $count(self::FLAG_NO_COMPANY),
             'not_in_payroll' => count($notInPayroll),

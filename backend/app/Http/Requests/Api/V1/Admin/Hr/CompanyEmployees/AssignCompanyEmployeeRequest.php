@@ -39,6 +39,8 @@ class AssignCompanyEmployeeRequest extends FormRequest
             'salary_frequency' => ['required', Rule::in(SalaryFrequency::values())],
             'notes' => ['nullable', 'string', 'max:1000'],
             'shift' => ['sometimes', 'nullable', Rule::in(AssignmentShift::values())],
+            // Sent as true after the user confirms "assign them to this company as well" (only asked while the multi-company policy is ON).
+            'confirm_additional_company' => ['sometimes', 'boolean'],
             'correction_reason' => ['nullable', 'string', 'max:500'],
         ];
     }

@@ -12,19 +12,24 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Turns an HR policy on or off. Super Admin only (re-checked here, not only by the route), a reason is required, a no-op is
+ * Turns an HR policy on or off. Only the roles the policy lists in HrPolicy::CATALOG may change it (the Super Admin and, for the
+ * multi-company policy, the HR Manager) - re-checked here, not only by the route. A reason is required, a no-op is
  * refused so the audit trail only holds real changes, and every change is audited with the old and new value and the reason.
  */
 class SetHrPolicyAction
 {
     public function handle(Admin $actor, string $key, bool $enabled, string $reason): HrPolicy
     {
-        if ($actor->role !== AdminRole::SuperAdmin) {
-            throw new HttpResponseException(ApiResponse::error('Only the Super Admin can change this policy.', 'FORBIDDEN', 403));
+        if (! in_array($actor->role, [AdminRole::SuperAdmin, AdminRole::HrManager], true)) {
+            throw new HttpResponseException(ApiResponse::error('Only the Super Admin or the HR Manager can change this policy.', 'FORBIDDEN', 403));
         }
 
         if (! array_key_exists($key, HrPolicy::CATALOG)) {
             throw new HttpResponseException(ApiResponse::error('Unknown policy.', 'HR_POLICY_NOT_FOUND', 404));
+        }
+
+        if (! HrPolicy::roleMayChange($key, $actor->role)) {
+            throw new HttpResponseException(ApiResponse::error('Only the Super Admin can change this policy.', 'FORBIDDEN', 403));
         }
 
         return DB::transaction(function () use ($actor, $key, $enabled, $reason): HrPolicy {

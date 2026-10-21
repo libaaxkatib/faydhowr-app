@@ -16,11 +16,13 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { inputClasses } from '@/components/ui/FormField';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
+import { OfficeCapacityCard } from '@/features/hrm/OfficeCapacityCard';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatDate, initialsOf } from '@/utils/formatters';
 import { OFFICE_LABEL } from '@/utils/hrHelpers';
 import { parseEmployeeListUrl } from '@/utils/hrDashboardLinks';
+import { activeFilterCount, activeMoreFilterCount, ALL_FILTER_KEYS, parseExtraEmployeeFilters } from '@/utils/employeeListFilters';
 import type { Employee, EmployeePipelineStage, EmployeeStatus } from '@/types/employee';
 
 const STATUS_OPTIONS: { value: EmployeeStatus; label: string }[] = [
@@ -93,18 +95,8 @@ export function EmployeesListPage({
   const navigate = useNavigate();
   const { hasPermission } = useEffectivePermissions();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [search, setSearch] = useState('');
-  const [departmentId, setDepartmentId] = useState('');
-  const [location, setLocation] = useState('');
-  const [profileComplete, setProfileComplete] = useState<'' | 'true' | 'false'>('');
-  const [guarantorNeeded, setGuarantorNeeded] = useState<'' | 'true' | 'false'>('');
-  const [isSupervisorFilter, setIsSupervisorFilter] = useState<'' | 'true' | 'false'>('');
-  const [joiningDateFrom, setJoiningDateFrom] = useState('');
-  const [joiningDateTo, setJoiningDateTo] = useState('');
-  const [page, setPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const debouncedSearch = useDebouncedValue(search);
-  const debouncedLocation = useDebouncedValue(location);
+  const [moreOpen, setMoreOpen] = useState(false);
   const isLockedNavView = Boolean(
     fixedStatus || fixedPipelineStage || filterIsSupervisor || filterOfficeOnly || filterDamiinActive || filterHistoricalRejected,
   );
@@ -118,19 +110,56 @@ export function EmployeesListPage({
   const applicationDateTo = urlFilters.applicationDateTo;
   const clientCompanyOnly = urlFilters.clientCompanyOnly;
   const effectiveStatus = fixedStatus ?? (status || undefined);
+  // Every other filter lives in the address bar too (only search and page on the locked queue views, whose population is fixed), so the
+  // browser Back button from an employee's page returns to the same filtered list on the same page.
+  const extra = parseExtraEmployeeFilters(searchParams);
+  const search = extra.search;
+  const departmentId = isLockedNavView ? '' : extra.departmentId;
+  const location = isLockedNavView ? '' : extra.location;
+  const profileComplete = isLockedNavView ? '' : extra.profileComplete;
+  const guarantorNeeded = isLockedNavView ? '' : extra.guarantorNeeded;
+  const isSupervisorFilter = isLockedNavView ? '' : extra.isSupervisor;
+  const joiningDateFrom = isLockedNavView ? '' : extra.joiningDateFrom;
+  const joiningDateTo = isLockedNavView ? '' : extra.joiningDateTo;
+  const page = extra.page;
+  const debouncedSearch = useDebouncedValue(search);
+  const debouncedLocation = useDebouncedValue(location);
+  const moreCount = isLockedNavView ? 0 : activeMoreFilterCount(searchParams);
+  const filterCount = isLockedNavView ? (search ? 1 : 0) : activeFilterCount(searchParams);
+  const showMore = moreOpen || moreCount > 0;
 
-  function setUrlFilter(key: 'status' | 'employee_category_id' | 'application_date_from' | 'application_date_to' | 'client_company_only', value: string) {
+  function setParam(key: string, value: string) {
     setSearchParams(
       (previous) => {
         const next = new URLSearchParams(previous);
         if (value === '') next.delete(key);
         else next.set(key, value);
+        if (key !== 'page') next.delete('page');
 
         return next;
       },
       { replace: true },
     );
-    setPage(1);
+  }
+
+  function setPage(next: number) {
+    setParam('page', next <= 1 ? '' : String(next));
+  }
+
+  function clearFilters() {
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        ALL_FILTER_KEYS.forEach((key) => next.delete(key));
+
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function setUrlFilter(key: 'status' | 'employee_category_id' | 'application_date_from' | 'application_date_to' | 'client_company_only', value: string) {
+    setParam(key, value);
   }
   const effectiveIsSupervisor = filterIsSupervisor ?? (isSupervisorFilter === '' ? undefined : isSupervisorFilter === 'true');
   // Deliberately independent of filterDamiinActive — this is the generic "Damiin:
@@ -189,13 +218,6 @@ export function EmployeesListPage({
     placeholderData: (previous) => previous,
   });
 
-  function resetPageAnd<T>(setter: (value: T) => void) {
-    return (value: T) => {
-      setter(value);
-      setPage(1);
-    };
-  }
-
   // Issue #10: Employee Detail should be able to return to wherever the HR user
   // actually came from (Need Training, Damiin, Waiting, etc.), not always the
   // generic Employees list. Carried via router state rather than the URL, since
@@ -223,6 +245,7 @@ export function EmployeesListPage({
               <p className="truncate font-medium text-ink">{row.original.full_name}</p>
               <p className="truncate text-xs text-ink-muted">
                 {row.original.employee_number}
+                {row.original.gender && <span> · {row.original.gender[0].toUpperCase() + row.original.gender.slice(1)}</span>}
                 {row.original.employment_type === 'temporary' && <span className="ml-1.5 font-semibold text-warning">· Temporary</span>}
               </p>
             </div>
@@ -243,15 +266,6 @@ export function EmployeesListPage({
         header: 'Department',
         accessorKey: 'department_name',
         cell: ({ row }) => <span className="text-ink">{row.original.department_name ?? '—'}</span>,
-      },
-      {
-        header: 'Gender',
-        accessorKey: 'gender',
-        cell: ({ row }) => (
-          <span className="text-ink">
-            {row.original.gender ? row.original.gender[0].toUpperCase() + row.original.gender.slice(1) : 'Not recorded'}
-          </span>
-        ),
       },
       {
         header: 'Phone',
@@ -354,6 +368,8 @@ export function EmployeesListPage({
         }
       />
 
+      {filterOfficeOnly && <OfficeCapacityCard />}
+
       {filterHistoricalRejected && (
         <div className="mb-4 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-ink-muted">
           These employees were migrated as already cancelled/rejected from historical Excel records (CANCELED sheet / RED
@@ -372,10 +388,10 @@ export function EmployeesListPage({
       )}
 
       <Card>
-        <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
           <SearchInput
             value={search}
-            onChange={resetPageAnd(setSearch)}
+            onChange={(value) => setParam('q', value)}
             placeholder="Search by name, phone, or employee number…"
             className="w-full max-w-xs"
           />
@@ -386,86 +402,58 @@ export function EmployeesListPage({
                 onChange={(event) => setUrlFilter('status', event.target.value)}
                 options={STATUS_OPTIONS}
                 placeholder="All statuses"
-                className="w-40"
+                className="w-36"
               />
               <Select
                 value={employeeCategoryId}
                 onChange={(event) => setUrlFilter('employee_category_id', event.target.value)}
-                options={(categories ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
+                options={(categories ?? []).map((c) => ({ value: String(c.id), label: c.archived ? `${c.name} (archived)` : c.name }))}
                 placeholder="All categories"
-                className="w-44"
+                className="w-40"
               />
               <Select
                 value={departmentId}
-                onChange={(event) => resetPageAnd(setDepartmentId)(event.target.value)}
+                onChange={(event) => setParam('department_id', event.target.value)}
                 options={(departments ?? []).map((d) => ({ value: String(d.id), label: d.name }))}
                 placeholder="All departments"
-                className="w-44"
-              />
-              <input
-                value={location}
-                onChange={(event) => resetPageAnd(setLocation)(event.target.value)}
-                placeholder="Location…"
-                className={`${inputClasses} w-40`}
-              />
-              <Select
-                value={profileComplete}
-                onChange={(event) => resetPageAnd(setProfileComplete)(event.target.value as '' | 'true' | 'false')}
-                options={BOOLEAN_FILTER_OPTIONS}
-                placeholder="Profile: any"
-                className="w-36"
-              />
-              <Select
-                value={guarantorNeeded}
-                onChange={(event) => resetPageAnd(setGuarantorNeeded)(event.target.value as '' | 'true' | 'false')}
-                options={BOOLEAN_FILTER_OPTIONS}
-                placeholder="Damiin: any"
-                className="w-36"
-              />
-              <Select
-                value={isSupervisorFilter}
-                onChange={(event) => resetPageAnd(setIsSupervisorFilter)(event.target.value as '' | 'true' | 'false')}
-                options={BOOLEAN_FILTER_OPTIONS}
-                placeholder="Supervisor: any"
                 className="w-40"
               />
+              <Button variant="outline" size="sm" aria-expanded={showMore} onClick={() => setMoreOpen((open) => !open)}>
+                <Icon name={showMore ? 'chevron-down' : 'chevron-right'} size={14} />
+                More filters{moreCount > 0 ? ` (${moreCount})` : ''}
+              </Button>
             </>
+          )}
+          {filterCount > 0 && (
+            <button type="button" onClick={clearFilters} className="text-xs font-semibold text-primary hover:underline">
+              Clear {filterCount === 1 ? 'filter' : `${filterCount} filters`}
+            </button>
           )}
         </div>
 
-        {!isLockedNavView && (
-          <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
-            <label className="flex items-center gap-2 text-xs text-ink-muted">
+        {!isLockedNavView && showMore && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-alt/40 px-4 py-3">
+            <input
+              value={location}
+              onChange={(event) => setParam('location', event.target.value)}
+              placeholder="Location…"
+              aria-label="Location"
+              className={`${inputClasses} w-36`}
+            />
+            <Select value={profileComplete} onChange={(event) => setParam('profile_complete', event.target.value)} options={BOOLEAN_FILTER_OPTIONS} placeholder="Profile: any" className="w-36" />
+            <Select value={guarantorNeeded} onChange={(event) => setParam('guarantor_needed', event.target.value)} options={BOOLEAN_FILTER_OPTIONS} placeholder="Damiin: any" className="w-36" />
+            <Select value={isSupervisorFilter} onChange={(event) => setParam('is_supervisor', event.target.value)} options={BOOLEAN_FILTER_OPTIONS} placeholder="Supervisor: any" className="w-40" />
+            <label className="flex items-center gap-1.5 text-xs text-ink-muted">
               Applied
-              <input
-                type="date"
-                value={applicationDateFrom}
-                onChange={(event) => setUrlFilter('application_date_from', event.target.value)}
-                className={`${inputClasses} w-36`}
-              />
+              <input type="date" value={applicationDateFrom} onChange={(event) => setUrlFilter('application_date_from', event.target.value)} className={`${inputClasses} w-36`} />
               to
-              <input
-                type="date"
-                value={applicationDateTo}
-                onChange={(event) => setUrlFilter('application_date_to', event.target.value)}
-                className={`${inputClasses} w-36`}
-              />
+              <input type="date" value={applicationDateTo} onChange={(event) => setUrlFilter('application_date_to', event.target.value)} className={`${inputClasses} w-36`} />
             </label>
-            <label className="flex items-center gap-2 text-xs text-ink-muted">
+            <label className="flex items-center gap-1.5 text-xs text-ink-muted">
               Joined
-              <input
-                type="date"
-                value={joiningDateFrom}
-                onChange={(event) => resetPageAnd(setJoiningDateFrom)(event.target.value)}
-                className={`${inputClasses} w-36`}
-              />
+              <input type="date" value={joiningDateFrom} onChange={(event) => setParam('joining_date_from', event.target.value)} className={`${inputClasses} w-36`} />
               to
-              <input
-                type="date"
-                value={joiningDateTo}
-                onChange={(event) => resetPageAnd(setJoiningDateTo)(event.target.value)}
-                className={`${inputClasses} w-36`}
-              />
+              <input type="date" value={joiningDateTo} onChange={(event) => setParam('joining_date_to', event.target.value)} className={`${inputClasses} w-36`} />
             </label>
           </div>
         )}

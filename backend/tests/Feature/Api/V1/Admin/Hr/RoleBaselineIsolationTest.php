@@ -22,10 +22,10 @@ class RoleBaselineIsolationTest extends TestCase
     use RefreshDatabase;
 
     /** Approved baselines (owner decision, 2026-10-19): the HR Manager has full authorised payroll access and the dedicated import permission. */
-    private const HR_MANAGER = ['hr.view', 'hr.manage', 'hr.reports.view', 'hr.payroll.view', 'hr.payroll.manage', 'hr.payroll.approve', 'hr.import'];
+    private const HR_MANAGER = ['hr.dashboard.view', 'hr.view', 'hr.manage', 'hr.reports.view', 'hr.payroll.view', 'hr.payroll.manage', 'hr.payroll.approve', 'hr.import'];
 
     /** The earlier, narrower HR grant set: still blocked from payroll and imports. */
-    private const HR_WITHOUT_PAYROLL_OR_IMPORT = ['hr.view', 'hr.manage', 'hr.reports.view'];
+    private const HR_WITHOUT_PAYROLL_OR_IMPORT = ['hr.dashboard.view', 'hr.view', 'hr.manage', 'hr.reports.view'];
 
     private const MARKETING_MANAGER = ['marketing.view', 'marketing.manage', 'marketing.assign', 'marketing.commission.view', 'marketing.reports.view'];
 

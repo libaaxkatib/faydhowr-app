@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
-import { Modal } from '@/components/ui/Modal';
+import { Modal, ModalCancelButton } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { LoadingState } from '@/components/ui/LoadingState';
@@ -117,13 +117,14 @@ export function DepartmentsPage() {
       </Card>
 
       <Modal
+        confirmDiscard
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         title={editing ? 'Edit Department' : 'Add Department'}
         size="sm"
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={() => setIsOpen(false)}>Cancel</Button>
+            <ModalCancelButton />
             <Button size="sm" isLoading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>Save</Button>
           </>
         }

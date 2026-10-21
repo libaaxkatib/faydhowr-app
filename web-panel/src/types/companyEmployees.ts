@@ -148,6 +148,8 @@ export interface AssignmentPayload {
   /** Optional: day or night. Left out = not recorded. */
   shift?: 'day' | 'night' | null;
   correction_reason?: string | null;
+  /** Sent only after HR answered "yes" to the additional-company question the server asked. */
+  confirm_additional_company?: boolean;
 }
 
 export interface ReplacePayload {

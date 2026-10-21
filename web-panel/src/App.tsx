@@ -13,6 +13,7 @@ import { OfficeStaffRegistrationPage } from '@/features/hrm/OfficeStaffRegistrat
 import { EmployeeDetailPage } from '@/features/hrm/EmployeeDetailPage';
 import { DepartmentsPage } from '@/features/hrm/DepartmentsPage';
 import { PositionsPage } from '@/features/hrm/PositionsPage';
+import { CategoriesPage } from '@/features/hrm/CategoriesPage';
 import { ClientCompaniesPage } from '@/features/hrm/ClientCompaniesPage';
 import { CompanyEmployeesPage } from '@/features/hrm/CompanyEmployeesPage';
 import { HrReportsPage } from '@/features/hrm/HrReportsPage';
@@ -32,6 +33,9 @@ import { FinancialLedgerPage } from '@/features/hrm/FinancialLedgerPage';
 import { PayrollRollupPage } from '@/features/hrm/PayrollRollupPage';
 import { PayrollRunsPage } from '@/features/hrm/PayrollRunsPage';
 import { ExcelImportsPage } from '@/features/hrm/ExcelImportsPage';
+import { FacilityInspectionsPage } from '@/features/hrm/FacilityInspectionsPage';
+import { FacilityComplaintsPage } from '@/features/hrm/FacilityComplaintsPage';
+import { FacilityReportPage } from '@/features/hrm/FacilityReportPage';
 import { MarketingDashboardPage } from '@/features/marketing/MarketingDashboardPage';
 import { MarketingRecordsListPage } from '@/features/marketing/MarketingRecordsListPage';
 import { MarketingRecordDetailPage } from '@/features/marketing/MarketingRecordDetailPage';
@@ -67,7 +71,7 @@ export default function App() {
         <Route path="/mobile-app/customers" element={<RequirePermission permission="customers.view"><CustomersListPage /></RequirePermission>} />
         <Route path="/mobile-app/customers/:id" element={<RequirePermission permission="customers.view"><CustomerDetailPage /></RequirePermission>} />
 
-        <Route path="/hr" element={<RequirePermission permission="hr.view"><HrDashboardPage /></RequirePermission>} />
+        <Route path="/hr" element={<RequirePermission permission="hr.dashboard.view"><HrDashboardPage /></RequirePermission>} />
         <Route path="/hr/employees" element={<RequirePermission permission="hr.view"><EmployeesListPage /></RequirePermission>} />
         <Route path="/hr/employees/:id" element={<RequirePermission permission="hr.view"><EmployeeDetailPage /></RequirePermission>} />
         <Route
@@ -160,8 +164,11 @@ export default function App() {
         <Route path="/hr/attendance" element={<RequirePermission permission="hr.view"><AttendancePage /></RequirePermission>} />
         <Route path="/hr/departments" element={<RequirePermission permission="hr.view"><DepartmentsPage /></RequirePermission>} />
         <Route path="/hr/positions" element={<RequirePermission permission="hr.view"><PositionsPage /></RequirePermission>} />
+        <Route path="/hr/categories" element={<RequirePermission permission="hr.view"><CategoriesPage /></RequirePermission>} />
         <Route path="/hr/companies" element={<RequirePermission permission="hr.view"><ClientCompaniesPage /></RequirePermission>} />
         <Route path="/hr/companies/:id/employees" element={<RequirePermission permission="hr.view"><CompanyEmployeesPage /></RequirePermission>} />
+        <Route path="/hr/facility-inspections" element={<RequirePermission permission="hr.inspections.view"><FacilityInspectionsPage /></RequirePermission>} />
+        <Route path="/hr/facility-complaints" element={<RequirePermission permission="hr.inspections.view"><FacilityComplaintsPage /></RequirePermission>} />
         <Route path="/hr/payroll" element={<RequirePermission permission="hr.payroll.view"><PayrollRunsPage /></RequirePermission>} />
         <Route path="/hr/imports" element={<RequirePermission permission="hr.import"><ExcelImportsPage /></RequirePermission>} />
         <Route path="/hr/reports" element={<RequirePermission permission="hr.reports.view"><HrReportsPage /></RequirePermission>} />
@@ -171,6 +178,7 @@ export default function App() {
         <Route path="/hr/reports/leaves" element={<RequirePermission permission="hr.reports.view"><LeaveReportPage /></RequirePermission>} />
         <Route path="/hr/reports/performance-reviews" element={<RequirePermission permission="hr.reports.view"><PerformanceReportPage /></RequirePermission>} />
         <Route path="/hr/reports/financial-ledger" element={<RequirePermission permission="hr.reports.view"><FinancialLedgerPage /></RequirePermission>} />
+        <Route path="/hr/reports/facility" element={<RequirePermission permission="hr.reports.view"><RequirePermission permission="hr.inspections.view"><FacilityReportPage /></RequirePermission></RequirePermission>} />
         <Route path="/hr/reports/payroll-rollup" element={<RequirePermission permission="hr.reports.view"><PayrollRollupPage /></RequirePermission>} />
 
         <Route path="/marketing" element={<RequirePermission permission="marketing.view"><MarketingDashboardPage /></RequirePermission>} />

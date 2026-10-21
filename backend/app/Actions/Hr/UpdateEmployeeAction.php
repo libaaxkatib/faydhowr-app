@@ -8,6 +8,7 @@ use App\Models\Admin;
 use App\Models\Employee;
 use App\Support\ApiResponse;
 use App\Support\Hr\EmployeeDuplicateFinder;
+use App\Support\Hr\Payroll\PaymentNumber;
 use App\Support\Hr\UnresolvedTemporaryReplacements;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Arr;
@@ -26,7 +27,23 @@ class UpdateEmployeeAction
     {
         $confirmed = (bool) ($data['confirm_duplicate'] ?? false);
         $reason = $data['duplicate_reason'] ?? null;
-        $attributes = Arr::except($data, ['confirm_duplicate', 'duplicate_reason']);
+        $acceptMismatch = (bool) ($data['accept_payment_account_mismatch'] ?? false);
+        $attributes = Arr::except($data, ['confirm_duplicate', 'duplicate_reason', 'accept_payment_account_mismatch']);
+
+        // A payment number typed by HR is recorded as such: its source is "manual" and the old import check no longer describes it.
+        // The registration phone, the employee number and the internal id are never touched by this.
+        $paymentNumberChanged = array_key_exists('payment_account_number', $attributes)
+            && PaymentNumber::clean($attributes['payment_account_number']) !== PaymentNumber::clean($employee->payment_account_number);
+
+        if ($paymentNumberChanged) {
+            $attributes['payment_account_number'] = PaymentNumber::clean($attributes['payment_account_number']);
+            $attributes['payment_account_source'] = $attributes['payment_account_number'] === null ? null : PaymentNumber::SOURCE_MANUAL;
+            $attributes['payment_account_source_ref'] = null;
+            $attributes['payment_account_register_check'] = null;
+        } elseif ($acceptMismatch && $employee->payment_account_register_check === PaymentNumber::CHECK_MISMATCH) {
+            $attributes['payment_account_register_check'] = PaymentNumber::CHECK_ACCEPTED;
+            $paymentNumberChanged = false;
+        }
 
         $matches = collect();
 
@@ -67,6 +84,9 @@ class UpdateEmployeeAction
                     'matched_employee_ids' => $matches->pluck('id')->all(),
                 ]),
                 ...($oldType !== $employee->employment_type ? ['employment_type' => ['from' => $oldType, 'to' => $employee->employment_type]] : []),
+                // The payment number itself is never put in the audit trail (sensitive); only the fact of the change is.
+                ...($paymentNumberChanged ? ['payment_account_number_changed' => true] : []),
+                ...($acceptMismatch && $employee->payment_account_register_check === PaymentNumber::CHECK_ACCEPTED ? ['payment_account_mismatch_accepted' => true] : []),
             ] ?: null,
         ));
 

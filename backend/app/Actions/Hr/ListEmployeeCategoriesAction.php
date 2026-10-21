@@ -9,6 +9,6 @@ class ListEmployeeCategoriesAction
 {
     public function handle(): Collection
     {
-        return EmployeeCategory::query()->orderBy('name')->get();
+        return EmployeeCategory::query()->withCount('employees')->orderBy('name')->get();
     }
 }

@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Enums\AdminRole;
 use App\Models\Admin;
+use App\Support\Hr\Payroll\PaymentNumber;
 use App\Support\Hr\WorkbookPlan\WorkbookPlanExecutor;
 use App\Support\Hr\WorkbookPlan\WorkbookPlanReader;
 use Illuminate\Console\Command;
@@ -28,6 +29,8 @@ class ApplyWorkbookPlanCommand extends Command
         {--joining-date= : Set employees.joining_date (only where empty), e.g. 2026-10-01}
         {--override-reason= : Super Admin reason, required to move employees to Active when that is not a normal lifecycle step (for example Applicant to Active)}
         {--admin-email= : Super Admin who performs the run (required with --commit)}
+        {--payment-source=part_one : Which workbook the payment numbers come from (part_one or part_two); recorded as their source}
+        {--replace-stored : With --step=payments: replace a DIFFERENT payment number that is already stored with the Excel value (default: report a conflict and keep it)}
         {--report= : Write every record result to this CSV path}
         {--commit : Actually write to the database (default is a dry run)}';
 
@@ -91,7 +94,19 @@ class ApplyWorkbookPlanCommand extends Command
         }
 
         if (in_array('payments', $steps, true)) {
-            $results = $executor->paymentNumbers($employees, $dryRun, $actor, (string) $this->option('source-label'));
+            $sourceCode = match ((string) $this->option('payment-source')) {
+                'part_two' => PaymentNumber::SOURCE_WORKBOOK_PART_TWO,
+                'part_one' => PaymentNumber::SOURCE_WORKBOOK_PART_ONE,
+                default => null,
+            };
+
+            if ($sourceCode === null) {
+                $this->error('--payment-source must be part_one or part_two.');
+
+                return self::FAILURE;
+            }
+
+            $results = $executor->paymentNumbers($employees, $dryRun, $actor, (string) $this->option('source-label'), $sourceCode, (bool) $this->option('replace-stored'));
             $this->summarize('payments', $results);
             $all = array_merge($all, array_map(fn ($r) => ['step' => 'payments', ...$r], $results));
         }
@@ -141,11 +156,24 @@ class ApplyWorkbookPlanCommand extends Command
     private function writeReport(string $path, array $rows): void
     {
         $handle = fopen($path, 'w');
-        fputcsv($handle, ['step', 'reference', 'outcome', 'code', 'message'], ',', '"', '\\');
+        // The payments step adds its dry-run columns (source row/file, employee, original Excel value, register phone, match, stored value,
+        // proposed number, whether the phone fallback would apply). Cells are written as text: a value starting with "0" keeps it.
+        fputcsv($handle, ['step', 'reference', 'outcome', 'code', 'message', 'employee_number', 'excel_value', 'register_phone', 'register_check', 'stored_value', 'proposed_number', 'fallback_needed', 'source_ref'], ',', '"', '\\');
 
         foreach ($rows as $r) {
             $reference = $r['company'] ?? ('employee '.($r['employee_id'] ?? '?').(isset($r['source_row']) ? ' / row '.$r['source_row'] : ''));
-            fputcsv($handle, [$r['step'], $reference, $r['outcome'], $r['code'] ?? '', $r['message'] ?? ''], ',', '"', '\\');
+            $isPayment = ($r['step'] ?? '') === 'payments';
+            fputcsv($handle, [
+                $r['step'], $reference, $r['outcome'], $r['code'] ?? '', $r['message'] ?? '',
+                $isPayment ? ($r['employee_number'] ?? '') : '',
+                $isPayment ? ($r['excel_value'] ?? '') : '',
+                $isPayment ? ($r['register_phone'] ?? '') : '',
+                $isPayment ? ($r['register_check'] ?? '') : '',
+                $isPayment ? ($r['stored_value'] ?? '') : '',
+                $isPayment ? ($r['proposed_number'] ?? '') : '',
+                $isPayment ? (($r['fallback_needed'] ?? false) ? 'yes' : 'no') : '',
+                $isPayment ? ($r['source_ref'] ?? '') : '',
+            ], ',', '"', '\\');
         }
 
         fclose($handle);

@@ -88,7 +88,7 @@ class SalaryExposureInventoryTest extends TestCase
     {
         $employee = $this->makeEmployee();
         $assignment = $this->makeAssignment($employee, $this->makeCompany(), null, 275);
-        $viewer = $this->tokenWithOnly(['hr.view']);
+        $viewer = $this->tokenWithOnly(['hr.view', 'hr.dashboard.view']);
 
         $list = $this->asToken($viewer)->getJson('/api/v1/admin/hr/employees')->assertOk();
         $row = collect($list->json('data'))->firstWhere('id', $employee->id);
@@ -193,7 +193,7 @@ class SalaryExposureInventoryTest extends TestCase
     {
         $employee = $this->makeEmployee();
         $assignment = $this->makeAssignment($employee, $this->makeCompany(), null, 300);
-        $token = $this->tokenForRole(AdminRole::HrManager, ['hr.view', 'hr.manage', 'hr.reports.view', 'hr.payroll.view', 'hr.payroll.manage', 'hr.payroll.approve', 'hr.import']);
+        $token = $this->tokenForRole(AdminRole::HrManager, ['hr.dashboard.view', 'hr.view', 'hr.manage', 'hr.reports.view', 'hr.payroll.view', 'hr.payroll.manage', 'hr.payroll.approve', 'hr.import']);
 
         foreach ([...$this->hrViewPayRoutes($employee->id, $assignment->id), ...self::PAY_REPORTS, '/api/v1/admin/hr/payroll-runs', '/api/v1/admin/hr/reports/monthly-payment-list', '/api/v1/admin/hr/imports'] as $uri) {
             $this->assertContains($this->asToken($token)->getJson($uri)->getStatusCode(), [200, 422], "the HR Manager must reach $uri");

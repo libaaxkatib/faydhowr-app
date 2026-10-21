@@ -18,6 +18,8 @@ class MonthlyPaymentReportRequest extends FormRequest
     {
         return [
             'period' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+            // Optional: a list for one company only (omit it for the all-company list).
+            'client_company_id' => ['sometimes', 'nullable', 'integer', 'exists:client_companies,id'],
         ];
     }
 

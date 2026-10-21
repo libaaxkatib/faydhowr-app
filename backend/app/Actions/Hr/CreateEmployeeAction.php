@@ -13,6 +13,7 @@ use App\Models\EmployeeStatusHistory;
 use App\Support\ApiResponse;
 use App\Support\Hr\EmployeeCodeGenerator;
 use App\Support\Hr\EmployeeDuplicateFinder;
+use App\Support\Hr\Payroll\PaymentNumber;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -39,6 +40,10 @@ class CreateEmployeeAction
         $confirmed = (bool) ($data['confirm_duplicate'] ?? false);
         $reason = $data['duplicate_reason'] ?? null;
         $attributes = Arr::except($data, ['confirm_duplicate', 'duplicate_reason']);
+
+        // A payment number typed at registration is recorded as HR-entered (source "manual"); no number means none is invented.
+        $attributes['payment_account_number'] = PaymentNumber::clean($attributes['payment_account_number'] ?? null);
+        $attributes['payment_account_source'] = $attributes['payment_account_number'] === null ? null : PaymentNumber::SOURCE_MANUAL;
 
         $matches = $this->duplicates->find($attributes);
         $phoneMatches = $matches->filter(fn (array $m): bool => in_array(EmployeeDuplicateFinder::MATCH_PHONE, $m['matched_on'], true));

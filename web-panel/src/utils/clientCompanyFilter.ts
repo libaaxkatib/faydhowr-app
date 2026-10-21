@@ -1,4 +1,4 @@
-// Pure helpers for the Companies & Locations category filter (no React, no network, no `@/` imports) so the
+// Pure helpers for the Companies & Workplaces category filter (no React, no network, no `@/` imports) so the
 // filter and its counts can be unit-tested by Node's native test runner (clientCompanyFilter.test.ts).
 //
 // The filter reads the record's own `category` field ('company' | 'guri'); it never guesses from the name.
@@ -39,4 +39,20 @@ export function categoryCounts(companies: readonly HasCategory[]): Record<Compan
 /** The Fayadhowr Office is an internal location, never a client: it must not appear in the client list or its counts. */
 export function isInternalOffice(entry: { location_type?: string | null }): boolean {
   return entry.location_type === 'office';
+}
+
+/** Other spellings worth showing under a company name: an alias that is just the name again (ignoring upper/lower case) adds nothing. A different spacing ("5GHOTEL" for "5G HOTEL") is a real alias and stays visible. */
+export function visibleAliases(name: string, aliases: readonly { alias: string }[] | undefined): string[] {
+  const key = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
+  const seen = new Set<string>([key(name)]);
+  const out: string[] = [];
+
+  for (const { alias } of aliases ?? []) {
+    if (!seen.has(key(alias))) {
+      seen.add(key(alias));
+      out.push(alias);
+    }
+  }
+
+  return out;
 }

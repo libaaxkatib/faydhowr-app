@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -13,6 +13,8 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { useToast } from '@/components/ui/useToast';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
+import { isDirty } from '@/utils/unsavedChanges';
 import { duplicateMatchesFromError, friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import { OFFICE_STAFF_CATEGORY } from '@/utils/employeeCategories';
 import { decideCreatePosition } from '@/utils/positions';
@@ -68,6 +70,11 @@ export function OfficeStaffRegistrationPage() {
   const [newPositionName, setNewPositionName] = useState('');
   const [newPositionError, setNewPositionError] = useState('');
   const debouncedSearch = useDebouncedValue(search);
+
+  // Unsaved-changes protection: leaving the page (link, Back, reload) with a half-filled form asks first; once saved it never does.
+  const snapshot = () => ({ mode, form, selectedId: selected?.id ?? null, staged: Object.keys(staged).sort(), duplicateReason });
+  const initialSnapshot = useRef(snapshot());
+  const unsavedGuard = useUnsavedChangesGuard(saved === null && isDirty(initialSnapshot.current, snapshot()));
 
   const { data: positions } = useQuery({ queryKey: ['positions'], queryFn: hrApi.positions.list });
   const { data: documentCategories } = useQuery({ queryKey: ['employee-document-categories'], queryFn: hrApi.documentCategories.list });
@@ -220,6 +227,7 @@ export function OfficeStaffRegistrationPage() {
 
   return (
     <div>
+      {unsavedGuard}
       <PageHeader
         title="Add Office Staff"
         breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Office Staff', to: '/hr/office-staff' }, { label: 'Add' }]}

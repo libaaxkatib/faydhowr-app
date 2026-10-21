@@ -142,7 +142,7 @@ function KpiCard({
         <Icon name={icon} size={19} />
       </div>
       <div className="min-w-0">
-        <p className="truncate text-xs font-medium text-ink-muted">{label}</p>
+        <p className="text-xs font-medium leading-snug text-ink-muted" title={label}>{label}</p>
         <p className="font-display text-xl font-bold text-ink">{displayValue}</p>
       </div>
     </div>

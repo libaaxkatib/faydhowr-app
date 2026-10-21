@@ -8,6 +8,7 @@ use App\Models\EmployeeGuarantor;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\Position;
 use App\Models\WorkLocation;
+use App\Support\Hr\Payroll\PaymentNumber;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -310,15 +311,16 @@ class OfficeStaffRegistrationTest extends TestCase
         $book = IOFactory::load($path);
         @unlink($path);
         $rows = $book->getSheetByName('Employees')->toArray(null, true, false, false);
-        $people = collect(array_slice($rows, 4))->filter(fn (array $r): bool => $r[0] !== null)->map(fn (array $r): array => array_combine($rows[3], $r))->keyBy('Employee name');
+        $people = collect(array_slice($rows, 4))->filter(fn (array $r): bool => $r[0] !== null && $r[1] !== null)->map(fn (array $r): array => array_combine($rows[3], $r))->keyBy('Employee name');
         $this->assertCount(2, $people);
         foreach ($people as $row) {
             $this->assertSame(['Fayadhowr Office', 'Office (internal)'], [$row['Company / Guri'], $row['Company category']]);
         }
         $this->assertEquals([400.0, 250.0], [$people['Amina Office Test']['Payment amount (USD)'], $people[$existing->full_name]['Payment amount (USD)']]);
         $this->assertSame('0699000111', $people[$existing->full_name]['Payment / account number']);
-        // The Office Staff form does not collect a payment number, so a new hire is flagged until one is recorded elsewhere.
-        $this->assertSame('MISSING', $people['Amina Office Test']['Payment / account number']);
+        // The Office Staff form does not collect a payment number, so a new hire shows the registration phone, clearly labelled as a fallback, until the real number is recorded.
+        $this->assertSame('0615111222', $people['Amina Office Test']['Payment / account number']);
+        $this->assertSame(PaymentNumber::LABEL_PHONE_FALLBACK, $people['Amina Office Test']['Payment number source']);
         $this->assertEquals(650.0, $book->getSheetByName('Summary')->getCell('B7')->getValue());
 
         // Companies & Locations: the office staff never appear as clients and the Company/Guri counts are untouched.

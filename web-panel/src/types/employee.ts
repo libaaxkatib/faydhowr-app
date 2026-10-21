@@ -35,6 +35,12 @@ export interface EmployeeCategory {
   id: number;
   name: string;
   description: string | null;
+  /** Archived categories stay on the records that use them but are not offered for new registrations. */
+  archived?: boolean;
+  archived_at?: string | null;
+  /** The Office Staff category belongs to the Office Staff workflow: it cannot be renamed, archived or deleted. */
+  is_system?: boolean;
+  employees_count?: number;
 }
 
 export interface EmployeeStatusHistoryEntry {
@@ -304,6 +310,8 @@ export interface CreateWorkAssignmentPayload {
   salary_frequency: SalaryFrequency;
   notes?: string | null;
   override_capacity?: boolean;
+  /** Sent only after HR answered "yes" to the additional-company question the server asked. */
+  confirm_additional_company?: boolean;
 }
 
 export type UpdateWorkAssignmentPayload = Partial<Omit<CreateWorkAssignmentPayload, 'client_company_id' | 'work_location_id'>> & {
@@ -738,6 +746,11 @@ export interface Employee {
    * only for users who can manage HR (undefined otherwise); never in lists.
    */
   payment_account_number?: string | null;
+  /** Where the number came from: the Excel source (part one / part two) or typed by HR. Same audience as the number. */
+  payment_account_source?: 'workbook_part_one' | 'workbook_part_two' | 'manual' | null;
+  payment_account_source_ref?: string | null;
+  /** Whether an imported number agrees with the registration phone. A difference is flagged, never rejected. */
+  payment_account_register_check?: 'match' | 'mismatch' | 'accepted' | null;
   location: string | null;
   age: number | null;
   marital_status: string | null;
@@ -880,6 +893,8 @@ export interface DuplicateCheckParams {
 }
 
 export type UpdateEmployeePayload = Partial<Omit<CreateEmployeePayload, 'phone' | 'location' | 'application_date'>> & {
+  /** HR confirms that a flagged difference between the imported payment number and the registration phone is intended. */
+  accept_payment_account_mismatch?: boolean;
   /** Nullable on update only - 242 real employees legitimately have none; never fabricated. */
   phone?: string | null;
   /** Nullable on update only - some migrated employees legitimately have none; never fabricated. */

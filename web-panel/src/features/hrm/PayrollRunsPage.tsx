@@ -172,8 +172,12 @@ export function PayrollRunsPage() {
     onError: (err) => show(friendlyErrorMessage(err, 'Could not reopen the payroll.'), 'error'),
   });
 
+  const [listCompanyId, setListCompanyId] = useState('');
+  const { data: listCompanies } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list, enabled: canDownloadPaymentList });
+  const listCompany = (listCompanies ?? []).find((company) => String(company.id) === listCompanyId);
+
   const paymentListMutation = useMutation({
-    mutationFn: () => hrApi.payrollRuns.downloadPaymentList(period),
+    mutationFn: () => hrApi.payrollRuns.downloadPaymentList(period, listCompany ? { id: listCompany.id, name: listCompany.name } : undefined),
     onError: (err) => show(friendlyErrorMessage(err, 'Could not download the payment list.'), 'error'),
   });
 
@@ -275,6 +279,22 @@ export function PayrollRunsPage() {
             </Button>
           )}
           {canDownloadPaymentList && (
+            <div>
+              <label htmlFor="payment-list-company" className="mb-1 block text-xs font-medium text-ink-muted">Payment list for</label>
+              <select
+                id="payment-list-company"
+                value={listCompanyId}
+                onChange={(e) => setListCompanyId(e.target.value)}
+                className="h-9 max-w-[14rem] rounded-sm border border-border bg-surface px-2 text-sm"
+              >
+                <option value="">All companies</option>
+                {(listCompanies ?? []).map((company) => (
+                  <option key={company.id} value={company.id}>{company.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {canDownloadPaymentList && (
             <Button
               variant="outline"
               isLoading={paymentListMutation.isPending}
@@ -282,7 +302,7 @@ export function PayrollRunsPage() {
               onClick={() => paymentListMutation.mutate()}
             >
               <Icon name="file-text" size={15} />
-              Download payment list (Excel)
+              {listCompany ? `Download ${listCompany.name} list (Excel)` : 'Download payment list (Excel)'}
             </Button>
           )}
           <p className="min-w-[14rem] flex-1 text-xs text-ink-muted">
@@ -290,7 +310,7 @@ export function PayrollRunsPage() {
               ? `${monthLabel(period)} is already ${lockedForPeriod.status}, so it cannot be regenerated. ${lockedForPeriod.status === 'approved' ? 'Reopen it first if it needs to change.' : 'Use adjustments for corrections.'}`
               : 'Creates the draft payroll for the month from salaries, absences, penalties, advances and approved temporary cover. Running it again refreshes the draft.'}
             {canDownloadPaymentList &&
-              ' The payment list is an Excel file of who to pay for the selected month (an estimate until the month is approved); downloading it does not mark anything paid.'}
+              ' The payment list is an Excel file of who to pay for the selected month (an estimate until the month is approved); choose a company to get only that company. Downloading it does not mark anything paid or change anything.'}
           </p>
         </CardBody>
       </Card>

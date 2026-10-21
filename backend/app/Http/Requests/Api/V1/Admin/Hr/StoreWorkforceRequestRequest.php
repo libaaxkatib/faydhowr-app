@@ -6,6 +6,7 @@ use App\Support\ApiResponse;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Validation\Rule;
 
 class StoreWorkforceRequestRequest extends FormRequest
 {
@@ -19,7 +20,7 @@ class StoreWorkforceRequestRequest extends FormRequest
         return [
             'work_location_id' => ['nullable', 'integer', 'exists:work_locations,id'],
             'client_company_id' => ['nullable', 'required_without:work_location_id', 'integer', 'exists:client_companies,id'],
-            'employee_category_id' => ['nullable', 'integer', 'exists:employee_categories,id'],
+            'employee_category_id' => ['nullable', 'integer', Rule::exists('employee_categories', 'id')->whereNull('archived_at')],
             'position_id' => ['nullable', 'integer', 'exists:positions,id'],
             'gender_requirement' => ['nullable', 'string', 'in:male,female'],
             'quantity_needed' => ['nullable', 'integer', 'min:1'],

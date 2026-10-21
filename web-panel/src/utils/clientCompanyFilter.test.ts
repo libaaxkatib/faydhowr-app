@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { categoryCounts, filterByCategory, isInternalOffice, parseCategoryFilter } from './clientCompanyFilter.ts';
+import { categoryCounts, filterByCategory, isInternalOffice, parseCategoryFilter, visibleAliases } from './clientCompanyFilter.ts';
 
 /** Run with: node --test src/utils/clientCompanyFilter.test.ts */
 
@@ -62,4 +62,9 @@ test('the Fayadhowr Office location is recognised as internal, client locations 
   assert.equal(isInternalOffice({ location_type: 'office' }), true);
   assert.equal(isInternalOffice({ location_type: 'client' }), false);
   assert.equal(isInternalOffice({}), false);
+});
+
+test('an alias that only repeats the name is not shown, and spellings are shown once', () => {
+  assert.deepEqual(visibleAliases('5G HOTEL', [{ alias: '5G HOTEL' }, { alias: '5GHOTEL' }, { alias: '5ghotel' }, { alias: '5G Hotel (old)' }]), ['5GHOTEL', '5G Hotel (old)']);
+  assert.deepEqual(visibleAliases('Alpha', undefined), []);
 });

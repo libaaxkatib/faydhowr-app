@@ -60,6 +60,9 @@ enum AdminPermission: string
     case HrPayrollManage = 'hr.payroll.manage';
     case HrPayrollApprove = 'hr.payroll.approve';
     case HrImport = 'hr.import';
+    case HrDashboardView = 'hr.dashboard.view';
+    case HrInspectionsView = 'hr.inspections.view';
+    case HrInspectionsManage = 'hr.inspections.manage';
 
     case MarketingView = 'marketing.view';
     case MarketingManage = 'marketing.manage';
@@ -117,6 +120,9 @@ enum AdminPermission: string
             self::HrPayrollManage => 'Prepare and Review Payroll',
             self::HrPayrollApprove => 'Approve, Finalize and Correct Payroll',
             self::HrImport => 'Import HR Data (HR Manager and Super Admin)',
+            self::HrDashboardView => 'View HR Dashboard',
+            self::HrInspectionsView => 'View Facility Inspections and Complaints',
+            self::HrInspectionsManage => 'Manage Facility Inspections and Complaints',
             self::MarketingView => 'View Marketing',
             self::MarketingManage => 'Manage Marketing',
             self::MarketingAssign => 'Assign Marketing Work',
@@ -173,7 +179,10 @@ enum AdminPermission: string
             self::HrPayrollView,
             self::HrPayrollManage,
             self::HrPayrollApprove,
-            self::HrImport => 'HR',
+            self::HrImport,
+            self::HrDashboardView,
+            self::HrInspectionsView,
+            self::HrInspectionsManage => 'HR',
             self::MarketingView,
             self::MarketingManage,
             self::MarketingAssign,

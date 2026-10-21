@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api\V1\Admin\Hr;
 
 use App\Enums\EmployeeGender;
+use App\Models\EmployeeCategory;
 use App\Support\ApiResponse;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -27,6 +28,8 @@ class UpdateEmployeeRequest extends FormRequest
             'alternate_phone' => ['sometimes', 'nullable', 'string', 'max:40'],
             // Optional and separate from the registration phone. Omitting it keeps the stored value; null clears it.
             'payment_account_number' => ['sometimes', 'nullable', 'string', 'max:50', 'regex:'.EmployeePaymentAccountRule::PATTERN],
+            // HR confirms that a flagged difference between the imported payment number and the registration phone is intended.
+            'accept_payment_account_mismatch' => ['sometimes', 'boolean'],
             'employment_type' => ['sometimes', Rule::in(['permanent', 'temporary'])],
             'confirm_duplicate' => ['sometimes', 'boolean'],
             'duplicate_reason' => ['nullable', 'string', 'min:10', 'max:500', 'required_if_accepted:confirm_duplicate'],
@@ -38,7 +41,12 @@ class UpdateEmployeeRequest extends FormRequest
             'reference_name' => ['sometimes', 'nullable', 'string', 'max:150'],
             'secondary_contact_name' => ['sometimes', 'nullable', 'string', 'max:150'],
             'secondary_contact_phone' => ['sometimes', 'nullable', 'string', 'max:40'],
-            'employee_category_id' => ['sometimes', 'integer', 'exists:employee_categories,id'],
+            'employee_category_id' => ['sometimes', 'integer', 'exists:employee_categories,id', function (string $attribute, mixed $value, callable $fail): void {
+                $current = $this->route('employee')?->employee_category_id;
+                if ((int) $value !== (int) $current && EmployeeCategory::query()->whereKey($value)->whereNotNull('archived_at')->exists()) {
+                    $fail('This category is archived and cannot be chosen. Restore it first.');
+                }
+            }],
             'category_specialization' => ['sometimes', 'nullable', 'string', 'max:60'],
             'department_id' => ['sometimes', 'nullable', 'integer', 'exists:departments,id'],
             'position_id' => ['sometimes', 'nullable', 'integer', 'exists:positions,id'],

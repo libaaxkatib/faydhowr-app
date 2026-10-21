@@ -1,0 +1,203 @@
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+import { hrApi } from '@/api/hr';
+import { ApiClientError } from '@/api/client';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { FormField, inputClasses } from '@/components/ui/FormField';
+import { Icon } from '@/components/ui/Icon';
+import { LoadingState } from '@/components/ui/LoadingState';
+import { Modal, ModalCancelButton } from '@/components/ui/Modal';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { useToast } from '@/components/ui/useToast';
+import { useEffectivePermissions } from '@/hooks/usePermissions';
+import { friendlyErrorMessage } from '@/utils/hrHelpers';
+import { tidyName, validateNewName } from '@/utils/quickCreate';
+import type { EmployeeCategory } from '@/types/employee';
+
+/**
+ * Employee categories: view, add, rename, archive/restore and delete. A category that anything still uses (employees, including archived ones,
+ * or workforce requests) cannot be deleted - it is archived instead, which hides it from new registrations and changes nothing that already
+ * uses it. The Office Staff category belongs to the Office Staff workflow and is locked. The server enforces all of this.
+ */
+export function CategoriesPage() {
+  const queryClient = useQueryClient();
+  const { show } = useToast();
+  const { hasPermission } = useEffectivePermissions();
+  const canManage = hasPermission('hr.manage');
+  const [editing, setEditing] = useState<EmployeeCategory | 'new' | null>(null);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<EmployeeCategory | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(true);
+
+  const { data, isLoading, error, refetch } = useQuery({ queryKey: ['employee-categories'], queryFn: hrApi.employeeCategories.list });
+  const categories = (data ?? []).filter((c) => showArchived || !c.archived);
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['employee-categories'] });
+
+  const open = (target: EmployeeCategory | 'new') => {
+    setEditing(target);
+    setName(target === 'new' ? '' : target.name);
+    setDescription(target === 'new' ? '' : (target.description ?? ''));
+    setFormError(null);
+  };
+
+  const save = useMutation({
+    mutationFn: () => {
+      const payload = { name: tidyName(name), description: description.trim() === '' ? null : description.trim() };
+      return editing === 'new' || editing === null ? hrApi.employeeCategories.create(payload) : hrApi.employeeCategories.update(editing.id, payload);
+    },
+    onSuccess: () => {
+      refresh();
+      show(editing === 'new' ? 'Category created.' : 'Category updated.');
+      setEditing(null);
+    },
+    onError: (err) => setFormError(err instanceof ApiClientError ? (err.fieldErrors?.name?.[0] ?? friendlyErrorMessage(err, 'Could not save the category.')) : friendlyErrorMessage(err, 'Could not save the category.')),
+  });
+
+  const submit = () => {
+    const others = (data ?? []).filter((c) => editing === 'new' || editing === null || c.id !== editing.id);
+    const problem = validateNewName(name, others, 'category');
+    setFormError(problem);
+    if (problem === null) save.mutate();
+  };
+
+  const archive = useMutation({
+    mutationFn: ({ category, archived }: { category: EmployeeCategory; archived: boolean }) => (archived ? hrApi.employeeCategories.archive(category.id) : hrApi.employeeCategories.restore(category.id)),
+    onSuccess: (_row, { archived }) => {
+      refresh();
+      show(archived ? 'Category archived. It stays on the people who have it but cannot be chosen for new ones.' : 'Category restored.');
+    },
+    onError: (err) => show(friendlyErrorMessage(err, 'Could not change the category.'), 'error'),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: number) => hrApi.employeeCategories.remove(id),
+    onSuccess: () => {
+      refresh();
+      show('Category deleted.');
+      setPendingDelete(null);
+      setDeleteError(null);
+    },
+    // The refusal ("still used by 3 employees ... archive it instead") stays visible in the dialog.
+    onError: (err) => setDeleteError(friendlyErrorMessage(err, 'Could not delete the category.')),
+  });
+
+  return (
+    <div>
+      <PageHeader
+        title="Categories"
+        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Categories' }]}
+        actions={
+          canManage ? (
+            <Button onClick={() => open('new')}>
+              <Icon name="plus" size={15} />
+              Add Category
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <label className="mb-3 flex items-center gap-2 text-xs text-ink-muted">
+        <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+        Show archived categories
+      </label>
+
+      <Card>
+        {isLoading && <LoadingState label="Loading categories…" />}
+        {error && <ErrorState error={error} onRetry={refetch} />}
+        {data && categories.length === 0 && <EmptyState icon="list" title="No categories" />}
+        {categories.length > 0 && (
+          <div className="divide-y divide-border">
+            {categories.map((category) => (
+              <div key={category.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
+                <div className="min-w-0">
+                  <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink">
+                    {category.name}
+                    {category.is_system && <StatusBadge status="system" tone="info" label="Used by Office Staff" />}
+                    {category.archived && <StatusBadge status="archived" tone="neutral" label="Archived" />}
+                  </p>
+                  <p className="text-xs text-ink-muted">
+                    {category.description ? `${category.description} · ` : ''}
+                    {category.employees_count ?? 0} employee{category.employees_count === 1 ? '' : 's'}
+                  </p>
+                </div>
+                {canManage && (
+                  <div className="flex items-center gap-1.5">
+                    <Button variant="outline" size="sm" onClick={() => open(category)} aria-label={`Edit category ${category.name}`}>
+                      <Icon name="pencil" size={14} />
+                      Edit
+                    </Button>
+                    {!category.is_system && (
+                      <>
+                        <Button variant="outline" size="sm" isLoading={archive.isPending && archive.variables?.category.id === category.id} onClick={() => archive.mutate({ category, archived: !category.archived })} aria-label={`${category.archived ? 'Restore' : 'Archive'} category ${category.name}`}>
+                          {category.archived ? 'Restore' : 'Archive'}
+                        </Button>
+                        <button
+                          type="button"
+                          aria-label={`Delete category ${category.name}`}
+                          onClick={() => {
+                            setDeleteError(null);
+                            setPendingDelete(category);
+                          }}
+                          className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger"
+                        >
+                          <Icon name="trash" size={14} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Modal
+        confirmDiscard
+        isOpen={editing !== null}
+        onClose={() => setEditing(null)}
+        title={editing === 'new' ? 'Add Category' : 'Edit Category'}
+        size="sm"
+        footer={
+          <>
+            <ModalCancelButton disabled={save.isPending} />
+            <Button size="sm" isLoading={save.isPending} onClick={submit}>Save</Button>
+          </>
+        }
+      >
+        {formError && <div role="alert" className="mb-4 rounded-md border border-danger/30 bg-danger-soft px-3.5 py-2.5 text-sm text-danger">{formError}</div>}
+        <FormField label="Name" htmlFor="cat-name" required hint={editing !== 'new' && editing?.is_system ? 'This category cannot be renamed.' : 'Renaming keeps every employee and request that uses it.'}>
+          <input id="cat-name" className={inputClasses} value={name} disabled={editing !== 'new' && editing?.is_system === true} onChange={(e) => setName(e.target.value)} />
+        </FormField>
+        <FormField label="Description (optional)" htmlFor="cat-description">
+          <input id="cat-description" className={inputClasses} value={description} onChange={(e) => setDescription(e.target.value)} />
+        </FormField>
+      </Modal>
+
+      <ConfirmDialog
+        isOpen={pendingDelete !== null}
+        title="Delete category?"
+        description={`Delete "${pendingDelete?.name ?? ''}"? This cannot be undone. A category that employees or workforce requests still use cannot be deleted - archive it instead.`}
+        confirmLabel="Delete category"
+        tone="danger"
+        isLoading={remove.isPending}
+        errorMessage={deleteError}
+        onConfirm={() => pendingDelete && remove.mutate(pendingDelete.id)}
+        onCancel={() => {
+          setPendingDelete(null);
+          setDeleteError(null);
+        }}
+      />
+    </div>
+  );
+}

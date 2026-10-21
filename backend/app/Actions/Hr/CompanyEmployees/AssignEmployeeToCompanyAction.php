@@ -40,6 +40,8 @@ class AssignEmployeeToCompanyAction
                 'salary_frequency' => $data['salary_frequency'],
                 'notes' => $data['notes'] ?? null,
                 'override_capacity' => $data['override_capacity'] ?? false,
+                // Always sent from this screen, so an additional company is never added without the user's explicit confirmation.
+                'confirm_additional_company' => (bool) ($data['confirm_additional_company'] ?? false),
                 'correction_reason' => $data['correction_reason'] ?? null,
             ], $actor);
 

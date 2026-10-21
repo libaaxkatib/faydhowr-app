@@ -8,7 +8,6 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/useToast';
-import { useAuth } from '@/features/auth/useAuth';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
 
 interface HrPolicy {
@@ -19,6 +18,8 @@ interface HrPolicy {
   changed_by: string | null;
   changed_at: string | null;
   reason: string | null;
+  /** The server says whether this person's role may switch the policy; it re-checks on every change. */
+  can_change?: boolean;
 }
 
 interface HrPoliciesResponse {
@@ -27,11 +28,11 @@ interface HrPoliciesResponse {
 }
 
 /**
- * Shows whether one employee may work for more than one company at the same time (off unless the Super Admin turns it on).
- * Everyone who can view HR sees the state; only the Super Admin gets the switch, and the server refuses anyone else.
+ * Shows whether one employee may work for more than one company at the same time. Everyone who can view HR sees the state; the Super Admin
+ * and the HR Manager get the switch (the server says so through can_change and refuses anyone else). Every change asks for a reason, which is
+ * kept in the audit history together with who changed it and when - the state is never changed silently.
  */
 export function MultiCompanyPolicyCard() {
-  const { isSuperAdmin } = useAuth();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const [open, setOpen] = useState(false);
@@ -72,7 +73,7 @@ export function MultiCompanyPolicyCard() {
             <p className="mt-1 text-xs text-ink-muted">{data?.employees_with_concurrent_assignments} employee(s) currently hold more than one open assignment.</p>
           )}
         </div>
-        {isSuperAdmin && (
+        {policy.can_change === true && (
           <Button variant="outline" size="sm" onClick={() => { setError(null); setOpen(true); }}>
             {policy.enabled ? 'Turn off' : 'Turn on'}
           </Button>

@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
-import { Modal } from '@/components/ui/Modal';
+import { Modal, ModalCancelButton } from '@/components/ui/Modal';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -18,9 +18,10 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { MultiCompanyPolicyCard } from '@/features/hrm/companyEmployees/MultiCompanyPolicyCard';
+import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
-import { CATEGORY_FILTERS, categoryCounts, filterByCategory, isInternalOffice, parseCategoryFilter } from '@/utils/clientCompanyFilter';
+import { CATEGORY_FILTERS, categoryCounts, filterByCategory, parseCategoryFilter, visibleAliases } from '@/utils/clientCompanyFilter';
 import type { ClientCompany, ClientCompanyAgreement, ClientCompanyCategory, WorkLocation } from '@/types/employee';
 
 const CATEGORY_OPTIONS: { value: ClientCompanyCategory; label: string }[] = [
@@ -37,17 +38,16 @@ function formatFileSize(bytes: number): string {
 export function ClientCompaniesPage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { hasPermission } = useEffectivePermissions();
   const [searchParams, setSearchParams] = useSearchParams();
   const categoryFilter = parseCategoryFilter(searchParams);
   const [companyModal, setCompanyModal] = useState<{ editing: ClientCompany | null } | null>(null);
   const [locationModal, setLocationModal] = useState<{ clientCompanyId: number | null; editing: WorkLocation | null } | null>(null);
 
   const { data: companies, isLoading, error, refetch } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list });
-  const { data: locations } = useQuery({ queryKey: ['work-locations'], queryFn: () => hrApi.workLocations.list() });
 
   // The Fayadhowr Office is Fayadhowr's own internal location, not a client: it is kept out of the client list,
-  // its filter and its counts. Its capacity stays editable from the button in the page header.
-  const officeLocations = (locations ?? []).filter(isInternalOffice);
+  // its filter and its counts. Its capacity is edited on the Office Staff page.
   const counts = categoryCounts(companies ?? []);
   const visibleCompanies = filterByCategory(companies ?? [], categoryFilter);
 
@@ -80,23 +80,23 @@ export function ClientCompaniesPage() {
   return (
     <div>
       <PageHeader
-        title="Companies & Locations"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Companies & Locations' }]}
+        title="Companies & Workplaces"
+        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Companies & Workplaces' }]}
         actions={
-          <PermissionGate module="hr">
-            <div className="flex flex-wrap items-center gap-2">
-              {officeLocations.map((office) => (
-                <Button key={office.id} variant="outline" onClick={() => setLocationModal({ clientCompanyId: null, editing: office })}>
-                  <Icon name="pencil" size={15} />
-                  Office capacity
-                </Button>
-              ))}
+          <div className="flex flex-wrap items-center gap-2">
+            {hasPermission('hr.inspections.view') && (
+              <Link to="/hr/facility-inspections" className="inline-flex h-10 items-center gap-1.5 rounded-sm border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-alt">
+                <Icon name="eye" size={15} />
+                Facility Inspections
+              </Link>
+            )}
+            <PermissionGate module="hr">
               <Button onClick={() => setCompanyModal({ editing: null })}>
                 <Icon name="plus" size={15} />
                 Add Client Company
               </Button>
-            </div>
-          </PermissionGate>
+            </PermissionGate>
+          </div>
         }
       />
 
@@ -145,12 +145,12 @@ export function ClientCompaniesPage() {
                 <p className="text-xs text-ink-muted">
                   {[company.contact_person, company.phone, company.location].filter(Boolean).join(' · ') || 'No contact details'}
                 </p>
-                {company.aliases && company.aliases.length > 0 && (
-                  <p className="text-xs text-ink-faint">Also known as: {company.aliases.map((a) => a.alias).join(', ')}</p>
+                {visibleAliases(company.name, company.aliases).length > 0 && (
+                  <p className="text-xs text-ink-faint">Also known as: {visibleAliases(company.name, company.aliases).join(', ')}</p>
                 )}
               </div>
               <div className="flex items-center gap-1">
-              <Link to={`/hr/companies/${company.id}/employees`} className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-border px-2.5 text-xs font-semibold text-ink hover:bg-surface-alt">
+              <Link to={`/hr/companies/${company.id}/employees`} state={{ fromPath: `${window.location.pathname}${window.location.search}` }} className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-border px-2.5 text-xs font-semibold text-ink hover:bg-surface-alt">
                 <Icon name="users" size={14} />
                 Employees
               </Link>
@@ -275,13 +275,14 @@ function CompanyFormModal({
 
   return (
     <Modal
+      confirmDiscard
       isOpen
       onClose={onClose}
       title={editing ? 'Edit Client Company' : 'Add Client Company'}
       size="sm"
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <ModalCancelButton />
           <Button size="sm" isLoading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>Save</Button>
         </>
       }
@@ -488,13 +489,14 @@ function LocationFormModal({
 
   return (
     <Modal
+      confirmDiscard
       isOpen
       onClose={onClose}
       title={editing ? `Edit ${isOfficeEdit ? 'Fayadhowr Office' : 'Work Location'}` : 'Add Work Location'}
       size="sm"
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <ModalCancelButton />
           <Button size="sm" isLoading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>Save</Button>
         </>
       }

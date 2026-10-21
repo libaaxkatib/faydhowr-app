@@ -92,6 +92,23 @@ trait HrFixtures
         return $admin->createToken('t')->plainTextToken;
     }
 
+    /** A token for an admin of the given ROLE holding exactly the given direct permission grants. */
+    protected function tokenForRoleWith(AdminRole $role, array $permissionKeys): string
+    {
+        $admin = Admin::factory()->create(['role' => $role]);
+
+        foreach ($permissionKeys as $key) {
+            DB::table('admin_permissions')->insert([
+                'admin_id' => $admin->id,
+                'permission_id' => Permission::query()->where('key', $key)->value('id'),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        return $admin->createToken('t')->plainTextToken;
+    }
+
     /** An admin whose role grants no HR access at all. */
     protected function noPermissionToken(): string
     {

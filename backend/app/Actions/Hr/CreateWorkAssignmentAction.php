@@ -9,6 +9,7 @@ use App\Enums\WorkAssignmentStatus;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\AssignmentSalaryHistory;
+use App\Models\ClientCompany;
 use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\WorkLocation;
@@ -130,6 +131,19 @@ class CreateWorkAssignmentAction
 
         $this->guardAgainstDuplicates($employee, $workLocation, $companyId);
         ConcurrentAssignmentGuard::assertAllowed($employee, $companyId, CarbonImmutable::parse($data['start_date'])->startOfDay(), empty($data['end_date']) ? null : CarbonImmutable::parse($data['end_date'])->startOfDay());
+        // The screens always send confirm_additional_company (true/false). Callers that are not a person confirming on a screen - the approved
+        // workbook plan, replace/return, office-staff enrolment - do not send it, so they are not asked: see ConcurrentAssignmentGuard.
+        if (array_key_exists('confirm_additional_company', $data) && $companyId !== null) {
+            ConcurrentAssignmentGuard::requireConfirmation(
+                $employee,
+                $companyId,
+                (string) (ClientCompany::query()->whereKey($companyId)->value('name') ?? 'this company'),
+                CarbonImmutable::parse($data['start_date'])->startOfDay(),
+                empty($data['end_date']) ? null : CarbonImmutable::parse($data['end_date'])->startOfDay(),
+                (bool) $data['confirm_additional_company'],
+            );
+        }
+
         $this->guardCapacity($workLocation, $data, $actor);
 
         return DB::transaction(function () use ($employee, $data, $actor, $workLocation, $companyId) {

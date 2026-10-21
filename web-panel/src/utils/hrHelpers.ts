@@ -78,6 +78,20 @@ export function errorCodeOf(error: unknown): string | undefined {
   return typeof code === 'string' ? code : undefined;
 }
 
+/** The server's code when an employee already works for another company and adding a second one needs an explicit "yes". */
+export const ADDITIONAL_COMPANY_CODE = 'ADDITIONAL_COMPANY_CONFIRMATION_REQUIRED';
+
+/**
+ * The question to put to the HR user ("X is currently assigned to A. Do you want to assign them to B as well?") when the server asked for
+ * confirmation of an additional company; null for any other error. The wording names the employee, the current and the new company.
+ */
+export function additionalCompanyQuestion(error: unknown): string | null {
+  if (errorCodeOf(error) !== ADDITIONAL_COMPANY_CODE) return null;
+  const message = (error as ErrorLike | null | undefined)?.message;
+
+  return typeof message === 'string' && message.length > 0 ? message : 'This employee is already assigned to another company. Do you want to assign them to this company as well?';
+}
+
 /** A message safe to show an HR user: our plain-language wording for known codes, otherwise the server's message, otherwise `fallback`. */
 export function friendlyErrorMessage(error: unknown, fallback: string): string {
   const code = errorCodeOf(error);

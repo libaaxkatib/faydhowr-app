@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -23,7 +23,8 @@ import { StatusOverrideDialog } from '@/features/hrm/StatusOverrideDialog';
 import { advanceBlockedByWorkflow, canOfferStageMove } from '@/utils/registrationWorkflow';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { formatDate, formatDateTime, initialsOf } from '@/utils/formatters';
-import { assignmentLabel, friendlyErrorMessage, isWorkplaceMissing, localToday, OFFICE_LABEL } from '@/utils/hrHelpers';
+import { additionalCompanyQuestion, assignmentLabel, friendlyErrorMessage, isWorkplaceMissing, localToday, OFFICE_LABEL } from '@/utils/hrHelpers';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { submitPracticalDecision } from '@/utils/practicalDecision';
 import type { AttendanceStatus, Employee, EmployeeDocument, EmployeeLeave, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, SalaryFrequency, WorkAssignment } from '@/types/employee';
 
@@ -524,7 +525,23 @@ export function EmployeeDetailPage() {
               <Field label="Phone" value={employee.phone ?? '—'} />
               <Field label="Alternate phone (employee's own)" value={employee.alternate_phone ?? '—'} />
               {employee.payment_account_number !== undefined && (
-                <Field label="Payment / account number" value={employee.payment_account_number ?? '—'} />
+                <Field
+                  label="Payment / account number"
+                  value={
+                    employee.payment_account_number ? (
+                      <span>
+                        {employee.payment_account_number}
+                        <span className="block text-xs text-ink-muted">
+                          {employee.payment_account_source === 'manual' ? 'Entered by HR' : employee.payment_account_source ? 'Imported from the Excel source' : 'Recorded'}
+                          {employee.payment_account_register_check === 'mismatch' && ' · differs from the registration phone - please review'}
+                          {employee.payment_account_register_check === 'accepted' && ' · difference from the registration phone confirmed'}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-ink-muted">Not recorded - payments show the registration phone as a labelled fallback</span>
+                    )
+                  }
+                />
               )}
               <Field label="Location" value={employee.location ?? '—'} />
               <Field label="Gender" value={employee.gender ? employee.gender[0].toUpperCase() + employee.gender.slice(1) : 'Not recorded'} />
@@ -1516,7 +1533,7 @@ export function EmployeeDetailPage() {
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <dt className="text-xs text-ink-faint">{label}</dt>
@@ -1562,6 +1579,7 @@ function AssignWorkLocationModal({
   const [salaryFrequency, setSalaryFrequency] = useState<SalaryFrequency>('monthly');
   const [notes, setNotes] = useState('');
   const [overrideCapacity, setOverrideCapacity] = useState(false);
+  const [question, setQuestion] = useState<string | null>(null);
 
   const isOffice = companyChoice === OFFICE_CHOICE;
   const office = (locations ?? []).find((l) => l.location_type === 'office');
@@ -1570,7 +1588,7 @@ function AssignWorkLocationModal({
   );
 
   const assignMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (confirmAdditional: boolean) =>
       hrApi.employees.workAssignments.create(employeeId, {
         // The office has no company, so it is sent on its own; a company may carry an optional workplace.
         ...(isOffice
@@ -1582,6 +1600,7 @@ function AssignWorkLocationModal({
         salary_frequency: salaryFrequency,
         notes: notes || null,
         ...(isSuperAdmin && overrideCapacity ? { override_capacity: true } : {}),
+        ...(confirmAdditional ? { confirm_additional_company: true } : {}),
       }),
     onSuccess: () => {
       show('Work assignment created.');
@@ -1591,7 +1610,12 @@ function AssignWorkLocationModal({
       setNotes('');
       onSaved();
     },
-    onError: (err) => show(friendlyErrorMessage(err, 'Could not create work assignment.'), 'error'),
+    onError: (err) => {
+      // The server asks for an explicit yes before an employee who already works for another company is given a second one.
+      const asked = additionalCompanyQuestion(err);
+      if (asked !== null) setQuestion(asked);
+      else show(friendlyErrorMessage(err, 'Could not create work assignment.'), 'error');
+    },
   });
 
   if (!isOpen) return null;
@@ -1604,6 +1628,19 @@ function AssignWorkLocationModal({
   ];
 
   return (
+    <>
+    <ConfirmDialog
+      isOpen={question !== null}
+      title="Assign to an additional company?"
+      description={question ?? ''}
+      confirmLabel="Yes, assign to both"
+      isLoading={assignMutation.isPending}
+      onCancel={() => setQuestion(null)}
+      onConfirm={() => {
+        setQuestion(null);
+        assignMutation.mutate(true);
+      }}
+    />
     <Modal
       isOpen
       onClose={onClose}
@@ -1616,7 +1653,7 @@ function AssignWorkLocationModal({
             size="sm"
             isLoading={assignMutation.isPending}
             disabled={companyChoice === '' || salaryAmount === ''}
-            onClick={() => assignMutation.mutate()}
+            onClick={() => assignMutation.mutate(false)}
           >
             Save
           </Button>
@@ -1679,6 +1716,7 @@ function AssignWorkLocationModal({
         </label>
       )}
     </Modal>
+    </>
   );
 }
 

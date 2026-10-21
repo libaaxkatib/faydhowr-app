@@ -26,7 +26,7 @@ function groupLabels(hasPermission: (key: string) => boolean, isSuperAdmin: bool
 }
 
 test('HR Manager with the intended HR grant sees only Human Resources, nothing else', () => {
-  const hasPermission = permissionSetOf(['dashboard.view', 'hr.view', 'hr.manage', 'hr.reports.view']);
+  const hasPermission = permissionSetOf(['dashboard.view', 'hr.dashboard.view', 'hr.view', 'hr.manage', 'hr.reports.view', 'hr.inspections.view', 'hr.inspections.manage']);
 
   const visibleGroups = groupLabels(hasPermission, false);
   assert.deepEqual(visibleGroups, ['Human Resources']);
@@ -123,4 +123,33 @@ test('every real (non-comingSoon) nav item declares the permission its own page 
       );
     }
   }
+});
+
+test('the HR Dashboard link needs hr.dashboard.view; someone with only hr.view still reaches the Employee screens', () => {
+  const hrGroup = NAV_GROUPS.find((g) => g.label === 'Human Resources')!;
+  const dashboard = hrGroup.items.find((i) => i.label === 'Dashboard')!;
+  const employees = hrGroup.items.find((i) => i.label === 'Employees')!;
+  assert.equal(dashboard.permission, 'hr.dashboard.view');
+
+  const withoutDashboard = permissionSetOf(['hr.view', 'hr.manage']);
+  assert.equal(isItemRenderable(dashboard, withoutDashboard, false), false);
+  assert.equal(isItemRenderable(employees, withoutDashboard, false), true);
+  assert.equal(isItemRenderable(dashboard, permissionSetOf(['hr.dashboard.view']), false), true);
+});
+
+test('Companies & Workplaces is the new name, and the Facility Inspections entries need hr.inspections.view', () => {
+  const hrGroup = NAV_GROUPS.find((g) => g.label === 'Human Resources')!;
+  const labels = hrGroup.items.map((i) => i.label);
+  assert.ok(labels.includes('Companies & Workplaces'));
+  assert.ok(!labels.includes('Companies & Locations'), 'the old name is gone');
+
+  for (const label of ['Facility Inspections', 'Complaints']) {
+    const item = hrGroup.items.find((i) => i.label === label)!;
+    assert.equal(item.permission, 'hr.inspections.view');
+    assert.equal(isItemRenderable(item, permissionSetOf(['hr.view', 'hr.manage']), false), false);
+    assert.equal(isItemRenderable(item, permissionSetOf(['hr.inspections.view']), false), true);
+  }
+
+  const report = hrGroup.items.find((i) => i.label === 'Facility Report')!;
+  assert.equal(report.permission, 'hr.reports.view');
 });

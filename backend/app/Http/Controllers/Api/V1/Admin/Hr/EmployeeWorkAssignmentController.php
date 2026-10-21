@@ -21,7 +21,11 @@ class EmployeeWorkAssignmentController extends Controller
 {
     public function store(StoreWorkAssignmentRequest $request, Employee $employee, CreateWorkAssignmentAction $action): JsonResponse
     {
-        $assignment = $action->handle($employee, $request->validated(), $request->user());
+        // The employee page is a screen: an additional company is only added after an explicit confirmation (missing flag = not confirmed).
+        $data = $request->validated();
+        $data['confirm_additional_company'] = (bool) ($data['confirm_additional_company'] ?? false);
+
+        $assignment = $action->handle($employee, $data, $request->user());
 
         return ApiResponse::success('Work assignment created successfully.', new WorkAssignmentResource($assignment), 201);
     }

@@ -10,6 +10,7 @@ use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
 use App\Models\WorkLocation;
 use App\Support\Hr\Payroll\MonthlyPaymentReportBuilder;
+use App\Support\Hr\Payroll\PaymentNumber;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -19,7 +20,7 @@ use Tests\TestCase;
 
 /**
  * The monthly Excel payment list: amounts come from the payroll engine (never salary alone), every employee is
- * listed once, payment numbers are never replaced by the registration phone, missing data is flagged, access needs
+ * listed once, a stored payment number always wins over the registration phone (which is only a labelled fallback), missing data is flagged, access needs
  * hr.payroll.view AND hr.manage, and downloading changes nothing.
  */
 class MonthlyPaymentReportTest extends TestCase
@@ -63,9 +64,9 @@ class MonthlyPaymentReportTest extends TestCase
         return $this->makeCompany($name, $category);
     }
 
-    private function workbook(string $token, string $period = self::P): Spreadsheet
+    private function workbook(string $token, string $period = self::P, ?int $companyId = null): Spreadsheet
     {
-        $response = $this->asToken($token)->get(self::URL.'?period='.$period)->assertOk();
+        $response = $this->asToken($token)->get(self::URL.'?period='.$period.($companyId === null ? '' : '&client_company_id='.$companyId))->assertOk();
         $path = $response->baseResponse->getFile()->getPathname();
         $this->tempFiles[] = $path;
 
@@ -80,7 +81,8 @@ class MonthlyPaymentReportTest extends TestCase
         $headers = $rows[3]; // header is on row 4
         $out = [];
         foreach (array_slice($rows, 4) as $row) {
-            if (($row[0] ?? null) === null) {
+            // The total line under the table (Total / Company total) is not an employee row.
+            if (($row[0] ?? null) === null || in_array($row[0], ['Total', 'Company total'], true)) {
                 continue;
             }
             $out[] = array_combine($headers, $row);
@@ -136,7 +138,22 @@ class MonthlyPaymentReportTest extends TestCase
         $this->assertEquals((float) $rollup->json('meta.totals.net_payable'), $row['Payment amount (USD)']);
     }
 
-    public function test_the_registration_phone_is_never_used_as_the_payment_number(): void
+    public function test_a_stored_payment_number_always_wins_over_the_registration_phone(): void
+    {
+        [, $token] = $this->superAdminToken();
+        $with = $this->staff('active', '0612345678', '615777777');
+        $this->makeAssignment($with, $this->company('Alpha'));
+
+        $book = $this->workbook($token);
+        $row = $this->rowFor($book, $with->employee_number);
+
+        $this->assertSame('0612345678', $row['Payment / account number'], 'kept as text, leading zero intact');
+        $this->assertSame(PaymentNumber::LABEL_RECORDED, $row['Payment number source']);
+        $this->assertSame('OK', $row['Data checks']);
+        $this->assertStringNotContainsString('615777777', json_encode($book->getSheetByName('Employees')->toArray()), 'the phone is not shown when a number is stored');
+    }
+
+    public function test_without_a_stored_number_the_registration_phone_is_a_labelled_and_flagged_fallback(): void
     {
         [, $token] = $this->superAdminToken();
         $company = $this->company('Alpha');
@@ -144,24 +161,92 @@ class MonthlyPaymentReportTest extends TestCase
         $this->makeAssignment($without, $company);
         $blank = $this->staff('active', '   ', '615654321');
         $this->makeAssignment($blank, $company);
-        $with = $this->staff('active', '0612345678', '615777777');
-        $this->makeAssignment($with, $company);
 
         $book = $this->workbook($token);
 
-        foreach ([$without, $blank] as $employee) {
+        foreach ([[$without, '615123456'], [$blank, '615654321']] as [$employee, $phone]) {
             $row = $this->rowFor($book, $employee->employee_number);
-            $this->assertSame('MISSING', $row['Payment / account number']);
-            $this->assertStringContainsString('Missing payment number', $row['Data checks']);
+            $this->assertSame($phone, $row['Payment / account number']);
+            $this->assertSame(PaymentNumber::LABEL_PHONE_FALLBACK, $row['Payment number source']);
+            $this->assertStringContainsString('registration phone used as a fallback', $row['Data checks']);
+            $this->assertStringNotContainsString('Missing payment number', $row['Data checks']);
         }
-        $row = $this->rowFor($book, $with->employee_number);
-        $this->assertSame('0612345678', $row['Payment / account number'], 'kept as text, leading zero intact');
-        $this->assertSame('OK', $row['Data checks']);
-        $this->assertSame(2, $book->getSheetByName('Summary')->getCell('B11')->getValue());
+        $summary = $book->getSheetByName('Summary');
+        $this->assertSame(0, $summary->getCell('B11')->getValue(), 'a phone fallback is not "missing"');
+        $this->assertSame(2, $summary->getCell('B15')->getValue(), 'the fallbacks are counted on their own line');
+        // Nothing is written back: the stored number stays empty.
+        $this->assertNull(Employee::query()->find($without->id)->payment_account_number);
+    }
 
-        $everything = json_encode($book->getSheetByName('Employees')->toArray());
-        $this->assertStringNotContainsString('615123456', $everything);
-        $this->assertStringNotContainsString('615654321', $everything);
+    public function test_with_neither_a_payment_number_nor_a_phone_the_number_is_missing_and_never_guessed(): void
+    {
+        [, $token] = $this->superAdminToken();
+        $nobody = $this->staff('active', null, '');
+        $this->makeAssignment($nobody, $this->company('Alpha'));
+
+        $row = $this->rowFor($this->workbook($token), $nobody->employee_number);
+
+        $this->assertSame('MISSING', $row['Payment / account number']);
+        $this->assertStringContainsString('Missing payment number', $row['Data checks']);
+    }
+
+    public function test_an_imported_number_that_differs_from_the_registration_phone_is_kept_and_flagged_for_review(): void
+    {
+        [, $token] = $this->superAdminToken();
+        $imported = $this->staff('active', '0611111111', '615999999');
+        $imported->forceFill([
+            'payment_account_source' => PaymentNumber::SOURCE_WORKBOOK_PART_ONE,
+            'payment_account_source_ref' => 'EMPLOYEE AND COMPANY.xlsx / row 7',
+            'payment_account_register_check' => PaymentNumber::CHECK_MISMATCH,
+        ])->save();
+        $this->makeAssignment($imported, $this->company('Alpha'));
+
+        $row = $this->rowFor($this->workbook($token), $imported->employee_number);
+
+        $this->assertSame('0611111111', $row['Payment / account number'], 'the Excel value is used, not replaced by the phone');
+        $this->assertSame(PaymentNumber::LABEL_IMPORTED, $row['Payment number source']);
+        $this->assertStringContainsString('differs from the registration phone', $row['Data checks']);
+        $this->assertSame((string) $imported->id, $row['Internal employee ID']);
+        $this->assertSame($imported->employee_number, $row['Employee number']);
+    }
+
+    public function test_a_company_list_holds_only_that_companys_lines_and_its_own_total(): void
+    {
+        [, $token] = $this->superAdminToken();
+        $a = $this->company('Alpha Hospital');
+        $b = $this->company('Beta School');
+        $both = $this->staff('active', '0615990010');
+        $this->makeAssignment($both, $a, null, 200, '2026-01-01');
+        $this->makeAssignment($both, $b, null, 100, '2026-01-01');
+        $onlyB = $this->staff('active', '0615990011');
+        $this->makeAssignment($onlyB, $b, null, 300, '2026-01-01');
+        $before = DB::table('employee_work_assignments')->count();
+
+        $book = $this->workbook($token, self::P, $a->id);
+
+        $rows = $this->detailRows($book);
+        $this->assertCount(1, $rows, 'only the people who work for the selected company');
+        $this->assertSame($both->employee_number, $rows[0]['Employee number']);
+        $this->assertEquals(200.0, $rows[0]['Payment amount (USD)'], 'only the line of the selected company, not 300');
+        $this->assertSame('Alpha Hospital', $rows[0]['Company / Guri']);
+        $this->assertStringNotContainsString('More than one assignment', $rows[0]['Data checks']);
+        $sheet = $book->getSheetByName('Employees');
+        $this->assertStringContainsString('Alpha Hospital', (string) $sheet->getCell('A1')->getValue());
+        $values = $sheet->toArray(null, true, false, false);
+        $totalRow = collect($values)->first(fn (array $r): bool => ($r[0] ?? null) === 'Company total');
+        $this->assertNotNull($totalRow);
+        $this->assertEquals(200.0, $totalRow[10]);
+        $this->assertSame(0, $book->getSheetByName('Not in payroll')->getHighestDataRow() > 3 ? 1 : 0, 'a company list has no "not in payroll" rows');
+        $this->assertSame($before, DB::table('employee_work_assignments')->count(), 'exporting changes nothing');
+        // The all-company list is still available and unchanged.
+        $this->assertCount(2, $this->detailRows($this->workbook($token)));
+    }
+
+    public function test_an_unknown_company_is_refused(): void
+    {
+        [, $token] = $this->superAdminToken();
+
+        $this->asToken($token)->get(self::URL.'?period='.self::P.'&client_company_id=999999')->assertStatus(422);
     }
 
     public function test_an_employee_with_two_assignments_is_listed_and_counted_once(): void
@@ -355,7 +440,7 @@ class MonthlyPaymentReportTest extends TestCase
         $e = $this->staff('active', '0615990090');
         $this->makeAssignment($e, $this->company('Alpha'));
 
-        $viewer = $this->tokenWithOnly(['hr.view', 'hr.payroll.view', 'hr.reports.view']);
+        $viewer = $this->tokenWithOnly(['hr.view', 'hr.dashboard.view', 'hr.payroll.view', 'hr.reports.view']);
         foreach (['/api/v1/admin/hr/employees', '/api/v1/admin/hr/reports/payroll-rollup?period='.self::P, '/api/v1/admin/hr/payroll-runs', '/api/v1/admin/hr/client-companies', '/api/v1/admin/hr/dashboard'] as $url) {
             $this->assertStringNotContainsString('0615990090', $this->asToken($viewer)->getJson($url)->assertOk()->getContent(), $url);
         }
@@ -412,8 +497,9 @@ class MonthlyPaymentReportTest extends TestCase
             'Employee number', 'Employee name', 'Company / Guri', 'Company category', 'Monthly salary (USD)',
             'Days paid', 'Days in month', 'Gross pay (USD)', 'Deductions (USD)', 'Adjustments (USD)',
             'Payment amount (USD)', 'Payment / account number', 'Payment status', 'Data checks',
-        ], array_slice($sheet->toArray(null, true, false, false)[3], 0, 14));
-        $this->assertSame('A4:N5', $sheet->getAutoFilter()->getRange());
+            'Internal employee ID', 'Payment number source',
+        ], array_slice($sheet->toArray(null, true, false, false)[3], 0, 16));
+        $this->assertSame('A4:P5', $sheet->getAutoFilter()->getRange());
         $this->assertSame('C5', $sheet->getFreezePane());
         foreach (['B', 'C', 'L', 'N'] as $col) {
             $this->assertGreaterThanOrEqual(26, $sheet->getColumnDimension($col)->getWidth());

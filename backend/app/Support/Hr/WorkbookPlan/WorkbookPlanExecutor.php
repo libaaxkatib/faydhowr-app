@@ -17,6 +17,7 @@ use App\Models\ClientCompany;
 use App\Models\ClientCompanyAlias;
 use App\Models\Employee;
 use App\Support\Hr\ConcurrentAssignmentGuard;
+use App\Support\Hr\Payroll\PaymentNumber;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
@@ -245,27 +246,56 @@ class WorkbookPlanExecutor
     }
 
     /**
-     * Fills the employee's separate payment/account number (the number salary is sent to) from the workbook's phone column.
-     * It is NEVER the registration phone: `phone` is not read or written here, an existing payment number is never
-     * overwritten (a different one is reported as a conflict), and a row without a number is skipped, not guessed.
+     * Records the employee's payroll/payment number from the approved workbook column `EMPLOYEE NUMBER OR ACCOUNT NUMBER` (the plan file's
+     * `payment_account_number` column, read as text so leading zeros survive).
+     *
+     * Rules (owner decision 6):
+     *  - The Excel value is authoritative. It is recorded as text exactly as written, with its source (file/row) and a register check:
+     *    `match` when it agrees with the registration phone, `mismatch` when it does not. A mismatch is FLAGGED for review and the Excel
+     *    value is still kept - it is never rejected, replaced or swapped for the phone.
+     *  - The registration phone, the employee number and the internal id are never written here.
+     *  - A row WITHOUT an Excel value writes nothing: the payment lists show the registration phone as a labelled fallback at export time.
+     *  - Identity is checked by employee number + name (the approved plan), never by the payroll number, so a different number cannot
+     *    move a row to another person or company.
+     *  - A number that another row of the same plan, or another employee already holds, is NOT written: it is reported for review.
+     *  - A stored number that differs from the Excel value is not overwritten unless $replaceStored is set (the report still proposes the
+     *    Excel value); a replacement is audited without the numbers.
+     *
+     * Every result carries the columns of the dry-run report: excel_value, register_phone, register_check, stored_value,
+     * proposed_number, fallback_needed, source_ref.
      *
      * @param  list<array<string, mixed>>  $employees  rows carrying an optional payment_account_number column
      * @return list<array<string, mixed>>
      */
-    public function paymentNumbers(array $employees, bool $dryRun, ?Admin $actor, string $source = self::DEFAULT_SOURCE): array
-    {
+    public function paymentNumbers(
+        array $employees,
+        bool $dryRun,
+        ?Admin $actor,
+        string $source = self::DEFAULT_SOURCE,
+        string $sourceCode = PaymentNumber::SOURCE_WORKBOOK_PART_ONE,
+        bool $replaceStored = false,
+    ): array {
         $results = [];
 
+        // How often each (digits-only) number appears in this plan: a number shared by two rows is ambiguous and goes to review.
+        $inPlan = [];
         foreach ($employees as $row) {
-            $base = ['source_row' => $row['source_row'], 'employee_id' => (int) $row['employee_id'], 'company' => null];
-            $number = trim((string) ($row['payment_account_number'] ?? ''));
-            $employee = Employee::withTrashed()->find((int) $row['employee_id']);
+            $digits = PaymentNumber::digits((string) ($row['payment_account_number'] ?? ''));
 
-            if ($number === '') {
-                $results[] = [...$base, 'outcome' => 'skipped_no_number', 'code' => null, 'message' => 'The plan row carries no payment number; nothing is guessed.'];
-
-                continue;
+            if ($digits !== '') {
+                $inPlan[$digits][(int) $row['employee_id']] = true;
             }
+        }
+
+        foreach ($employees as $row) {
+            $employeeId = (int) $row['employee_id'];
+            $number = trim((string) ($row['payment_account_number'] ?? ''));
+            $sourceRef = mb_substr($source.' / row '.$row['source_row'], 0, 150);
+            $employee = Employee::withTrashed()->find($employeeId);
+            $base = ['source_row' => $row['source_row'], 'employee_id' => $employeeId, 'company' => null, 'source_ref' => $sourceRef,
+                'employee_number' => $employee?->employee_number, 'excel_value' => $number === '' ? null : $number,
+                'register_phone' => $employee?->phone, 'register_check' => null, 'stored_value' => $employee === null ? null : PaymentNumber::clean($employee->payment_account_number),
+                'proposed_number' => null, 'fallback_needed' => false];
 
             if ($employee === null || $employee->trashed()) {
                 $results[] = [...$base, 'outcome' => 'failed', 'code' => 'EMPLOYEE_NOT_FOUND', 'message' => 'Employee missing or archived.'];
@@ -274,34 +304,77 @@ class WorkbookPlanExecutor
             }
 
             if ($employee->employee_number !== $row['employee_number'] || self::nameKey($employee->full_name) !== $row['name_key']) {
-                $results[] = [...$base, 'outcome' => 'failed', 'code' => 'IDENTITY_MISMATCH', 'message' => "Employee {$employee->employee_number} does not match the approved plan row (number or name differs)."];
+                $results[] = [...$base, 'outcome' => 'failed', 'code' => 'IDENTITY_MISMATCH', 'message' => "Employee {$employee->employee_number} does not match the approved plan row (number or name differ); nothing was recorded."];
+
+                continue;
+            }
+
+            if ($number === '') {
+                $hasPhone = PaymentNumber::clean($employee->phone) !== null;
+                $results[] = [...$base, 'outcome' => 'fallback_phone', 'code' => null, 'fallback_needed' => true, 'proposed_number' => null,
+                    'message' => $hasPhone
+                        ? 'No Excel value: nothing is stored; payment lists will show the registration phone, labelled as a fallback.'
+                        : 'No Excel value and no registration phone: the payment number stays missing (never guessed).'];
 
                 continue;
             }
 
             if (! EmployeePaymentAccountRule::isValid($number)) {
-                $results[] = [...$base, 'outcome' => 'failed', 'code' => 'INVALID_PAYMENT_NUMBER', 'message' => 'The payment number has characters or a length that is not allowed.'];
+                $results[] = [...$base, 'outcome' => 'failed', 'code' => 'INVALID_PAYMENT_NUMBER', 'message' => 'The Excel value has characters or a length that is not allowed; nothing was recorded.'];
 
                 continue;
             }
 
-            $existing = trim((string) $employee->payment_account_number);
+            $check = PaymentNumber::registerCheck($number, $employee->phone, $employee->alternate_phone);
+            $base['register_check'] = $check;
+            $base['proposed_number'] = $number;
+            $digits = PaymentNumber::digits($number);
 
-            if ($existing !== '') {
-                $results[] = $existing === $number
-                    ? [...$base, 'outcome' => 'already_set', 'code' => null, 'message' => 'The same payment number is already recorded; nothing changed.']
-                    : [...$base, 'outcome' => 'failed', 'code' => 'PAYMENT_NUMBER_CONFLICT', 'message' => 'A different payment number is already recorded; it is not overwritten.'];
+            if (($inPlan[$digits] ?? []) !== [] && count($inPlan[$digits]) > 1) {
+                $results[] = [...$base, 'outcome' => 'needs_review', 'code' => 'DUPLICATE_SOURCE_NUMBER', 'message' => 'The same number appears for more than one employee in the source; nothing was recorded until it is reviewed.'];
 
                 continue;
             }
+
+            $heldByOther = $digits === '' ? false : Employee::withTrashed()->where('id', '!=', $employee->id)
+                ->whereNotNull('payment_account_number')->get(['id', 'payment_account_number'])
+                ->contains(fn (Employee $other): bool => PaymentNumber::digits($other->payment_account_number) === $digits);
+
+            if ($heldByOther) {
+                $results[] = [...$base, 'outcome' => 'needs_review', 'code' => 'NUMBER_HELD_BY_ANOTHER_EMPLOYEE', 'message' => 'Another employee already holds this number; nothing was recorded until it is reviewed.'];
+
+                continue;
+            }
+
+            $existing = PaymentNumber::clean($employee->payment_account_number);
+
+            if ($existing !== null && $existing === $number) {
+                $results[] = [...$base, 'outcome' => 'already_set', 'code' => null, 'message' => 'The same payment number is already recorded; nothing changed.'.($check === PaymentNumber::CHECK_MISMATCH ? ' It differs from the registration phone (flagged for review).' : '')];
+
+                continue;
+            }
+
+            if ($existing !== null && ! $replaceStored) {
+                $results[] = [...$base, 'outcome' => 'failed', 'code' => 'PAYMENT_NUMBER_CONFLICT', 'message' => 'A different payment number is already recorded; it is not overwritten (the Excel value is the proposed one - review, then run again with the replace option if it is approved).'];
+
+                continue;
+            }
+
+            $verb = $existing === null ? 'record' : 'replace the stored number with';
+            $flag = $check === PaymentNumber::CHECK_MISMATCH ? ' Flagged: it differs from the registration phone (the Excel value is kept).' : '';
 
             if ($dryRun) {
-                $results[] = [...$base, 'outcome' => 'would_set', 'code' => null, 'message' => 'Would record the payment number (registration phone untouched).'];
+                $results[] = [...$base, 'outcome' => 'would_set', 'code' => null, 'message' => "Would {$verb} the Excel value (registration phone untouched).{$flag}"];
 
                 continue;
             }
 
-            $employee->update(['payment_account_number' => $number]);
+            $employee->update([
+                'payment_account_number' => $number,
+                'payment_account_source' => $sourceCode,
+                'payment_account_source_ref' => $sourceRef,
+                'payment_account_register_check' => $check,
+            ]);
 
             if ($actor !== null) {
                 event(AuditEvent::record(
@@ -310,11 +383,11 @@ class WorkbookPlanExecutor
                     description: "Payment number recorded for employee {$employee->employee_number} from the approved workbook, ".$source.' row '.$row['source_row'].'.',
                     entityType: Employee::class,
                     entityId: $employee->id,
-                    metadata: ['field' => 'payment_account_number'],
+                    metadata: ['field' => 'payment_account_number', 'source' => $sourceCode, 'register_check' => $check, 'replaced_stored_number' => $existing !== null],
                 ));
             }
 
-            $results[] = [...$base, 'outcome' => 'set', 'code' => null, 'message' => 'Payment number recorded (registration phone untouched).'];
+            $results[] = [...$base, 'outcome' => 'set', 'code' => null, 'message' => 'Payment number recorded (registration phone untouched).'.$flag];
         }
 
         return $results;

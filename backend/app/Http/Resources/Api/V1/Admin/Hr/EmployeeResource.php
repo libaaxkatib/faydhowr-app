@@ -44,6 +44,10 @@ class EmployeeResource extends JsonResource
             'phone' => $this->phone,
             'alternate_phone' => $this->alternate_phone,
             'payment_account_number' => $this->when($this->mayReceivePaymentAccount($request), fn () => $this->payment_account_number),
+            // Where the payroll/payment number came from and whether it agrees with the registration phone (same audience as the number).
+            'payment_account_source' => $this->when($this->mayReceivePaymentAccount($request), fn () => $this->payment_account_source),
+            'payment_account_source_ref' => $this->when($this->mayReceivePaymentAccount($request), fn () => $this->payment_account_source_ref),
+            'payment_account_register_check' => $this->when($this->mayReceivePaymentAccount($request), fn () => $this->payment_account_register_check),
             'location' => $this->location,
             'age' => $this->age,
             'marital_status' => $this->marital_status,

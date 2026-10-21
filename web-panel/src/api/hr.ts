@@ -199,6 +199,13 @@ export const hrApi = {
 
   employeeCategories: {
     list: () => apiRequest<EmployeeCategory[]>('admin/hr/employee-categories'),
+    create: (payload: { name: string; description?: string | null }) =>
+      apiRequest<EmployeeCategory>('admin/hr/employee-categories', { method: 'POST', body: payload }),
+    update: (id: number, payload: { name?: string; description?: string | null }) =>
+      apiRequest<EmployeeCategory>(`admin/hr/employee-categories/${id}`, { method: 'PUT', body: payload }),
+    archive: (id: number) => apiRequest<EmployeeCategory>(`admin/hr/employee-categories/${id}/archive`, { method: 'POST' }),
+    restore: (id: number) => apiRequest<EmployeeCategory>(`admin/hr/employee-categories/${id}/restore`, { method: 'POST' }),
+    remove: (id: number) => apiRequest<null>(`admin/hr/employee-categories/${id}`, { method: 'DELETE' }),
   },
 
   /** Office Staff workflow (needs hr.manage). Documents use the existing employee document endpoints. */
@@ -321,8 +328,11 @@ export const hrApi = {
     exportExcel: (run: Pick<PayrollRun, 'id' | 'period'>) =>
       downloadAuthenticatedFile(`admin/hr/payroll-runs/${run.id}/export`, `payroll-${run.period}.xlsx`),
     /** Excel list of who to pay for a month (needs hr.payroll.view + hr.manage). Read-only: pays nothing, creates no run. */
-    downloadPaymentList: (period: string) =>
-      downloadAuthenticatedFile(`admin/hr/reports/monthly-payment-list?period=${encodeURIComponent(period)}`, `payment-list-${period}.xlsx`),
+    downloadPaymentList: (period: string, company?: { id: number; name: string }) =>
+      downloadAuthenticatedFile(
+        `admin/hr/reports/monthly-payment-list?period=${encodeURIComponent(period)}${company ? `&client_company_id=${company.id}` : ''}`,
+        company ? `payment-list-${period}-${company.name.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')}.xlsx` : `payment-list-${period}.xlsx`,
+      ),
     addAdjustment: (itemId: number, payload: CreatePayrollAdjustmentPayload) =>
       apiRequest<PayrollAdjustmentResult>(`admin/hr/payroll-items/${itemId}/adjustments`, { method: 'POST', body: payload }),
     /** Voids a payment marked paid (Super Admin / HR Manager, reason required): a linked reversal is added, nothing is edited or deleted. */

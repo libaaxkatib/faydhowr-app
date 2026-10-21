@@ -44,7 +44,7 @@ class StoreEmployeeRequest extends FormRequest
             'reference_name' => ['nullable', 'string', 'max:150'],
             'secondary_contact_name' => ['nullable', 'string', 'max:150'],
             'secondary_contact_phone' => ['nullable', 'string', 'max:40'],
-            'employee_category_id' => ['required', 'integer', 'exists:employee_categories,id'],
+            'employee_category_id' => ['required', 'integer', Rule::exists('employee_categories', 'id')->whereNull('archived_at')],
             'department_id' => ['nullable', 'integer', 'exists:departments,id'],
             'position_id' => ['nullable', 'integer', 'exists:positions,id'],
             'application_date' => ['required', 'date'],

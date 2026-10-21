@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { hrApi } from '@/api/hr';
-import { Modal } from '@/components/ui/Modal';
+import { Modal, ModalCancelButton } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
+import { CreateCategoryDialog, CreatePositionDialog } from '@/features/hrm/QuickCreateDialogs';
 import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
 import { duplicateMatchesFromError, friendlyErrorMessage } from '@/utils/hrHelpers';
@@ -76,6 +77,9 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
   // Matches the server returned with a 422 DUPLICATE_EMPLOYEE_PHONE - these block saving until HR confirms.
   const [serverMatches, setServerMatches] = useState<DuplicateEmployeeMatch[]>([]);
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
+  const [creatingPosition, setCreatingPosition] = useState(false);
+  const [acceptMismatch, setAcceptMismatch] = useState(false);
+  const [creatingCategory, setCreatingCategory] = useState(false);
   const [duplicateReason, setDuplicateReason] = useState('');
   const checkSequence = useRef(0);
   const duplicatePanelRef = useRef<HTMLDivElement>(null);
@@ -208,6 +212,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
         // Sent only when the record actually carried the field (it is withheld from users who cannot manage HR), so an
         // edit can never blank a value this screen was not allowed to see.
         ...(employee?.payment_account_number !== undefined ? { payment_account_number: form.payment_account_number.trim() || null } : {}),
+        ...(acceptMismatch ? { accept_payment_account_mismatch: true } : {}),
         location: form.location || null,
         gender: form.gender ? (form.gender as EmployeeGender) : undefined,
         age: form.age ? Number(form.age) : null,
@@ -259,16 +264,16 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
   }
 
   return (
+    <>
     <Modal
+      confirmDiscard
       isOpen={isOpen}
       onClose={onClose}
       title={mode === 'create' ? 'Register Employee' : 'Edit Employee'}
       size="lg"
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>
-            Cancel
-          </Button>
+          <ModalCancelButton disabled={mutation.isPending} />
           <Button size="sm" onClick={handleSubmit} isLoading={mutation.isPending} disabled={duplicateConfirmationMissing}>
             {needsDuplicateConfirmation
               ? mode === 'create'
@@ -354,6 +359,12 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
               autoComplete="off"
               onChange={(e) => setForm({ ...form, payment_account_number: e.target.value })}
             />
+            {mode === 'edit' && employee?.payment_account_register_check === 'mismatch' && (
+              <label className="mt-2 flex items-start gap-2 text-xs text-warning">
+                <input type="checkbox" className="mt-0.5" checked={acceptMismatch} onChange={(e) => setAcceptMismatch(e.target.checked)} />
+                This imported number differs from the registration phone. Tick to confirm that this is intended (the number is kept either way).
+              </label>
+            )}
           </FormField>
         )}
 
@@ -416,6 +427,9 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
               // Office Staff is assigned by the Office Staff workflow, not picked while recruiting (an employee who already has it keeps it).
               options={recruitmentCategories(categories ?? [], employee ? employee.employee_category_id : null).map((c) => ({ value: String(c.id), label: c.name }))}
             />
+            <button type="button" onClick={() => setCreatingCategory(true)} className="mt-1 text-xs font-semibold text-primary hover:underline">
+              + Create Category
+            </button>
           </FormField>
           <FormField label="Department" htmlFor="department_id" error={fieldErrors.department_id?.[0]}>
             <Select
@@ -434,6 +448,9 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
               placeholder="Not set"
               options={(positions ?? []).map((p) => ({ value: String(p.id), label: p.name }))}
             />
+            <button type="button" onClick={() => setCreatingPosition(true)} className="mt-1 text-xs font-semibold text-primary hover:underline">
+              + Create Position
+            </button>
           </FormField>
         </div>
 
@@ -527,6 +544,9 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
         </FormField>
       </form>
     </Modal>
+    <CreatePositionDialog isOpen={creatingPosition} onClose={() => setCreatingPosition(false)} onCreated={(position) => setForm((current) => ({ ...current, position_id: String(position.id) }))} />
+    <CreateCategoryDialog isOpen={creatingCategory} onClose={() => setCreatingCategory(false)} onCreated={(category) => setForm((current) => ({ ...current, employee_category_id: String(category.id) }))} />
+    </>
   );
 }
 

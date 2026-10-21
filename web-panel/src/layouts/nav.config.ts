@@ -67,7 +67,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Human Resources',
     items: [
-      { label: 'Dashboard', to: '/hr', icon: 'briefcase', end: true, permission: 'hr.view' },
+      { label: 'Dashboard', to: '/hr', icon: 'briefcase', end: true, permission: 'hr.dashboard.view' },
       { label: 'Employee Registration', to: '/hr/employees', icon: 'plus', permission: 'hr.view' },
       { label: 'Employees', to: '/hr/employees', icon: 'users', permission: 'hr.view' },
       { label: 'Damiin Needed', to: '/hr/pipeline/damiin', icon: 'file-text', permission: 'hr.view' },
@@ -89,7 +89,10 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Attendance', to: '/hr/attendance', icon: 'calendar', permission: 'hr.view' },
       { label: 'Departments', to: '/hr/departments', icon: 'box', permission: 'hr.view' },
       { label: 'Positions', to: '/hr/positions', icon: 'shield', permission: 'hr.view' },
-      { label: 'Companies & Locations', to: '/hr/companies', icon: 'briefcase', permission: 'hr.view' },
+      { label: 'Categories', to: '/hr/categories', icon: 'list', permission: 'hr.view' },
+      { label: 'Companies & Workplaces', to: '/hr/companies', icon: 'briefcase', permission: 'hr.view' },
+      { label: 'Facility Inspections', to: '/hr/facility-inspections', icon: 'eye', permission: 'hr.inspections.view' },
+      { label: 'Complaints', to: '/hr/facility-complaints', icon: 'alert-triangle', permission: 'hr.inspections.view' },
       { label: 'Payroll', to: '/hr/payroll', icon: 'credit-card', permission: 'hr.payroll.view' },
       { label: 'Excel Imports', to: '/hr/imports', icon: 'file-text', permission: 'hr.import' },
       { label: 'Reports', to: '/hr/reports', icon: 'bar-chart', end: true, permission: 'hr.reports.view' },
@@ -100,6 +103,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Performance Report', to: '/hr/reports/performance-reviews', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Financial Ledger', to: '/hr/reports/financial-ledger', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Payroll Rollup', to: '/hr/reports/payroll-rollup', icon: 'bar-chart', permission: 'hr.reports.view' },
+      { label: 'Facility Report', to: '/hr/reports/facility', icon: 'bar-chart', permission: 'hr.reports.view' },
     ],
   },
   {

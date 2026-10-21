@@ -14,11 +14,13 @@ use Illuminate\Support\Facades\Validator;
 
 class HrPolicyController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        $role = $request->user()->role;
+
         $rows = HrPolicy::query()->with('changedBy')->get()->keyBy('key');
 
-        $data = collect(HrPolicy::CATALOG)->map(function (array $meta, string $key) use ($rows): array {
+        $data = collect(HrPolicy::CATALOG)->map(function (array $meta, string $key) use ($rows, $role): array {
             $row = $rows->get($key);
 
             return [
@@ -29,6 +31,8 @@ class HrPolicyController extends Controller
                 'changed_by' => $row?->changedBy?->full_name,
                 'changed_at' => $row?->updated_at?->toIso8601String(),
                 'reason' => $row?->reason,
+                // Lets the panel show the switch only to roles that may use it; the server still re-checks every change.
+                'can_change' => HrPolicy::roleMayChange($key, $role),
             ];
         })->values();
 
