@@ -242,6 +242,18 @@ class ImportEmployeeRegistrationsTest extends TestCase
         $this->assertNull($other->fresh()->payment_account_number, 'The other employee was not touched.');
     }
 
+    /**
+     * The account number is looked for as the WHOLE value (and its dash-less and digits-only spellings). A short fragment such as "9988" proves
+     * nothing: the text searched also holds generated ids and timestamps (on PostgreSQL the sequence ids keep growing during a test run), which
+     * can contain any short digit sequence by chance.
+     */
+    private function assertNoAccountNumber(string $text, string $where): void
+    {
+        foreach (['ACC-9988-7766', '9988-7766', '99887766'] as $spelling) {
+            $this->assertStringNotContainsString($spelling, $text, "The account number ({$spelling}) must not appear in {$where}.");
+        }
+    }
+
     public function test_the_payment_account_is_not_shown_in_the_preview_or_report_and_is_purged_with_the_staging_data(): void
     {
         $header = [...self::HEADER, 'account number'];
@@ -250,14 +262,14 @@ class ImportEmployeeRegistrationsTest extends TestCase
         $row = $this->rows($id)[0];
         $this->assertArrayNotHasKey('payment_account_number', $row['details']);
         $this->assertTrue($row['details']['has_payment_account']);
-        $this->assertStringNotContainsString('9988', json_encode($row));
+        $this->assertNoAccountNumber(json_encode($row), 'the row preview');
 
         $csv = $this->as($this->token)->get(self::IMPORTS."/{$id}/report")->assertOk()->streamedContent();
-        $this->assertStringNotContainsString('9988', $csv);
+        $this->assertNoAccountNumber($csv, 'the report');
 
         ImportBatch::query()->whereKey($id)->update(['retention_expires_at' => now('UTC')->subMinute()]);
         app(ImportRetention::class)->purgeExpired();
-        $this->assertStringNotContainsString('9988', json_encode(DB::table('import_rows')->get()), 'Staging keeps no account number after the purge.');
+        $this->assertNoAccountNumber(json_encode(DB::table('import_rows')->get()), 'the staging rows after the purge');
     }
 
     public function test_an_invalid_payment_account_marks_only_that_row_invalid(): void

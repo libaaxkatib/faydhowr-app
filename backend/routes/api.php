@@ -1283,6 +1283,10 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
         ->whereNumber('employee')
         ->withTrashed()
         ->name('api.v1.admin.hr.employees.update');
+    Route::post('v1/admin/hr/employees/{employee}/restore', [AdminEmployeeController::class, 'restore'])
+        ->whereNumber('employee')
+        ->withTrashed()
+        ->name('api.v1.admin.hr.employees.restore');
     Route::patch('v1/admin/hr/employees/{employee}/status', [AdminEmployeeStatusController::class, 'update'])
         ->whereNumber('employee')
         ->name('api.v1.admin.hr.employees.status');

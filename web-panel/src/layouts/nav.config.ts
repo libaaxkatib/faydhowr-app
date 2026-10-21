@@ -33,20 +33,7 @@ export interface NavGroup {
 }
 
 export const NAV_GROUPS: NavGroup[] = [
-  // Sidebar order (owner decision): Marketing and Human Resources first, the Mobile App group below them, System last.
-  {
-    label: 'Marketing',
-    items: [
-      { label: 'Dashboard', to: '/marketing', icon: 'megaphone', end: true, permission: 'marketing.view' },
-      { label: 'XARUN', to: '/marketing/xarun', icon: 'megaphone', permission: 'marketing.view' },
-      { label: 'PROJECT', to: '/marketing/project', icon: 'briefcase', permission: 'marketing.view' },
-      { label: 'Follow-ups', to: '/marketing/follow-ups', icon: 'bell', permission: 'marketing.view' },
-      { label: 'Teams', to: '/marketing/teams', icon: 'users', permission: 'marketing.view' },
-      { label: 'Employees', to: '/marketing/employees', icon: 'list', permission: 'marketing.view' },
-      { label: 'Commission', to: '/marketing/commission', icon: 'credit-card', permission: 'marketing.commission.view' },
-      { label: 'Reports', to: '/marketing/reports', icon: 'bar-chart', permission: 'marketing.reports.view' },
-    ],
-  },
+  // Sidebar order (owner decision): Human Resources, Marketing, Mobile App Management, System.
   {
     label: 'Human Resources',
     items: [
@@ -87,6 +74,19 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Financial Ledger', to: '/hr/reports/financial-ledger', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Payroll Rollup', to: '/hr/reports/payroll-rollup', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Facility Report', to: '/hr/reports/facility', icon: 'bar-chart', permission: 'hr.reports.view' },
+    ],
+  },
+  {
+    label: 'Marketing',
+    items: [
+      { label: 'Dashboard', to: '/marketing', icon: 'megaphone', end: true, permission: 'marketing.view' },
+      { label: 'XARUN', to: '/marketing/xarun', icon: 'megaphone', permission: 'marketing.view' },
+      { label: 'PROJECT', to: '/marketing/project', icon: 'briefcase', permission: 'marketing.view' },
+      { label: 'Follow-ups', to: '/marketing/follow-ups', icon: 'bell', permission: 'marketing.view' },
+      { label: 'Teams', to: '/marketing/teams', icon: 'users', permission: 'marketing.view' },
+      { label: 'Employees', to: '/marketing/employees', icon: 'list', permission: 'marketing.view' },
+      { label: 'Commission', to: '/marketing/commission', icon: 'credit-card', permission: 'marketing.commission.view' },
+      { label: 'Reports', to: '/marketing/reports', icon: 'bar-chart', permission: 'marketing.reports.view' },
     ],
   },
   {

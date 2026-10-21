@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api\V1\Admin\Hr;
 use App\Actions\Hr\CreateEmployeeAction;
 use App\Actions\Hr\GetEmployeeAction;
 use App\Actions\Hr\ListEmployeesAction;
+use App\Actions\Hr\RestoreEmployeeAction;
 use App\Actions\Hr\UpdateEmployeeAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Admin\Hr\ListEmployeesRequest;
+use App\Http\Requests\Api\V1\Admin\Hr\RestoreEmployeeRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\StoreEmployeeRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\UpdateEmployeeRequest;
 use App\Http\Resources\Api\V1\Admin\Hr\EmployeeResource;
@@ -75,5 +77,13 @@ class EmployeeController extends Controller
         $employee = $action->handle($employee, $request->validated(), $request->user());
 
         return ApiResponse::success('Employee updated successfully.', (new EmployeeResource($employee))->withPaymentAccount());
+    }
+
+    /** Explicitly brings an archived employee back into the working lists (status, stage and every relationship stay as they were). */
+    public function restore(RestoreEmployeeRequest $request, Employee $employee, RestoreEmployeeAction $action): JsonResponse
+    {
+        $employee = $action->handle($employee, $request->validated(), $request->user());
+
+        return ApiResponse::success('Employee restored successfully.', (new EmployeeResource($employee))->withPaymentAccount());
     }
 }

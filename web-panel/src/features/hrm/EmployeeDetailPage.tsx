@@ -19,6 +19,7 @@ import { useToast } from '@/components/ui/useToast';
 import { useAuth } from '@/features/auth/useAuth';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { MoveStageDialog } from '@/features/hrm/MoveStageDialog';
+import { RestoreEmployeeDialog } from '@/features/hrm/RestoreEmployeeDialog';
 import { StatusOverrideDialog } from '@/features/hrm/StatusOverrideDialog';
 import { advanceBlockedByWorkflow, canOfferStageMove } from '@/utils/registrationWorkflow';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
@@ -132,6 +133,7 @@ export function EmployeeDetailPage() {
   const [isOverrideOpen, setIsOverrideOpen] = useState(false);
   const [isMoveStageOpen, setIsMoveStageOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isRestoreOpen, setIsRestoreOpen] = useState(false);
   const [assessmentNotes, setAssessmentNotes] = useState('');
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [endingAssignment, setEndingAssignment] = useState<WorkAssignment | null>(null);
@@ -470,9 +472,17 @@ export function EmployeeDetailPage() {
       />
 
       {employee.is_archived && (
-        <div role="status" className="mb-4 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-ink-muted">
-          <strong className="text-ink">Archived.</strong> This person was removed from the working lists. You can correct the details with Edit; the status,
-          company assignment, payroll and history are not changed, and saving does not bring the person back.
+        <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-ink-muted">
+          <span>
+            <strong className="text-ink">Archived.</strong> This person was removed from the working lists. You can correct the details with Edit; the status,
+            company assignment, payroll and history are not changed, and saving does not bring the person back. Use Restore to return them to the working lists.
+          </span>
+          <PermissionGate module="hr">
+            <Button size="sm" onClick={() => setIsRestoreOpen(true)}>
+              <Icon name="refresh" size={14} />
+              Restore
+            </Button>
+          </PermissionGate>
         </div>
       )}
 
@@ -1420,6 +1430,7 @@ export function EmployeeDetailPage() {
       </Modal>
 
       <EmployeeFormDialog isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} mode="edit" employee={employee} />
+      {employee.is_archived && <RestoreEmployeeDialog isOpen={isRestoreOpen} employee={employee} onClose={() => setIsRestoreOpen(false)} onDone={invalidate} />}
 
       <AssignWorkLocationModal
         isOpen={isAssignOpen}

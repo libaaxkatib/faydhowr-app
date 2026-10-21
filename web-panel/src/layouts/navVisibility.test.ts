@@ -154,9 +154,9 @@ test('Companies & Workplaces is the new name, and the Facility Inspections entri
   assert.equal(report.permission, 'hr.reports.view');
 });
 
-test('Marketing and Human Resources are listed above the Mobile App group, and no group lost an entry', () => {
+test('the sidebar lists Human Resources, Marketing, Mobile App Management, System in that order, and no group lost an entry', () => {
   const labels = NAV_GROUPS.map((g) => g.label);
-  assert.deepEqual(labels, ['Marketing', 'Human Resources', 'Mobile App Management', 'System']);
+  assert.deepEqual(labels, ['Human Resources', 'Marketing', 'Mobile App Management', 'System']);
   assert.ok(labels.indexOf('Marketing') < labels.indexOf('Mobile App Management'));
   assert.ok(labels.indexOf('Human Resources') < labels.indexOf('Mobile App Management'));
 

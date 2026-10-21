@@ -48,13 +48,25 @@ class ImportRetentionTest extends TestCase
 
     private const WAITING_HEADER = ['full_name', 'phone'];
 
+    /** The phone of the registered person staged by stageWithPersonalData() - the whole number, as it is written in the file. */
+    private function registeredPhone(string $suffix = '1'): string
+    {
+        return '61555'.str_pad($suffix, 4, '0', STR_PAD_LEFT);
+    }
+
+    /** The phone of the second staged row, whose person is not in the register. */
+    private function unknownPhone(string $suffix = '1'): string
+    {
+        return '61999000'.$suffix.'0';
+    }
+
     /** A staged waiting-list batch whose rows carry names and phone numbers. */
     private function stageWithPersonalData(string $suffix = '1'): int
     {
-        $employee = $this->makeEmployee('applicant', 'permanent', '61555'.str_pad($suffix, 4, '0', STR_PAD_LEFT));
+        $employee = $this->makeEmployee('applicant', 'permanent', $this->registeredPhone($suffix));
         $employee->update(['full_name' => "Retention Person {$suffix}"]);
 
-        return $this->stageImport($this->token, 'waiting_list', $this->csvUpload(self::WAITING_HEADER, [["Retention Person {$suffix}", '61555'.str_pad($suffix, 4, '0', STR_PAD_LEFT)], ['Nobody Known', '61999000'.$suffix.'0']]));
+        return $this->stageImport($this->token, 'waiting_list', $this->csvUpload(self::WAITING_HEADER, [["Retention Person {$suffix}", $this->registeredPhone($suffix)], ['Nobody Known', $this->unknownPhone($suffix)]]));
     }
 
     private function personalDataRows(int $id): int
@@ -135,10 +147,13 @@ class ImportRetentionTest extends TestCase
             $this->assertSame($rowsBefore[$i]->status->value === 'valid' ? 'RETENTION_EXPIRED' : $rowsBefore[$i]->code, $row->code);
         }
 
-        // No name or phone survives anywhere in the import tables.
+        // No name or phone survives anywhere in the import tables. The phones are searched as the WHOLE numbers that were staged: a short
+        // fragment such as "61555" can also occur by chance inside a generated id or timestamp in the same dump.
         $dump = json_encode([DB::table('import_batches')->get(), DB::table('import_rows')->get()]);
         $this->assertStringNotContainsString('Retention Person', $dump);
-        $this->assertStringNotContainsString('61555', $dump);
+        $this->assertStringNotContainsString('Nobody Known', $dump);
+        $this->assertStringNotContainsString($this->registeredPhone(), $dump);
+        $this->assertStringNotContainsString($this->unknownPhone(), $dump);
     }
 
     public function test_the_api_shows_no_details_after_the_purge(): void

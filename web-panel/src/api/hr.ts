@@ -364,6 +364,9 @@ export const hrApi = {
       apiRequest<Employee>('admin/hr/employees', { method: 'POST', body: payload }),
     update: (id: number, payload: UpdateEmployeePayload) =>
       apiRequest<Employee>(`admin/hr/employees/${id}`, { method: 'PUT', body: payload }),
+    /** Brings an archived employee back into the working lists; status, stage and every relationship stay as they were. */
+    restore: (id: number, payload: { reason?: string; confirm_duplicate?: boolean; duplicate_reason?: string } = {}) =>
+      apiRequest<Employee>(`admin/hr/employees/${id}/restore`, { method: 'POST', body: payload }),
     updateStatus: (id: number, status: EmployeeStatus, note?: string, overrideReason?: string) =>
       apiRequest<Employee>(`admin/hr/employees/${id}/status`, {
         method: 'PATCH',
