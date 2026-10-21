@@ -9,6 +9,8 @@ interface PermissionGateProps {
   permission?: string;
   children: ReactNode;
   fallback?: ReactNode;
+  /** Hide the control (show the fallback) even for someone who may use it - for example write actions on a record that is archived. */
+  hideWhen?: boolean;
 }
 
 /**
@@ -19,9 +21,10 @@ interface PermissionGateProps {
  * For the HR and Marketing modules the gate checks the real management permission (see utils/permissionGate.ts); other modules use the
  * module-level hint from the dashboard response.
  */
-export function PermissionGate({ module, permission, children, fallback = null }: PermissionGateProps) {
+export function PermissionGate({ module, permission, children, fallback = null, hideWhen = false }: PermissionGateProps) {
   const { canAccessModule, isLoading } = usePermissions();
   const { hasPermission, isLoading: permissionsLoading } = useEffectivePermissions();
   if (isLoading || permissionsLoading) return null;
+  if (hideWhen) return <>{fallback}</>;
   return gateAllows(module, hasPermission, canAccessModule, permission) ? <>{children}</> : <>{fallback}</>;
 }

@@ -19,8 +19,8 @@ interface EmployeePickerProps {
 }
 
 /**
- * Search the existing HR register by employee number, HR id, name or phone. Every result shows the identifiers (employee number,
- * HR id, status, phone, category, current companies), so people with the same name are told apart. Nobody is created here: if the
+ * Search the existing HR register by employee number, Employee ID, name or phone. Every result shows the identifiers (employee number,
+ * Employee ID, status, phone, category, current companies), so people with the same name are told apart. Nobody is created here: if the
  * person is not in the list, their HR record has to be registered first.
  */
 export function EmployeePicker({ companyId, value, onChange, label, error, excludeIds = [], inputId }: EmployeePickerProps) {
@@ -45,7 +45,7 @@ export function EmployeePicker({ companyId, value, onChange, label, error, exclu
           <div>
             <p className="text-sm font-semibold text-ink">{value.full_name}</p>
             <p className="text-xs text-ink-muted">
-              {value.employee_number} · HR id {value.id} · {value.status}
+              {value.employee_number} · Employee ID {value.id} · {value.status}
               {value.phone ? ` · ${value.phone}` : ''}
             </p>
             {value.current_companies.length > 0 && <p className="text-xs text-ink-faint">Currently at: {value.current_companies.join(', ')}</p>}
@@ -71,7 +71,7 @@ export function EmployeePicker({ companyId, value, onChange, label, error, exclu
         className={inputClasses}
         value={term}
         onChange={(event) => setTerm(event.target.value)}
-        placeholder="Employee number, HR id, name or phone…"
+        placeholder="Employee number, Employee ID, name or phone…"
         autoComplete="off"
         aria-describedby={`${inputId}-hint`}
       />
@@ -98,7 +98,7 @@ export function EmployeePicker({ companyId, value, onChange, label, error, exclu
             >
               <span className="block text-sm font-medium text-ink">{candidate.full_name}</span>
               <span className="block text-xs text-ink-muted">
-                {candidate.employee_number} · HR id {candidate.id} · {candidate.status}
+                {candidate.employee_number} · Employee ID {candidate.id} · {candidate.status}
                 {candidate.phone ? ` · ${candidate.phone}` : ''}
                 {candidate.category ? ` · ${candidate.category}` : ''}
               </span>

@@ -191,6 +191,44 @@ class NameEditingEverywhereTest extends TestCase
         $this->assertSame('Ward A', $first->fresh()->name);
     }
 
+    public function test_the_fayadhowr_office_name_can_be_edited_and_nothing_attached_to_it_changes(): void
+    {
+        $office = WorkLocation::query()->where('location_type', 'office')->firstOrFail();
+        $this->assertSame('Fayadhowr Office', $office->name, 'nothing renames the office by itself');
+        $employee = $this->makeEmployee('active', 'permanent', '0615111333');
+        $assignment = $this->makeAssignment($employee, null, $office, 300, '2026-01-01');
+        $capacity = $office->capacity;
+
+        $this->as($this->manager)->putJson("/api/v1/admin/hr/work-locations/{$office->id}", ['name' => '  Head   Office '])
+            ->assertOk()->assertJsonPath('data.id', $office->id)->assertJsonPath('data.name', 'Head Office');
+
+        $fresh = $office->fresh();
+        $this->assertSame('Head Office', $fresh->name);
+        $this->assertSame('office', $fresh->location_type->value, 'it is still the office');
+        $this->assertSame($capacity, $fresh->capacity);
+        $this->assertSame($office->id, $assignment->fresh()->work_location_id, 'the people assigned to it stay assigned');
+        $log = AuditLog::query()->where('entity_type', WorkLocation::class)->where('entity_id', $office->id)->latest('id')->firstOrFail();
+        $this->assertSame(['renamed_from' => 'Fayadhowr Office', 'renamed_to' => 'Head Office'], $log->metadata);
+
+        // A capacity-only edit (the Office Staff page) does not touch the name.
+        $this->as($this->manager)->putJson("/api/v1/admin/hr/work-locations/{$office->id}", ['capacity' => 40])->assertOk()->assertJsonPath('data.name', 'Head Office');
+    }
+
+    public function test_the_office_name_edit_is_validated_and_permissioned(): void
+    {
+        $office = WorkLocation::query()->where('location_type', 'office')->firstOrFail();
+        WorkLocation::query()->create(['location_type' => 'office', 'name' => 'Branch Office', 'status' => 'active']);
+
+        $this->as($this->manager)->putJson("/api/v1/admin/hr/work-locations/{$office->id}", ['name' => '   '])->assertUnprocessable();
+        $this->as($this->manager)->putJson("/api/v1/admin/hr/work-locations/{$office->id}", ['name' => 'branch  OFFICE'])->assertUnprocessable()->assertJsonValidationErrors(['name'], 'errors');
+        $this->as($this->viewer)->putJson("/api/v1/admin/hr/work-locations/{$office->id}", ['name' => 'Viewer Rename'])->assertForbidden();
+        $this->as($this->noPermissionToken())->putJson("/api/v1/admin/hr/work-locations/{$office->id}", ['name' => 'Nobody Rename'])->assertForbidden();
+
+        $this->assertSame('Fayadhowr Office', $office->fresh()->name, 'every refused edit left the name as it was');
+        // Keeping the same name while editing another field is accepted.
+        $this->as($this->manager)->putJson("/api/v1/admin/hr/work-locations/{$office->id}", ['name' => 'Fayadhowr Office', 'notes' => 'same name'])->assertOk();
+    }
+
     // ------------------------------------------------------------------ employees
 
     public function test_an_employee_rename_changes_only_the_name(): void

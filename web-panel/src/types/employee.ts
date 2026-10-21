@@ -781,6 +781,9 @@ export interface Employee {
   damiin_completed: boolean;
   /** Computed, never stored: true for the 598 people migrated from the CANCELED sheet / RED REGISTRATION rows. Never the same as pipeline_stage === 'rejected' (the live workflow's own outcome) — see Issue #7. */
   is_historical_rejected: boolean;
+  /** True for the people removed from the working lists. They stay readable and their details can be corrected, but their status never changes. */
+  is_archived?: boolean;
+  archived_at?: string | null;
   waiting_since: string | null;
   is_supervisor: boolean;
   supervisor_since: string | null;
@@ -836,6 +839,8 @@ export interface ListEmployeesParams {
   /** The dedicated Damiin Needed active-work-queue filter - distinct from guarantor_needed. */
   damiin_active?: boolean;
   historical_rejected?: boolean;
+  /** true = only the archived people. */
+  archived?: boolean;
   application_date_from?: string;
   application_date_to?: string;
   joining_date_from?: string;

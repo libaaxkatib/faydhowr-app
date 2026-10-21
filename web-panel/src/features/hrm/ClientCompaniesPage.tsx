@@ -502,7 +502,7 @@ function LocationFormModal({
       }
     >
       <FormField label="Name" htmlFor="wl-name" required>
-        <input id="wl-name" className={inputClasses} value={name} onChange={(e) => setName(e.target.value)} disabled={isOfficeEdit} />
+        <input id="wl-name" className={inputClasses} value={name} onChange={(e) => setName(e.target.value)} />
       </FormField>
       <FormField label="Address / location" htmlFor="wl-location">
         <input id="wl-location" className={inputClasses} value={location} onChange={(e) => setLocation(e.target.value)} />

@@ -121,6 +121,7 @@ export function EmployeesListPage({
   const isSupervisorFilter = isLockedNavView ? '' : extra.isSupervisor;
   const joiningDateFrom = isLockedNavView ? '' : extra.joiningDateFrom;
   const joiningDateTo = isLockedNavView ? '' : extra.joiningDateTo;
+  const archived = isLockedNavView ? false : extra.archived;
   const page = extra.page;
   const debouncedSearch = useDebouncedValue(search);
   const debouncedLocation = useDebouncedValue(location);
@@ -186,6 +187,7 @@ export function EmployeesListPage({
         guarantor_needed: effectiveGuarantorNeeded,
         damiin_active: filterDamiinActive,
         historical_rejected: filterHistoricalRejected,
+        archived,
         application_date_from: applicationDateFrom,
         application_date_to: applicationDateTo,
         joining_date_from: joiningDateFrom,
@@ -208,6 +210,7 @@ export function EmployeesListPage({
         guarantor_needed: effectiveGuarantorNeeded,
         damiin_active: filterDamiinActive || undefined,
         historical_rejected: filterHistoricalRejected || undefined,
+        archived: archived || undefined,
         application_date_from: applicationDateFrom || undefined,
         application_date_to: applicationDateTo || undefined,
         joining_date_from: joiningDateFrom || undefined,
@@ -378,6 +381,18 @@ export function EmployeesListPage({
         </div>
       )}
 
+      {archived && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-ink-muted">
+          <span>
+            Showing <strong>archived</strong> employees: people removed from the working lists. You can open them and correct their details; their status,
+            company assignment and history are not changed from here.
+          </span>
+          <button type="button" onClick={() => setParam('archived', '')} className="font-medium text-primary hover:underline">
+            Show current employees
+          </button>
+        </div>
+      )}
+
       {clientCompanyOnly && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-ink-muted">
           <span>Showing only employees with an active assignment to a client company.</span>
@@ -397,6 +412,14 @@ export function EmployeesListPage({
           />
           {!isLockedNavView && (
             <>
+              <Select
+                value={archived ? 'true' : ''}
+                onChange={(event) => setParam('archived', event.target.value)}
+                options={[{ value: 'true', label: 'Archived employees' }]}
+                placeholder="Current employees"
+                className="w-44"
+                aria-label="Which employees to list"
+              />
               <Select
                 value={status}
                 onChange={(event) => setUrlFilter('status', event.target.value)}

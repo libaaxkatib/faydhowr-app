@@ -12,6 +12,7 @@ test('every filter is read back from the address bar', () => {
     profileComplete: 'false',
     guarantorNeeded: 'true',
     isSupervisor: 'true',
+    archived: false,
     joiningDateFrom: '2026-01-01',
     joiningDateTo: '2026-02-01',
     page: 4,
@@ -32,4 +33,15 @@ test('the "More filters" badge counts only the collapsed filters, the clear butt
   assert.equal(activeMoreFilterCount('?location=Hodan&profile_complete=true&application_date_from=2026-01-01'), 3);
   assert.equal(activeFilterCount('?q=x&status=active&department_id=2&page=3'), 3);
   assert.equal(activeFilterCount(''), 0);
+});
+
+test('the archived view is read from the address bar, counts as a filter, and is not one of the collapsed ones', () => {
+  assert.equal(parseExtraEmployeeFilters('').archived, false);
+  assert.equal(parseExtraEmployeeFilters('?archived=true').archived, true);
+  assert.equal(parseExtraEmployeeFilters('?archived=false').archived, false);
+  assert.equal(parseExtraEmployeeFilters('?archived=1').archived, false, 'only the exact value switches it on');
+
+  assert.equal(activeFilterCount('?archived=true'), 1, 'it can be cleared with the other filters');
+  assert.equal(activeFilterCount('?archived=true&q=amina&page=3'), 2);
+  assert.equal(activeMoreFilterCount('?archived=true'), 0, 'it sits in the first filter row, not under "More filters"');
 });

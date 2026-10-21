@@ -10,7 +10,7 @@ use App\Support\Hr\ConcurrentAssignmentGuard;
 use App\Support\Hr\EmployeeRegistrationWorkflow;
 
 /**
- * The searchable employee picker. It searches the existing HR register by its unique identifiers (HR id, employee number) and,
+ * The searchable employee picker. It searches the existing HR register by its unique identifiers (Employee ID, employee number) and,
  * for convenience, by name or registration phone - but every result carries the identifiers, so two people with the same name are
  * told apart, and the choice that is submitted is always the id, never the name. Nobody is created here.
  */

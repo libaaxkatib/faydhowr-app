@@ -49,6 +49,10 @@ class ListEmployeesRequest extends FormRequest
             $this->merge(['damiin_active' => filter_var($this->query('damiin_active'), FILTER_VALIDATE_BOOLEAN)]);
         }
 
+        if ($this->has('archived')) {
+            $this->merge(['archived' => filter_var($this->query('archived'), FILTER_VALIDATE_BOOLEAN)]);
+        }
+
         if ($this->has('historical_rejected')) {
             $this->merge(['historical_rejected' => filter_var($this->query('historical_rejected'), FILTER_VALIDATE_BOOLEAN)]);
         }
@@ -71,6 +75,8 @@ class ListEmployeesRequest extends FormRequest
             'guarantor_needed' => ['sometimes', 'boolean'],
             'damiin_active' => ['sometimes', 'boolean'],
             'historical_rejected' => ['sometimes', 'boolean'],
+            // true = ONLY the archived (removed from the working lists) people; absent/false = the usual lists without them.
+            'archived' => ['sometimes', 'boolean'],
             'application_date_from' => ['sometimes', 'date'],
             'application_date_to' => ['sometimes', 'date', 'after_or_equal:application_date_from'],
             'joining_date_from' => ['sometimes', 'date'],

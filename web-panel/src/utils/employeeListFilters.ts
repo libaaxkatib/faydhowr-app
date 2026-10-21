@@ -11,6 +11,8 @@ export interface ExtraEmployeeFilters {
   profileComplete: TriState;
   guarantorNeeded: TriState;
   isSupervisor: TriState;
+  /** Show only the archived people (the working lists never include them). */
+  archived: boolean;
   joiningDateFrom: string;
   joiningDateTo: string;
   page: number;
@@ -23,6 +25,7 @@ export const EXTRA_FILTER_KEYS = [
   'profile_complete',
   'guarantor_needed',
   'is_supervisor',
+  'archived',
   'joining_date_from',
   'joining_date_to',
   'page',
@@ -49,6 +52,7 @@ export function parseExtraEmployeeFilters(search: string | URLSearchParams): Ext
     profileComplete: tri(params.get('profile_complete')),
     guarantorNeeded: tri(params.get('guarantor_needed')),
     isSupervisor: tri(params.get('is_supervisor')),
+    archived: params.get('archived') === 'true',
     joiningDateFrom: DATE.test(params.get('joining_date_from') ?? '') ? (params.get('joining_date_from') as string) : '',
     joiningDateTo: DATE.test(params.get('joining_date_to') ?? '') ? (params.get('joining_date_to') as string) : '',
     page: Number.isInteger(page) && page >= 1 ? page : 1,

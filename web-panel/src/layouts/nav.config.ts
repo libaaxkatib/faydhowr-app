@@ -33,24 +33,7 @@ export interface NavGroup {
 }
 
 export const NAV_GROUPS: NavGroup[] = [
-  {
-    label: 'Mobile App Management',
-    items: [
-      { label: 'Customers', to: '/mobile-app/customers', icon: 'users', permission: 'customers.view' },
-      { label: 'Services', to: '/mobile-app/services', icon: 'star', comingSoon: true },
-      { label: 'Products', to: '/mobile-app/products', icon: 'box', comingSoon: true },
-      { label: 'Bookings', to: '/mobile-app/bookings', icon: 'calendar', comingSoon: true },
-      { label: 'Quotations', to: '/mobile-app/quotations', icon: 'file-text', comingSoon: true },
-      { label: 'Orders', to: '/mobile-app/orders', icon: 'cart', comingSoon: true },
-      { label: 'Payments', to: '/mobile-app/payments', icon: 'credit-card', comingSoon: true },
-      { label: 'Inventory', to: '/mobile-app/inventory', icon: 'box', comingSoon: true },
-      { label: 'Reviews', to: '/mobile-app/reviews', icon: 'star', comingSoon: true },
-      { label: 'Notifications', to: '/mobile-app/notifications', icon: 'bell', comingSoon: true },
-      { label: 'CMS', to: '/mobile-app/cms', icon: 'image', comingSoon: true },
-      { label: 'Reports', to: '/mobile-app/reports', icon: 'bar-chart', comingSoon: true },
-      { label: 'Accounting', to: '/mobile-app/accounting', icon: 'credit-card', comingSoon: true },
-    ],
-  },
+  // Sidebar order (owner decision): Marketing and Human Resources first, the Mobile App group below them, System last.
   {
     label: 'Marketing',
     items: [
@@ -104,6 +87,24 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Financial Ledger', to: '/hr/reports/financial-ledger', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Payroll Rollup', to: '/hr/reports/payroll-rollup', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Facility Report', to: '/hr/reports/facility', icon: 'bar-chart', permission: 'hr.reports.view' },
+    ],
+  },
+  {
+    label: 'Mobile App Management',
+    items: [
+      { label: 'Customers', to: '/mobile-app/customers', icon: 'users', permission: 'customers.view' },
+      { label: 'Services', to: '/mobile-app/services', icon: 'star', comingSoon: true },
+      { label: 'Products', to: '/mobile-app/products', icon: 'box', comingSoon: true },
+      { label: 'Bookings', to: '/mobile-app/bookings', icon: 'calendar', comingSoon: true },
+      { label: 'Quotations', to: '/mobile-app/quotations', icon: 'file-text', comingSoon: true },
+      { label: 'Orders', to: '/mobile-app/orders', icon: 'cart', comingSoon: true },
+      { label: 'Payments', to: '/mobile-app/payments', icon: 'credit-card', comingSoon: true },
+      { label: 'Inventory', to: '/mobile-app/inventory', icon: 'box', comingSoon: true },
+      { label: 'Reviews', to: '/mobile-app/reviews', icon: 'star', comingSoon: true },
+      { label: 'Notifications', to: '/mobile-app/notifications', icon: 'bell', comingSoon: true },
+      { label: 'CMS', to: '/mobile-app/cms', icon: 'image', comingSoon: true },
+      { label: 'Reports', to: '/mobile-app/reports', icon: 'bar-chart', comingSoon: true },
+      { label: 'Accounting', to: '/mobile-app/accounting', icon: 'credit-card', comingSoon: true },
     ],
   },
   {

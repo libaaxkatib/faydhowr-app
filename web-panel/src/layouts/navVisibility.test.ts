@@ -153,3 +153,20 @@ test('Companies & Workplaces is the new name, and the Facility Inspections entri
   const report = hrGroup.items.find((i) => i.label === 'Facility Report')!;
   assert.equal(report.permission, 'hr.reports.view');
 });
+
+test('Marketing and Human Resources are listed above the Mobile App group, and no group lost an entry', () => {
+  const labels = NAV_GROUPS.map((g) => g.label);
+  assert.deepEqual(labels, ['Marketing', 'Human Resources', 'Mobile App Management', 'System']);
+  assert.ok(labels.indexOf('Marketing') < labels.indexOf('Mobile App Management'));
+  assert.ok(labels.indexOf('Human Resources') < labels.indexOf('Mobile App Management'));
+
+  // Only the order of the groups changed: every group still has all of its items and destinations.
+  const sizes = Object.fromEntries(NAV_GROUPS.map((g) => [g.label, g.items.length]));
+  assert.deepEqual(sizes, { Marketing: 8, 'Human Resources': 37, 'Mobile App Management': 13, System: 5 });
+  assert.equal(new Set(NAV_GROUPS.flatMap((g) => g.items.map((i) => `${g.label}|${i.label}|${i.to}`))).size, 63);
+
+  // Permission visibility is unchanged: an HR Manager still sees only Human Resources, a Mobile App Manager only the Mobile App group.
+  assert.deepEqual(groupLabels(permissionSetOf(['hr.view']), false), ['Human Resources']);
+  assert.deepEqual(groupLabels(permissionSetOf(['customers.view']), false), ['Mobile App Management']);
+  assert.deepEqual(groupLabels(permissionSetOf([]), true), labels);
+});

@@ -187,6 +187,9 @@ class ImportActivationPreviewTest extends TestCase
         $one = $this->person('waiting', 'Same Person', '615000001');
         $twin = $this->person('applicant', 'Same Person', '615999999');
         $archivedTwin = $this->person('inactive', 'Same Person', '615888888');
+        // Controlled employee numbers (they are random otherwise) that deliberately contain the digits "615", which also appear in the phones.
+        $twin->forceFill(['employee_number' => 'EMP-615458'])->save();
+        $archivedTwin->forceFill(['employee_number' => 'EMP-761500'])->save();
         $archivedTwin->delete();
 
         $id = $this->stage([$this->plan($one)]);
@@ -207,7 +210,11 @@ class ImportActivationPreviewTest extends TestCase
         $this->assertStringContainsString($twin->employee_number.' (applicant): same full name, different phone', $note);
         $this->assertStringContainsString('registration phone is untouched', $note);
         $this->assertStringNotContainsString('Same Person', $note);
-        $this->assertStringNotContainsString('615', $note);
+        // No phone number of any of the three records appears. The exact numbers are checked: the employee numbers in the note are generated
+        // at random and can contain any short digit sequence by chance, so a short fragment such as "615" proves nothing.
+        foreach (['615000001', '615999999', '615888888'] as $phone) {
+            $this->assertStringNotContainsString($phone, $note);
+        }
     }
 
     public function test_look_alikes_are_counted_as_notes_and_never_as_exclusions(): void

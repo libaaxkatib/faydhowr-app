@@ -17,6 +17,11 @@ class ListEmployeesAction
             'separations',
         ]);
 
+        // The archived people are kept out of every working list; this view shows only them (read and edit details, never a status change).
+        if (! empty($filters['archived'])) {
+            $query->onlyTrashed();
+        }
+
         if (($filters['status'] ?? null) === 'waiting') {
             $query->with('workforceRequestMatches');
         }

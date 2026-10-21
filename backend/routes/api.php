@@ -1171,18 +1171,22 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.view', 'throttle:admi
         ->name('api.v1.admin.hr.employees.duplicate-check');
     Route::get('v1/admin/hr/employees/{employee}', [AdminEmployeeController::class, 'show'])
         ->whereNumber('employee')
+        ->withTrashed()
         ->name('api.v1.admin.hr.employees.show');
     Route::get('v1/admin/hr/employees/{employee}/documents/{document}/download', [AdminEmployeeDocumentController::class, 'download'])
         ->whereNumber(['employee', 'document'])
         ->name('api.v1.admin.hr.employees.documents.download');
     Route::get('v1/admin/hr/employees/{employee}/guarantor', [AdminEmployeeGuarantorController::class, 'show'])
         ->whereNumber('employee')
+        ->withTrashed()
         ->name('api.v1.admin.hr.employees.guarantor.show');
     Route::get('v1/admin/hr/employees/{employee}/contracts', [AdminEmployeeContractController::class, 'index'])
         ->whereNumber('employee')
+        ->withTrashed()
         ->name('api.v1.admin.hr.employees.contracts.index');
     Route::get('v1/admin/hr/employees/{employee}/uniform', [AdminEmployeeUniformController::class, 'show'])
         ->whereNumber('employee')
+        ->withTrashed()
         ->name('api.v1.admin.hr.employees.uniform.show');
     Route::get('v1/admin/hr/employee-document-categories', [AdminEmployeeDocumentCategoryController::class, 'index'])
         ->name('api.v1.admin.hr.employee-document-categories.index');
@@ -1204,6 +1208,7 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.view', 'throttle:admi
         ->name('api.v1.admin.hr.attendance.for-date');
     Route::get('v1/admin/hr/employees/{employee}/payroll-summary', [AdminEmployeePayrollController::class, 'summary'])
         ->whereNumber('employee')
+        ->withTrashed()
         ->name('api.v1.admin.hr.employees.payroll-summary');
 });
 
@@ -1276,6 +1281,7 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
         ->name('api.v1.admin.hr.employees.store');
     Route::put('v1/admin/hr/employees/{employee}', [AdminEmployeeController::class, 'update'])
         ->whereNumber('employee')
+        ->withTrashed()
         ->name('api.v1.admin.hr.employees.update');
     Route::patch('v1/admin/hr/employees/{employee}/status', [AdminEmployeeStatusController::class, 'update'])
         ->whereNumber('employee')

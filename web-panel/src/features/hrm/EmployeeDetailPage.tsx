@@ -469,6 +469,13 @@ export function EmployeeDetailPage() {
         }
       />
 
+      {employee.is_archived && (
+        <div role="status" className="mb-4 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-ink-muted">
+          <strong className="text-ink">Archived.</strong> This person was removed from the working lists. You can correct the details with Edit; the status,
+          company assignment, payroll and history are not changed, and saving does not bring the person back.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -492,7 +499,7 @@ export function EmployeeDetailPage() {
             <div className="mb-5 flex items-center gap-4">
               <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary-soft text-lg font-bold text-primary">
                 {initialsOf(employee.full_name)}
-                <PermissionGate module="hr">
+                <PermissionGate module="hr" hideWhen={employee.is_archived}>
                   <button
                     type="button"
                     onClick={() => pictureInputRef.current?.click()}
@@ -637,7 +644,7 @@ export function EmployeeDetailPage() {
               </div>
             )}
 
-            <PermissionGate module="hr">
+            <PermissionGate module="hr" hideWhen={employee.is_archived}>
               <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-border pt-5">
                 {employee.status !== 'applicant' && nextStatus && (
                   <Button size="sm" isLoading={statusMutation.isPending} disabled={advanceBlocked} onClick={() => statusMutation.mutate(nextStatus)}
@@ -690,7 +697,7 @@ export function EmployeeDetailPage() {
             <CardHeader>
               <h3 className="font-display text-sm font-bold text-ink">Work Assignments</h3>
               {employee.status === 'active' && (
-                <PermissionGate module="hr">
+                <PermissionGate module="hr" hideWhen={employee.is_archived}>
                   <Button size="sm" variant="outline" onClick={() => setIsAssignOpen(true)}>
                     <Icon name="plus" size={14} />
                     Assign
@@ -718,7 +725,7 @@ export function EmployeeDetailPage() {
                       {assignment.position_name ?? 'No position set'} · {assignment.salary_amount} {assignment.salary_currency} / {assignment.salary_frequency}{assignment.shift ? ` · ${assignment.shift === 'night' ? 'Night shift' : 'Day shift'}` : ''}
                     </p>
                     <p className="mt-1 text-xs text-ink-faint">Since {formatDate(assignment.start_date)}</p>
-                    <PermissionGate module="hr">
+                    <PermissionGate module="hr" hideWhen={employee.is_archived}>
                       <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
                         {isWorkplaceMissing(assignment) && assignment.client_company_id !== null && (
                           <button
@@ -858,7 +865,7 @@ export function EmployeeDetailPage() {
           <CardHeader>
             <h3 className="font-display text-sm font-bold text-ink">Leave History</h3>
             {employee.status === 'active' && (
-              <PermissionGate module="hr">
+              <PermissionGate module="hr" hideWhen={employee.is_archived}>
                 <Button size="sm" variant="outline" onClick={() => setIsLeaveOpen(true)}>
                   <Icon name="plus" size={14} />
                   Record Leave
@@ -892,7 +899,7 @@ export function EmployeeDetailPage() {
                         </span>
                       )}
                       {leave.approval_status !== 'rejected' && (
-                        <PermissionGate module="hr">
+                        <PermissionGate module="hr" hideWhen={employee.is_archived}>
                           {leave.approval_status === 'pending' && (
                             <Button size="sm" variant="outline" isLoading={approveLeaveMutation.isPending} onClick={() => approveLeaveMutation.mutate(leave.id)}>
                               Approve
@@ -917,7 +924,7 @@ export function EmployeeDetailPage() {
           <CardHeader>
             <h3 className="font-display text-sm font-bold text-ink">Performance Reviews</h3>
             {employee.status === 'active' && (
-              <PermissionGate module="hr">
+              <PermissionGate module="hr" hideWhen={employee.is_archived}>
                 <Button size="sm" variant="outline" onClick={() => setIsReviewOpen(true)}>
                   <Icon name="plus" size={14} />
                   Add Review
@@ -950,7 +957,7 @@ export function EmployeeDetailPage() {
           <CardHeader>
             <h3 className="font-display text-sm font-bold text-ink">Payments</h3>
             {employee.status === 'active' && (
-              <PermissionGate module="hr">
+              <PermissionGate module="hr" hideWhen={employee.is_archived}>
                 <Button size="sm" variant="outline" onClick={() => setIsPaymentOpen(true)}>
                   <Icon name="plus" size={14} />
                   Record Payment
@@ -978,7 +985,7 @@ export function EmployeeDetailPage() {
           <CardHeader>
             <h3 className="font-display text-sm font-bold text-ink">Penalty / Salary Deduction History</h3>
             {employee.status === 'active' && (
-              <PermissionGate module="hr">
+              <PermissionGate module="hr" hideWhen={employee.is_archived}>
                 <Button size="sm" variant="outline" onClick={() => setIsPenaltyOpen(true)}>
                   <Icon name="plus" size={14} />
                   Record Penalty
@@ -1008,7 +1015,7 @@ export function EmployeeDetailPage() {
           <CardHeader>
             <h3 className="font-display text-sm font-bold text-ink">Salary Advance History</h3>
             {employee.status === 'active' && (
-              <PermissionGate module="hr">
+              <PermissionGate module="hr" hideWhen={employee.is_archived}>
                 <Button size="sm" variant="outline" onClick={() => setIsAdvanceOpen(true)}>
                   <Icon name="plus" size={14} />
                   Record Advance
@@ -1057,7 +1064,7 @@ export function EmployeeDetailPage() {
               ) : (
                 <EmptyState icon="users" title="No guarantor information recorded." />
               )}
-              <PermissionGate module="hr">
+              <PermissionGate module="hr" hideWhen={employee.is_archived}>
                 {!employee.guarantor?.verified_at && (employee.guarantor_needed || employee.pipeline_stage === 'damiin_needed') && (
                   <div className="space-y-2 border-t border-border pt-3">
                     <input placeholder="Guarantor name" className={inputClasses} value={guarantorForm.guarantor_name} onChange={(e) => setGuarantorForm({ ...guarantorForm, guarantor_name: e.target.value })} />
@@ -1093,7 +1100,7 @@ export function EmployeeDetailPage() {
               ) : (
                 <EmptyState icon="file-text" title="No contract issued yet" />
               )}
-              <PermissionGate module="hr">
+              <PermissionGate module="hr" hideWhen={employee.is_archived}>
                 {!employee.current_contract && employee.pipeline_stage === 'contract_pending' && (
                   <Button size="sm" isLoading={contractCreateMutation.isPending} onClick={() => contractCreateMutation.mutate()}>
                     Issue Contract
@@ -1124,7 +1131,7 @@ export function EmployeeDetailPage() {
               ) : (
                 <EmptyState icon="box" title="No uniform record yet" />
               )}
-              <PermissionGate module="hr">
+              <PermissionGate module="hr" hideWhen={employee.is_archived}>
                 {employee.pipeline_stage === 'uniform_pending' && (
                   <div className="flex flex-wrap gap-2 border-t border-border pt-3">
                     <Button size="sm" variant="outline" isLoading={uniformUpdateMutation.isPending} onClick={() => uniformUpdateMutation.mutate('purchased')}>
@@ -1197,7 +1204,7 @@ export function EmployeeDetailPage() {
             ) : (
               <EmptyState icon="check" title="No practical decisions recorded" />
             )}
-            <PermissionGate module="hr">
+            <PermissionGate module="hr" hideWhen={employee.is_archived}>
               {(employee.pipeline_stage === 'need_practical' || employee.pipeline_stage === 'practical_repeat') && (
                 <div className="space-y-2 border-t border-border pt-4">
                   <Select
@@ -1275,7 +1282,7 @@ export function EmployeeDetailPage() {
         <Card>
           <CardHeader>
             <h3 className="font-display text-sm font-bold text-ink">Documents</h3>
-            <PermissionGate module="hr">
+            <PermissionGate module="hr" hideWhen={employee.is_archived}>
               <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} isLoading={uploadMutation.isPending}>
                 <Icon name="plus" size={14} />
                 Upload
@@ -1293,7 +1300,7 @@ export function EmployeeDetailPage() {
             </PermissionGate>
           </CardHeader>
           <CardBody>
-            <PermissionGate module="hr">
+            <PermissionGate module="hr" hideWhen={employee.is_archived}>
               <Select
                 value={documentCategoryId}
                 onChange={(e) => setDocumentCategoryId(e.target.value)}
@@ -1320,7 +1327,7 @@ export function EmployeeDetailPage() {
                         />
                       </div>
                     </div>
-                    <PermissionGate module="hr">
+                    <PermissionGate module="hr" hideWhen={employee.is_archived}>
                       <div className="flex shrink-0 items-center gap-2">
                         {canDownloadDocuments && (
                           <button

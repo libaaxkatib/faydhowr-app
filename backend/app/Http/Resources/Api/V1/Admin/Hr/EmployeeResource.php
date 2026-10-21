@@ -40,6 +40,8 @@ class EmployeeResource extends JsonResource
         return [
             'id' => $this->id,
             'employee_number' => $this->employee_number,
+            'is_archived' => $this->trashed(),
+            'archived_at' => $this->deleted_at?->toIso8601String(),
             'full_name' => $this->full_name,
             'phone' => $this->phone,
             'alternate_phone' => $this->alternate_phone,
