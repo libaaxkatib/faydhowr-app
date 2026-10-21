@@ -5,15 +5,18 @@ namespace Tests\Feature\Api\V1\Admin\Hr;
 use App\Enums\AdminRole;
 use App\Enums\FacilityDueState;
 use App\Enums\FacilityItemKey;
+use App\Models\Admin;
 use App\Models\AuditLog;
 use App\Models\ClientCompany;
 use App\Models\Employee;
 use App\Models\FacilityComplaint;
 use App\Models\FacilityInspection;
 use App\Models\FacilityInspectionSchedule;
+use App\Models\Permission;
 use App\Support\Hr\Facility\FacilityDueCalculator;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -137,6 +140,37 @@ class FacilityInspectionsTest extends TestCase
     }
 
     // ------------------------------------------------------------------ the inspection
+
+    public function test_the_hr_manager_role_as_the_migration_leaves_it_manages_inspections_and_gains_nothing_else(): void
+    {
+        $id = fn (string $key): int => (int) Permission::query()->where('key', $key)->value('id');
+        $roleKeys = fn (string $role): array => DB::table('admin_role_permissions')->join('permissions', 'permissions.id', '=', 'admin_role_permissions.permission_id')
+            ->where('admin_role_permissions.role', $role)->orderBy('permissions.key')->pluck('permissions.key')->all();
+
+        // The HR Manager ROLE as in production (role-level grants only, no direct grants), then the Phase 2 migration.
+        foreach (['hr.view', 'hr.manage', 'hr.reports.view'] as $key) {
+            DB::table('admin_role_permissions')->insert(['role' => 'hr_manager', 'permission_id' => $id($key), 'created_at' => now(), 'updated_at' => now()]);
+        }
+        $marketingBefore = $roleKeys('marketing_manager');
+        (require base_path('database/migrations/2026_10_21_100000_add_hr_dashboard_and_inspection_permissions.php'))->up();
+
+        $this->assertSame(['hr.dashboard.view', 'hr.inspections.manage', 'hr.inspections.view', 'hr.manage', 'hr.reports.view', 'hr.view'], $roleKeys('hr_manager'), 'exactly the three approved keys were added');
+        $this->assertSame($marketingBefore, $roleKeys('marketing_manager'), 'no other role changed');
+
+        $hrManager = Admin::factory()->create(['role' => AdminRole::HrManager])->createToken('t')->plainTextToken;
+        $inspection = (int) $this->as($hrManager)->postJson('/api/v1/admin/hr/facility-inspections', $this->body($this->alpha))->assertCreated()->json('data.id');
+        $this->as($hrManager)->putJson("/api/v1/admin/hr/facility-inspections/{$inspection}", ['general_notes' => 'Edited by the HR Manager role'])->assertOk();
+        $this->as($hrManager)->putJson('/api/v1/admin/hr/facility-inspection-schedules/'.$this->alpha->id, ['frequency_days' => 30])->assertOk();
+        $this->as($hrManager)->getJson('/api/v1/admin/hr/reports/facility')->assertOk();
+        $this->as($hrManager)->postJson("/api/v1/admin/hr/facility-inspections/{$inspection}/void", ['reason' => 'Recorded for the wrong site'])->assertOk();
+
+        // Least privilege: hr.manage alone is not enough, and other roles stay out.
+        $manageOnly = $this->tokenForRoleWith(AdminRole::Manager, ['hr.view', 'hr.manage']);
+        $this->as($manageOnly)->postJson('/api/v1/admin/hr/facility-inspections', $this->body($this->alpha))->assertForbidden();
+        $marketing = Admin::factory()->create(['role' => AdminRole::MarketingManager])->createToken('t')->plainTextToken;
+        $this->as($marketing)->postJson('/api/v1/admin/hr/facility-inspections', $this->body($this->alpha))->assertForbidden();
+        $this->as($marketing)->getJson('/api/v1/admin/hr/facility-inspections')->assertForbidden();
+    }
 
     public function test_an_inspection_is_recorded_with_all_twelve_items_and_audited(): void
     {

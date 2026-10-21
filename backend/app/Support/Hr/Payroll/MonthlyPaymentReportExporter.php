@@ -17,11 +17,12 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  */
 final class MonthlyPaymentReportExporter
 {
+    /** The employee's name is followed at once by the number that person is paid on and which of the two numbers it is. */
     public const DETAIL_HEADERS = [
-        'Employee number', 'Employee name', 'Company / Guri', 'Company category', 'Monthly salary (USD)',
+        'Employee number', 'Employee name', 'Payment / account number', 'Payment number source',
+        'Company / Guri', 'Company category', 'Monthly salary (USD)',
         'Days paid', 'Days in month', 'Gross pay (USD)', 'Deductions (USD)', 'Adjustments (USD)',
-        'Payment amount (USD)', 'Payment / account number', 'Payment status', 'Data checks',
-        'Internal employee ID', 'Payment number source',
+        'Payment amount (USD)', 'Payment status', 'Data checks', 'Internal employee ID',
     ];
 
     private const MONEY_FORMAT = '#,##0.00';
@@ -69,7 +70,7 @@ final class MonthlyPaymentReportExporter
             ['Employees missing a salary', $s['missing_salary']],
             ['Employees missing a company assignment', $s['missing_company']],
             ['Active employees not in this payroll (see sheet "Not in payroll")', $s['not_in_payroll']],
-            ['Employees whose number is the registration phone used as a fallback (no payment number recorded)', $s['phone_fallback']],
+            ['Employees paid on their Phone Number (no Employee Number / Account Number recorded)', $s['phone_number_used']],
             ['Imported payment numbers that differ from the registration phone (review)', $s['register_mismatch']],
         ];
         $row = 3;
@@ -156,42 +157,39 @@ final class MonthlyPaymentReportExporter
         foreach ($report['rows'] as $r) {
             $this->text($ws, "A{$rowNumber}", (string) $r['employee_number']);
             $this->text($ws, "B{$rowNumber}", (string) $r['employee_name']);
-            $this->text($ws, "C{$rowNumber}", (string) $r['company']);
-            $this->text($ws, "D{$rowNumber}", (string) $r['category']);
-            $r['monthly_salary_cents'] === null ? $this->missing($ws, "E{$rowNumber}") : $this->money($ws, "E{$rowNumber}", $this->usd($r['monthly_salary_cents']));
-            $this->cell($ws, "F{$rowNumber}", $r['eligible_days']);
-            $this->cell($ws, "G{$rowNumber}", $r['days_in_month']);
-            $this->money($ws, "H{$rowNumber}", $this->usd($r['gross_cents']));
-            $this->money($ws, "I{$rowNumber}", $this->usd($r['deductions_cents']));
-            $this->money($ws, "J{$rowNumber}", $this->usd($r['adjustment_cents']));
-            $this->money($ws, "K{$rowNumber}", $this->usd($r['net_cents']));
-            $r['payment_account'] === null ? $this->missing($ws, "L{$rowNumber}") : $this->text($ws, "L{$rowNumber}", $r['payment_account']);
-            if ($r['payment_is_fallback']) {
-                $this->fill($ws, "L{$rowNumber}", self::MISSING_FILL);
-            }
-            $this->text($ws, "O{$rowNumber}", (string) $r['employee_id']);
-            $this->text($ws, "P{$rowNumber}", (string) $r['payment_account_source']);
-            $this->text($ws, "M{$rowNumber}", (string) $r['payment_status']);
-            $this->text($ws, "N{$rowNumber}", $r['flags'] === [] ? 'OK' : implode('; ', $r['flags']));
+            $r['payment_account'] === null ? $this->missing($ws, "C{$rowNumber}") : $this->text($ws, "C{$rowNumber}", $r['payment_account']);
+            $this->text($ws, "D{$rowNumber}", (string) $r['payment_account_source']);
+            $this->text($ws, "E{$rowNumber}", (string) $r['company']);
+            $this->text($ws, "F{$rowNumber}", (string) $r['category']);
+            $r['monthly_salary_cents'] === null ? $this->missing($ws, "G{$rowNumber}") : $this->money($ws, "G{$rowNumber}", $this->usd($r['monthly_salary_cents']));
+            $this->cell($ws, "H{$rowNumber}", $r['eligible_days']);
+            $this->cell($ws, "I{$rowNumber}", $r['days_in_month']);
+            $this->money($ws, "J{$rowNumber}", $this->usd($r['gross_cents']));
+            $this->money($ws, "K{$rowNumber}", $this->usd($r['deductions_cents']));
+            $this->money($ws, "L{$rowNumber}", $this->usd($r['adjustment_cents']));
+            $this->money($ws, "M{$rowNumber}", $this->usd($r['net_cents']));
+            $this->text($ws, "N{$rowNumber}", (string) $r['payment_status']);
+            $this->text($ws, "O{$rowNumber}", $r['flags'] === [] ? 'OK' : implode('; ', $r['flags']));
+            $this->text($ws, "P{$rowNumber}", (string) $r['employee_id']);
             if ($r['company'] === MonthlyPaymentReportBuilder::CATEGORY_UNASSIGNED || in_array(MonthlyPaymentReportBuilder::FLAG_NO_COMPANY, $r['flags'], true)) {
-                $this->missing($ws, "C{$rowNumber}", 'MISSING');
+                $this->missing($ws, "E{$rowNumber}", 'MISSING');
             }
             if ($r['flags'] !== []) {
-                $this->fill($ws, "N{$rowNumber}", self::MISSING_FILL);
+                $this->fill($ws, "O{$rowNumber}", self::MISSING_FILL);
             }
             $rowNumber++;
         }
 
         $last = max($rowNumber - 1, 4);
         $ws->setAutoFilter("A4:P{$last}");
-        $ws->freezePane('C5');
+        $ws->freezePane('D5');
 
         // The total of what is listed (for a company list: that company's total). Written below the filtered table, as a number.
         $totalRow = $last + 2;
         $this->text($ws, "A{$totalRow}", $report['summary']['company_filter'] ? 'Company total' : 'Total');
-        $this->money($ws, "K{$totalRow}", $this->usd($report['summary']['total_net_cents']));
-        $ws->getStyle("A{$totalRow}:K{$totalRow}")->getFont()->setBold(true);
-        foreach (['A' => 16, 'B' => 32, 'C' => 30, 'D' => 20, 'E' => 18, 'F' => 11, 'G' => 13, 'H' => 16, 'I' => 16, 'J' => 16, 'K' => 20, 'L' => 26, 'M' => 34, 'N' => 46, 'O' => 14, 'P' => 46] as $col => $width) {
+        $this->money($ws, "M{$totalRow}", $this->usd($report['summary']['total_net_cents']));
+        $ws->getStyle("A{$totalRow}:M{$totalRow}")->getFont()->setBold(true);
+        foreach (['A' => 16, 'B' => 32, 'C' => 26, 'D' => 34, 'E' => 30, 'F' => 20, 'G' => 18, 'H' => 11, 'I' => 13, 'J' => 16, 'K' => 16, 'L' => 16, 'M' => 20, 'N' => 34, 'O' => 46, 'P' => 14] as $col => $width) {
             $ws->getColumnDimension($col)->setWidth($width);
         }
     }

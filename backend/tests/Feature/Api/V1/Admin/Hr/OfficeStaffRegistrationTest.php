@@ -318,9 +318,9 @@ class OfficeStaffRegistrationTest extends TestCase
         }
         $this->assertEquals([400.0, 250.0], [$people['Amina Office Test']['Payment amount (USD)'], $people[$existing->full_name]['Payment amount (USD)']]);
         $this->assertSame('0699000111', $people[$existing->full_name]['Payment / account number']);
-        // The Office Staff form does not collect a payment number, so a new hire shows the registration phone, clearly labelled as a fallback, until the real number is recorded.
+        // The Office Staff form does not collect a payment number, so a new hire is paid on the Phone Number until the Employee Number / Account Number is recorded.
         $this->assertSame('0615111222', $people['Amina Office Test']['Payment / account number']);
-        $this->assertSame(PaymentNumber::LABEL_PHONE_FALLBACK, $people['Amina Office Test']['Payment number source']);
+        $this->assertSame(PaymentNumber::LABEL_PHONE, $people['Amina Office Test']['Payment number source']);
         $this->assertEquals(650.0, $book->getSheetByName('Summary')->getCell('B7')->getValue());
 
         // Companies & Workplaces: the office staff never appear as clients and the Company/Guri counts are untouched.

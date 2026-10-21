@@ -254,7 +254,7 @@ class WorkbookPlanExecutor
      *    `match` when it agrees with the registration phone, `mismatch` when it does not. A mismatch is FLAGGED for review and the Excel
      *    value is still kept - it is never rejected, replaced or swapped for the phone.
      *  - The registration phone, the employee number and the internal id are never written here.
-     *  - A row WITHOUT an Excel value writes nothing: the payment lists show the registration phone as a labelled fallback at export time.
+     *  - A row WITHOUT an Excel value writes nothing: the payment lists use the employee's Phone Number at export time.
      *  - Identity is checked by employee number + name (the approved plan), never by the payroll number, so a different number cannot
      *    move a row to another person or company.
      *  - A number that another row of the same plan, or another employee already holds, is NOT written: it is reported for review.
@@ -313,7 +313,7 @@ class WorkbookPlanExecutor
                 $hasPhone = PaymentNumber::clean($employee->phone) !== null;
                 $results[] = [...$base, 'outcome' => 'fallback_phone', 'code' => null, 'fallback_needed' => true, 'proposed_number' => null,
                     'message' => $hasPhone
-                        ? 'No Excel value: nothing is stored; payment lists will show the registration phone, labelled as a fallback.'
+                        ? 'No Excel value: nothing is stored; payment lists will use the Phone Number of the employee.'
                         : 'No Excel value and no registration phone: the payment number stays missing (never guessed).'];
 
                 continue;

@@ -538,7 +538,7 @@ export function EmployeeDetailPage() {
                         </span>
                       </span>
                     ) : (
-                      <span className="text-ink-muted">Not recorded - payments show the registration phone as a labelled fallback</span>
+                      <span className="text-ink-muted">Not recorded - payments use the employee's Phone Number</span>
                     )
                   }
                 />

@@ -9,11 +9,12 @@ use App\Models\Employee;
  * agrees with the registration phone. Four things are kept apart and never merged: the internal employee id, the employee number in
  * the Employee Register (EMP-…), the registration phone, and the payroll/payment number imported from the Excel sources.
  *
- * Precedence (owner decision 6):
- *  1. the stored payroll/payment number (imported from the workbooks or typed by HR) - always wins, whether or not it agrees with the phone;
- *  2. only when no number is stored: the registration phone, clearly labelled as a fallback;
+ * Which number is used (owner rules):
+ *  1. the Employee Number / Account Number (the stored payroll/payment number, imported from the workbooks or typed by HR) when there is one -
+ *     whether it equals the Phone Number or differs from it;
+ *  2. otherwise the employee's Phone Number, used directly - it is simply the number to pay, not a "substitute";
  *  3. otherwise: missing - never guessed.
- * Nothing here writes anything.
+ * The value is always kept as text (leading zeros survive). Nothing here writes anything.
  */
 final class PaymentNumber
 {
@@ -29,11 +30,11 @@ final class PaymentNumber
 
     public const CHECK_ACCEPTED = 'accepted';
 
-    public const LABEL_IMPORTED = 'Imported from the Excel source';
+    public const LABEL_IMPORTED = 'Employee Number / Account Number (imported from the Excel source)';
 
-    public const LABEL_RECORDED = 'Recorded payment number';
+    public const LABEL_RECORDED = 'Employee Number / Account Number';
 
-    public const LABEL_PHONE_FALLBACK = 'Registration phone (fallback - no payment number recorded)';
+    public const LABEL_PHONE = 'Phone Number';
 
     public const LABEL_MISSING = 'Missing';
 
@@ -83,7 +84,7 @@ final class PaymentNumber
     /**
      * What a payment list shows for this employee.
      *
-     * @return array{number: ?string, label: string, is_fallback: bool, needs_review: bool}
+     * @return array{number: ?string, label: string, from_phone: bool, needs_review: bool}
      */
     public static function resolve(Employee $employee): array
     {
@@ -95,7 +96,7 @@ final class PaymentNumber
             return [
                 'number' => $stored,
                 'label' => $imported ? self::LABEL_IMPORTED : self::LABEL_RECORDED,
-                'is_fallback' => false,
+                'from_phone' => false,
                 'needs_review' => $employee->payment_account_register_check === self::CHECK_MISMATCH,
             ];
         }
@@ -103,10 +104,10 @@ final class PaymentNumber
         $phone = self::clean($employee->phone);
 
         if ($phone !== null) {
-            return ['number' => $phone, 'label' => self::LABEL_PHONE_FALLBACK, 'is_fallback' => true, 'needs_review' => false];
+            return ['number' => $phone, 'label' => self::LABEL_PHONE, 'from_phone' => true, 'needs_review' => false];
         }
 
-        return ['number' => null, 'label' => self::LABEL_MISSING, 'is_fallback' => false, 'needs_review' => false];
+        return ['number' => null, 'label' => self::LABEL_MISSING, 'from_phone' => false, 'needs_review' => false];
     }
 
     /** Trimmed text, or null when empty. The value is never converted to a number. */

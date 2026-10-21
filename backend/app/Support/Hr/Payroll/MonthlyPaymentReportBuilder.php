@@ -21,9 +21,10 @@ use Carbon\CarbonImmutable;
  * lines; their amounts are added into one row so nobody is listed or counted twice. Company totals
  * keep each line under its own company, so company totals still add up to the grand total.
  *
- * The payment/account number follows PaymentNumber::resolve (owner decision 6): the stored payroll/payment number - imported from the
- * Excel sources or typed by HR - always wins; ONLY when none is stored the registration phone is shown, labelled as a fallback and
- * flagged; with neither, the number is reported as missing. Nothing is ever written back. An optional company filter produces the list
+ * The payment/account number follows PaymentNumber::resolve (owner rules): the Employee Number / Account Number - imported from the
+ * Excel sources or typed by HR - is used when there is one (even if it differs from the phone); otherwise the employee's Phone Number
+ * is used directly; with neither, the number is reported as missing. Every row names the employee together with the number and says
+ * which of the two it is. Nothing is ever written back. An optional company filter produces the list
  * of one company only (only that company's lines are counted, so its total is that company's total).
  */
 class MonthlyPaymentReportBuilder
@@ -35,8 +36,6 @@ class MonthlyPaymentReportBuilder
     public const CATEGORY_UNASSIGNED = 'No company';
 
     public const FLAG_NO_PAYMENT_NUMBER = 'Missing payment number';
-
-    public const FLAG_PHONE_FALLBACK = 'Payment number missing: registration phone used as a fallback';
 
     public const FLAG_REGISTER_MISMATCH = 'Imported payment number differs from the registration phone: review';
 
@@ -115,7 +114,7 @@ class MonthlyPaymentReportBuilder
                 'line_count' => 0,
                 'payment_statuses' => [],
                 'company_missing' => false,
-                'payment' => $employee !== null ? PaymentNumber::resolve($employee) : ['number' => null, 'label' => PaymentNumber::LABEL_MISSING, 'is_fallback' => false, 'needs_review' => false],
+                'payment' => $employee !== null ? PaymentNumber::resolve($employee) : ['number' => null, 'label' => PaymentNumber::LABEL_MISSING, 'from_phone' => false, 'needs_review' => false],
             ];
 
             $row['companies'][$companyName] = true;
@@ -218,9 +217,6 @@ class MonthlyPaymentReportBuilder
         if ($row['payment']['number'] === null) {
             $flags[] = self::FLAG_NO_PAYMENT_NUMBER;
         }
-        if ($row['payment']['is_fallback']) {
-            $flags[] = self::FLAG_PHONE_FALLBACK;
-        }
         if ($row['payment']['needs_review']) {
             $flags[] = self::FLAG_REGISTER_MISMATCH;
         }
@@ -249,7 +245,7 @@ class MonthlyPaymentReportBuilder
             'net_cents' => $row['net_cents'],
             'payment_account' => $row['payment']['number'],
             'payment_account_source' => $row['payment']['label'],
-            'payment_is_fallback' => $row['payment']['is_fallback'],
+            'payment_from_phone' => $row['payment']['from_phone'],
             'payment_status' => $this->paymentStatus($row['payment_statuses'], $view),
             'flags' => $flags,
         ];
@@ -354,7 +350,7 @@ class MonthlyPaymentReportBuilder
             'total_deductions_cents' => array_sum(array_column($rows, 'deductions_cents')),
             'total_adjustment_cents' => array_sum(array_column($rows, 'adjustment_cents')),
             'missing_payment_number' => $count(self::FLAG_NO_PAYMENT_NUMBER),
-            'phone_fallback' => $count(self::FLAG_PHONE_FALLBACK),
+            'phone_number_used' => count(array_filter($rows, fn (array $r): bool => $r['payment_from_phone'])),
             'register_mismatch' => $count(self::FLAG_REGISTER_MISMATCH),
             'missing_salary' => $count(self::FLAG_NO_SALARY),
             'missing_company' => $count(self::FLAG_NO_COMPANY),
