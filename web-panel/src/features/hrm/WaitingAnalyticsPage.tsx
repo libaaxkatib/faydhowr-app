@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { returnState } from '@/utils/urlFilters';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -22,8 +24,11 @@ import type { Employee } from '@/types/employee';
  */
 export function WaitingAnalyticsPage() {
   const navigate = useNavigate();
-  const [orderBy, setOrderBy] = useState<'oldest' | 'newest'>('oldest');
-  const [page, setPage] = useState(1);
+  const url = useUrlFilters();
+  const orderBy: 'oldest' | 'newest' = url.get('order') === 'newest' ? 'newest' : 'oldest';
+  const setOrderBy = (value: 'oldest' | 'newest') => url.set('order', value === 'oldest' ? '' : value);
+  const page = url.page;
+  const setPage = url.setPage;
 
   const { data: summary, isLoading: summaryLoading, error: summaryError, refetch: refetchSummary } = useQuery({
     queryKey: ['hr-reports-summary', {}],
@@ -154,7 +159,7 @@ export function WaitingAnalyticsPage() {
           isLoading={rosterLoading}
           error={rosterError}
           onRetry={refetchRoster}
-          onRowClick={(employee) => navigate(`/hr/employees/${employee.id}`)}
+          onRowClick={(employee) => navigate(`/hr/employees/${employee.id}`, { state: returnState(window.location.pathname, window.location.search, 'Waiting Analytics') })}
           emptyTitle="No one is waiting"
           emptyDescription="Employees appear here once Practical is Approved."
         />

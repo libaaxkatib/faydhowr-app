@@ -5,6 +5,7 @@ namespace App\Http\Requests\Api\V1\Admin\Hr;
 use App\Enums\EmployeeGender;
 use App\Models\EmployeeCategory;
 use App\Support\ApiResponse;
+use App\Support\Hr\PersonName;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -17,10 +18,17 @@ class UpdateEmployeeRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('full_name') && is_string($this->input('full_name'))) {
+            $this->merge(['full_name' => PersonName::normalise($this->input('full_name'))]);
+        }
+    }
+
     public function rules(): array
     {
         return [
-            'full_name' => ['sometimes', 'string', 'max:150'],
+            'full_name' => ['sometimes', 'filled', 'string', 'max:150'],
             // Nullable: 242 real production employees legitimately have no phone on
             // record (Excel HR migration) — the HR Manager must be able to save an
             // otherwise-unrelated edit without being forced to fabricate one.

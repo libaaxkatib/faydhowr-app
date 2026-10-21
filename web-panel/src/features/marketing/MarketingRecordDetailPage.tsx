@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { marketingApi } from '@/api/marketing';
@@ -29,6 +29,7 @@ const QUOTATION_STATUS_OPTIONS: { value: MarketingQuotationStatus; label: string
 
 export function MarketingRecordDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const origin = useLocation().state as { fromPath?: string; fromLabel?: string } | null;
   const recordId = Number(id);
   const queryClient = useQueryClient();
   const { show } = useToast();
@@ -141,7 +142,8 @@ export function MarketingRecordDetailPage() {
         title={isXarun ? record.xarun?.facility_name ?? record.record_number : record.project?.responsible_person_name ?? record.record_number}
         breadcrumb={[
           { label: 'Marketing', to: '/marketing' },
-          { label: isXarun ? 'XARUN' : 'PROJECT', to: isXarun ? '/marketing/xarun' : '/marketing/project' },
+          // Back to the list exactly as it was left (search, status, page), or the Follow-ups tab it came from.
+          { label: origin?.fromLabel ?? (isXarun ? 'XARUN' : 'PROJECT'), to: origin?.fromPath?.startsWith('/marketing/') ? origin.fromPath : isXarun ? '/marketing/xarun' : '/marketing/project' },
           { label: record.record_number },
         ]}
         actions={
@@ -229,6 +231,7 @@ export function MarketingRecordDetailPage() {
             <CardBody className="space-y-3">
               <PermissionGate
                 module="marketing"
+                permission="marketing.assign"
                 fallback={
                   <dl className="grid grid-cols-1 gap-3 text-sm">
                     <Field label="Team" value={record.assigned_team_name ?? 'Unassigned'} muted={!record.assigned_team_name} />

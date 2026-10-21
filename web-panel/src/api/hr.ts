@@ -205,7 +205,6 @@ export const hrApi = {
       apiRequest<EmployeeCategory>(`admin/hr/employee-categories/${id}`, { method: 'PUT', body: payload }),
     archive: (id: number) => apiRequest<EmployeeCategory>(`admin/hr/employee-categories/${id}/archive`, { method: 'POST' }),
     restore: (id: number) => apiRequest<EmployeeCategory>(`admin/hr/employee-categories/${id}/restore`, { method: 'POST' }),
-    remove: (id: number) => apiRequest<null>(`admin/hr/employee-categories/${id}`, { method: 'DELETE' }),
   },
 
   /** Office Staff workflow (needs hr.manage). Documents use the existing employee document endpoints. */

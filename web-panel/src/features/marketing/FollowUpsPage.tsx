@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { returnState } from '@/utils/urlFilters';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -46,7 +48,9 @@ export function FollowUpsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { show } = useToast();
-  const [tab, setTab] = useState<FollowUpFilter>('today');
+  const url = useUrlFilters();
+  const tab: FollowUpFilter = TABS.find((t) => t.value === url.get('tab'))?.value ?? 'today';
+  const setTab = (value: FollowUpFilter) => url.set('tab', value === 'today' ? '' : value);
   const [editor, setEditor] = useState<ActiveEditor>(null);
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [feedbackText, setFeedbackText] = useState('');
@@ -140,7 +144,7 @@ export function FollowUpsPage() {
                       )}
                       <button
                         type="button"
-                        onClick={() => navigate(`/marketing/${fu.record_type}/${fu.marketing_record_id}`)}
+                        onClick={() => navigate(`/marketing/${fu.record_type}/${fu.marketing_record_id}`, { state: returnState(window.location.pathname, window.location.search, 'Follow-ups') })}
                         className="text-left font-medium text-ink hover:text-primary"
                       >
                         {fu.record_number}

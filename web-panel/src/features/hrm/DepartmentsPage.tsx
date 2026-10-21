@@ -53,7 +53,7 @@ export function DepartmentsPage() {
       show(editing ? 'Department updated.' : 'Department created.');
       setIsOpen(false);
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Something went wrong.', 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, 'Something went wrong.'), 'error'),
   });
 
   const deleteMutation = useMutation({

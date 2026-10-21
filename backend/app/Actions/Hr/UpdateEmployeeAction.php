@@ -8,6 +8,7 @@ use App\Models\Admin;
 use App\Models\Employee;
 use App\Support\ApiResponse;
 use App\Support\Hr\EmployeeDuplicateFinder;
+use App\Support\Hr\Payroll\OpenPayrollNames;
 use App\Support\Hr\Payroll\PaymentNumber;
 use App\Support\Hr\UnresolvedTemporaryReplacements;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -64,6 +65,7 @@ class UpdateEmployeeAction
         }
 
         $oldType = $employee->employment_type;
+        $oldName = $employee->full_name;
         // Replacements of this employee that are unresolved (a Temporary worker confirmed as a Replacement) BEFORE this edit.
         $unresolvedBefore = $oldType === 'temporary' && array_key_exists('employment_type', $attributes)
             ? UnresolvedTemporaryReplacements::query()->where('employee_id', $employee->id)->get()
@@ -71,10 +73,16 @@ class UpdateEmployeeAction
 
         $employee->update($attributes);
 
+        // A corrected name follows the lines of payroll runs that are still open (draft/reviewed); closed months keep the name they were approved with.
+        $renamed = $employee->wasChanged('full_name');
+        if ($renamed) {
+            OpenPayrollNames::employee($employee);
+        }
+
         event(AuditEvent::record(
             action: AuditAction::Update,
             admin: $actor,
-            description: "Employee '{$employee->full_name}' ({$employee->employee_number}) updated.",
+            description: $renamed ? "Employee '{$oldName}' renamed to '{$employee->full_name}' ({$employee->employee_number})." : "Employee '{$employee->full_name}' ({$employee->employee_number}) updated.",
             entityType: Employee::class,
             entityId: $employee->id,
             metadata: [
@@ -83,6 +91,7 @@ class UpdateEmployeeAction
                     'reason' => $reason,
                     'matched_employee_ids' => $matches->pluck('id')->all(),
                 ]),
+                ...($renamed ? ['full_name' => ['from' => $oldName, 'to' => $employee->full_name]] : []),
                 ...($oldType !== $employee->employment_type ? ['employment_type' => ['from' => $oldType, 'to' => $employee->employment_type]] : []),
                 // The payment number itself is never put in the audit trail (sensitive); only the fact of the change is.
                 ...($paymentNumberChanged ? ['payment_account_number_changed' => true] : []),

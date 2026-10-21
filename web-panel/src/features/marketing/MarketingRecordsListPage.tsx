@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { returnState } from '@/utils/urlFilters';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -40,9 +42,13 @@ interface MarketingRecordsListPageProps {
  */
 export function MarketingRecordsListPage({ type, title }: MarketingRecordsListPageProps) {
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<MarketingRecordStatus | ''>('');
-  const [page, setPage] = useState(1);
+  const url = useUrlFilters();
+  const search = url.get('q');
+  const status = url.get('status') as MarketingRecordStatus | '';
+  const setSearch = (value: string) => url.set('q', value);
+  const setStatus = (value: MarketingRecordStatus | '') => url.set('status', value);
+  const page = url.page;
+  const setPage = url.setPage;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
 
@@ -111,7 +117,7 @@ export function MarketingRecordsListPage({ type, title }: MarketingRecordsListPa
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              navigate(`/marketing/${type}/${row.original.id}`);
+              navigate(`/marketing/${type}/${row.original.id}`, { state: returnState(window.location.pathname, window.location.search, '' + (type === 'xarun' ? 'XARUN' : 'PROJECT') + '') });
             }}
             className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary"
           >
@@ -167,7 +173,7 @@ export function MarketingRecordsListPage({ type, title }: MarketingRecordsListPa
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          onRowClick={(record) => navigate(`/marketing/${type}/${record.id}`)}
+          onRowClick={(record) => navigate(`/marketing/${type}/${record.id}`, { state: returnState(window.location.pathname, window.location.search, '' + (type === 'xarun' ? 'XARUN' : 'PROJECT') + '') })}
           emptyTitle={`No ${type === 'xarun' ? 'XARUN' : 'PROJECT'} records found`}
           emptyDescription="Try adjusting your search or filters."
         />

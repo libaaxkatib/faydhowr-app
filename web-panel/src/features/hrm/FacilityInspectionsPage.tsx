@@ -23,10 +23,14 @@ import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import { isDirty } from '@/utils/unsavedChanges';
+import { pageFromParam, withParam } from '@/utils/urlFilters';
 import {
   blankItems,
   blankUniformIssue,
   complaintAnswerText,
+  dateParam,
+  issuesFromDetail,
+  itemsFromDetail,
   complaintsRequest,
   complaintStatusTone,
   validateComplaintSection,
@@ -41,7 +45,7 @@ import {
   type ItemFormState,
   type UniformIssueFormState,
 } from '@/utils/facility';
-import type { FacilityDueState, FacilityStatusRow } from '@/types/facility';
+import type { FacilityDueState, FacilityInspectionDetail, FacilityStatusRow } from '@/types/facility';
 
 const STATE_FILTERS: { value: FacilityDueState | ''; label: string }[] = [
   { value: '', label: 'All' },
@@ -69,11 +73,14 @@ export function FacilityInspectionsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const stateFilter = (STATE_FILTERS.some((f) => f.value === searchParams.get('state')) ? (searchParams.get('state') ?? '') : '') as FacilityDueState | '';
   const companyParam = /^\d+$/.test(searchParams.get('company') ?? '') ? Number(searchParams.get('company')) : undefined;
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  const from = dateParam(searchParams.get('from'));
+  const to = dateParam(searchParams.get('to'));
+  const search = searchParams.get('q') ?? '';
+  const page = pageFromParam(searchParams.get('page'));
   const [recording, setRecording] = useState<{ companyId: number | null } | null>(null);
   const [scheduling, setScheduling] = useState<FacilityStatusRow | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
+  const [correcting, setCorrecting] = useState<FacilityInspectionDetail | null>(null);
 
   const status = useQuery({
     queryKey: ['facility-status', stateFilter, search],
@@ -84,24 +91,16 @@ export function FacilityInspectionsPage() {
   const counts = allStatus.data?.meta.counts;
 
   const history = useQuery({
-    queryKey: ['facility-inspections', companyParam, page],
-    queryFn: () => facilityApi.inspections.list({ client_company_id: companyParam, page, per_page: 10 }),
+    queryKey: ['facility-inspections', companyParam, from, to, page],
+    queryFn: () => facilityApi.inspections.list({ client_company_id: companyParam, from: from || undefined, to: to || undefined, page, per_page: 10 }),
     placeholderData: (previous) => previous,
   });
 
   function setParam(key: string, value: string) {
-    setSearchParams(
-      (previous) => {
-        const next = new URLSearchParams(previous);
-        if (value === '') next.delete(key);
-        else next.set(key, value);
-
-        return next;
-      },
-      { replace: true },
-    );
-    setPage(1);
+    setSearchParams((previous) => withParam(previous, key, value), { replace: true });
   }
+  const setSearch = (value: string) => setParam('q', value);
+  const setPage = (next: number) => setParam('page', next <= 1 ? '' : String(next));
 
   const companyName = useMemo(() => allStatus.data?.rows.find((row) => row.client_company_id === companyParam)?.company, [allStatus.data, companyParam]);
 
@@ -217,6 +216,7 @@ export function FacilityInspectionsPage() {
 
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-base font-bold text-ink">Inspection history{companyName ? ` - ${companyName}` : ''}</h2>
+        {(from || to) && <span className="rounded-full bg-surface-alt px-3 py-1 text-xs text-ink-muted" data-testid="period-filter">Inspected {from ? formatDate(from) : 'from the start'} to {to ? formatDate(to) : 'today'}</span>}
         {companyParam !== undefined && (
           <button type="button" onClick={() => setParam('company', '')} className="text-xs font-semibold text-primary hover:underline">
             Show all companies
@@ -256,8 +256,19 @@ export function FacilityInspectionsPage() {
       </Card>
 
       {recording && <RecordInspectionModal initialCompanyId={recording.companyId} onClose={() => setRecording(null)} />}
+      {correcting && <RecordInspectionModal initialCompanyId={correcting.client_company_id} editing={correcting} onClose={() => setCorrecting(null)} />}
       {scheduling && <ScheduleModal row={scheduling} onClose={() => setScheduling(null)} />}
-      {viewing !== null && <InspectionDetailModal id={viewing} canManage={canManage} onClose={() => setViewing(null)} />}
+      {viewing !== null && (
+        <InspectionDetailModal
+          id={viewing}
+          canManage={canManage}
+          onClose={() => setViewing(null)}
+          onEdit={(detail) => {
+            setViewing(null);
+            setCorrecting(detail);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -313,17 +324,18 @@ function ScheduleModal({ row, onClose }: { row: FacilityStatusRow; onClose: () =
   );
 }
 
-function RecordInspectionModal({ initialCompanyId, onClose }: { initialCompanyId: number | null; onClose: () => void }) {
+/** Records a new inspection, or - with `editing` - corrects a saved one (header, checklist, uniform issues; complaints are managed on the Complaints screen). */
+function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initialCompanyId: number | null; editing?: FacilityInspectionDetail; onClose: () => void }) {
   const queryClient = useQueryClient();
   const { show } = useToast();
   const { admin } = useAuth();
   const [companyId, setCompanyId] = useState(initialCompanyId === null ? '' : String(initialCompanyId));
-  const [inspectedOn, setInspectedOn] = useState(localToday());
-  const [inspector, setInspector] = useState(admin?.full_name ?? '');
-  const [notes, setNotes] = useState('');
-  const [followUp, setFollowUp] = useState('');
-  const [items, setItems] = useState<ItemFormState[]>(blankItems());
-  const [issues, setIssues] = useState<UniformIssueFormState[]>([]);
+  const [inspectedOn, setInspectedOn] = useState(editing?.inspected_on ?? localToday());
+  const [inspector, setInspector] = useState(editing?.inspector_name ?? admin?.full_name ?? '');
+  const [notes, setNotes] = useState(editing?.general_notes ?? '');
+  const [followUp, setFollowUp] = useState(editing?.next_follow_up_on ?? '');
+  const [items, setItems] = useState<ItemFormState[]>(editing ? itemsFromDetail(editing.items) : blankItems());
+  const [issues, setIssues] = useState<UniformIssueFormState[]>(editing ? issuesFromDetail(editing.uniform_issues) : []);
   const [staff, setStaff] = useState<ComplaintSection>({ answer: 'unanswered', rows: [] });
   const [customer, setCustomer] = useState<ComplaintSection>({ answer: 'unanswered', rows: [] });
   const [showErrors, setShowErrors] = useState(false);
@@ -341,14 +353,15 @@ function RecordInspectionModal({ initialCompanyId, onClose }: { initialCompanyId
 
   // Only people who work for the chosen company can be named: a different company means a different list, so any chosen names are cleared.
   useEffect(() => {
+    if (editing) return; // a saved inspection never changes company
     setIssues((current) => current.map((row) => ({ ...row, employeeId: '' })));
     setStaff((current) => ({ ...current, rows: current.rows.map((row) => ({ ...row, employeeId: '' })) }));
-  }, [companyId]);
+  }, [companyId, editing]);
 
   const itemProblems = validateItems(items);
   const issueProblems = validateUniformIssues(issues);
-  const staffProblems = validateComplaintSection(staff, 'staff');
-  const customerProblems = validateComplaintSection(customer, 'customer');
+  const staffProblems = editing ? {} : validateComplaintSection(staff, 'staff');
+  const customerProblems = editing ? {} : validateComplaintSection(customer, 'customer');
   const headerProblems: string[] = [];
   if (companyId === '') headerProblems.push('Choose the company or workplace.');
   if (inspector.trim() === '') headerProblems.push('Enter the inspector name.');
@@ -358,7 +371,16 @@ function RecordInspectionModal({ initialCompanyId, onClose }: { initialCompanyId
 
   const save = useMutation({
     mutationFn: () =>
-      facilityApi.inspections.create({
+      editing
+        ? facilityApi.inspections.update(editing.id, {
+            inspector_name: inspector.trim(),
+            inspected_on: inspectedOn,
+            general_notes: notes.trim() === '' ? null : notes.trim(),
+            next_follow_up_on: followUp === '' ? null : followUp,
+            items: itemsPayload(items),
+            uniform_issues: uniformPayload(issues),
+          })
+        : facilityApi.inspections.create({
         client_company_id: Number(companyId),
         inspector_name: inspector.trim(),
         inspected_on: inspectedOn,
@@ -369,11 +391,12 @@ function RecordInspectionModal({ initialCompanyId, onClose }: { initialCompanyId
         ...complaintsRequest(staff, customer),
       }),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['facility-inspection'] });
       queryClient.invalidateQueries({ queryKey: ['facility-status'] });
       queryClient.invalidateQueries({ queryKey: ['facility-inspections'] });
       queryClient.invalidateQueries({ queryKey: ['facility-report'] });
       queryClient.invalidateQueries({ queryKey: ['facility-complaints'] });
-      show('Inspection recorded.');
+      show(editing ? 'Inspection corrected.' : 'Inspection recorded.');
       onClose();
     },
     onError: (err) => setServerError(friendlyErrorMessage(err, 'Could not record the inspection. Nothing was saved.')),
@@ -393,14 +416,14 @@ function RecordInspectionModal({ initialCompanyId, onClose }: { initialCompanyId
     <Modal
       isOpen
       onClose={onClose}
-      title="Record facility inspection"
+      title={editing ? 'Edit facility inspection' : 'Record facility inspection'}
       size="lg"
       confirmDiscard
       dirty={dirty}
       footer={
         <>
           <ModalCancelButton disabled={save.isPending} />
-          <Button size="sm" onClick={() => submit()} isLoading={save.isPending}>Save inspection</Button>
+          <Button size="sm" onClick={() => submit()} isLoading={save.isPending}>{editing ? 'Save changes' : 'Save inspection'}</Button>
         </>
       }
     >
@@ -411,6 +434,7 @@ function RecordInspectionModal({ initialCompanyId, onClose }: { initialCompanyId
           <FormField label="Company / Guri" htmlFor="insp-company" required>
             <Select
               id="insp-company"
+              disabled={editing !== undefined}
               value={companyId}
               onChange={(e) => setCompanyId(e.target.value)}
               placeholder="Choose…"
@@ -506,8 +530,17 @@ function RecordInspectionModal({ initialCompanyId, onClose }: { initialCompanyId
           </div>
         ))}
 
+        {editing ? (
+          <div className="mb-4 rounded-md border border-border bg-surface-alt/50 px-3.5 py-3 text-sm text-ink-muted" data-testid="complaints-managed-elsewhere">
+            {complaintAnswerText(editing.staff_complaints_reported, editing.staff_complaint_count, 'staff')} · {complaintAnswerText(editing.customer_complaints_reported, editing.customer_complaint_count, 'customer')}.{' '}
+            Complaints are changed on the <Link to={`/hr/facility-complaints?company=${editing.client_company_id}`} className="font-semibold text-primary hover:underline">Complaints screen</Link>, where each one keeps its own history.
+          </div>
+        ) : (
+          <>
         <InspectionComplaintSection type="staff" section={staff} onChange={setStaff} employees={employees ?? []} companyChosen={companyId !== ''} inspectionDate={inspectedOn} problems={staffProblems} showErrors={showErrors} />
         <InspectionComplaintSection type="customer" section={customer} onChange={setCustomer} employees={employees ?? []} companyChosen={companyId !== ''} inspectionDate={inspectedOn} problems={customerProblems} showErrors={showErrors} />
+          </>
+        )}
 
         <FormField label="Notes" htmlFor="insp-notes">
           <textarea id="insp-notes" rows={3} className={`${inputClasses} h-auto py-2`} value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -517,7 +550,7 @@ function RecordInspectionModal({ initialCompanyId, onClose }: { initialCompanyId
   );
 }
 
-function InspectionDetailModal({ id, canManage, onClose }: { id: number; canManage: boolean; onClose: () => void }) {
+function InspectionDetailModal({ id, canManage, onClose, onEdit }: { id: number; canManage: boolean; onClose: () => void; onEdit: (detail: FacilityInspectionDetail) => void }) {
   const queryClient = useQueryClient();
   const { show } = useToast();
   const [reason, setReason] = useState('');
@@ -553,7 +586,10 @@ function InspectionDetailModal({ id, canManage, onClose }: { id: number; canMana
               <Button variant="danger" size="sm" isLoading={voidIt.isPending} disabled={reason.trim().length < 5} onClick={() => voidIt.mutate()}>Void inspection</Button>
             </>
           ) : (
-            <Button variant="outline" size="sm" onClick={() => setVoiding(true)}>Void this inspection</Button>
+            <>
+              <Button variant="outline" size="sm" onClick={() => setVoiding(true)}>Void this inspection</Button>
+              <Button size="sm" onClick={() => onEdit(data)}>Edit inspection</Button>
+            </>
           )
         ) : undefined
       }

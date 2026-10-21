@@ -4,6 +4,7 @@ namespace App\Http\Requests\Api\V1\Admin\Hr;
 
 use App\Enums\EmployeeGender;
 use App\Support\ApiResponse;
+use App\Support\Hr\PersonName;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -23,6 +24,13 @@ class StoreEmployeeRequest extends FormRequest
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('full_name') && is_string($this->input('full_name'))) {
+            $this->merge(['full_name' => PersonName::normalise($this->input('full_name'))]);
+        }
     }
 
     public function rules(): array

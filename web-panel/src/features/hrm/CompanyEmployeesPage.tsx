@@ -15,6 +15,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { inputClasses } from '@/components/ui/FormField';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatDate } from '@/utils/formatters';
 import {
@@ -48,11 +49,20 @@ export function CompanyEmployeesPage() {
   const { hasPermission } = useEffectivePermissions();
   const canManage = hasPermission('hr.manage');
 
-  const [period, setPeriod] = useState(currentPeriod());
-  const [status, setStatus] = useState<CompanyAssignmentStatus | ''>('');
-  const [positionId, setPositionId] = useState<number | ''>('');
-  const [type, setType] = useState<AssignmentType | ''>('');
-  const [search, setSearch] = useState('');
+  // Month, filters and search live in the address bar, so Back from an employee returns to the same view.
+  const url = useUrlFilters();
+  const periodParam = url.get('month');
+  const period = isValidPeriod(periodParam) ? periodParam : currentPeriod();
+  const status = (['active', 'ended'].includes(url.get('status')) ? url.get('status') : '') as CompanyAssignmentStatus | '';
+  const positionParam = url.get('position');
+  const positionId: number | '' = /^\d+$/.test(positionParam) ? Number(positionParam) : '';
+  const type = (['permanent', 'replacement'].includes(url.get('type')) ? url.get('type') : '') as AssignmentType | '';
+  const search = url.get('q');
+  const setPeriod = (value: string) => url.set('month', value === currentPeriod() ? '' : value);
+  const setStatus = (value: CompanyAssignmentStatus | '') => url.set('status', value);
+  const setPositionId = (value: number | '') => url.set('position', value === '' ? '' : String(value));
+  const setType = (value: AssignmentType | '') => url.set('type', value);
+  const setSearch = (value: string) => url.set('q', value);
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
 
   const [adding, setAdding] = useState(false);

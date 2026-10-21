@@ -32,6 +32,8 @@ export const facilityApi = {
     },
     get: (id: number) => apiRequest<FacilityInspectionDetail>(`${base}/${id}`),
     create: (payload: StoreFacilityInspectionPayload) => apiRequest<FacilityInspectionDetail>(base, { method: 'POST', body: payload }),
+    update: (id: number, payload: Partial<Omit<StoreFacilityInspectionPayload, 'client_company_id' | 'complaints' | 'staff_complaints_reported' | 'customer_complaints_reported'>>) =>
+      apiRequest<FacilityInspectionDetail>(`${base}/${id}`, { method: 'PUT', body: payload }),
     void: (id: number, reason: string) => apiRequest<FacilityInspectionDetail>(`${base}/${id}/void`, { method: 'POST', body: { reason } }),
     companyEmployees: (companyId: number, on?: string) => apiRequest<CompanyEmployeeOption[]>(`${base}/company-employees/${companyId}`, { query: { on } }),
   },

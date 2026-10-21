@@ -7,6 +7,7 @@ use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\ClientCompany;
 use App\Models\ClientCompanyAlias;
+use App\Support\Hr\Payroll\OpenPayrollNames;
 
 /**
  * Edits a company. The record keeps its id, so every assignment, payroll line, history entry and audit record follows it. When the NAME
@@ -27,6 +28,7 @@ class UpdateClientCompanyAction
         $renamed = $clientCompany->wasChanged('name');
 
         if ($renamed) {
+            OpenPayrollNames::company($clientCompany);
             $already = ClientCompanyAlias::query()->where('client_company_id', $clientCompany->id)->where('alias', $oldName)->exists();
 
             if (! $already) {

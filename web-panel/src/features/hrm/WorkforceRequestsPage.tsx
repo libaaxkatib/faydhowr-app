@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { returnState } from '@/utils/urlFilters';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -246,7 +247,7 @@ export function WorkforceRequestsPage() {
                     <button
                       key={match.id}
                       type="button"
-                      onClick={() => navigate(`/hr/employees/${match.employee_id}`)}
+                      onClick={() => navigate(`/hr/employees/${match.employee_id}`, { state: returnState(window.location.pathname, window.location.search, 'Workforce Requests') })}
                       className="flex w-full items-center justify-between rounded-sm border border-border px-2.5 py-1.5 text-left text-sm hover:bg-surface-alt"
                     >
                       <span className="text-ink">{match.employee_name}</span>

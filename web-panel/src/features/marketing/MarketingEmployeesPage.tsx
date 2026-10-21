@@ -11,6 +11,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/useToast';
 import { useAuth } from '@/features/auth/useAuth';
+import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { AddTeamMemberDialog } from '@/features/marketing/AddTeamMemberDialog';
 import { manageableTeams } from '@/utils/teamMemberForm';
 import type { MarketingEmployee } from '@/types/marketing';
@@ -27,7 +28,9 @@ export function MarketingEmployeesPage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
   const { admin, isSuperAdmin } = useAuth();
-  const canSeeManagement = isSuperAdmin || admin?.role === 'marketing_manager';
+  const { hasPermission } = useEffectivePermissions();
+  // Management (inactive people, teams, Add Team Member) is for Super Admin and the Marketing Manager role AND needs the real permission.
+  const canSeeManagement = (isSuperAdmin || admin?.role === 'marketing_manager') && hasPermission('marketing.manage');
   const [isAddOpen, setIsAddOpen] = useState(false);
 
   const { data, isLoading, error, refetch } = useQuery({

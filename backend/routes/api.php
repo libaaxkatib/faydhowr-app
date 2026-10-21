@@ -1262,9 +1262,6 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::post('v1/admin/hr/employee-categories/{employeeCategory}/restore', [AdminEmployeeCategoryController::class, 'restore'])
         ->whereNumber('employeeCategory')
         ->name('api.v1.admin.hr.employee-categories.restore');
-    Route::delete('v1/admin/hr/employee-categories/{employeeCategory}', [AdminEmployeeCategoryController::class, 'destroy'])
-        ->whereNumber('employeeCategory')
-        ->name('api.v1.admin.hr.employee-categories.destroy');
 
     Route::post('v1/admin/hr/positions', [AdminPositionController::class, 'store'])
         ->name('api.v1.admin.hr.positions.store');

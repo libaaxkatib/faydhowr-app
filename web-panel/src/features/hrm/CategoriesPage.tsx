@@ -5,7 +5,6 @@ import { hrApi } from '@/api/hr';
 import { ApiClientError } from '@/api/client';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { FormField, inputClasses } from '@/components/ui/FormField';
@@ -21,9 +20,9 @@ import { tidyName, validateNewName } from '@/utils/quickCreate';
 import type { EmployeeCategory } from '@/types/employee';
 
 /**
- * Employee categories: view, add, rename, archive/restore and delete. A category that anything still uses (employees, including archived ones,
- * or workforce requests) cannot be deleted - it is archived instead, which hides it from new registrations and changes nothing that already
- * uses it. The Office Staff category belongs to the Office Staff workflow and is locked. The server enforces all of this.
+ * Employee categories: view, add, rename and ARCHIVE / RESTORE. There is deliberately no delete: archiving hides a category from new
+ * registrations and requests and changes nothing that already uses it (ids, employees, requests and history stay linked); restoring offers it
+ * again. The Office Staff category belongs to the Office Staff workflow and is locked. The server enforces all of this.
  */
 export function CategoriesPage() {
   const queryClient = useQueryClient();
@@ -34,8 +33,6 @@ export function CategoriesPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<EmployeeCategory | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(true);
 
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['employee-categories'], queryFn: hrApi.employeeCategories.list });
@@ -77,18 +74,6 @@ export function CategoriesPage() {
       show(archived ? 'Category archived. It stays on the people who have it but cannot be chosen for new ones.' : 'Category restored.');
     },
     onError: (err) => show(friendlyErrorMessage(err, 'Could not change the category.'), 'error'),
-  });
-
-  const remove = useMutation({
-    mutationFn: (id: number) => hrApi.employeeCategories.remove(id),
-    onSuccess: () => {
-      refresh();
-      show('Category deleted.');
-      setPendingDelete(null);
-      setDeleteError(null);
-    },
-    // The refusal ("still used by 3 employees ... archive it instead") stays visible in the dialog.
-    onError: (err) => setDeleteError(friendlyErrorMessage(err, 'Could not delete the category.')),
   });
 
   return (
@@ -141,17 +126,6 @@ export function CategoriesPage() {
                         <Button variant="outline" size="sm" isLoading={archive.isPending && archive.variables?.category.id === category.id} onClick={() => archive.mutate({ category, archived: !category.archived })} aria-label={`${category.archived ? 'Restore' : 'Archive'} category ${category.name}`}>
                           {category.archived ? 'Restore' : 'Archive'}
                         </Button>
-                        <button
-                          type="button"
-                          aria-label={`Delete category ${category.name}`}
-                          onClick={() => {
-                            setDeleteError(null);
-                            setPendingDelete(category);
-                          }}
-                          className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger"
-                        >
-                          <Icon name="trash" size={14} />
-                        </button>
                       </>
                     )}
                   </div>
@@ -184,20 +158,6 @@ export function CategoriesPage() {
         </FormField>
       </Modal>
 
-      <ConfirmDialog
-        isOpen={pendingDelete !== null}
-        title="Delete category?"
-        description={`Delete "${pendingDelete?.name ?? ''}"? This cannot be undone. A category that employees or workforce requests still use cannot be deleted - archive it instead.`}
-        confirmLabel="Delete category"
-        tone="danger"
-        isLoading={remove.isPending}
-        errorMessage={deleteError}
-        onConfirm={() => pendingDelete && remove.mutate(pendingDelete.id)}
-        onCancel={() => {
-          setPendingDelete(null);
-          setDeleteError(null);
-        }}
-      />
     </div>
   );
 }

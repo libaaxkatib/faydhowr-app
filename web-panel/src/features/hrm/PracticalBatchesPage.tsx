@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { returnState } from '@/utils/urlFilters';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -86,7 +87,7 @@ export function PracticalBatchesPage() {
                     <button
                       key={a.id}
                       type="button"
-                      onClick={() => navigate(`/hr/employees/${a.employee_id}`)}
+                      onClick={() => navigate(`/hr/employees/${a.employee_id}`, { state: returnState(window.location.pathname, window.location.search, 'Practical Batches') })}
                       className="flex w-full items-center justify-between rounded-sm border border-border px-2.5 py-1.5 text-left text-sm hover:bg-surface-alt"
                     >
                       <span className="text-ink">

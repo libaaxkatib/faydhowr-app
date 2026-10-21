@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -22,8 +23,11 @@ import type { Employee } from '@/types/employee';
  */
 export function WaitingQueuePage() {
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  const url = useUrlFilters();
+  const search = url.get('q');
+  const page = url.page;
+  const setSearch = (value: string) => url.set('q', value);
+  const setPage = url.setPage;
   const debouncedSearch = useDebouncedValue(search);
 
   const { data, isLoading, error, refetch } = useQuery({

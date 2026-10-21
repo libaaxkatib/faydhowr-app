@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { returnState } from '@/utils/urlFilters';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -28,8 +30,12 @@ export function FormerEmployeesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { show } = useToast();
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  // Search and page live in the address bar, so Back from an employee returns to the same results.
+  const url = useUrlFilters();
+  const search = url.get('q');
+  const page = url.page;
+  const setSearch = (value: string) => url.set('q', value);
+  const setPage = url.setPage;
   const debouncedSearch = useDebouncedValue(search);
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -140,7 +146,7 @@ export function FormerEmployeesPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          onRowClick={(employee) => navigate(`/hr/employees/${employee.id}`)}
+          onRowClick={(employee) => navigate(`/hr/employees/${employee.id}`, { state: returnState(window.location.pathname, window.location.search, 'Former Employees') })}
           emptyTitle="No former employees"
           emptyDescription="Employees appear here once marked Inactive."
         />

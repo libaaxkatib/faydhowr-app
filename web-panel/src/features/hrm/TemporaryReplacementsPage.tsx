@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { returnState } from '@/utils/urlFilters';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -127,7 +128,7 @@ export function TemporaryReplacementsPage() {
 
               <button
                 type="button"
-                onClick={() => navigate(`/hr/employees/${replacement.replacement_employee_id}`)}
+                onClick={() => navigate(`/hr/employees/${replacement.replacement_employee_id}`, { state: returnState(window.location.pathname, window.location.search, 'Temporary Replacements') })}
                 className="mb-2 flex w-full items-center justify-between rounded-sm border border-border px-2.5 py-1.5 text-left text-sm hover:bg-surface-alt"
               >
                 <span className="text-ink">Temporary employee: {replacement.replacement_employee_name}</span>

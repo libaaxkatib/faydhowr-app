@@ -323,7 +323,7 @@ class OfficeStaffRegistrationTest extends TestCase
         $this->assertSame(PaymentNumber::LABEL_PHONE_FALLBACK, $people['Amina Office Test']['Payment number source']);
         $this->assertEquals(650.0, $book->getSheetByName('Summary')->getCell('B7')->getValue());
 
-        // Companies & Locations: the office staff never appear as clients and the Company/Guri counts are untouched.
+        // Companies & Workplaces: the office staff never appear as clients and the Company/Guri counts are untouched.
         $companies = $this->asToken($this->token)->getJson('/api/v1/admin/hr/client-companies')->assertOk()->json('data');
         $this->assertSame([], $companies);
         $this->assertDatabaseMissing('client_companies', ['name' => 'Fayadhowr Office']);

@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1\Admin\Hr;
 
 use App\Actions\Hr\ArchiveEmployeeCategoryAction;
 use App\Actions\Hr\CreateEmployeeCategoryAction;
-use App\Actions\Hr\DeleteEmployeeCategoryAction;
 use App\Actions\Hr\ListEmployeeCategoriesAction;
 use App\Actions\Hr\UpdateEmployeeCategoryAction;
 use App\Http\Controllers\Controller;
@@ -47,12 +46,5 @@ class EmployeeCategoryController extends Controller
     public function restore(EmployeeCategory $employeeCategory, ArchiveEmployeeCategoryAction $action): JsonResponse
     {
         return ApiResponse::success('Employee category restored.', new EmployeeCategoryResource($action->handle($employeeCategory, false, request()->user())));
-    }
-
-    public function destroy(EmployeeCategory $employeeCategory, DeleteEmployeeCategoryAction $action): JsonResponse
-    {
-        $action->handle($employeeCategory, request()->user());
-
-        return ApiResponse::success('Employee category deleted successfully.');
     }
 }

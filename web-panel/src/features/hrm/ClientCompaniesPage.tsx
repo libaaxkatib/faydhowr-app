@@ -294,7 +294,7 @@ function CompanyFormModal({
         error={
           fieldErrors.name?.[0]
             ? /taken|already/i.test(fieldErrors.name[0])
-              ? 'A company with this name already exists. Names are the same even if the capital letters differ.'
+              ? 'A company with this name already exists. Names are the same even if the capital letters or spaces differ.'
               : fieldErrors.name[0]
             : undefined
         }
@@ -482,7 +482,7 @@ function LocationFormModal({
       show(editing ? 'Work location updated.' : 'Work location created.');
       onSaved();
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Something went wrong.', 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, 'Something went wrong.'), 'error'),
   });
 
   const isOfficeEdit = editing?.location_type === 'office';

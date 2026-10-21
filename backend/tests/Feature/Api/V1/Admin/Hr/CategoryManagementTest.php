@@ -12,8 +12,8 @@ use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
 /**
- * Category management: create/rename (ids never change), delete only when nothing at all points at the category, archive when something
- * does (the records keep it, new registrations cannot pick it), restore, and the Office Staff category stays untouchable.
+ * Category management: create/rename (ids never change), ARCHIVE and RESTORE (the records keep the category, new registrations cannot pick an
+ * archived one), no delete at all, and the Office Staff category stays untouchable.
  */
 class CategoryManagementTest extends TestCase
 {
@@ -26,11 +26,14 @@ class CategoryManagementTest extends TestCase
 
     private string $viewer;
 
+    private string $super;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->manager = $this->tokenForRoleWith(AdminRole::HrManager, ['hr.view', 'hr.manage']);
         $this->viewer = $this->tokenForRoleWith(AdminRole::HrManager, ['hr.view']);
+        [, $this->super] = $this->superAdminToken();
     }
 
     private function as(string $token): static
@@ -59,40 +62,42 @@ class CategoryManagementTest extends TestCase
         $this->assertSame($used->id, Employee::query()->first()->employee_category_id, 'the employee keeps the same category after a rename');
     }
 
-    public function test_an_unused_category_can_be_deleted_and_the_deletion_is_audited(): void
+    public function test_there_is_no_way_to_delete_a_category_at_all(): void
     {
         $unused = $this->category('Temporary pilot');
+        $used = $this->category('Drivers');
+        $this->makeEmployee()->update(['employee_category_id' => $used->id]);
 
-        $this->as($this->manager)->deleteJson(self::URL."/{$unused->id}")->assertOk();
+        foreach ([$this->manager, $this->super] as $token) {
+            foreach ([$unused, $used] as $category) {
+                $this->as($token)->deleteJson(self::URL."/{$category->id}")->assertStatus(405);
+            }
+        }
 
-        $this->assertDatabaseMissing('employee_categories', ['id' => $unused->id]);
-        $this->assertTrue(AuditLog::query()->where('entity_type', EmployeeCategory::class)->where('entity_id', $unused->id)->where('description', 'like', '%deleted%')->exists());
+        $this->assertDatabaseHas('employee_categories', ['id' => $unused->id]);
+        $this->assertDatabaseHas('employee_categories', ['id' => $used->id]);
+        $this->assertSame([], collect(app('router')->getRoutes()->getRoutes())->filter(fn ($route): bool => str_starts_with($route->uri(), 'api/v1/admin/hr/employee-categories') && in_array('DELETE', $route->methods(), true))->all());
     }
 
-    public function test_a_category_that_anything_uses_is_never_deleted_and_the_answer_points_at_archiving(): void
+    public function test_categories_linked_to_employees_archived_employees_and_requests_can_be_archived_and_restored_with_every_link_intact(): void
     {
-        $byEmployee = $this->category('Drivers');
-        $this->makeEmployee()->update(['employee_category_id' => $byEmployee->id]);
-        $r = $this->as($this->manager)->deleteJson(self::URL."/{$byEmployee->id}")->assertUnprocessable()->assertJsonPath('error_code', 'CATEGORY_IN_USE');
-        $this->assertStringContainsString('1 employee', $r->json('message'));
-        $this->assertStringContainsString('Archive it instead', $r->json('message'));
-
-        // An archived (soft-deleted) employee is history and still counts.
-        $byArchived = $this->category('Cooks');
+        $category = $this->category('Security');
+        $active = $this->makeEmployee();
+        $active->update(['employee_category_id' => $category->id]);
         $gone = $this->makeEmployee();
-        $gone->update(['employee_category_id' => $byArchived->id]);
+        $gone->update(['employee_category_id' => $category->id]);
         $gone->delete();
-        $this->as($this->manager)->deleteJson(self::URL."/{$byArchived->id}")->assertUnprocessable()->assertJsonPath('error_code', 'CATEGORY_IN_USE');
-
-        $byRequest = $this->category('Security');
         $company = $this->makeCompany();
-        WorkforceRequest::query()->create(['client_company_id' => $company->id, 'employee_category_id' => $byRequest->id, 'quantity_needed' => 1, 'requested_date' => '2026-10-01', 'status' => 'open']);
-        $this->as($this->manager)->deleteJson(self::URL."/{$byRequest->id}")->assertUnprocessable()->assertJsonPath('error_code', 'CATEGORY_IN_USE');
+        $request = WorkforceRequest::query()->create(['client_company_id' => $company->id, 'employee_category_id' => $category->id, 'quantity_needed' => 1, 'requested_date' => '2026-10-01', 'status' => 'open']);
 
-        foreach ([$byEmployee, $byArchived, $byRequest] as $c) {
-            $this->assertDatabaseHas('employee_categories', ['id' => $c->id]);
-        }
-        $this->assertSame($byEmployee->id, Employee::query()->where('employee_category_id', $byEmployee->id)->value('employee_category_id'), 'no employee was re-pointed or blanked');
+        $this->as($this->manager)->postJson(self::URL."/{$category->id}/archive")->assertOk()->assertJsonPath('data.archived', true);
+        $this->assertSame($category->id, $active->fresh()->employee_category_id);
+        $this->assertSame($category->id, Employee::withTrashed()->findOrFail($gone->id)->employee_category_id);
+        $this->assertSame($category->id, $request->fresh()->employee_category_id);
+
+        $this->as($this->manager)->postJson(self::URL."/{$category->id}/restore")->assertOk()->assertJsonPath('data.archived', false);
+        $this->assertSame([$category->id, $category->id, $category->id], [$active->fresh()->employee_category_id, Employee::withTrashed()->findOrFail($gone->id)->employee_category_id, $request->fresh()->employee_category_id]);
+        $this->assertContains($category->id, collect($this->as($this->manager)->getJson(self::URL)->json('data'))->where('archived', false)->pluck('id')->all(), 'a restored category is offered again');
     }
 
     public function test_archiving_hides_a_category_from_new_registrations_but_changes_nothing_that_already_uses_it(): void
@@ -130,7 +135,6 @@ class CategoryManagementTest extends TestCase
         $office = EmployeeCategory::officeStaff() ?? $this->category(EmployeeCategory::OFFICE_STAFF);
 
         $this->as($this->manager)->postJson(self::URL."/{$office->id}/archive")->assertUnprocessable()->assertJsonPath('error_code', 'CATEGORY_SYSTEM');
-        $this->as($this->manager)->deleteJson(self::URL."/{$office->id}")->assertUnprocessable()->assertJsonPath('error_code', 'CATEGORY_SYSTEM');
         $this->as($this->manager)->putJson(self::URL."/{$office->id}", ['name' => 'Back Office'])->assertUnprocessable();
         $this->assertNull($office->fresh()->archived_at);
         $this->assertDatabaseHas('employee_categories', ['id' => $office->id, 'name' => $office->name]);
@@ -143,7 +147,6 @@ class CategoryManagementTest extends TestCase
         $this->as($this->viewer)->postJson(self::URL, ['name' => 'Nope'])->assertForbidden();
         $this->as($this->viewer)->postJson(self::URL."/{$category->id}/archive")->assertForbidden();
         $this->as($this->viewer)->postJson(self::URL."/{$category->id}/restore")->assertForbidden();
-        $this->as($this->viewer)->deleteJson(self::URL."/{$category->id}")->assertForbidden();
         $this->assertDatabaseHas('employee_categories', ['id' => $category->id, 'archived_at' => null]);
     }
 }

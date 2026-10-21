@@ -13,7 +13,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatDate } from '@/utils/formatters';
-import { dueStateTone, percent } from '@/utils/facility';
+import { drillLink, dueStateTone, percent } from '@/utils/facility';
 import type { FacilityComplaintType, FacilityDueListRow, FacilityReport } from '@/types/facility';
 
 function Tile({ label, value, hint, to }: { label: string; value: string | number; hint?: string; to?: string }) {
@@ -135,7 +135,10 @@ export function FacilityReportPage() {
     );
   }
 
-  const companyQuery = company ? `&company=${company}` : '';
+  // Every link below opens the list with the SAME period (and complaint type) the report used, so the numbers match.
+  const period = { from: data?.period.from, to: data?.period.to };
+  const inspectionsLink = (extra: Record<string, string | number | undefined> = {}) => drillLink('/hr/facility-inspections', { company, ...period, ...extra });
+  const complaintsLink = (extra: Record<string, string | number | undefined> = {}) => drillLink('/hr/facility-complaints', { company, type, ...period, ...extra });
   const maxItem = Math.max(1, ...(data?.items.by_item.map((i) => i.unsatisfactory) ?? [0]));
   const sat = data?.satisfaction;
   const satTotal = sat ? sat.satisfied + sat.not_satisfied + sat.not_recorded : 0;
@@ -167,12 +170,12 @@ export function FacilityReportPage() {
       {data && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Tile label="Inspections done" value={data.inspections.count} hint={`${data.inspections.companies_inspected} of ${data.inspections.companies_in_scope} companies`} to={`/hr/facility-inspections${company ? `?company=${company}` : ''}`} />
-            <Tile label="Overdue / due now" value={data.inspections.overdue + data.inspections.due} hint={`${data.inspections.due_soon} due soon`} to="/hr/facility-inspections?state=overdue" />
-            <Tile label="Never inspected" value={data.inspections.never_inspected} to="/hr/facility-inspections?state=never_inspected" />
+            <Tile label="Inspections done" value={data.inspections.count} hint={`${data.inspections.companies_inspected} of ${data.inspections.companies_in_scope} companies`} to={inspectionsLink()} />
+            <Tile label="Overdue / due now" value={data.inspections.overdue + data.inspections.due} hint={`${data.inspections.due_soon} due soon`} to={drillLink('/hr/facility-inspections', { state: 'overdue' })} />
+            <Tile label="Never inspected" value={data.inspections.never_inspected} to={drillLink('/hr/facility-inspections', { state: 'never_inspected' })} />
             <Tile label="Unsatisfactory findings" value={data.items.unsatisfactory_total} hint={`${data.items.uniform_issues} uniform issues`} />
-            <Tile label="Complaints" value={data.complaints.total} hint={`${data.complaints.by_type.staff.total} staff · ${data.complaints.by_type.customer.total} customer`} to={`/hr/facility-complaints?${companyQuery.slice(1)}`} />
-            <Tile label="Not resolved yet" value={data.complaints.unresolved} hint={`${data.complaints.answered} answered, awaiting resolution`} to={`/hr/facility-complaints?status=unresolved${companyQuery}`} />
+            <Tile label="Complaints" value={data.complaints.total} hint={`${data.complaints.by_type.staff.total} staff · ${data.complaints.by_type.customer.total} customer`} to={complaintsLink()} />
+            <Tile label="Not resolved yet" value={data.complaints.unresolved} hint={`${data.complaints.answered} answered, awaiting resolution`} to={complaintsLink({ status: 'unresolved' })} />
             <Tile label="Avg. days to respond" value={data.complaints.average_days_to_response ?? '-'} hint={data.complaints.average_days_to_response === null ? 'No responses recorded' : undefined} />
             <Tile label="Avg. days to resolve" value={data.complaints.average_days_to_resolution ?? '-'} hint={data.complaints.average_days_to_resolution === null ? 'No resolved complaints' : undefined} />
           </div>
@@ -282,10 +285,10 @@ export function FacilityReportPage() {
                       <tr key={row.client_company_id}>
                         <td className="px-4 py-2.5 font-medium text-ink">{row.company}</td>
                         <td className="px-4 py-2.5">
-                          <Link className="text-primary hover:underline" to={`/hr/facility-inspections?company=${row.client_company_id}`}>{row.inspections}</Link>
+                          <Link className="text-primary hover:underline" to={inspectionsLink({ company: row.client_company_id })}>{row.inspections}</Link>
                         </td>
                         <td className="px-4 py-2.5">
-                          <Link className="text-primary hover:underline" to={`/hr/facility-complaints?company=${row.client_company_id}`}>{row.complaints}</Link>
+                          <Link className="text-primary hover:underline" to={complaintsLink({ company: row.client_company_id })}>{row.complaints}</Link>
                         </td>
                         <td className="px-4 py-2.5 text-ink">{row.unresolved_complaints}</td>
                         <td className="px-4 py-2.5 text-ink">{row.satisfied} / {row.not_satisfied}</td>

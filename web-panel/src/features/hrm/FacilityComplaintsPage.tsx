@@ -19,8 +19,9 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/useToast';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatDate, formatDateTime } from '@/utils/formatters';
+import { pageFromParam, withParam } from '@/utils/urlFilters';
 import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
-import { COMPLAINT_STATUS_LABELS, COMPLAINT_TRANSITIONS, complaintStatusTone, satisfactionText } from '@/utils/facility';
+import { COMPLAINT_STATUS_LABELS, COMPLAINT_TRANSITIONS, complaintStatusTone, dateParam, satisfactionText } from '@/utils/facility';
 import type { FacilityComplaintRow, FacilityComplaintStatus, FacilityComplaintType, FacilitySatisfaction } from '@/types/facility';
 
 const TYPE_OPTIONS: { value: FacilityComplaintType; label: string }[] = [
@@ -54,32 +55,25 @@ export function FacilityComplaintsPage() {
   const type = (['staff', 'customer'].includes(searchParams.get('type') ?? '') ? searchParams.get('type') : '') as FacilityComplaintType | '';
   const status = (STATUS_OPTIONS.some((o) => o.value === searchParams.get('status')) ? searchParams.get('status') : '') as FacilityComplaintStatus | 'unresolved' | '';
   const satisfaction = (SATISFACTION_OPTIONS.some((o) => o.value === searchParams.get('satisfaction')) ? searchParams.get('satisfaction') : '') as FacilitySatisfaction | 'not_recorded' | '';
-  const [page, setPage] = useState(1);
+  const from = dateParam(searchParams.get('from'));
+  const to = dateParam(searchParams.get('to'));
+  const page = pageFromParam(searchParams.get('page'));
   const [creating, setCreating] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
 
   const { data: companies } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list });
   const list = useQuery({
-    queryKey: ['facility-complaints', company, type, status, satisfaction, page],
-    queryFn: () => facilityApi.complaints.list({ client_company_id: company ? Number(company) : undefined, type, status, satisfaction, page, per_page: 15 }),
+    queryKey: ['facility-complaints', company, type, status, satisfaction, from, to, page],
+    queryFn: () => facilityApi.complaints.list({ client_company_id: company ? Number(company) : undefined, type, status, satisfaction, from: from || undefined, to: to || undefined, page, per_page: 15 }),
     placeholderData: (previous) => previous,
   });
 
   function setParam(key: string, value: string) {
-    setSearchParams(
-      (previous) => {
-        const next = new URLSearchParams(previous);
-        if (value === '') next.delete(key);
-        else next.set(key, value);
-
-        return next;
-      },
-      { replace: true },
-    );
-    setPage(1);
+    setSearchParams((previous) => withParam(previous, key, value), { replace: true });
   }
+  const setPage = (next: number) => setParam('page', next <= 1 ? '' : String(next));
 
-  const filtered = company !== '' || type !== '' || status !== '' || satisfaction !== '';
+  const filtered = company !== '' || type !== '' || status !== '' || satisfaction !== '' || from !== '' || to !== '';
 
   return (
     <div>
@@ -114,6 +108,9 @@ export function FacilityComplaintsPage() {
           <Select value={type} onChange={(e) => setParam('type', e.target.value)} placeholder="All types" aria-label="Type" className="w-44" options={TYPE_OPTIONS} />
           <Select value={status} onChange={(e) => setParam('status', e.target.value)} placeholder="Any status" aria-label="Status" className="w-44" options={STATUS_OPTIONS} />
           <Select value={satisfaction} onChange={(e) => setParam('satisfaction', e.target.value)} placeholder="Any satisfaction" aria-label="Satisfaction" className="w-48" options={SATISFACTION_OPTIONS} />
+          {(from || to) && (
+            <span className="rounded-full bg-surface-alt px-3 py-1 text-xs text-ink-muted" data-testid="period-filter">Reported {from ? formatDate(from) : 'from the start'} to {to ? formatDate(to) : 'today'}</span>
+          )}
           {filtered && (
             <button type="button" onClick={() => setSearchParams({}, { replace: true })} className="text-xs font-semibold text-primary hover:underline">
               Clear filters

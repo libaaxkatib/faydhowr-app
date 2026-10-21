@@ -8,7 +8,7 @@ use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
 /**
- * The Companies & Locations page filters its list by each record's own `category` (Company / Guri) and shows
+ * The Companies & Workplaces page filters its list by each record's own `category` (Company / Guri) and shows
  * counts from that same list. These tests pin what that list must contain.
  */
 class ClientCompanyCategoryListTest extends TestCase

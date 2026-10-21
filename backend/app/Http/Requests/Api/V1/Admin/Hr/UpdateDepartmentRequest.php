@@ -2,11 +2,12 @@
 
 namespace App\Http\Requests\Api\V1\Admin\Hr;
 
+use App\Rules\UniqueNormalisedName;
 use App\Support\ApiResponse;
+use App\Support\Hr\PersonName;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
-use Illuminate\Validation\Rule;
 
 class UpdateDepartmentRequest extends FormRequest
 {
@@ -15,10 +16,17 @@ class UpdateDepartmentRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('name') && is_string($this->input('name'))) {
+            $this->merge(['name' => PersonName::normalise($this->input('name'))]);
+        }
+    }
+
     public function rules(): array
     {
         return [
-            'name' => ['sometimes', 'string', 'max:150', Rule::unique('departments', 'name')->ignore($this->route('department'))],
+            'name' => ['sometimes', 'string', 'max:150', new UniqueNormalisedName('departments', $this->route('department')?->id, [], 'A department with this name already exists. Names are the same even if the capital letters or spaces differ.')],
             'description' => ['sometimes', 'nullable', 'string'],
         ];
     }

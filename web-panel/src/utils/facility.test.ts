@@ -133,3 +133,29 @@ test('lists say "not recorded" for inspections saved before complaints were aske
   assert.equal(complaintAnswerText(true, 2, 'staff'), '2 staff complaints');
   assert.equal(complaintAnswerText(true, 1, 'customer'), '1 customer complaint');
 });
+
+test('a saved inspection opens for correction exactly as it was recorded', async () => {
+  const { itemsFromDetail, issuesFromDetail, itemsPayload } = await import('./facility.ts');
+  const saved = [
+    { item_key: 'windows', label: 'Windows', applicable: true, result: 'unsatisfactory' as const, issue_description: 'Cracked', corrective_action: 'Replace' },
+    { item_key: 'doors', label: 'Doors', applicable: false, result: null, issue_description: null, corrective_action: null },
+    { item_key: 'mirrors', label: 'Mirrors', applicable: true, result: 'satisfactory' as const, issue_description: null, corrective_action: null },
+  ];
+  const items = itemsFromDetail(saved);
+  assert.equal(items.length, 12);
+  assert.deepEqual(items.slice(0, 2).map((i) => [i.key, i.choice, i.issue, i.action]), [['windows', 'unsatisfactory', 'Cracked', 'Replace'], ['doors', 'not_applicable', '', '']]);
+  assert.equal(items.find((i) => i.key === 'mirrors')?.choice, 'satisfactory');
+  assert.equal(items.find((i) => i.key === 'fans')?.choice, 'unanswered', 'an item the record does not have is never assumed fine');
+  const payload = itemsPayload(items.map((i) => (i.choice === 'unanswered' ? { ...i, choice: 'satisfactory' as const } : i)));
+  assert.deepEqual(payload[0], { item_key: 'windows', applicable: true, result: 'unsatisfactory', issue_description: 'Cracked', corrective_action: 'Replace' });
+  assert.deepEqual(issuesFromDetail([{ id: 1, employee_id: 7, employee_number: 'EMP-7', employee_name: 'A', issue: 'No apron', warning_given: true, reason_not_worn: null, corrective_action: null, follow_up_on: '2026-11-01' }]), [{ employeeId: '7', issue: 'No apron', warningGiven: true, reasonNotWorn: '', action: '', followUpOn: '2026-11-01' }]);
+});
+
+test('report drill-down links carry the report period and ignore empty or malformed values', async () => {
+  const { dateParam, drillLink } = await import('./facility.ts');
+  assert.equal(dateParam('2026-10-01'), '2026-10-01');
+  assert.equal(dateParam('yesterday'), '');
+  assert.equal(dateParam(null), '');
+  assert.equal(drillLink('/hr/facility-complaints', { company: 3, status: 'unresolved', from: '2026-04-23', to: '2026-10-21', type: '' }), '/hr/facility-complaints?company=3&status=unresolved&from=2026-04-23&to=2026-10-21');
+  assert.equal(drillLink('/hr/facility-inspections', {}), '/hr/facility-inspections');
+});

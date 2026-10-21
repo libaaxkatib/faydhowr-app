@@ -3,6 +3,8 @@
 // everything.
 
 import type {
+  FacilityInspectionItemDetail,
+  FacilityUniformIssueDetail,
   FacilityComplaintStatus,
   FacilityComplaintType,
   FacilityDueState,
@@ -307,4 +309,47 @@ export function complaintAnswerText(reported: boolean | null, count: number, nou
   if (!reported) return `No ${noun} complaint`;
 
   return `${count} ${noun} complaint${count === 1 ? '' : 's'}`;
+}
+
+/** The saved checklist as the form's state, so an inspection can be opened for correction exactly as it was recorded. */
+export function itemsFromDetail(saved: readonly FacilityInspectionItemDetail[]): ItemFormState[] {
+  return blankItems().map((blank) => {
+    const row = saved.find((item) => item.item_key === blank.key);
+    if (!row || !row.applicable) return { ...blank, choice: row ? 'not_applicable' : 'unanswered' };
+    if (row.result === 'unsatisfactory') return { ...blank, choice: 'unsatisfactory', issue: row.issue_description ?? '', action: row.corrective_action ?? '' };
+
+    return { ...blank, choice: row.result === 'satisfactory' ? 'satisfactory' : 'unanswered' };
+  });
+}
+
+export function issuesFromDetail(saved: readonly FacilityUniformIssueDetail[]): UniformIssueFormState[] {
+  return saved.map((row) => ({
+    employeeId: String(row.employee_id),
+    issue: row.issue,
+    warningGiven: row.warning_given,
+    reasonNotWorn: row.reason_not_worn ?? '',
+    action: row.corrective_action ?? '',
+    followUpOn: row.follow_up_on ?? '',
+  }));
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A date taken from the address bar, or '' when it is missing or malformed (a bad link never half-applies a filter). */
+export function dateParam(value: string | null): string {
+  return value !== null && ISO_DATE.test(value) ? value : '';
+}
+
+/**
+ * The address a Facility Report figure drills down to. It carries the report's own period (and complaint type) so the list that opens shows
+ * exactly the records behind the number, not everything ever recorded.
+ */
+export function drillLink(path: string, params: Record<string, string | number | undefined | null>): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') query.set(key, String(value));
+  }
+  const text = query.toString();
+
+  return text === '' ? path : `${path}?${text}`;
 }
