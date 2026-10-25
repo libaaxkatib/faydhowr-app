@@ -5,6 +5,7 @@ namespace App\Http\Requests\Api\V1\Admin\Hr\Facility;
 use App\Enums\FacilityComplaintStatus;
 use App\Enums\FacilityComplaintType;
 use App\Enums\FacilitySatisfaction;
+use App\Support\Hr\Facility\FacilityCalendar;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -30,8 +31,10 @@ final class FacilityComplaintRules
             'complaints.*.reporter_phone' => ['nullable', 'string', 'max:40'],
             'complaints.*.responsible_person' => ['required', 'string', 'max:150'],
             'complaints.*.response' => ['nullable', 'string', 'max:5000'],
-            'complaints.*.reported_on' => ['nullable', 'date', 'before_or_equal:today'],
-            'complaints.*.responded_on' => ['nullable', 'date', 'before_or_equal:today'],
+            // Complaints entered INSIDE the inspection form default to the inspection date, so they follow the same Mogadishu "today" as the inspection
+            // (the Complaints screen's own requests are unchanged).
+            'complaints.*.reported_on' => ['nullable', 'date', 'before_or_equal:'.FacilityCalendar::today()->toDateString()],
+            'complaints.*.responded_on' => ['nullable', 'date', 'before_or_equal:'.FacilityCalendar::today()->toDateString()],
             'complaints.*.corrective_action' => ['nullable', 'string', 'max:2000'],
             'complaints.*.follow_up_on' => ['nullable', 'date'],
             'complaints.*.status' => ['sometimes', Rule::in(FacilityComplaintStatus::values())],

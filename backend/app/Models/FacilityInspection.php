@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable(['client_company_id', 'work_location_id', 'inspector_name', 'inspected_on', 'general_notes', 'next_follow_up_on', 'staff_complaints_reported', 'customer_complaints_reported', 'recorded_by', 'voided_at', 'voided_by', 'void_reason'])]
 class FacilityInspection extends Model
@@ -45,6 +46,12 @@ class FacilityInspection extends Model
     public function uniformIssues(): HasMany
     {
         return $this->hasMany(FacilityUniformIssue::class);
+    }
+
+    /** The Deep Cleaning completion this inspection recorded, if any (withdrawn ones included; use ->counted() to ignore those). */
+    public function deepCleaning(): HasOne
+    {
+        return $this->hasOne(FacilityDeepCleaning::class);
     }
 
     public function complaints(): HasMany

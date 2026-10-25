@@ -5,6 +5,9 @@ import type {
   FacilityComplaintRow,
   FacilityComplaintStatus,
   FacilityComplaintType,
+  FacilityDeepCleaningMeta,
+  FacilityDeepCleaningRow,
+  FacilityDeepCleaningState,
   FacilityDueState,
   FacilityInspectionDetail,
   FacilityInspectionRow,
@@ -23,6 +26,12 @@ export const facilityApi = {
   status: async (filters: { state?: FacilityDueState | ''; search?: string; category?: string; client_company_id?: number }) => {
     const { data, meta } = await apiRequestWithMeta<FacilityStatusRow[]>(`${base}/status`, { query: filters });
     return { rows: data, meta: meta as FacilityStatusMeta };
+  },
+
+  /** The monthly Deep Cleaning overview (hr.inspections.view). `month` is YYYY-MM; leave it out for the current month. */
+  deepCleaning: async (filters: { month?: string; state?: FacilityDeepCleaningState | ''; search?: string; category?: string; client_company_id?: number; include_inactive?: boolean }) => {
+    const { data, meta } = await apiRequestWithMeta<FacilityDeepCleaningRow[]>(`${base}/deep-cleaning`, { query: { ...filters, include_inactive: filters.include_inactive ? 1 : undefined } });
+    return { rows: data, meta: meta as FacilityDeepCleaningMeta };
   },
 
   inspections: {

@@ -2,9 +2,9 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Select } from '@/components/ui/Select';
-import { localToday } from '@/utils/hrHelpers';
 import {
   blankComplaint,
+  facilityToday,
   COMPLAINT_STATUS_LABELS,
   type ComplaintAnswer,
   type ComplaintFormState,
@@ -118,7 +118,7 @@ export function InspectionComplaintSection({ type, section, onChange, employees,
                   <input id={`${idBase}-${index}-responsible`} className={inputClasses} value={row.responsiblePerson} onChange={(e) => setRow(index, { responsiblePerson: e.target.value })} />
                 </FormField>
                 <FormField label="Date of the complaint" htmlFor={`${idBase}-${index}-date`}>
-                  <input id={`${idBase}-${index}-date`} type="date" max={localToday()} className={inputClasses} value={row.reportedOn} onChange={(e) => setRow(index, { reportedOn: e.target.value })} />
+                  <input id={`${idBase}-${index}-date`} type="date" max={facilityToday()} className={inputClasses} value={row.reportedOn} onChange={(e) => setRow(index, { reportedOn: e.target.value })} />
                 </FormField>
                 <FormField label="Status" htmlFor={`${idBase}-${index}-status`} hint="Answered means a reply was given; it is not the same as Resolved.">
                   <Select id={`${idBase}-${index}-status`} value={row.status} onChange={(e) => setRow(index, { status: e.target.value as FacilityComplaintStatus })} options={STATUS_OPTIONS} />

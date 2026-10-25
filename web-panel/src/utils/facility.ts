@@ -3,6 +3,10 @@
 // everything.
 
 import type {
+  DeepCleaningInput,
+  FacilityDeepCleaningDetail,
+  FacilityDeepCleaningRow,
+  FacilityDeepCleaningState,
   FacilityInspectionItemDetail,
   FacilityUniformIssueDetail,
   FacilityComplaintStatus,
@@ -352,4 +356,161 @@ export function drillLink(path: string, params: Record<string, string | number |
   const text = query.toString();
 
   return text === '' ? path : `${path}?${text}`;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Monthly Deep Cleaning. A routine inspection says nothing about it: the section only produces a payload when the user explicitly records,
+// corrects or withdraws a completion, so saving an ordinary inspection never marks (or unmarks) a Deep Cleaning.
+
+/** 'none' = this inspection records no Deep Cleaning (the starting point); 'completed' = the user states it was completed, on `completedOn`. */
+export interface DeepCleaningFormState {
+  choice: 'none' | 'completed';
+  completedOn: string;
+  notes: string;
+  /** Needed only when an already recorded completion is changed or withdrawn. */
+  changeReason: string;
+}
+
+export const DEEP_CLEANING_REASON_MIN = 5;
+
+export function blankDeepCleaning(): DeepCleaningFormState {
+  return { choice: 'none', completedOn: '', notes: '', changeReason: '' };
+}
+
+/** The form for a saved inspection: its counted completion, or the blank "none" when it has none (or the one it had was withdrawn). */
+export function deepCleaningFromDetail(saved: FacilityDeepCleaningDetail | null): DeepCleaningFormState {
+  return saved && !saved.withdrawn ? { choice: 'completed', completedOn: saved.completed_on, notes: saved.notes ?? '', changeReason: '' } : blankDeepCleaning();
+}
+
+function isCounted(saved: FacilityDeepCleaningDetail | null): saved is FacilityDeepCleaningDetail {
+  return saved !== null && !saved.withdrawn;
+}
+
+/** True when the form differs from what is saved in a way the server treats as a correction (needs a reason). */
+function changesSaved(form: DeepCleaningFormState, saved: FacilityDeepCleaningDetail | null): boolean {
+  if (saved === null) return false;
+  if (saved.withdrawn) return form.choice === 'completed';
+  if (form.choice === 'none') return true;
+
+  return form.completedOn !== saved.completed_on || form.notes.trim() !== (saved.notes ?? '').trim();
+}
+
+/** What is wrong with the section, in words. `today` is YYYY-MM-DD in the user's own time zone. */
+export function validateDeepCleaning(form: DeepCleaningFormState, saved: FacilityDeepCleaningDetail | null, today: string): string[] {
+  const problems: string[] = [];
+
+  if (form.choice === 'completed') {
+    if (form.completedOn === '') problems.push('Deep Cleaning: enter the date it was completed.');
+    else if (form.completedOn > today) problems.push('Deep Cleaning: the completion date cannot be in the future.');
+  }
+  if (changesSaved(form, saved) && form.changeReason.trim().length < DEEP_CLEANING_REASON_MIN) {
+    problems.push(
+      form.choice === 'none'
+        ? 'Deep Cleaning: say why the recorded completion is being withdrawn (at least 5 characters).'
+        : 'Deep Cleaning: say why the recorded completion is being changed (at least 5 characters).',
+    );
+  }
+
+  return problems;
+}
+
+/** The `deep_cleaning` object to send, or undefined when the inspection should say nothing about Deep Cleaning (and any saved record stays as it is). */
+export function deepCleaningPayload(form: DeepCleaningFormState, saved: FacilityDeepCleaningDetail | null): DeepCleaningInput | undefined {
+  const reason = form.changeReason.trim() === '' ? null : form.changeReason.trim();
+
+  if (form.choice === 'none') {
+    return isCounted(saved) ? { completed: false, change_reason: reason } : undefined;
+  }
+  if (isCounted(saved) && !changesSaved(form, saved)) return undefined;
+
+  return { completed: true, completed_on: form.completedOn, notes: form.notes.trim() === '' ? null : form.notes.trim(), change_reason: saved === null ? null : reason };
+}
+
+export function deepCleaningStateTone(state: FacilityDeepCleaningState): Tone {
+  switch (state) {
+    case 'completed':
+      return 'success';
+    case 'not_completed':
+      return 'warning';
+    case 'overdue_multiple':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
+}
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** '2026-10' -> 'October 2026'; anything else is returned unchanged. */
+export function monthLabel(month: string): string {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
+
+  return match ? `${MONTH_NAMES[Number(match[2]) - 1]} ${match[1]}` : month;
+}
+
+/** The sentence under a facility's status: how long it has gone without a recorded Deep Cleaning. Words, not colour, carry the meaning. */
+export function deepCleaningGapText(row: Pick<FacilityDeepCleaningRow, 'state' | 'months_without'>): string {
+  switch (row.state) {
+    case 'completed':
+      return 'Done this month';
+    case 'not_completed':
+      return 'Not done yet this month';
+    case 'overdue_multiple':
+      return `No Deep Cleaning for ${row.months_without} months in a row`;
+    default:
+      return 'Never recorded';
+  }
+}
+
+/** '2026-08' -> 'Aug' (for the six-month strip). */
+export function shortMonth(month: string): string {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
+
+  return match ? MONTH_NAMES[Number(match[2]) - 1].slice(0, 3) : month;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// The business calendar of Deep Cleaning: Africa/Mogadishu (UTC+3), the same zone the server uses (FacilityCalendar::TIMEZONE). The browser's own
+// timezone is never used for a Deep Cleaning date or month, so the form, the month picker and the server always agree on "today".
+
+export const FACILITY_TIME_ZONE = 'Africa/Mogadishu';
+
+function calendarParts(now: Date): { year: string; month: string; day: string } {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: FACILITY_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+  const pick = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
+
+  return { year: pick('year'), month: pick('month'), day: pick('day') };
+}
+
+/** Today's date in Mogadishu as YYYY-MM-DD, whatever timezone the browser is set to. */
+export function facilityToday(now: Date = new Date()): string {
+  const { year, month, day } = calendarParts(now);
+
+  return `${year}-${month}-${day}`;
+}
+
+/** The current month in Mogadishu as YYYY-MM. */
+export function facilityMonth(now: Date = new Date()): string {
+  return facilityToday(now).slice(0, 7);
+}
+
+/**
+ * A date-only value (YYYY-MM-DD) as text, on the SAME calendar day it was recorded. `new Date('2026-10-31')` is midnight UTC, so formatting it in a
+ * browser behind UTC would show 30 October; this reads the date as a calendar day and formats it without any zone shift. Anything that is not a
+ * plain date is returned unchanged. (The shared formatDate is deliberately left as it is; this is used on the Deep Cleaning screens only.)
+ */
+export function formatCalendarDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) return value;
+
+  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))));
+}
+
+/**
+ * The date an inspection form opens on: the saved inspection's own date when it is being edited, otherwise TODAY IN MOGADISHU (the same calendar
+ * the server validates against), never the browser's own local date.
+ */
+export function defaultInspectionDate(saved?: string | null, now: Date = new Date()): string {
+  return saved ?? facilityToday(now);
 }

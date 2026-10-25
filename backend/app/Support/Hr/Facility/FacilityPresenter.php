@@ -4,6 +4,7 @@ namespace App\Support\Hr\Facility;
 
 use App\Enums\FacilityItemKey;
 use App\Models\FacilityComplaint;
+use App\Models\FacilityDeepCleaning;
 use App\Models\FacilityInspection;
 
 /** Response shapes of the Facility Inspections API (kept in one place so list and detail agree). */
@@ -41,9 +42,16 @@ final class FacilityPresenter
             'created_at' => $i->created_at?->toIso8601String(),
         ];
 
+        // The Deep Cleaning this inspection recorded (null in the list unless one is counted). A routine inspection records none.
+        $i->loadMissing('deepCleaning');
+        $row['deep_cleaning_completed_on'] = $i->deepCleaning !== null && $i->deepCleaning->voided_at === null ? $i->deepCleaning->completed_on?->toDateString() : null;
+
         if (! $detail) {
             return $row;
         }
+
+        $i->loadMissing('deepCleaning.recordedBy:id,full_name', 'deepCleaning.changedBy:id,full_name');
+        $row['deep_cleaning'] = self::deepCleaning($i->deepCleaning);
 
         $row['items'] = collect(FacilityItemKey::cases())->map(function (FacilityItemKey $key) use ($items): array {
             $item = $items->first(fn ($x): bool => $x->item_key === $key);
@@ -74,6 +82,27 @@ final class FacilityPresenter
         $row['customer_complaint_count'] = collect($row['complaints'])->where('type', 'customer')->count();
 
         return $row;
+    }
+
+    /** @return array<string, mixed>|null */
+    public static function deepCleaning(?FacilityDeepCleaning $d): ?array
+    {
+        if ($d === null) {
+            return null;
+        }
+
+        return [
+            'id' => $d->id,
+            'completed_on' => $d->completed_on?->toDateString(),
+            'notes' => $d->notes,
+            'recorded_by' => $d->recordedBy?->full_name,
+            'recorded_at' => $d->created_at?->toIso8601String(),
+            'changed_by' => $d->changedBy?->full_name,
+            'change_reason' => $d->change_reason,
+            'withdrawn' => $d->voided_at !== null,
+            'withdrawn_at' => $d->voided_at?->toIso8601String(),
+            'withdrawn_reason' => $d->void_reason,
+        ];
     }
 
     /** @return array<string, mixed> */

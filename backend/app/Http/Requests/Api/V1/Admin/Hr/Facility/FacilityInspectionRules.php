@@ -4,6 +4,7 @@ namespace App\Http\Requests\Api\V1\Admin\Hr\Facility;
 
 use App\Enums\FacilityItemKey;
 use App\Enums\FacilityItemResult;
+use App\Support\Hr\Facility\FacilityCalendar;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Validation\Rule;
 
@@ -24,6 +25,24 @@ final class FacilityInspectionRules
             // An unsatisfactory item must say what is wrong and what will be done about it.
             'items.*.issue_description' => ['nullable', 'string', 'max:2000', 'required_if:items.*.result,unsatisfactory'],
             'items.*.corrective_action' => ['nullable', 'string', 'max:2000', 'required_if:items.*.result,unsatisfactory'],
+        ];
+    }
+
+    /**
+     * The Deep Cleaning section of the inspection form. The whole `deep_cleaning` key is optional: an inspection saved without it leaves any
+     * recorded completion exactly as it is. When it is sent, `completed` is explicit and a completion needs its own date (never in the future).
+     *
+     * @return array<string, mixed>
+     */
+    public static function deepCleaningRules(): array
+    {
+        return [
+            'deep_cleaning' => ['sometimes', 'nullable', 'array'],
+            'deep_cleaning.completed' => ['required_with:deep_cleaning', 'boolean'],
+            'deep_cleaning.completed_on' => ['nullable', 'date', 'required_if:deep_cleaning.completed,true', 'prohibited_if:deep_cleaning.completed,false', 'before_or_equal:'.FacilityCalendar::today()->toDateString(), 'after_or_equal:2020-01-01'],
+            'deep_cleaning.notes' => ['nullable', 'string', 'max:2000'],
+            // Needed (and checked by the action) only when an already recorded completion is corrected or withdrawn.
+            'deep_cleaning.change_reason' => ['nullable', 'string', 'max:500'],
         ];
     }
 

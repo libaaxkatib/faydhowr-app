@@ -38,7 +38,7 @@ class FacilityInspectionController extends Controller
         ]);
 
         $query = FacilityInspection::query()
-            ->with('clientCompany:id,name,category', 'workLocation:id,name', 'recordedBy:id,full_name', 'items:id,facility_inspection_id,result', 'uniformIssues:id,facility_inspection_id')
+            ->with('clientCompany:id,name,category', 'workLocation:id,name', 'recordedBy:id,full_name', 'items:id,facility_inspection_id,result', 'uniformIssues:id,facility_inspection_id', 'deepCleaning')
             ->withCount([
                 'complaints as staff_complaints_count' => fn ($c) => $c->counted()->where('type', 'staff'),
                 'complaints as customer_complaints_count' => fn ($c) => $c->counted()->where('type', 'customer'),
@@ -67,7 +67,7 @@ class FacilityInspectionController extends Controller
 
     public function show(FacilityInspection $facilityInspection): JsonResponse
     {
-        return ApiResponse::success('Facility inspection retrieved successfully.', FacilityPresenter::inspection($facilityInspection->load('items', 'uniformIssues.employee'), true));
+        return ApiResponse::success('Facility inspection retrieved successfully.', FacilityPresenter::inspection($facilityInspection->load('items', 'uniformIssues.employee', 'deepCleaning'), true));
     }
 
     public function store(StoreFacilityInspectionRequest $request, StoreFacilityInspectionAction $action): JsonResponse

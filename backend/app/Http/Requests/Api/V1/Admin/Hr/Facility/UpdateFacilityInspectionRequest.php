@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api\V1\Admin\Hr\Facility;
 
+use App\Support\Hr\Facility\FacilityCalendar;
 use Illuminate\Contracts\Validation\Validator;
 
 /** Editing an inspection: the company cannot be changed here. Anything not sent stays as it is. */
@@ -12,11 +13,12 @@ class UpdateFacilityInspectionRequest extends FacilityFormRequest
         return [
             'work_location_id' => ['sometimes', 'nullable', 'integer', 'exists:work_locations,id'],
             'inspector_name' => ['sometimes', 'required', 'string', 'max:150'],
-            'inspected_on' => ['sometimes', 'required', 'date', 'before_or_equal:today'],
+            'inspected_on' => ['sometimes', 'required', 'date', 'before_or_equal:'.FacilityCalendar::today()->toDateString()],
             'general_notes' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'next_follow_up_on' => ['sometimes', 'nullable', 'date'],
             ...FacilityInspectionRules::itemRules(false),
             ...FacilityInspectionRules::uniformRules(),
+            ...FacilityInspectionRules::deepCleaningRules(),
             // The inspector's answer to "was there a staff / customer complaint?". Complaints themselves are edited on the Complaints screen.
             'staff_complaints_reported' => ['sometimes', 'boolean'],
             'customer_complaints_reported' => ['sometimes', 'boolean'],

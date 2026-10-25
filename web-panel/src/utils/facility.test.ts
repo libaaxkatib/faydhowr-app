@@ -4,7 +4,20 @@ import assert from 'node:assert/strict';
 import {
   blankItems,
   blankUniformIssue,
+  blankDeepCleaning,
   COMPLAINT_TRANSITIONS,
+  deepCleaningFromDetail,
+  defaultInspectionDate,
+  facilityMonth,
+  facilityToday,
+  formatCalendarDate,
+  FACILITY_TIME_ZONE,
+  deepCleaningGapText,
+  deepCleaningPayload,
+  deepCleaningStateTone,
+  monthLabel,
+  shortMonth,
+  validateDeepCleaning,
   dueStateTone,
   dueText,
   FACILITY_ITEMS,
@@ -158,4 +171,138 @@ test('report drill-down links carry the report period and ignore empty or malfor
   assert.equal(dateParam(null), '');
   assert.equal(drillLink('/hr/facility-complaints', { company: 3, status: 'unresolved', from: '2026-04-23', to: '2026-10-21', type: '' }), '/hr/facility-complaints?company=3&status=unresolved&from=2026-04-23&to=2026-10-21');
   assert.equal(drillLink('/hr/facility-inspections', {}), '/hr/facility-inspections');
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Monthly Deep Cleaning: an ordinary inspection says nothing; only an explicit choice produces a payload.
+
+import type { FacilityDeepCleaningDetail } from '../types/facility.ts';
+
+const TODAY = '2026-10-21';
+const saved = (over: Partial<FacilityDeepCleaningDetail> = {}): FacilityDeepCleaningDetail => ({
+  id: 1,
+  completed_on: '2026-10-02',
+  notes: null,
+  recorded_by: 'Hodan',
+  recorded_at: '2026-10-10T08:00:00+00:00',
+  changed_by: null,
+  change_reason: null,
+  withdrawn: false,
+  withdrawn_at: null,
+  withdrawn_reason: null,
+  ...over,
+});
+
+test('an ordinary inspection sends no Deep Cleaning at all, new or edited', () => {
+  assert.equal(deepCleaningPayload(blankDeepCleaning(), null), undefined);
+  assert.equal(deepCleaningPayload(deepCleaningFromDetail(null), null), undefined);
+  assert.deepEqual(validateDeepCleaning(blankDeepCleaning(), null, TODAY), []);
+  // Editing an inspection that already has a completion, without touching the section, sends nothing either: the record stays as it is.
+  assert.equal(deepCleaningPayload(deepCleaningFromDetail(saved()), saved()), undefined);
+  assert.deepEqual(validateDeepCleaning(deepCleaningFromDetail(saved()), saved(), TODAY), []);
+});
+
+test('a completion needs its own date and never a future one', () => {
+  const form = { ...blankDeepCleaning(), choice: 'completed' as const };
+  assert.match(validateDeepCleaning(form, null, TODAY)[0], /enter the date/);
+  assert.match(validateDeepCleaning({ ...form, completedOn: '2026-10-22' }, null, TODAY)[0], /future/);
+  assert.deepEqual(validateDeepCleaning({ ...form, completedOn: TODAY }, null, TODAY), [], 'today is allowed');
+  assert.deepEqual(deepCleaningPayload({ ...form, completedOn: '2026-10-05', notes: '  whole site ' }, null), {
+    completed: true,
+    completed_on: '2026-10-05',
+    notes: 'whole site',
+    change_reason: null,
+  });
+});
+
+test('changing or withdrawing a recorded completion needs a reason, repeating it does not', () => {
+  const same = deepCleaningFromDetail(saved());
+  assert.equal(deepCleaningPayload(same, saved()), undefined);
+
+  const moved = { ...same, completedOn: '2026-10-04' };
+  assert.match(validateDeepCleaning(moved, saved(), TODAY)[0], /why the recorded completion is being changed/);
+  assert.deepEqual(validateDeepCleaning({ ...moved, changeReason: 'Entered the wrong day' }, saved(), TODAY), []);
+  assert.deepEqual(deepCleaningPayload({ ...moved, changeReason: ' Entered the wrong day ' }, saved()), {
+    completed: true,
+    completed_on: '2026-10-04',
+    notes: null,
+    change_reason: 'Entered the wrong day',
+  });
+
+  const withdrawn = { ...same, choice: 'none' as const };
+  assert.match(validateDeepCleaning(withdrawn, saved(), TODAY)[0], /withdrawn/);
+  assert.deepEqual(deepCleaningPayload({ ...withdrawn, changeReason: 'Wrong company' }, saved()), { completed: false, change_reason: 'Wrong company' });
+  assert.match(validateDeepCleaning({ ...withdrawn, changeReason: 'no' }, saved(), TODAY)[0], /at least 5/);
+});
+
+test('a withdrawn completion starts as "not recorded" and recording it again needs a reason', () => {
+  const gone = saved({ withdrawn: true, withdrawn_reason: 'Wrong company' });
+  const form = deepCleaningFromDetail(gone);
+  assert.equal(form.choice, 'none');
+  assert.equal(deepCleaningPayload(form, gone), undefined, 'saving without touching it changes nothing');
+  const again = { ...form, choice: 'completed' as const, completedOn: '2026-10-02' };
+  assert.match(validateDeepCleaning(again, gone, TODAY)[0], /being changed/);
+  assert.equal(deepCleaningPayload({ ...again, changeReason: 'It was right after all' }, gone)?.change_reason, 'It was right after all');
+});
+
+test('the four monthly states read as words, with distinct tones', () => {
+  assert.equal(monthLabel('2026-10'), 'October 2026');
+  assert.equal(monthLabel('nonsense'), 'nonsense');
+  assert.equal(shortMonth('2026-02'), 'Feb');
+  assert.equal(deepCleaningGapText({ state: 'completed', months_without: 0 }), 'Done this month');
+  assert.equal(deepCleaningGapText({ state: 'not_completed', months_without: 1 }), 'Not done yet this month');
+  assert.equal(deepCleaningGapText({ state: 'overdue_multiple', months_without: 3 }), 'No Deep Cleaning for 3 months in a row');
+  assert.equal(deepCleaningGapText({ state: 'no_history', months_without: 0 }), 'Never recorded');
+  const tones = (['completed', 'not_completed', 'overdue_multiple', 'no_history'] as const).map(deepCleaningStateTone);
+  assert.deepEqual(tones, ['success', 'warning', 'danger', 'neutral']);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// The Mogadishu calendar: explicit zone, never the browser's. Instants are frozen UTC; the results must not depend on the machine running them.
+
+test('the facility calendar is Mogadishu and reads the date of an instant in that zone', () => {
+  assert.equal(FACILITY_TIME_ZONE, 'Africa/Mogadishu');
+  const at = (iso: string) => new Date(iso);
+
+  assert.equal(facilityToday(at('2026-10-31T20:59:59Z')), '2026-10-31', 'still 31 October in Mogadishu (23:59:59)');
+  assert.equal(facilityToday(at('2026-10-31T21:00:00Z')), '2026-11-01', 'midnight: 1 November in Mogadishu');
+  assert.equal(facilityToday(at('2026-11-01T00:00:00Z')), '2026-11-01', '03:00 on 1 November');
+  assert.equal(facilityMonth(at('2026-10-31T20:59:59Z')), '2026-10');
+  assert.equal(facilityMonth(at('2026-10-31T21:00:00Z')), '2026-11');
+  assert.equal(facilityMonth(at('2026-11-01T00:00:00Z')), '2026-11');
+});
+
+test('year and leap-year February boundaries follow Mogadishu midnight', () => {
+  const at = (iso: string) => new Date(iso);
+
+  assert.equal(facilityMonth(at('2026-12-31T20:59:59Z')), '2026-12');
+  assert.equal(facilityMonth(at('2026-12-31T21:00:00Z')), '2027-01');
+  assert.equal(facilityToday(at('2026-12-31T21:00:00Z')), '2027-01-01');
+  assert.equal(facilityToday(at('2028-02-29T20:59:59Z')), '2028-02-29', 'leap day is a real day');
+  assert.equal(facilityToday(at('2028-02-29T21:00:00Z')), '2028-03-01');
+  assert.equal(facilityToday(at('2027-02-28T21:00:00Z')), '2027-03-01', 'a non-leap February ends on the 28th');
+  assert.equal(facilityMonth(at('2027-02-28T20:59:59Z')), '2027-02');
+});
+
+test('a date-only value is shown on the day it was recorded, in any browser timezone', () => {
+  assert.equal(formatCalendarDate('2026-10-31'), 'Oct 31, 2026');
+  assert.equal(formatCalendarDate('2026-11-01'), 'Nov 1, 2026');
+  assert.equal(formatCalendarDate('2028-02-29'), 'Feb 29, 2028');
+  assert.equal(formatCalendarDate('2026-12-31'), 'Dec 31, 2026');
+  assert.equal(formatCalendarDate('2027-01-01'), 'Jan 1, 2027');
+  assert.equal(formatCalendarDate('2026-10-31T00:00:00.000000Z'), 'Oct 31, 2026', 'a serialised date keeps its day');
+  assert.equal(formatCalendarDate(null), '—');
+  assert.equal(formatCalendarDate('not a date'), 'not a date');
+});
+
+test('an inspection form opens on today in Mogadishu, or on the saved inspection\'s own date', () => {
+  const at = (iso: string) => new Date(iso);
+
+  assert.equal(defaultInspectionDate(undefined, at('2026-10-31T20:59:59Z')), '2026-10-31', 'still 31 October in Mogadishu');
+  assert.equal(defaultInspectionDate(undefined, at('2026-10-31T21:00:00Z')), '2026-11-01', 'midnight in Mogadishu: 1 November, whatever the browser says');
+  assert.equal(defaultInspectionDate(null, at('2026-11-01T00:00:00Z')), '2026-11-01');
+  assert.equal(defaultInspectionDate(undefined, at('2026-12-31T21:00:00Z')), '2027-01-01', 'year boundary');
+  assert.equal(defaultInspectionDate(undefined, at('2028-02-29T21:00:00Z')), '2028-03-01', 'leap-year February ends at 21:00 UTC');
+  assert.equal(defaultInspectionDate('2026-09-30', at('2026-10-31T21:00:00Z')), '2026-09-30', 'editing keeps the recorded date');
+  assert.equal(defaultInspectionDate(undefined, at('2026-10-31T21:00:00Z')), facilityToday(at('2026-10-31T21:00:00Z')), 'the same calendar as the Deep Cleaning date');
 });

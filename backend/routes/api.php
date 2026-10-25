@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeStatusController as AdminEmploy
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeUniformController as AdminEmployeeUniformController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeWorkAssignmentController as AdminEmployeeWorkAssignmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\FacilityComplaintController as AdminFacilityComplaintController;
+use App\Http\Controllers\Api\V1\Admin\Hr\FacilityDeepCleaningController as AdminFacilityDeepCleaningController;
 use App\Http\Controllers\Api\V1\Admin\Hr\FacilityInspectionController as AdminFacilityInspectionController;
 use App\Http\Controllers\Api\V1\Admin\Hr\FacilityReportController as AdminFacilityReportController;
 use App\Http\Controllers\Api\V1\Admin\Hr\HrDashboardController as AdminHrDashboardController;
@@ -1562,6 +1563,8 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.view', 'throt
 Route::middleware(['auth:sanctum', 'admin', 'permission:hr.inspections.view', 'throttle:admin-operations'])->group(function (): void {
     Route::get('v1/admin/hr/facility-inspections/status', [AdminFacilityInspectionController::class, 'status'])
         ->name('api.v1.admin.hr.facility-inspections.status');
+    Route::get('v1/admin/hr/facility-inspections/deep-cleaning', [AdminFacilityDeepCleaningController::class, 'index'])
+        ->name('api.v1.admin.hr.facility-inspections.deep-cleaning');
     Route::get('v1/admin/hr/facility-inspections', [AdminFacilityInspectionController::class, 'index'])
         ->name('api.v1.admin.hr.facility-inspections.index');
     Route::get('v1/admin/hr/facility-inspections/{facilityInspection}', [AdminFacilityInspectionController::class, 'show'])

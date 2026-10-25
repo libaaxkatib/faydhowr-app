@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
  */
 class UpdateFacilityInspectionAction
 {
-    public function __construct(private readonly FacilityInspectionWriter $writer) {}
+    public function __construct(private readonly FacilityInspectionWriter $writer, private readonly RecordFacilityDeepCleaningAction $deepCleaning) {}
 
     /** @param  array<string, mixed>  $data  validated by UpdateFacilityInspectionRequest */
     public function handle(FacilityInspection $inspection, array $data, Admin $actor): FacilityInspection
@@ -52,6 +52,11 @@ class UpdateFacilityInspectionAction
                 );
             }
 
+            // The Deep Cleaning is touched only when the form sends its section; an ordinary correction of the checklist leaves it (and its history) as it is.
+            if (! empty($data['deep_cleaning'])) {
+                $this->deepCleaning->handle($inspection, $data['deep_cleaning'], $actor);
+            }
+
             $inspection->refresh();
             event(AuditEvent::record(
                 action: AuditAction::Update,
@@ -62,7 +67,7 @@ class UpdateFacilityInspectionAction
                 metadata: ['before' => $before, 'after' => $this->writer->summary($inspection)],
             ));
 
-            return $inspection->load('items', 'uniformIssues.employee', 'clientCompany', 'workLocation');
+            return $inspection->load('items', 'uniformIssues.employee', 'clientCompany', 'workLocation', 'deepCleaning');
         });
     }
 }

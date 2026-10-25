@@ -54,6 +54,8 @@ export interface FacilityInspectionRow {
   voided_at: string | null;
   void_reason: string | null;
   created_at: string | null;
+  /** The completion date this inspection recorded for Deep Cleaning, or null when it recorded none (or it was withdrawn). */
+  deep_cleaning_completed_on: string | null;
 }
 
 export interface FacilityInspectionItemDetail {
@@ -81,6 +83,7 @@ export interface FacilityInspectionDetail extends FacilityInspectionRow {
   items: FacilityInspectionItemDetail[];
   uniform_issues: FacilityUniformIssueDetail[];
   complaints: FacilityComplaintRow[];
+  deep_cleaning: FacilityDeepCleaningDetail | null;
 }
 
 export interface FacilityInspectionItemInput {
@@ -112,6 +115,8 @@ export interface StoreFacilityInspectionPayload {
   staff_complaints_reported: boolean;
   customer_complaints_reported: boolean;
   complaints: InspectionComplaintInput[];
+  /** Omitted = the inspection says nothing about Deep Cleaning (and an existing record is left untouched). */
+  deep_cleaning?: DeepCleaningInput;
 }
 
 /** A complaint entered inside the inspection form (the server runs it through the same rules as the Complaints screen). */
@@ -243,4 +248,58 @@ export interface CompanyEmployeeOption {
   id: number;
   employee_number: string;
   full_name: string;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Monthly Deep Cleaning (inside Facility Inspections). See FacilityDeepCleaningBuilder / RecordFacilityDeepCleaningAction on the server.
+
+/** completed: done in the month. not_completed: not yet this month (last one the month before). overdue_multiple: several consecutive months
+ *  without one. no_history: none ever recorded. A recorded completion is the only evidence; a missing record is never read as "done". */
+export type FacilityDeepCleaningState = 'completed' | 'not_completed' | 'overdue_multiple' | 'no_history';
+
+export interface FacilityDeepCleaningRow {
+  client_company_id: number;
+  company: string;
+  category: 'company' | 'guri';
+  facility_status: 'active' | 'inactive';
+  state: FacilityDeepCleaningState;
+  state_label: string;
+  /** Consecutive calendar months, the selected one included, with no completion (0 when completed or when there is no history). */
+  months_without: number;
+  completed_in_month_on: string | null;
+  last_completed_on: string | null;
+  history: { month: string; completed: boolean; completed_on: string | null }[];
+}
+
+export interface FacilityDeepCleaningMeta {
+  counts: Record<FacilityDeepCleaningState | 'total', number>;
+  month: { value: string; from: string; to: string; is_current: boolean };
+  current_month: string;
+  /** The calendar the server reads every month and date in (Africa/Mogadishu), and today's date in it. */
+  time_zone: string;
+  today: string;
+  inactive_hidden: number;
+  overdue_after_months: number;
+  basis: string;
+}
+
+/** What a saved inspection says about its Deep Cleaning. `withdrawn` rows are kept as history but no longer count. */
+export interface FacilityDeepCleaningDetail {
+  id: number;
+  completed_on: string;
+  notes: string | null;
+  recorded_by: string | null;
+  recorded_at: string | null;
+  changed_by: string | null;
+  change_reason: string | null;
+  withdrawn: boolean;
+  withdrawn_at: string | null;
+  withdrawn_reason: string | null;
+}
+
+export interface DeepCleaningInput {
+  completed: boolean;
+  completed_on?: string | null;
+  notes?: string | null;
+  change_reason?: string | null;
 }

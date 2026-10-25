@@ -13,6 +13,8 @@ import { Icon } from '@/components/ui/Icon';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { Modal, ModalCancelButton } from '@/components/ui/Modal';
 import { InspectionComplaintSection } from '@/features/hrm/InspectionComplaintSection';
+import { DeepCleaningOverview } from '@/features/hrm/DeepCleaningOverview';
+import { InspectionDeepCleaningSection } from '@/features/hrm/InspectionDeepCleaningSection';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
 import { Select } from '@/components/ui/Select';
@@ -21,12 +23,20 @@ import { useToast } from '@/components/ui/useToast';
 import { useAuth } from '@/features/auth/useAuth';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatDate } from '@/utils/formatters';
-import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
+import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import { isDirty } from '@/utils/unsavedChanges';
 import { pageFromParam, withParam } from '@/utils/urlFilters';
 import {
+  blankDeepCleaning,
   blankItems,
   blankUniformIssue,
+  deepCleaningFromDetail,
+  deepCleaningPayload,
+  defaultInspectionDate,
+  facilityToday,
+  formatCalendarDate,
+  validateDeepCleaning,
+  type DeepCleaningFormState,
   complaintAnswerText,
   dateParam,
   issuesFromDetail,
@@ -214,6 +224,8 @@ export function FacilityInspectionsPage() {
         )}
       </Card>
 
+      <DeepCleaningOverview canManage={canManage} onRecord={(companyId) => setRecording({ companyId })} />
+
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-base font-bold text-ink">Inspection history{companyName ? ` - ${companyName}` : ''}</h2>
         {(from || to) && <span className="rounded-full bg-surface-alt px-3 py-1 text-xs text-ink-muted" data-testid="period-filter">Inspected {from ? formatDate(from) : 'from the start'} to {to ? formatDate(to) : 'today'}</span>}
@@ -330,7 +342,7 @@ function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initial
   const { show } = useToast();
   const { admin } = useAuth();
   const [companyId, setCompanyId] = useState(initialCompanyId === null ? '' : String(initialCompanyId));
-  const [inspectedOn, setInspectedOn] = useState(editing?.inspected_on ?? localToday());
+  const [inspectedOn, setInspectedOn] = useState(defaultInspectionDate(editing?.inspected_on));
   const [inspector, setInspector] = useState(editing?.inspector_name ?? admin?.full_name ?? '');
   const [notes, setNotes] = useState(editing?.general_notes ?? '');
   const [followUp, setFollowUp] = useState(editing?.next_follow_up_on ?? '');
@@ -338,9 +350,10 @@ function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initial
   const [issues, setIssues] = useState<UniformIssueFormState[]>(editing ? issuesFromDetail(editing.uniform_issues) : []);
   const [staff, setStaff] = useState<ComplaintSection>({ answer: 'unanswered', rows: [] });
   const [customer, setCustomer] = useState<ComplaintSection>({ answer: 'unanswered', rows: [] });
+  const [deepCleaning, setDeepCleaning] = useState<DeepCleaningFormState>(editing ? deepCleaningFromDetail(editing.deep_cleaning) : blankDeepCleaning());
   const [showErrors, setShowErrors] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-  const snapshot = () => ({ companyId, inspectedOn, inspector, notes, followUp, items, issues, staff, customer });
+  const snapshot = () => ({ companyId, inspectedOn, inspector, notes, followUp, items, issues, staff, customer, deepCleaning });
   const initial = useRef(snapshot());
   const dirty = isDirty(initial.current, snapshot());
 
@@ -367,7 +380,11 @@ function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initial
   if (inspector.trim() === '') headerProblems.push('Enter the inspector name.');
   if (inspectedOn === '') headerProblems.push('Enter the inspection date.');
   if (followUp !== '' && inspectedOn !== '' && followUp < inspectedOn) headerProblems.push('The follow-up date cannot be before the inspection date.');
-  const valid = headerProblems.length === 0 && Object.keys(itemProblems).length === 0 && Object.keys(issueProblems).length === 0 && Object.keys(staffProblems).length === 0 && Object.keys(customerProblems).length === 0;
+  const deepCleaningProblems = validateDeepCleaning(deepCleaning, editing?.deep_cleaning ?? null, facilityToday());
+  const valid = headerProblems.length === 0 && deepCleaningProblems.length === 0 && Object.keys(itemProblems).length === 0 && Object.keys(issueProblems).length === 0 && Object.keys(staffProblems).length === 0 && Object.keys(customerProblems).length === 0;
+
+  // The Deep Cleaning section is sent only when the user recorded, changed or withdrew something; otherwise the inspection says nothing about it.
+  const deepCleaningInput = deepCleaningPayload(deepCleaning, editing?.deep_cleaning ?? null);
 
   const save = useMutation({
     mutationFn: () =>
@@ -379,6 +396,7 @@ function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initial
             next_follow_up_on: followUp === '' ? null : followUp,
             items: itemsPayload(items),
             uniform_issues: uniformPayload(issues),
+            ...(deepCleaningInput ? { deep_cleaning: deepCleaningInput } : {}),
           })
         : facilityApi.inspections.create({
         client_company_id: Number(companyId),
@@ -389,9 +407,11 @@ function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initial
         items: itemsPayload(items),
         uniform_issues: uniformPayload(issues),
         ...complaintsRequest(staff, customer),
+        ...(deepCleaningInput ? { deep_cleaning: deepCleaningInput } : {}),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['facility-inspection'] });
+      queryClient.invalidateQueries({ queryKey: ['facility-deep-cleaning'] });
       queryClient.invalidateQueries({ queryKey: ['facility-status'] });
       queryClient.invalidateQueries({ queryKey: ['facility-inspections'] });
       queryClient.invalidateQueries({ queryKey: ['facility-report'] });
@@ -442,7 +462,7 @@ function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initial
             />
           </FormField>
           <FormField label="Inspection date" htmlFor="insp-date" required>
-            <input id="insp-date" type="date" max={localToday()} className={inputClasses} value={inspectedOn} onChange={(e) => setInspectedOn(e.target.value)} />
+            <input id="insp-date" type="date" max={facilityToday()} className={inputClasses} value={inspectedOn} onChange={(e) => setInspectedOn(e.target.value)} />
           </FormField>
           <FormField label="Inspector" htmlFor="insp-inspector" required>
             <input id="insp-inspector" className={inputClasses} value={inspector} onChange={(e) => setInspector(e.target.value)} />
@@ -542,6 +562,8 @@ function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initial
           </>
         )}
 
+        <InspectionDeepCleaningSection form={deepCleaning} onChange={setDeepCleaning} saved={editing?.deep_cleaning ?? null} problems={deepCleaningProblems} showErrors={showErrors} />
+
         <FormField label="Notes" htmlFor="insp-notes">
           <textarea id="insp-notes" rows={3} className={`${inputClasses} h-auto py-2`} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </FormField>
@@ -563,6 +585,7 @@ function InspectionDetailModal({ id, canManage, onClose, onEdit }: { id: number;
     mutationFn: () => facilityApi.inspections.void(id, reason.trim()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['facility-status'] });
+      queryClient.invalidateQueries({ queryKey: ['facility-deep-cleaning'] });
       queryClient.invalidateQueries({ queryKey: ['facility-inspections'] });
       queryClient.invalidateQueries({ queryKey: ['facility-inspection', id] });
       queryClient.invalidateQueries({ queryKey: ['facility-report'] });
@@ -630,6 +653,21 @@ function InspectionDetailModal({ id, canManage, onClose, onEdit }: { id: number;
                 )}
               </div>
             ))}
+          </div>
+          <div data-testid="deep-cleaning-detail">
+            <h3 className="mb-1.5 font-display text-sm font-bold text-ink">Deep Cleaning</h3>
+            {data.deep_cleaning === null ? (
+              <p className="text-xs text-ink-muted">Not recorded in this inspection.</p>
+            ) : data.deep_cleaning.withdrawn ? (
+              <p className="text-xs text-ink-muted">Recorded for {formatCalendarDate(data.deep_cleaning.completed_on)}, then withdrawn{data.deep_cleaning.withdrawn_reason ? `: ${data.deep_cleaning.withdrawn_reason}` : ''}. Kept on record, not counted.</p>
+            ) : (
+              <p className="text-xs text-ink-muted">
+                Completed on {formatCalendarDate(data.deep_cleaning.completed_on)}
+                {data.deep_cleaning.recorded_by ? ` · recorded by ${data.deep_cleaning.recorded_by}` : ''}
+                {data.deep_cleaning.notes ? ` · ${data.deep_cleaning.notes}` : ''}
+                {data.deep_cleaning.changed_by ? ` · changed by ${data.deep_cleaning.changed_by}${data.deep_cleaning.change_reason ? ` (${data.deep_cleaning.change_reason})` : ''}` : ''}
+              </p>
+            )}
           </div>
           {data.uniform_issues.length > 0 && (
             <div>
