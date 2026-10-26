@@ -233,6 +233,7 @@ class AbsenceDeductionApprovedRuleTest extends TestCase
         $this->absent($employee, '2026-09-08', '2026-09-15');
         $this->withToken($token)->patchJson("/api/v1/admin/hr/employees/{$employee->id}/separate", [
             'reason' => 'resigned', 'separation_date' => '2026-09-10', 'rehire_eligible' => true,
+            'successors' => $this->successorsFor($employee),
         ])->assertOk();
 
         // Final pay = 10 calendar days = 100.00; only the 09-08 absence falls inside them.
@@ -256,6 +257,7 @@ class AbsenceDeductionApprovedRuleTest extends TestCase
         $this->approvedCover($assignment, [4, 5]);
         $this->withToken($token)->patchJson("/api/v1/admin/hr/employees/{$employee->id}/separate", [
             'reason' => 'resigned', 'separation_date' => '2026-09-10', 'rehire_eligible' => true,
+            'successors' => $this->successorsFor($employee),
         ])->assertOk();
 
         $runId = $this->generate($token)->assertCreated()->json('data.id');

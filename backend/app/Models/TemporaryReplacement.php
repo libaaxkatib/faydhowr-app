@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'replacement_employee_id',
     'start_date',
     'end_date',
+    'planned_end_date',
     'daily_rate',
     'currency',
     'reason',
@@ -32,6 +33,7 @@ class TemporaryReplacement extends Model
         return [
             'start_date' => 'date',
             'end_date' => 'date',
+            'planned_end_date' => 'date',
             'daily_rate' => 'decimal:2',
             'status' => TemporaryReplacementStatus::class,
             'approved_at' => 'datetime',
@@ -41,6 +43,23 @@ class TemporaryReplacement extends Model
     public function workAssignment(): BelongsTo
     {
         return $this->belongsTo(EmployeeWorkAssignment::class);
+    }
+
+    /**
+     * Ends the cover on a last day. When the cover had a planned end date and is ended EARLIER, the plan is kept in planned_end_date (once) so
+     * the history shows both the plan and what actually happened; end_date is always the last day that counts (docs/HR_PAYROLL_RULES.md N10).
+     */
+    public function endOn(string $lastDay, ?string $notes = null): void
+    {
+        $plannedBefore = $this->planned_end_date?->toDateString();
+        $previousEnd = $this->end_date?->toDateString();
+
+        $this->update([
+            'end_date' => $lastDay,
+            'status' => TemporaryReplacementStatus::Ended,
+            'planned_end_date' => $plannedBefore ?? ($previousEnd !== null && $previousEnd > $lastDay ? $previousEnd : null),
+            'notes' => $notes ?? $this->notes,
+        ]);
     }
 
     public function replacementEmployee(): BelongsTo

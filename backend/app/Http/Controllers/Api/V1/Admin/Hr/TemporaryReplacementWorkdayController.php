@@ -15,6 +15,8 @@ use App\Models\TemporaryReplacementWorkday;
 use App\Support\ApiResponse;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\Payroll\ReplacementCostService;
+use App\Support\Hr\Payroll\TemporaryExpectedPayment;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -58,6 +60,26 @@ class TemporaryReplacementWorkdayController extends Controller
     public function approve(TemporaryReplacement $temporaryReplacement, ApproveTemporaryReplacementAction $action, Request $request): JsonResponse
     {
         return ApiResponse::success('Temporary replacement approved.', new TemporaryReplacementResource($action->handle($temporaryReplacement, $request->user())));
+    }
+
+    /**
+     * The payment EXPECTED for a Temporary cover (docs/HR_PAYROLL_RULES.md N5, N9-N11): every calendar day the cover existed up to `through`
+     * (default today, never later), the covered Permanent's salary in effect on each day, minus what was already paid. Read-only; it reveals
+     * the covered employee's salary, so it needs payroll visibility like the cost preview.
+     */
+    public function expectedPayment(Request $request, TemporaryReplacement $temporaryReplacement, TemporaryExpectedPayment $calculator): JsonResponse
+    {
+        $data = $request->validate(['through' => ['nullable', 'date']]);
+        $result = $calculator->forReplacement($temporaryReplacement, isset($data['through']) ? CarbonImmutable::parse($data['through']) : null);
+
+        $paidCents = PayrollMoney::toCents((string) $temporaryReplacement->payments()->sum('amount'));
+        $balanceCents = max(0, $result['expected_cents'] - $paidCents);
+
+        return ApiResponse::success('Expected payment calculated.', $result + [
+            'paid_so_far' => PayrollMoney::format($paidCents),
+            'balance_cents' => $balanceCents,
+            'balance' => PayrollMoney::format($balanceCents),
+        ]);
     }
 
     /**

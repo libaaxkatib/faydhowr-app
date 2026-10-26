@@ -6,11 +6,13 @@ use App\Actions\Hr\EndWorkAssignmentAction;
 use App\Enums\AuditAction;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
+use App\Models\AssignmentSuccession;
 use App\Models\ClientCompany;
 use App\Models\EmployeeWorkAssignment;
 use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\CompanyEmployees\CompanyAssignmentGuard;
 use App\Support\Hr\Payroll\ClosedPayrollCorrection;
+use App\Support\Hr\PermanentSuccession;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -40,14 +42,23 @@ class StopCompanyAssignmentAction
 
         $assignment->loadMissing('employee');
 
-        return $this->corrections->run($actor, 'stopped', AssignmentChain::employeeIds($assignment), $lastDay->addDay()->toDateString(), $data['correction_reason'] ?? null, [
+        // N1: validated before anything is written; the chosen replacement's pay is part of the change for the closed-payroll check.
+        $plan = PermanentSuccession::demand($assignment, $data['successor'] ?? null, $lastDay);
+
+        return $this->corrections->run($actor, 'stopped', [...AssignmentChain::employeeIds($assignment), ...($plan === null ? [] : [$plan['employee']->id])], $lastDay->addDay()->toDateString(), $data['correction_reason'] ?? null, [
             'assignment_id' => $assignment->id,
             'old' => ['end_date' => $assignment->end_date?->toDateString(), 'status' => $assignment->status->value],
             'new' => ['end_date' => $lastDay->toDateString(), 'status' => 'ended'],
         ], fn (): EmployeeWorkAssignment => DB::transaction(function () use ($company, $assignment, $data, $actor, $lastDay): EmployeeWorkAssignment {
             $reason = trim($data['reason']);
 
-            $this->end->handle($assignment, ['end_date' => $lastDay->toDateString(), 'note' => "Stopped: {$reason}"], $actor);
+            // A Permanent position needs its replacement choice (docs/HR_PAYROLL_RULES.md N1); it is validated and completed inside End.
+            $this->end->handle($assignment, [
+                'end_date' => $lastDay->toDateString(),
+                'note' => "Stopped: {$reason}",
+                'successor' => $data['successor'] ?? null,
+                'succession_trigger' => AssignmentSuccession::TRIGGER_STOP,
+            ], $actor);
 
             event(AuditEvent::record(
                 action: AuditAction::Update,

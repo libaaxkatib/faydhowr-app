@@ -149,6 +149,7 @@ class PayrollSummaryReconciliationTest extends TestCase
         [$employee, $assignment] = $this->staff(300);
         $this->withToken($token)->patchJson("/api/v1/admin/hr/employees/{$employee->id}/separate", [
             'reason' => 'resigned', 'separation_date' => '2026-09-10', 'rehire_eligible' => true,
+            'successors' => $this->successorsFor($employee),
         ])->assertOk();
 
         $data = $this->summary($token, $employee, $assignment->fresh())->assertOk()->json('data');
@@ -156,7 +157,9 @@ class PayrollSummaryReconciliationTest extends TestCase
         $this->assertSame('2026-09-10', $data['final_pay']['last_paid_day']);
 
         $run = $this->generate($token)->assertCreated();
-        $this->assertSame($data['net_payable'], $run->json('data.totals.net'));
+        // The leaver's summary equals the leaver's own line in the run (the replacement chosen at the separation has a line of its own).
+        $line = collect($this->withToken($token)->getJson('/api/v1/admin/hr/payroll-runs/'.$run->json('data.id'))->json('data.items'))->firstWhere('employee_id', $employee->id);
+        $this->assertSame($data['net_payable'], $line['net']);
     }
 
     public function test_replacement_cost_and_approved_unpaid_leave_are_in_the_summary(): void
@@ -332,8 +335,12 @@ class PayrollSummaryReconciliationTest extends TestCase
         [$employee] = $this->staff(300);
         $this->withToken($token)->patchJson("/api/v1/admin/hr/employees/{$employee->id}/separate", [
             'reason' => 'resigned', 'separation_date' => '2026-09-10', 'rehire_eligible' => true,
+            'successors' => $this->successorsFor($employee),
         ])->assertOk();
 
-        $this->rollup($token)->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.net_payable', '100.00');
+        // The leaver's final pay stays in the roll-up; the replacement chosen at the separation has a line of its own from 2026-09-11.
+        $rows = collect($this->rollup($token)->assertOk()->json('data'));
+        $this->assertCount(2, $rows);
+        $this->assertSame('100.00', $rows->firstWhere('employee_id', $employee->id)['net_payable']);
     }
 }

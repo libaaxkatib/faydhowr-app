@@ -400,14 +400,14 @@ class CompanyEmployeeManagementTest extends TestCase
         $this->as($hr)->putJson($this->url($this->company)."/{$a->id}", ['start_date' => '2026-08-20'])->assertOk();
 
         // Stopping or replacing inside September would change what September paid: not for an HR editor.
-        $this->as($hr)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-09-10', 'reason' => 'left early'])->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        $this->as($hr)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-09-10', 'reason' => 'left early', 'successor' => $this->waitingSuccessor()])->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
         $this->as($hr)->postJson($this->url($this->company)."/{$a->id}/replace", [
             'replacement_employee_id' => $spare->id, 'replacement_date' => '2026-09-11', 'assignment_type' => 'permanent',
             'salary_amount' => 200, 'salary_currency' => 'USD', 'salary_frequency' => 'monthly',
         ])->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
 
         // A Super Admin must give a reason, and without it nothing happens.
-        $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-09-10', 'reason' => 'left early'])->assertUnprocessable()->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');
+        $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-09-10', 'reason' => 'left early', 'successor' => $this->waitingSuccessor()])->assertUnprocessable()->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');
 
         $fresh = $a->fresh();
         $this->assertSame('2026-08-20', $fresh->start_date->toDateString());
@@ -417,7 +417,7 @@ class CompanyEmployeeManagementTest extends TestCase
         $this->assertSame(0, PayrollCorrection::query()->count());
 
         // Months that the change does not reach stay open to everyone.
-        $this->as($hr)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-10-10', 'reason' => 'left'])->assertOk();
+        $this->as($hr)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-10-10', 'reason' => 'left', 'successor' => $this->waitingSuccessor()])->assertOk();
     }
 
     // ------------------------------------------------------------------ replace
@@ -567,7 +567,7 @@ class CompanyEmployeeManagementTest extends TestCase
         $employee = $this->makeEmployee();
         $a = $this->place($employee, $this->company, 300, '2026-01-01');
 
-        $response = $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-10-12', 'reason' => 'Contract with the client ended'])->assertOk();
+        $response = $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-10-12', 'reason' => 'Contract with the client ended', 'successor' => $this->waitingSuccessor()])->assertOk();
 
         $this->assertSame('active', $response->json('data.employee_status'));
         $this->assertSame('active', $employee->fresh()->status->value, 'the HR employment status is not changed');
@@ -600,7 +600,7 @@ class CompanyEmployeeManagementTest extends TestCase
         $replacementId = $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/replace", $this->replaceBody($this->makeEmployee(), ['assignment_type' => 'replacement', 'replacement_date' => '2026-10-01']))->assertOk()->json('data.replacement.id');
         $this->as($this->admin)->postJson($this->url($this->company)."/{$replacementId}/return", $this->returnBody('2026-10-20'))->assertOk();
         $other = $this->place($this->makeEmployee(), $this->other);
-        $this->as($this->admin)->postJson($this->url($this->other)."/{$other->id}/stop", ['end_date' => '2026-10-20', 'reason' => 'elsewhere'])->assertOk();
+        $this->as($this->admin)->postJson($this->url($this->other)."/{$other->id}/stop", ['end_date' => '2026-10-20', 'reason' => 'elsewhere', 'successor' => $this->waitingSuccessor()])->assertOk();
 
         $history = $this->as($this->admin)->getJson($this->url($this->company, 'employee-history'))->assertOk()->json('data');
 

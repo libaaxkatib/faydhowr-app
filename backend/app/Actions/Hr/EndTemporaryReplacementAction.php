@@ -24,11 +24,8 @@ class EndTemporaryReplacementAction
             );
         }
 
-        $replacement->update([
-            'end_date' => $endDate,
-            'status' => TemporaryReplacementStatus::Ended,
-            'notes' => $notes ?? $replacement->notes,
-        ]);
+        // Keeps the planned end date when the cover is ended earlier (docs/HR_PAYROLL_RULES.md N10).
+        $replacement->endOn($endDate, $notes);
 
         event(AuditEvent::record(
             action: AuditAction::Update,

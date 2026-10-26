@@ -9,6 +9,7 @@ use App\Enums\WorkAssignmentStatus;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\AssignmentSalaryHistory;
+use App\Models\AssignmentSuccession;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\WorkLocation;
 use App\Support\ApiResponse;
@@ -17,10 +18,12 @@ use App\Support\Hr\CompanyLocationResolver;
 use App\Support\Hr\ConcurrentAssignmentGuard;
 use App\Support\Hr\Payroll\ClosedPayrollCorrection;
 use App\Support\Hr\Payroll\PayrollMoney;
+use App\Support\Hr\PermanentSuccession;
 use App\Support\Hr\PositionSuccession;
 use App\Support\Hr\UnresolvedTemporaryReplacements;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Edits position/dates/notes on an existing assignment. A work location can be
@@ -46,16 +49,17 @@ class UpdateWorkAssignmentAction
     {
         $this->guardTypeAndInheritedSalary($assignment, $data);
 
+        $plan = $this->successionPlan($assignment, $data);
         $earliest = $this->earliestPayrollDate($assignment, $data);
 
         if ($earliest === null) {
-            return $this->apply($assignment, $data, $actor);
+            return $this->apply($assignment, $data, $actor, $plan);
         }
 
         return $this->corrections->run(
             $actor,
             'edited',
-            AssignmentChain::employeeIds($assignment),
+            [...AssignmentChain::employeeIds($assignment), ...($plan === null ? [] : [$plan['employee']->id])],
             $earliest,
             $data['correction_reason'] ?? null,
             [
@@ -63,8 +67,30 @@ class UpdateWorkAssignmentAction
                 'old' => ['start_date' => $assignment->start_date?->toDateString(), 'end_date' => $assignment->end_date?->toDateString(), 'assignment_type' => $assignment->assignment_type?->value, 'salary_amount' => (string) $assignment->salary_amount, 'salary_currency' => $assignment->salary_currency],
                 'new' => array_intersect_key($data, array_flip(['start_date', 'end_date', 'assignment_type', 'salary_amount', 'salary_currency', 'salary_effective_from'])),
             ],
-            fn (): EmployeeWorkAssignment => $this->apply($assignment, $data, $actor),
+            fn (): EmployeeWorkAssignment => $this->apply($assignment, $data, $actor, $plan),
         );
+    }
+
+    /**
+     * Setting an end date on an open Permanent assignment, or moving it EARLIER, is a removal: it needs the replacement choice
+     * (docs/HR_PAYROLL_RULES.md N1). Moving the end date later, or editing anything else, needs none.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function successionPlan(EmployeeWorkAssignment $assignment, array $data): ?array
+    {
+        if (! array_key_exists('end_date', $data) || $data['end_date'] === null) {
+            return null;
+        }
+
+        $newEnd = CarbonImmutable::parse($data['end_date'])->startOfDay();
+        $oldEnd = $assignment->end_date;
+
+        if ($oldEnd !== null && ! $newEnd->lt(CarbonImmutable::parse($oldEnd)->startOfDay())) {
+            return null;
+        }
+
+        return PermanentSuccession::demand($assignment, $data['successor'] ?? null, $newEnd);
     }
 
     /**
@@ -131,7 +157,22 @@ class UpdateWorkAssignmentAction
         return $dates === [] ? null : min($dates);
     }
 
-    private function apply(EmployeeWorkAssignment $assignment, array $data, Admin $actor): EmployeeWorkAssignment
+    /** @param  array<string, mixed>|null  $plan  the validated replacement plan when this edit removes a Permanent assignment */
+    private function apply(EmployeeWorkAssignment $assignment, array $data, Admin $actor, ?array $plan = null): EmployeeWorkAssignment
+    {
+        if ($plan === null) {
+            return $this->applyChanges($assignment, $data, $actor);
+        }
+
+        return DB::transaction(function () use ($assignment, $data, $actor, $plan): EmployeeWorkAssignment {
+            $updated = $this->applyChanges($assignment, $data, $actor);
+            PermanentSuccession::complete($assignment->refresh(), $plan, $actor, AssignmentSuccession::TRIGGER_EDIT_END_DATE, $data['correction_reason'] ?? null);
+
+            return $updated;
+        });
+    }
+
+    private function applyChanges(EmployeeWorkAssignment $assignment, array $data, Admin $actor): EmployeeWorkAssignment
     {
         if (! empty($data['work_location_id'])) {
             $this->completeLocation($assignment, (int) $data['work_location_id'], $data, $actor);

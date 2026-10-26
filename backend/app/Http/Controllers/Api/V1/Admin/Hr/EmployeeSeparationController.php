@@ -26,6 +26,8 @@ class EmployeeSeparationController extends Controller
             $request->validated('rehire_eligible', true),
             $request->validated('notes'),
             $request->user(),
+            collect($request->validated('successors') ?? [])->keyBy(fn (array $s): int => (int) $s['assignment_id'])->all(),
+            $request->validated('correction_reason'),
         );
 
         return ApiResponse::success('Employee separated successfully.', new EmployeeResource($employee));

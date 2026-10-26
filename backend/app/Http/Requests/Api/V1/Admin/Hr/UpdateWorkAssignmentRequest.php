@@ -6,6 +6,7 @@ use App\Enums\AssignmentShift;
 use App\Enums\AssignmentType;
 use App\Enums\SalaryFrequency;
 use App\Support\ApiResponse;
+use App\Support\Hr\SuccessorRules;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -35,6 +36,7 @@ class UpdateWorkAssignmentRequest extends FormRequest
             'notes' => ['nullable', 'string'],
             'shift' => ['sometimes', 'nullable', Rule::in(AssignmentShift::values())],
             'correction_reason' => ['nullable', 'string', 'max:500'],
+            ...SuccessorRules::for('successor'),
         ];
     }
 

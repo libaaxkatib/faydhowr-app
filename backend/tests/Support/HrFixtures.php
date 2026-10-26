@@ -31,6 +31,36 @@ trait HrFixtures
         ]);
     }
 
+    /**
+     * A person on the HR Waiting List, offered as the replacement of a Permanent position with the salary HR agrees
+     * (docs/HR_PAYROLL_RULES.md N1, N3). The payload is the `successor` object of the request.
+     *
+     * @return array{type: string, employee_id: int, salary_amount: int, salary_currency: string}
+     */
+    protected function waitingSuccessor(int $monthlyDollars = 250): array
+    {
+        return ['type' => 'waiting_list', 'employee_id' => $this->makeEmployee('waiting')->id, 'salary_amount' => $monthlyDollars, 'salary_currency' => 'USD'];
+    }
+
+    /**
+     * One replacement choice (a Waiting List person) for every open Permanent assignment of the employee: the `successors` of a separation request.
+     *
+     * @return list<array<string, mixed>>
+     */
+    protected function successorsFor(Employee|int $employee): array
+    {
+        $id = $employee instanceof Employee ? $employee->id : $employee;
+
+        return EmployeeWorkAssignment::query()
+            ->where('employee_id', $id)
+            ->where('status', 'active')
+            ->where('assignment_type', 'permanent')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (EmployeeWorkAssignment $a): array => ['assignment_id' => $a->id] + $this->waitingSuccessor())
+            ->all();
+    }
+
     protected function makeCompany(string $name = 'Test Company', string $category = 'company'): ClientCompany
     {
         return ClientCompany::query()->create(['name' => $name, 'category' => $category, 'status' => 'active']);

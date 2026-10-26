@@ -10,6 +10,8 @@ import { Icon } from '@/components/ui/Icon';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
 import { FormField, inputClasses } from '@/components/ui/FormField';
+import { SuccessorPicker } from '@/features/hrm/companyEmployees/SuccessorPicker';
+import { EMPTY_SUCCESSOR, missingSuccessors, needsSuccessor, toSuccessorPayload, validateSuccessor, type SuccessorDraft } from '@/utils/successor';
 import { Select } from '@/components/ui/Select';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -27,7 +29,7 @@ import { formatDate, formatDateTime, initialsOf } from '@/utils/formatters';
 import { additionalCompanyQuestion, assignmentLabel, friendlyErrorMessage, isWorkplaceMissing, localToday, OFFICE_LABEL } from '@/utils/hrHelpers';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { submitPracticalDecision } from '@/utils/practicalDecision';
-import type { AttendanceStatus, Employee, EmployeeDocument, EmployeeLeave, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, SalaryFrequency, WorkAssignment } from '@/types/employee';
+import type { AttendanceStatus, Employee, MarkEmployeeSeparatedPayload, SuccessorPayload, EmployeeDocument, EmployeeLeave, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, SalaryFrequency, WorkAssignment } from '@/types/employee';
 
 const SEPARATION_REASON_OPTIONS: { value: EmployeeSeparationReason; label: string }[] = [
   { value: 'resigned', label: 'Resigned' },
@@ -179,8 +181,7 @@ export function EmployeeDetailPage() {
   });
 
   const separateMutation = useMutation({
-    mutationFn: (payload: { reason: EmployeeSeparationReason; separation_date: string; rehire_eligible: boolean; notes: string | null }) =>
-      hrApi.employees.separate(employeeId, payload),
+    mutationFn: (payload: MarkEmployeeSeparatedPayload) => hrApi.employees.separate(employeeId, payload),
     onSuccess: () => {
       invalidate();
       show('Employee separated.');
@@ -427,8 +428,8 @@ export function EmployeeDetailPage() {
   });
 
   const endAssignmentMutation = useMutation({
-    mutationFn: (payload: { id: number; end_date: string; note?: string | null }) =>
-      hrApi.employees.workAssignments.end(payload.id, { end_date: payload.end_date, note: payload.note }),
+    mutationFn: (payload: { id: number; end_date: string; note?: string | null; successor?: SuccessorPayload }) =>
+      hrApi.employees.workAssignments.end(payload.id, { end_date: payload.end_date, note: payload.note, successor: payload.successor }),
     onSuccess: () => {
       invalidate();
       setEndingAssignment(null);
@@ -1468,7 +1469,7 @@ export function EmployeeDetailPage() {
         <EndAssignmentModal
           assignment={endingAssignment}
           onClose={() => setEndingAssignment(null)}
-          onConfirm={(endDate, note) => endAssignmentMutation.mutate({ id: endingAssignment.id, end_date: endDate, note })}
+          onConfirm={(endDate, note, successor) => endAssignmentMutation.mutate({ id: endingAssignment.id, end_date: endDate, note, successor })}
           isLoading={endAssignmentMutation.isPending}
         />
       )}
@@ -1481,6 +1482,7 @@ export function EmployeeDetailPage() {
 
       <MarkSeparatedModal
         isOpen={isSeparateOpen}
+        permanentAssignments={(employee.active_work_assignments ?? []).filter((a) => a.status === 'active' && needsSuccessor(a.assignment_type))}
         onClose={() => setIsSeparateOpen(false)}
         onConfirm={(payload) => separateMutation.mutate(payload)}
         isLoading={separateMutation.isPending}
@@ -1897,11 +1899,15 @@ function EndAssignmentModal({
 }: {
   assignment: WorkAssignment;
   onClose: () => void;
-  onConfirm: (endDate: string, note?: string) => void;
+  onConfirm: (endDate: string, note?: string, successor?: SuccessorPayload) => void;
   isLoading: boolean;
 }) {
   const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState('');
+  // A Permanent position cannot be left without a replacement (docs/HR_PAYROLL_RULES.md N1).
+  const askSuccessor = needsSuccessor(assignment.assignment_type);
+  const [successor, setSuccessor] = useState<SuccessorDraft>(EMPTY_SUCCESSOR);
+  const [successorError, setSuccessorError] = useState<string | undefined>();
 
   return (
     <Modal
@@ -1912,7 +1918,18 @@ function EndAssignmentModal({
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button variant="danger" size="sm" isLoading={isLoading} onClick={() => onConfirm(endDate, note || undefined)}>End Assignment</Button>
+          <Button
+            variant="danger"
+            size="sm"
+            isLoading={isLoading}
+            onClick={() => {
+              const missing = askSuccessor ? validateSuccessor(successor) : null;
+              setSuccessorError(missing ?? undefined);
+              if (missing === null) onConfirm(endDate, note || undefined, askSuccessor ? (toSuccessorPayload(successor) ?? undefined) : undefined);
+            }}
+          >
+            End Assignment
+          </Button>
         </>
       }
     >
@@ -1920,6 +1937,7 @@ function EndAssignmentModal({
       <FormField label="End date" htmlFor="end-date" required>
         <input id="end-date" type="date" className={inputClasses} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
       </FormField>
+      {askSuccessor && <SuccessorPicker assignmentId={assignment.id} lastDay={endDate} value={successor} onChange={setSuccessor} error={successorError} idPrefix="end-successor" />}
       <FormField label="Note" htmlFor="end-note">
         <textarea id="end-note" rows={2} className={inputClasses + ' h-auto py-2'} value={note} onChange={(e) => setNote(e.target.value)} />
       </FormField>
@@ -1929,19 +1947,26 @@ function EndAssignmentModal({
 
 function MarkSeparatedModal({
   isOpen,
+  permanentAssignments,
   onClose,
   onConfirm,
   isLoading,
 }: {
   isOpen: boolean;
+  /** The employee's open Permanent assignments: each needs the replacement choice (docs/HR_PAYROLL_RULES.md N1). */
+  permanentAssignments: WorkAssignment[];
   onClose: () => void;
-  onConfirm: (payload: { reason: EmployeeSeparationReason; separation_date: string; rehire_eligible: boolean; notes: string | null }) => void;
+  onConfirm: (payload: MarkEmployeeSeparatedPayload) => void;
   isLoading: boolean;
 }) {
   const [reason, setReason] = useState<EmployeeSeparationReason>('resigned');
   const [separationDate, setSeparationDate] = useState(new Date().toISOString().slice(0, 10));
   const [rehireEligible, setRehireEligible] = useState(true);
   const [notes, setNotes] = useState('');
+  const [drafts, setDrafts] = useState<Record<number, SuccessorDraft>>({});
+  const [showMissing, setShowMissing] = useState(false);
+  const ids = permanentAssignments.map((a) => a.id);
+  const unresolved = missingSuccessors(ids, drafts);
 
   if (!isOpen) return null;
 
@@ -1958,7 +1983,19 @@ function MarkSeparatedModal({
             variant="danger"
             size="sm"
             isLoading={isLoading}
-            onClick={() => onConfirm({ reason, separation_date: separationDate, rehire_eligible: rehireEligible, notes: notes || null })}
+            onClick={() => {
+              if (unresolved.length > 0) {
+                setShowMissing(true);
+                return;
+              }
+              onConfirm({
+                reason,
+                separation_date: separationDate,
+                rehire_eligible: rehireEligible,
+                notes: notes || null,
+                successors: ids.map((id) => ({ assignment_id: id, ...(toSuccessorPayload(drafts[id] ?? EMPTY_SUCCESSOR) as SuccessorPayload) })),
+              });
+            }}
           >
             Mark Inactive
           </Button>
@@ -1983,6 +2020,19 @@ function MarkSeparatedModal({
       <FormField label="Notes" htmlFor="sep-notes">
         <textarea id="sep-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </FormField>
+      {permanentAssignments.map((assignment) => (
+        <div key={assignment.id}>
+          <p className="mb-1 text-xs font-medium text-ink-muted">{assignmentLabel(assignment)}</p>
+          <SuccessorPicker
+            assignmentId={assignment.id}
+            lastDay={separationDate}
+            value={drafts[assignment.id] ?? EMPTY_SUCCESSOR}
+            onChange={(next) => setDrafts((current) => ({ ...current, [assignment.id]: next }))}
+            error={showMissing && unresolved.includes(assignment.id) ? (validateSuccessor(drafts[assignment.id] ?? EMPTY_SUCCESSOR) ?? undefined) : undefined}
+            idPrefix={`sep-successor-${assignment.id}`}
+          />
+        </div>
+      ))}
     </Modal>
   );
 }

@@ -285,6 +285,8 @@ export interface WorkAssignment {
   position_name: string | null;
   /** Day or night shift of this assignment; null = not recorded. */
   shift?: 'day' | 'night' | null;
+  /** Permanent (default) or Replacement. Only a Permanent assignment needs a replacement choice when it is removed. */
+  assignment_type?: 'permanent' | 'replacement';
   start_date: string;
   end_date: string | null;
   salary_amount: string;
@@ -325,6 +327,8 @@ export type UpdateWorkAssignmentPayload = Partial<Omit<CreateWorkAssignmentPaylo
 export interface EndWorkAssignmentPayload {
   end_date: string;
   note?: string | null;
+  /** Required by the server for an open Permanent assignment (docs/HR_PAYROLL_RULES.md N1). */
+  successor?: SuccessorPayload;
 }
 
 export type WorkforceRequestStatus = 'open' | 'partially_filled' | 'fulfilled' | 'cancelled';
@@ -413,6 +417,8 @@ export interface MarkEmployeeSeparatedPayload {
   separation_date: string;
   rehire_eligible?: boolean;
   notes?: string | null;
+  /** One replacement choice per open Permanent assignment (docs/HR_PAYROLL_RULES.md N1). */
+  successors?: (SuccessorPayload & { assignment_id: number })[];
 }
 
 export type EmployeeHistoricalCompletionStage = 'training' | 'practical' | 'uniform';
@@ -434,6 +440,10 @@ export interface TemporaryReplacementPayment {
   payment_date: string;
   amount: string;
   notes: string | null;
+  override_reason?: string | null;
+  /** Only returned to payroll viewers. */
+  calculated_amount?: string | null;
+  differs_from_calculated?: boolean;
   paid_by: string | null;
   created_at: string;
 }
@@ -518,6 +528,8 @@ export interface RecordTemporaryReplacementPaymentPayload {
   payment_date: string;
   amount: number;
   notes?: string | null;
+  /** Why the amount differs from the calculated one; optional, an override is never blocked (N5). */
+  override_reason?: string | null;
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'late';
@@ -1098,4 +1110,61 @@ export interface PayrollRollupMeta {
 export interface PayrollRollupResult {
   rows: PayrollRollupRow[];
   meta: PayrollRollupMeta;
+}
+
+// ---- Permanent succession (docs/HR_PAYROLL_RULES.md N1-N3) and Temporary expected payment (N5, N9-N11) -------------------------------
+
+/** The replacement HR/Management chooses when a Permanent assignment is removed. Only these two kinds exist. */
+export type SuccessorType = 'temporary' | 'waiting_list';
+
+export interface SuccessorPayload {
+  type: SuccessorType;
+  employee_id: number;
+  /** Waiting List only: the salary HR agrees. A Temporary inherits the departing salary automatically. */
+  salary_amount?: number;
+  salary_currency?: string;
+}
+
+export interface SuccessorOptions {
+  assignment_id: number;
+  choice_required: boolean;
+  recorded: { type: SuccessorType; employee_id: number; effective_date: string } | null;
+  temporary: { employee_id: number; employee_number: string; name: string; cover_id: number; cover_start_date: string; cover_end_date: string | null }[];
+  waiting_list: { employee_id: number; employee_number: string; name: string; waiting_since: string | null }[];
+}
+
+export interface TemporaryExpectedPaymentMonth {
+  period: string;
+  days: number;
+  days_in_month: number;
+  amount: string;
+  segments: { from: string; to: string; days: number; monthly_cents: number }[];
+}
+
+export interface TemporaryExpectedPayment {
+  replacement_id: number;
+  currency: string;
+  from: string | null;
+  through: string | null;
+  counted_days: number;
+  planned_end_date: string | null;
+  actual_end_date: string | null;
+  ended_early: boolean;
+  months: TemporaryExpectedPaymentMonth[];
+  expected: string;
+  verified_days_cost: string;
+  approved: boolean;
+  paid_so_far: string;
+  balance: string;
+  warnings: { code: string; message: string }[];
+}
+
+export interface PaymentCheck {
+  payment_id: number;
+  calculated_amount: string | null;
+  entered_amount: string;
+  differs: boolean;
+  difference: string | null;
+  warning: string | null;
+  cost_approved: boolean | null;
 }

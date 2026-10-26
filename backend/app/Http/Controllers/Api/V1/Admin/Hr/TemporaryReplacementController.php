@@ -6,6 +6,7 @@ use App\Actions\Hr\CreateTemporaryReplacementAction;
 use App\Actions\Hr\EndTemporaryReplacementAction;
 use App\Actions\Hr\ListTemporaryReplacementsAction;
 use App\Actions\Hr\RecordTemporaryReplacementPaymentAction;
+use App\Enums\AdminPermission;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Admin\Hr\EndTemporaryReplacementRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\StoreTemporaryReplacementPaymentRequest;
@@ -14,6 +15,7 @@ use App\Http\Resources\Api\V1\Admin\Hr\TemporaryReplacementResource;
 use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\TemporaryReplacement;
+use App\Support\AdminPermissionResolver;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 
@@ -45,9 +47,24 @@ class TemporaryReplacementController extends Controller
         StoreTemporaryReplacementPaymentRequest $request,
         TemporaryReplacement $temporaryReplacement,
         RecordTemporaryReplacementPaymentAction $action,
+        AdminPermissionResolver $permissions,
     ): JsonResponse {
-        $replacement = $action->handle($temporaryReplacement, $request->validated(), $request->user());
+        $result = $action->record($temporaryReplacement, $request->validated(), $request->user());
 
-        return ApiResponse::success('Payment recorded successfully.', new TemporaryReplacementResource($replacement), 201);
+        // Calculated amounts are cost information (hr.payroll.view). A payer without it still gets the payment recorded, with the calculation kept.
+        $seesCost = $permissions->has($request->user(), AdminPermission::HrPayrollView->value, $request);
+
+        return ApiResponse::success('Payment recorded successfully.', [
+            ...(new TemporaryReplacementResource($result['replacement']))->resolve($request),
+            'payment_check' => $seesCost ? [
+                'payment_id' => $result['check']['payment_id'],
+                'calculated_amount' => $result['check']['calculated_amount'],
+                'entered_amount' => $result['check']['entered_amount'],
+                'differs' => $result['check']['differs'],
+                'difference' => $result['check']['difference'],
+                'warning' => $result['check']['warning'],
+                'cost_approved' => $result['check']['calculation']['approved'] ?? null,
+            ] : null,
+        ], 201);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api\V1\Admin\Hr;
 
 use App\Support\ApiResponse;
+use App\Support\Hr\SuccessorRules;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -20,6 +21,7 @@ class EndWorkAssignmentRequest extends FormRequest
             'end_date' => ['required', 'date'],
             'note' => ['nullable', 'string'],
             'correction_reason' => ['nullable', 'string', 'max:500'],
+            ...SuccessorRules::for('successor'),
         ];
     }
 

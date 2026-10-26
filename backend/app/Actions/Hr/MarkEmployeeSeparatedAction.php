@@ -37,6 +37,8 @@ class MarkEmployeeSeparatedAction
         bool $rehireEligible,
         ?string $notes,
         Admin $actor,
+        array $successors = [],
+        ?string $correctionReason = null,
     ): Employee {
         if ($employee->status === EmployeeStatus::Inactive) {
             throw new HttpResponseException(
@@ -48,7 +50,7 @@ class MarkEmployeeSeparatedAction
             );
         }
 
-        return DB::transaction(function () use ($employee, $reason, $separationDate, $rehireEligible, $notes, $actor) {
+        return DB::transaction(function () use ($employee, $reason, $separationDate, $rehireEligible, $notes, $actor, $successors, $correctionReason) {
             $from = $employee->status;
 
             $this->guard->authorize($from, EmployeeStatus::Inactive, EmployeeTransitionGuard::CONTEXT_SEPARATION, $actor);
@@ -77,7 +79,8 @@ class MarkEmployeeSeparatedAction
 
             // Approved rule: the separation also closes this employee's open assignments
             // (inside the same transaction, so a failure undoes the whole separation).
-            $closed = $this->closeAssignments->handle($employee, $separationDate, $actor);
+            // Every open Permanent assignment needs its replacement choice (docs/HR_PAYROLL_RULES.md N1); `successors` is keyed by assignment id.
+            $closed = $this->closeAssignments->handle($employee, $separationDate, $actor, $successors, $correctionReason);
 
             event(AuditEvent::record(
                 action: AuditAction::Update,

@@ -10,6 +10,8 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate } from '@/utils/formatters';
+import { EMPTY_SUCCESSOR, needsSuccessor, toSuccessorPayload, validateSuccessor, type SuccessorDraft } from '@/utils/successor';
+import { SuccessorPicker } from '@/features/hrm/companyEmployees/SuccessorPicker';
 import { additionalCompanyQuestion, friendlyErrorMessage } from '@/utils/hrHelpers';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
@@ -713,14 +715,18 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
   const [endDate, setEndDate] = useState(today());
   const [reason, setReason] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
-  const [errors, setErrors] = useState<{ end_date?: string; reason?: string; correction_reason?: string }>({});
+  const [errors, setErrors] = useState<{ end_date?: string; reason?: string; correction_reason?: string; successor?: string }>({});
   const [confirming, setConfirming] = useState(false);
+  // A Permanent position cannot be left without a replacement (docs/HR_PAYROLL_RULES.md N1).
+  const [successor, setSuccessor] = useState<SuccessorDraft>(EMPTY_SUCCESSOR);
+  const askSuccessor = row !== null && needsSuccessor(row.assignment_type);
 
   useEffect(() => {
     if (row) {
       setEndDate(today() < row.start_date ? row.start_date : today());
       setCorrectionReason('');
       setReason('');
+      setSuccessor(EMPTY_SUCCESSOR);
       setErrors({});
       setConfirming(false);
       state.reset(true);
@@ -729,7 +735,7 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
   }, [row]);
 
   const mutation = useMutation({
-    mutationFn: () => companyEmployeesApi.stop(companyId, row!.assignment_id, { end_date: endDate, reason: reason.trim(), ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}) }),
+    mutationFn: () => companyEmployeesApi.stop(companyId, row!.assignment_id, { end_date: endDate, reason: reason.trim(), ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}), ...(askSuccessor ? { successor: toSuccessorPayload(successor) ?? undefined } : {}) }),
     onSuccess: () => state.succeeded("Assignment stopped. The employee's HR status was not changed.", onClose),
     onError: (e) => {
       state.failed(e);
@@ -740,9 +746,13 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
   const submit = (event: FormEvent) => {
     event.preventDefault();
     state.reset();
-    const found: { end_date?: string; reason?: string; correction_reason?: string } = validateStopForm(endDate, reason, row?.start_date ?? '');
+    const found: { end_date?: string; reason?: string; correction_reason?: string; successor?: string } = validateStopForm(endDate, reason, row?.start_date ?? '');
     const needed = correctionError(state, correctionReason);
     if (needed) found.correction_reason = needed;
+    if (askSuccessor) {
+      const missing = validateSuccessor(successor);
+      if (missing) found.successor = missing;
+    }
     setErrors(found);
     if (Object.keys(found).length === 0) setConfirming(true);
   };
@@ -778,11 +788,12 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
           <FormField label="Reason" htmlFor="stop-reason" required error={errors.reason ?? state.serverFields.reason?.[0]}>
             <input id="stop-reason" className={inputClasses} value={reason} onChange={(event) => setReason(event.target.value)} />
           </FormField>
+          {askSuccessor && <SuccessorPicker assignmentId={row.assignment_id} lastDay={endDate} value={successor} onChange={setSuccessor} error={errors.successor ?? state.serverFields.successor?.[0]} idPrefix="stop-successor" />}
           <CorrectionReasonField visible={state.needsCorrection} value={correctionReason} onChange={setCorrectionReason} error={errors.correction_reason} />
         </form>
       )}
       {row && confirming && (
-        <Summary rows={[['Employee', `${row.full_name} (${row.employee_number})`], ['Company', companyName], ['Last day', formatDate(endDate)], ['Reason', reason.trim()], ['HR employment status', 'not changed']]} />
+        <Summary rows={[['Employee', `${row.full_name} (${row.employee_number})`], ['Company', companyName], ['Last day', formatDate(endDate)], ['Reason', reason.trim()], ...(askSuccessor ? [['Replacement', successor.type === 'temporary' ? 'A Temporary employee who covered the position (becomes Permanent from the next day, same salary)' : 'A person from the HR Waiting List (appointed from the next day)'] as [string, string]] : []), ['HR employment status', 'not changed']]} />
       )}
     </Modal>
   );

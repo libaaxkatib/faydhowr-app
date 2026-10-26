@@ -54,7 +54,10 @@ import type {
   RecordEmployeePaymentPayload,
   RecordEmployeePenaltyPayload,
   RecordEmployeePerformanceReviewPayload,
+  PaymentCheck,
   RecordTemporaryReplacementPaymentPayload,
+  SuccessorOptions,
+  TemporaryExpectedPayment,
   TemporaryReplacement,
   TemporaryReplacementCost,
   TemporaryReplacementWorkday,
@@ -289,7 +292,10 @@ export const hrApi = {
     end: (id: number, payload: EndTemporaryReplacementPayload) =>
       apiRequest<TemporaryReplacement>(`admin/hr/temporary-replacements/${id}/end`, { method: 'PATCH', body: payload }),
     addPayment: (id: number, payload: RecordTemporaryReplacementPaymentPayload) =>
-      apiRequest<TemporaryReplacement>(`admin/hr/temporary-replacements/${id}/payments`, { method: 'POST', body: payload }),
+      apiRequest<TemporaryReplacement & { payment_check: PaymentCheck | null }>(`admin/hr/temporary-replacements/${id}/payments`, { method: 'POST', body: payload }),
+    /** The payment expected up to `through` (default today): every calendar day of the cover, minus what was already paid. Payroll viewers only. */
+    expectedPayment: (id: number, through?: string) =>
+      apiRequest<TemporaryExpectedPayment>(`admin/hr/temporary-replacements/${id}/expected-payment`, { query: { through } }),
     approve: (id: number) => apiRequest<TemporaryReplacement>(`admin/hr/temporary-replacements/${id}/approve`, { method: 'PATCH' }),
     cost: (id: number, period: string) =>
       apiRequest<TemporaryReplacementCost>(`admin/hr/temporary-replacements/${id}/cost`, { query: { period } }),
@@ -459,6 +465,9 @@ export const hrApi = {
         apiRequest<WorkAssignment>(`admin/hr/work-assignments/${assignmentId}`, { method: 'PUT', body: payload }),
       end: (assignmentId: number, payload: EndWorkAssignmentPayload) =>
         apiRequest<WorkAssignment>(`admin/hr/work-assignments/${assignmentId}/end`, { method: 'PATCH', body: payload }),
+      /** Who may take over a Permanent position: Temporary employees who covered it, and a searchable slice of the HR Waiting List. */
+      successorOptions: (assignmentId: number, q?: string) =>
+        apiRequest<SuccessorOptions>(`admin/hr/work-assignments/${assignmentId}/successor-options`, { query: { q: q || undefined } }),
     },
   },
 };

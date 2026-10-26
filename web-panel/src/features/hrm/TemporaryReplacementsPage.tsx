@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { returnState } from '@/utils/urlFilters';
+import { overrideWarning, paymentDiffers } from '@/utils/temporaryPayment';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -59,11 +60,12 @@ export function TemporaryReplacementsPage() {
   });
 
   const paymentMutation = useMutation({
-    mutationFn: ({ id, paymentDate, amount, notes }: { id: number; paymentDate: string; amount: number; notes: string }) =>
-      hrApi.temporaryReplacements.addPayment(id, { payment_date: paymentDate, amount, notes: notes || null }),
-    onSuccess: () => {
+    mutationFn: ({ id, paymentDate, amount, notes, overrideReason }: { id: number; paymentDate: string; amount: number; notes: string; overrideReason: string }) =>
+      hrApi.temporaryReplacements.addPayment(id, { payment_date: paymentDate, amount, notes: notes || null, override_reason: overrideReason || null }),
+    onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['temporary-replacements'] });
-      show('Payment recorded.');
+      // A different amount is permitted, never blocked: it is recorded as typed and the difference is said plainly.
+      show(saved.payment_check?.differs ? `Payment recorded as entered (${saved.payment_check.entered_amount}); the calculated amount was ${saved.payment_check.calculated_amount}.` : 'Payment recorded.');
       setPayingFor(null);
     },
     onError: (err) => show(friendlyErrorMessage(err, 'Could not record payment.'), 'error'),
@@ -190,7 +192,7 @@ export function TemporaryReplacementsPage() {
         <RecordPaymentModal
           replacement={payingFor}
           onClose={() => setPayingFor(null)}
-          onConfirm={(paymentDate, amount, notes) => paymentMutation.mutate({ id: payingFor.id, paymentDate, amount, notes })}
+          onConfirm={(paymentDate, amount, notes, overrideReason) => paymentMutation.mutate({ id: payingFor.id, paymentDate, amount, notes, overrideReason })}
           isLoading={paymentMutation.isPending}
         />
       )}
@@ -721,12 +723,30 @@ function RecordPaymentModal({
 }: {
   replacement: TemporaryReplacement;
   onClose: () => void;
-  onConfirm: (paymentDate: string, amount: number, notes: string) => void;
+  onConfirm: (paymentDate: string, amount: number, notes: string, overrideReason: string) => void;
   isLoading: boolean;
 }) {
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
-  const [amount, setAmount] = useState(replacement.daily_rate ?? '');
+  const [amount, setAmount] = useState('');
+  const [touched, setTouched] = useState(false);
   const [notes, setNotes] = useState('');
+  const [overrideReason, setOverrideReason] = useState('');
+
+  // The expected payment: every calendar day of the cover up to the payment date, minus what was already paid (docs/HR_PAYROLL_RULES.md N5, N9-N11).
+  // Only payroll viewers can read it; without it the amount is simply typed, as before.
+  const expected = useQuery({
+    queryKey: ['temporary-replacements', 'expected-payment', replacement.id, paymentDate],
+    queryFn: () => hrApi.temporaryReplacements.expectedPayment(replacement.id, paymentDate),
+    retry: false,
+  });
+  const balance = expected.data?.balance ?? null;
+
+  // Prefill with the calculated amount until the person types their own.
+  useEffect(() => {
+    if (!touched && balance !== null) setAmount(balance);
+  }, [balance, touched]);
+
+  const differs = paymentDiffers(balance, amount);
 
   return (
     <Modal
@@ -737,7 +757,7 @@ function RecordPaymentModal({
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" isLoading={isLoading} disabled={amount === ''} onClick={() => onConfirm(paymentDate, Number(amount), notes)}>Record</Button>
+          <Button size="sm" isLoading={isLoading} disabled={amount === ''} onClick={() => onConfirm(paymentDate, Number(amount), notes, differs ? overrideReason.trim() : '')}>{differs ? 'Record as entered' : 'Record'}</Button>
         </>
       }
     >
@@ -745,9 +765,26 @@ function RecordPaymentModal({
       <FormField label="Payment date" htmlFor="pay-date" required>
         <input id="pay-date" type="date" className={inputClasses} value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
       </FormField>
-      <FormField label="Amount" htmlFor="pay-amount" required>
-        <input id="pay-amount" type="number" min={0} step="0.01" className={inputClasses} value={amount} onChange={(e) => setAmount(e.target.value)} />
+      {expected.data && (
+        <div className="mb-4 rounded-sm bg-surface-alt px-3 py-2 text-xs text-ink-muted" data-testid="expected-payment">
+          <p>
+            Calculated: <strong className="text-ink">{expected.data.balance} {expected.data.currency}</strong> ({expected.data.counted_days} calendar day(s){expected.data.through ? ` up to ${formatDate(expected.data.through)}` : ''}; already paid {expected.data.paid_so_far}).
+          </p>
+          {expected.data.ended_early && <p>Ended early: planned until {expected.data.planned_end_date ? formatDate(expected.data.planned_end_date) : '—'}, ended {expected.data.actual_end_date ? formatDate(expected.data.actual_end_date) : '—'}. Days after the end are not counted.</p>}
+          {expected.data.warnings.map((w) => <p key={w.code} className="mt-1">{w.message}</p>)}
+        </div>
+      )}
+      <FormField label="Amount" htmlFor="pay-amount" required hint={balance === null ? undefined : 'Prefilled with the calculated amount. You can change it.'}>
+        <input id="pay-amount" type="number" min={0} step="0.01" className={inputClasses} value={amount} onChange={(e) => { setTouched(true); setAmount(e.target.value); }} />
       </FormField>
+      {differs && balance !== null && (
+        <div className="mb-4 rounded-sm border border-warning px-3 py-2 text-xs text-ink" role="alert" data-testid="override-warning">
+          <p>{overrideWarning(balance, amount, expected.data?.currency)}</p>
+          <FormField label="Why is it different? (optional)" htmlFor="pay-override">
+            <input id="pay-override" className={inputClasses} value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} maxLength={500} />
+          </FormField>
+        </div>
+      )}
       <FormField label="Notes" htmlFor="pay-notes">
         <textarea id="pay-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </FormField>

@@ -331,10 +331,11 @@ class ClosedPayrollCorrectionTest extends TestCase
         $this->assertSame(0, PayrollCorrection::query()->count());
 
         // Ending the assignment inside September changes September (and later) but not August.
-        $this->edit($hr, $assignment, ['end_date' => '2026-09-10'])->assertForbidden();
-        $this->edit($this->super, $assignment, ['end_date' => '2026-09-10', 'correction_reason' => 'The contract ended on 10 September'])->assertOk();
+        $this->edit($hr, $assignment, ['end_date' => '2026-09-10', 'successor' => $this->waitingSuccessor()])->assertForbidden();
+        // Ending a Permanent assignment names its replacement (docs/HR_PAYROLL_RULES.md N1); the replacement starts on 11 September.
+        $this->edit($this->super, $assignment, ['end_date' => '2026-09-10', 'correction_reason' => 'The contract ended on 10 September', 'successor' => $this->waitingSuccessor()])->assertOk();
 
-        $this->assertSame(['2026-09'], PayrollCorrection::query()->pluck('period')->all(), 'August was not touched, so August has no correction');
+        $this->assertSame(['2026-09'], PayrollCorrection::query()->where('employee_id', $assignment->employee_id)->pluck('period')->all(), 'August was not touched, so August has no correction');
         $this->assertSame(30000, (int) $this->line('2026-08', $assignment)->net_cents);
         $this->assertSame('finalized', PayrollRun::query()->where('period', '2026-08')->value('status'));
     }

@@ -125,6 +125,8 @@ class TemporaryReplacementTest extends TestCase
 
         $this->withToken($token)->patchJson("/api/v1/admin/hr/work-assignments/{$assignmentId}/end", [
             'end_date' => now()->toDateString(),
+            // Ending a Permanent assignment names its replacement (docs/HR_PAYROLL_RULES.md N1).
+            'successor' => ['type' => 'waiting_list', 'employee_id' => $this->makeEmployee('waiting')->id, 'salary_amount' => 100, 'salary_currency' => 'USD'],
         ])->assertOk();
 
         $this->withToken($token)->postJson('/api/v1/admin/hr/temporary-replacements', [

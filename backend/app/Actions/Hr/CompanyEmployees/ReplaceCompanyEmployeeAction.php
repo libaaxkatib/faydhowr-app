@@ -71,6 +71,8 @@ class ReplaceCompanyEmployeeAction
             $this->end->handle($original, [
                 'end_date' => $lastDay->toDateString(),
                 'note' => "Replaced by {$replacement->full_name} ({$replacement->employee_number}) from {$replacementDate->toDateString()}.".($reason !== '' ? " Reason: {$reason}" : ''),
+                // Replace Employee names the successor itself, in this same transaction.
+                'succession_handled' => true,
             ], $actor);
 
             $new = $this->create->handle($replacement, [

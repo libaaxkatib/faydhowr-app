@@ -8,6 +8,7 @@ use App\Models\EmployeeWorkAssignment;
 use App\Models\TemporaryReplacement;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
@@ -33,10 +34,13 @@ class SeparationClosesAssignmentsTest extends TestCase
         parent::tearDown();
     }
 
-    private function separate(string $token, int $employeeId, string $date = '2026-09-10', string $reason = 'resigned')
+    private function separate(string $token, int $employeeId, string $date = '2026-09-10', string $reason = 'resigned', array $extra = [])
     {
         return $this->withToken($token)->patchJson("/api/v1/admin/hr/employees/{$employeeId}/separate", [
             'reason' => $reason, 'separation_date' => $date, 'rehire_eligible' => true, 'notes' => 'Confirmed by HR',
+            // Every open Permanent position needs its replacement choice (docs/HR_PAYROLL_RULES.md N1).
+            'successors' => $this->successorsFor($employeeId),
+            ...$extra,
         ]);
     }
 
@@ -163,10 +167,15 @@ class SeparationClosesAssignmentsTest extends TestCase
         $this->makeAssignment($employee, $this->makeCompany(), null, 300, '2026-01-01');
         $this->separate($token, $employee->id)->assertOk();
 
+        $itemsOf = fn (int $runId): Collection => collect($this->withToken($token)->getJson("/api/v1/admin/hr/payroll-runs/{$runId}")->json('data.items'));
+
         $september = $this->withToken($token)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-09'])->assertCreated();
-        $this->assertSame('100.00', $september->json('data.totals.gross')); // 10 of 30 days
+        $this->assertSame('100.00', $itemsOf($september->json('data.id'))->firstWhere('employee_id', $employee->id)['gross']); // 10 of 30 days
         $this->assertSame([], $september->json('data.warnings'), 'A correctly ended assignment raises no warning.');
-        $this->withToken($token)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-10'])->assertCreated()->assertJsonPath('data.item_count', 0);
+        // October pays the chosen replacement only: nothing at all is paid to the leaver after the separation.
+        $october = $this->withToken($token)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-10'])->assertCreated();
+        $this->assertSame(1, $october->json('data.item_count'));
+        $this->assertNull($itemsOf($october->json('data.id'))->firstWhere('employee_id', $employee->id));
     }
 
     public function test_rehire_does_not_reopen_the_closed_assignment(): void
@@ -193,7 +202,8 @@ class SeparationClosesAssignmentsTest extends TestCase
             $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/{$step}")->assertOk();
         }
 
-        $this->separate($token, $employee->id, '2026-08-15')->assertOk();
+        // The replacement starts on 16 August, inside the finalized September run, so appointing it is a recorded correction.
+        $this->separate($token, $employee->id, '2026-08-15', 'resigned', ['correction_reason' => 'Back-dated separation; replacement appointed from 16 August'])->assertOk();
 
         $log = DB::table('audit_logs')->where('entity_type', Employee::class)->where('description', 'like', '%separated (%')->orderByDesc('id')->first();
         $this->assertSame(['2026-09'], json_decode($log->metadata, true)['finalized_payroll_after_separation']);

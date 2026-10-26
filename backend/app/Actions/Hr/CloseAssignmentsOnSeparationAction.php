@@ -7,10 +7,13 @@ use App\Enums\TemporaryReplacementStatus;
 use App\Enums\WorkAssignmentStatus;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
+use App\Models\AssignmentSuccession;
 use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
 use App\Models\TemporaryReplacement;
+use App\Support\ApiResponse;
+use App\Support\Hr\PermanentSuccession;
 use App\Support\Hr\PositionSuccession;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -43,7 +46,7 @@ class CloseAssignmentsOnSeparationAction
     /**
      * @return array{assignments: list<array<string, mixed>>, replacements_ended: list<int>, finalized_payroll_after_separation: list<string>}
      */
-    public function handle(Employee $employee, string $separationDate, Admin $actor): array
+    public function handle(Employee $employee, string $separationDate, Admin $actor, array $choices = [], ?string $correctionReason = null): array
     {
         $date = CarbonImmutable::parse($separationDate)->startOfDay();
         $closed = [];
@@ -54,6 +57,23 @@ class CloseAssignmentsOnSeparationAction
             ->where('status', WorkAssignmentStatus::Active)
             ->orderBy('id')
             ->get();
+
+        // docs/HR_PAYROLL_RULES.md N1: every open PERMANENT assignment that really ends here needs its replacement choice. All the missing ones are
+        // reported together, before anything is closed (an assignment that has not started yet is cancelled, not removed, and needs none).
+        $missing = $open
+            ->filter(fn (EmployeeWorkAssignment $a): bool => ! $a->start_date->gt($date) && PermanentSuccession::isRequired($a) && ! isset($choices[$a->id]))
+            ->pluck('id')
+            ->values()
+            ->all();
+
+        if ($missing !== []) {
+            throw new HttpResponseException(ApiResponse::error(
+                'Choose who takes over each Permanent position before this employee is separated: a Temporary employee who has been covering it, or a person from the HR Waiting List.',
+                'SUCCESSOR_REQUIRED',
+                422,
+                ['assignment_ids' => $missing],
+            ));
+        }
 
         foreach ($open as $assignment) {
             $previousEnd = $assignment->end_date?->toDateString();
@@ -75,6 +95,8 @@ class CloseAssignmentsOnSeparationAction
 
             // The leaver is paid through this day; a successor already starting on or before it would be paid for the same day.
             PositionSuccession::assertEndKeepsSuccessorClear($assignment, $newEnd);
+            // An assignment that had not started yet (and could not be cancelled) is not a position in service: no choice is demanded for it.
+            $plan = $assignment->start_date->gt($date) ? null : PermanentSuccession::demand($assignment, $choices[$assignment->id] ?? null, $newEnd);
 
             $assignment->update([
                 'status' => WorkAssignmentStatus::Ended,
@@ -84,6 +106,10 @@ class CloseAssignmentsOnSeparationAction
 
             $closed[] = ['id' => $assignment->id, 'action' => 'ended', 'previous_end_date' => $previousEnd, 'new_end_date' => $newEnd->toDateString()];
             $closedWindows[$assignment->id] = $newEnd;
+
+            if ($plan !== null) {
+                PermanentSuccession::complete($assignment->refresh(), $plan, $actor, AssignmentSuccession::TRIGGER_SEPARATION, $correctionReason);
+            }
 
             event(AuditEvent::record(
                 action: AuditAction::Update,
@@ -128,7 +154,7 @@ class CloseAssignmentsOnSeparationAction
                 $endAt = CarbonImmutable::parse($replacement->start_date);
             }
 
-            $replacement->update(['status' => TemporaryReplacementStatus::Ended, 'end_date' => $endAt->toDateString()]);
+            $replacement->endOn($endAt->toDateString());
             $ended[] = $replacement->id;
         }
 

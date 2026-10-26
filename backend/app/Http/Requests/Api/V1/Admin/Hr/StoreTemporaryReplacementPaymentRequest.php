@@ -20,6 +20,8 @@ class StoreTemporaryReplacementPaymentRequest extends FormRequest
             'payment_date' => ['required', 'date'],
             'amount' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
+            // Why the amount differs from the calculated one (docs/HR_PAYROLL_RULES.md N5); optional - an override is never blocked.
+            'override_reason' => ['nullable', 'string', 'max:500'],
         ];
     }
 

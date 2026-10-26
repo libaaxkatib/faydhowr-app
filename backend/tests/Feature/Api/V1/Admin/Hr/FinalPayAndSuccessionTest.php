@@ -9,6 +9,7 @@ use App\Models\EmployeeLeave;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
 use App\Models\TemporaryReplacement;
+use App\Support\Hr\PositionSuccession;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -40,11 +41,24 @@ class FinalPayAndSuccessionTest extends TestCase
         parent::tearDown();
     }
 
-    private function separate(string $token, Employee $employee, string $date)
+    /**
+     * A leaver with an open Permanent assignment needs a replacement choice (docs/HR_PAYROLL_RULES.md N1). By default a Waiting List person is
+     * chosen for each open Permanent assignment; pass `$successors` to choose someone specific.
+     *
+     * @param  list<array<string, mixed>>|null  $successors
+     */
+    private function separate(string $token, Employee $employee, string $date, ?array $successors = null)
     {
         return $this->withToken($token)->patchJson("/api/v1/admin/hr/employees/{$employee->id}/separate", [
             'reason' => 'resigned', 'separation_date' => $date, 'rehire_eligible' => true, 'notes' => 'HR confirmed',
+            'successors' => $successors ?? $this->successorsFor($employee),
         ]);
+    }
+
+    /** A predecessor whose last paid day is already recorded, however it got there (data from before the replacement rule): no successor is created. */
+    private function closeDirectly(EmployeeWorkAssignment $assignment, string $lastDay): void
+    {
+        $assignment->update(['end_date' => $lastDay, 'status' => 'ended']);
     }
 
     private function generate(string $token, string $period = '2026-09')
@@ -86,8 +100,9 @@ class FinalPayAndSuccessionTest extends TestCase
 
         $response = $this->generate($token)->assertCreated();
 
-        $this->assertSame('100.00', $response->json('data.totals.gross')); // 300 x 10 / 30, weekends included
-        $snapshot = PayrollItem::query()->firstOrFail()->calc_snapshot;
+        // The leaver's own line (the chosen replacement has a line of its own from 2026-09-11).
+        $this->assertSame('100.00', $this->lineFor($token, $response->json('data.id'), $employee)['gross']); // 300 x 10 / 30, weekends included
+        $snapshot = PayrollItem::query()->where('employee_id', $employee->id)->firstOrFail()->calc_snapshot;
         $this->assertSame('2026-09-10', $snapshot['final_pay']['last_paid_day']);
         $this->assertSame(10, $snapshot['final_pay']['paid_calendar_days']);
         $this->assertSame(30, $snapshot['final_pay']['days_in_month']);
@@ -100,7 +115,8 @@ class FinalPayAndSuccessionTest extends TestCase
         [$employee] = $this->leaver(300);
         $this->separate($token, $employee, '2026-09-06')->assertOk(); // Sunday
 
-        $this->generate($token)->assertCreated()->assertJsonPath('data.totals.gross', '60.00'); // 6 days
+        $run = $this->generate($token)->assertCreated();
+        $this->assertSame('60.00', $this->lineFor($token, $run->json('data.id'), $employee)['gross']); // 6 days
     }
 
     public function test_the_denominator_is_the_months_real_length(): void
@@ -109,7 +125,8 @@ class FinalPayAndSuccessionTest extends TestCase
         [$employee] = $this->leaver(300);
         $this->separate($token, $employee, '2026-10-10')->assertOk();
 
-        $this->generate($token, '2026-10')->assertCreated()->assertJsonPath('data.totals.gross', '96.77'); // 300 x 10 / 31
+        $run = $this->generate($token, '2026-10')->assertCreated();
+        $this->assertSame('96.77', $this->lineFor($token, $run->json('data.id'), $employee)['gross']); // 300 x 10 / 31
     }
 
     public function test_a_month_with_no_separation_has_no_final_pay_marker_and_pays_the_full_month(): void
@@ -127,11 +144,15 @@ class FinalPayAndSuccessionTest extends TestCase
     {
         [, $token] = $this->superAdminToken();
         [$leaver, $old, $company] = $this->leaver(300);
-        $successor = $this->makeEmployee('active', 'permanent');
-        $this->separate($token, $leaver, '2026-09-10')->assertOk();
+        // The separation itself appoints the replacement (a Waiting List person on 300 a month) from the day after the last paid day.
+        $choice = $this->waitingSuccessor(300);
+        $successor = Employee::query()->findOrFail($choice['employee_id']);
+        $this->separate($token, $leaver, '2026-09-10', [['assignment_id' => $old->id] + $choice])->assertOk();
 
-        $this->takeOver($token, $successor, $company, $old->fresh(), '2026-09-11')
-            ->assertCreated()->assertJsonPath('data.replaces_assignment_id', $old->id)->assertJsonPath('data.succession_gap_days', 0);
+        $new = EmployeeWorkAssignment::query()->where('employee_id', $successor->id)->firstOrFail();
+        $this->assertSame($old->id, $new->replaces_assignment_id);
+        $this->assertSame('2026-09-11', $new->start_date->toDateString());
+        $this->assertSame(0, PositionSuccession::gapDays($old->fresh()->end_date, $new->start_date));
 
         $run = $this->generate($token)->assertCreated();
 
@@ -149,7 +170,7 @@ class FinalPayAndSuccessionTest extends TestCase
         [, $token] = $this->superAdminToken();
         [$leaver, $old, $company] = $this->leaver();
         $successor = $this->makeEmployee('active', 'permanent');
-        $this->separate($token, $leaver, '2026-09-10')->assertOk();
+        $this->closeDirectly($old, '2026-09-10');
 
         $this->takeOver($token, $successor, $company, $old->fresh(), '2026-09-10')
             ->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSION_OVERLAP');
@@ -163,7 +184,7 @@ class FinalPayAndSuccessionTest extends TestCase
         [, $token] = $this->superAdminToken();
         [$leaver, $old, $company] = $this->leaver(300);
         $successor = $this->makeEmployee('active', 'permanent');
-        $this->separate($token, $leaver, '2026-09-10')->assertOk();
+        $this->closeDirectly($old, '2026-09-10');
 
         $this->takeOver($token, $successor, $company, $old->fresh(), '2026-09-14')
             ->assertCreated()->assertJsonPath('data.succession_gap_days', 3);
@@ -190,7 +211,7 @@ class FinalPayAndSuccessionTest extends TestCase
 
         $this->takeOver($token, $first, $company, $old, '2026-09-11')->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSION_PREDECESSOR_STILL_OPEN');
 
-        $this->separate($token, $leaver, '2026-09-10')->assertOk();
+        $this->closeDirectly($old, '2026-09-10');
         $this->takeOver($token, $first, $company, $old->fresh(), '2026-09-11')->assertCreated();
         $this->takeOver($token, $second, $company, $old->fresh(), '2026-09-12')->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSION_ALREADY_REPLACED');
 
@@ -208,7 +229,7 @@ class FinalPayAndSuccessionTest extends TestCase
         $new = $this->makeAssignment($successor, $company, null, 300, '2026-09-08');
         $new->update(['replaces_assignment_id' => $old->id]);
 
-        $this->separate($token, $leaver, '2026-09-10')->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSION_OVERLAP');
+        $this->separate($token, $leaver, '2026-09-10', $this->successorsFor($leaver))->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSION_OVERLAP');
         $this->assertSame('active', $leaver->fresh()->status->value, 'the whole separation is rolled back');
         $this->assertNull($old->fresh()->end_date);
         $this->assertSame(0, DB::table('employee_separations')->where('employee_id', $leaver->id)->count());
@@ -222,7 +243,7 @@ class FinalPayAndSuccessionTest extends TestCase
         [, $token] = $this->superAdminToken();
         [$leaver, $old, $company] = $this->leaver();
         $successor = $this->makeEmployee('active', 'permanent');
-        $this->separate($token, $leaver, '2026-09-10')->assertOk();
+        $this->closeDirectly($old, '2026-09-10');
         $new = $this->takeOver($token, $successor, $company, $old->fresh(), '2026-09-11')->assertCreated()->json('data.id');
 
         $this->withToken($token)->putJson("/api/v1/admin/hr/work-assignments/{$old->id}", ['end_date' => '2026-09-15'])
@@ -239,7 +260,7 @@ class FinalPayAndSuccessionTest extends TestCase
         [, $token] = $this->superAdminToken();
         [$leaver, $old, $company] = $this->leaver();
         $successor = $this->makeEmployee('active', 'permanent');
-        $this->separate($token, $leaver, '2026-09-10')->assertOk();
+        $this->closeDirectly($old, '2026-09-10');
         $this->takeOver($token, $successor, $company, $old->fresh(), '2026-09-11')->assertCreated();
 
         $this->withToken($token)->patchJson("/api/v1/admin/hr/work-assignments/{$old->id}/end", ['end_date' => '2026-09-12'])
@@ -264,9 +285,8 @@ class FinalPayAndSuccessionTest extends TestCase
     {
         [, $token] = $this->superAdminToken();
         [$leaver, $old, $company] = $this->leaver(300);
-        $successor = $this->makeEmployee('active', 'permanent');
-        $this->separate($token, $leaver, '2026-09-10')->assertOk();
-        $this->takeOver($token, $successor, $company, $old->fresh(), '2026-09-11')->assertCreated();
+        $choice = $this->waitingSuccessor(300);
+        $this->separate($token, $leaver, '2026-09-10', [['assignment_id' => $old->id] + $choice])->assertOk();
 
         $this->assertSame(0, TemporaryReplacement::query()->count());
         $line = $this->lineFor($token, $this->generate($token)->json('data.id'), $leaver);

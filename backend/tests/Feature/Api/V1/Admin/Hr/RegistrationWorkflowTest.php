@@ -622,7 +622,7 @@ class RegistrationWorkflowTest extends TestCase
         // Later steps need no second override, for the HR Manager as well: Active, company, matching, separation and rehire.
         $this->setStatus($this->hrManager, $id, 'active')->assertOk();
         $this->as($this->hrManager)->postJson("/api/v1/admin/hr/client-companies/{$this->company->id}/employees", $this->assignBody(Employee::query()->findOrFail($id)))->assertCreated();
-        $this->as($this->super)->patchJson($this->url($id, '/separate'), ['reason' => 'resigned', 'separation_date' => now()->toDateString(), 'rehire_eligible' => true])->assertOk();
+        $this->as($this->super)->patchJson($this->url($id, '/separate'), ['reason' => 'resigned', 'separation_date' => now()->toDateString(), 'rehire_eligible' => true, 'successors' => $this->successorsFor($id)])->assertOk();
         $this->as($this->hrManager)->patchJson($this->url($id, '/rehire'), [])->assertOk()->assertJsonPath('data.status', 'active');
         $this->assertSame(1, EmployeeStatusHistory::query()->where('employee_id', $id)->where('source', 'override')->count(), 'only the one override was ever needed');
     }

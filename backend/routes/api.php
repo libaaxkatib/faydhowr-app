@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\Admin\Customers\CustomerAttachmentController as 
 use App\Http\Controllers\Api\V1\Admin\Customers\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Api\V1\Admin\Customers\CustomerNoteController as AdminCustomerNoteController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
+use App\Http\Controllers\Api\V1\Admin\Hr\AssignmentSuccessorOptionsController;
 use App\Http\Controllers\Api\V1\Admin\Hr\ClientCompanyAgreementController as AdminClientCompanyAgreementController;
 use App\Http\Controllers\Api\V1\Admin\Hr\ClientCompanyController as AdminClientCompanyController;
 use App\Http\Controllers\Api\V1\Admin\Hr\CompanyEmployeeController as AdminCompanyEmployeeController;
@@ -1429,6 +1430,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::patch('v1/admin/hr/work-assignments/{workAssignment}/cancel', [AdminEmployeeWorkAssignmentController::class, 'cancel'])
         ->whereNumber('workAssignment')
         ->name('api.v1.admin.hr.work-assignments.cancel');
+    Route::get('v1/admin/hr/work-assignments/{workAssignment}/successor-options', AssignmentSuccessorOptionsController::class)
+        ->whereNumber('workAssignment')
+        ->name('api.v1.admin.hr.work-assignments.successor-options');
 
     Route::post('v1/admin/hr/workforce-requests', [AdminWorkforceRequestController::class, 'store'])
         ->name('api.v1.admin.hr.workforce-requests.store');
@@ -1546,6 +1550,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.view', 'throt
     Route::get('v1/admin/hr/temporary-replacements/{temporaryReplacement}/cost', [AdminTemporaryReplacementWorkdayController::class, 'cost'])
         ->whereNumber('temporaryReplacement')
         ->name('api.v1.admin.hr.temporary-replacements.cost');
+    Route::get('v1/admin/hr/temporary-replacements/{temporaryReplacement}/expected-payment', [AdminTemporaryReplacementWorkdayController::class, 'expectedPayment'])
+        ->whereNumber('temporaryReplacement')
+        ->name('api.v1.admin.hr.temporary-replacements.expected-payment');
     Route::get('v1/admin/hr/payroll-corrections', [AdminPayrollCorrectionController::class, 'index'])
         ->name('api.v1.admin.hr.payroll-corrections.index');
     Route::get('v1/admin/hr/payroll-runs', [AdminPayrollRunController::class, 'index'])
