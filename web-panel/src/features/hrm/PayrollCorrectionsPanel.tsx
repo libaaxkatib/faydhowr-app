@@ -12,8 +12,8 @@ import { useAuth } from '@/features/auth/useAuth';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatCents } from '@/utils/companyEmployees';
 import { formatDate } from '@/utils/formatters';
-import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
-import { CORRECTION_STATUS_LABEL, canManageDebt, canPayUnderpayment, canVoidPayment, canWriteOff, newIdempotencyKey, validateSettlementAmount, validateWriteOffReason } from '@/utils/payrollCorrections';
+import { friendlyErrorMessage } from '@/utils/hrHelpers';
+import { CORRECTION_STATUS_LABEL, canManageDebt, canPayUnderpayment, canVoidPayment, canWriteOff, newIdempotencyKey, settlementToday, validateSettlementAmount, validateSettlementDate, validateWriteOffReason } from '@/utils/payrollCorrections';
 import type { PayrollCorrection, PayrollCorrectionTransaction } from '@/types/payroll';
 
 const KIND_LABEL: Record<PayrollCorrection['kind'], string> = { overpayment: 'Overpaid', underpayment: 'Underpaid' };
@@ -176,7 +176,7 @@ function SettlementDialog({ correction, mode, onClose }: { correction: PayrollCo
   const isPayment = correction.kind === 'underpayment';
   const [reason, setReason] = useState('');
   const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(localToday());
+  const [date, setDate] = useState(settlementToday());
   const [note, setNote] = useState('');
   const [key] = useState(newIdempotencyKey);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -189,7 +189,7 @@ function SettlementDialog({ correction, mode, onClose }: { correction: PayrollCo
     onError: (e) => setServerError(friendlyErrorMessage(e, 'Nothing was recorded.')),
   });
 
-  const ready = amount !== '' && validateSettlementAmount(amount, correction.available_to_settle_cents) === null && date !== '' && (!isWriteOff || validateWriteOffReason(reason) === null);
+  const ready = amount !== '' && validateSettlementAmount(amount, correction.available_to_settle_cents) === null && validateSettlementDate(date) === null && (!isWriteOff || validateWriteOffReason(reason) === null);
 
   return (
     <Modal
@@ -215,8 +215,8 @@ function SettlementDialog({ correction, mode, onClose }: { correction: PayrollCo
       <FormField label="Amount (USD)" htmlFor="settle-amount" required error={problem ?? undefined} hint={`At most ${money(correction.available_to_settle_cents)}.`}>
         <input id="settle-amount" type="number" step="0.01" min="0" className={inputClasses} value={amount} onChange={(e) => setAmount(e.target.value)} />
       </FormField>
-      <FormField label="Date" htmlFor="settle-date" required>
-        <input id="settle-date" type="date" max={localToday()} className={inputClasses} value={date} onChange={(e) => setDate(e.target.value)} />
+      <FormField label="Date" htmlFor="settle-date" required error={validateSettlementDate(date) ?? undefined} hint="Dates follow the Mogadishu calendar.">
+        <input id="settle-date" type="date" max={settlementToday()} className={inputClasses} value={date} onChange={(e) => setDate(e.target.value)} />
       </FormField>
       {isWriteOff && (
         <FormField label="Reason for the write-off" htmlFor="settle-reason" required error={reason !== '' ? validateWriteOffReason(reason) ?? undefined : undefined} hint="Required, at least 5 characters. Kept in the audit history.">

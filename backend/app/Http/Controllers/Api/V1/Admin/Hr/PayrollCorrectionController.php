@@ -12,6 +12,7 @@ use App\Models\PayrollCorrectionTransaction;
 use App\Models\PayrollPaymentVoid;
 use App\Models\PayrollRecoveryDeduction;
 use App\Support\ApiResponse;
+use App\Support\Hr\Facility\FacilityCalendar;
 use App\Support\Hr\Payroll\PayrollMoney;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -142,7 +143,8 @@ class PayrollCorrectionController extends Controller
         $validator = Validator::make($request->all(), [
             'type' => ['required', 'in:'.PayrollCorrectionTransaction::TYPE_UNDERPAYMENT_PAYMENT.','.PayrollCorrectionTransaction::TYPE_DEBT_REPAYMENT.','.PayrollCorrectionTransaction::TYPE_DEBT_WRITE_OFF],
             'amount' => ['required', 'numeric', 'gt:0', 'max:9999999999.99'],
-            'transaction_date' => ['required', 'date', 'before_or_equal:today'],
+            // The business calendar is Mogadishu (the browser proposes its own day from the same zone): a UTC "today" refused the Mogadishu day between 00:00 and 03:00.
+            'transaction_date' => ['required', 'date', 'before_or_equal:'.FacilityCalendar::today()->toDateString()],
             'note' => ['nullable', 'string', 'max:500'],
             'reason' => ['required_if:type,'.PayrollCorrectionTransaction::TYPE_DEBT_WRITE_OFF, 'nullable', 'string', 'min:5', 'max:500'],
             'idempotency_key' => ['required', 'string', 'min:8', 'max:64'],

@@ -2,6 +2,8 @@
  * Pure helpers of the corrections ledger. The server is the authority on who may do what; these only decide which buttons to offer.
  */
 
+import { facilityToday } from './facility.ts';
+
 export type CorrectionKind = 'overpayment' | 'underpayment';
 
 /** Only a Super Admin pays an underpayment. */
@@ -54,3 +56,18 @@ export const CORRECTION_STATUS_LABEL: Record<string, string> = {
   written_off: 'Written off',
   settled: 'Paid in full',
 };
+
+/**
+ * The business day of a payroll settlement (a repayment, the payment of an underpayment, a write-off) is the Mogadishu calendar day, the same calendar
+ * the server checks the date against - NOT the day of the browser's own clock. Using the browser's day made the dialog propose 26 October while the
+ * server was still on 25 October (UTC) between 00:00 and 03:00 in Mogadishu, and the server refused it as "in the future".
+ */
+export function settlementToday(now: Date = new Date()): string {
+  return facilityToday(now);
+}
+
+/** A settlement date is a plain calendar day (YYYY-MM-DD), never later than today in Mogadishu. Returns an error message or null. */
+export function validateSettlementDate(date: string, now: Date = new Date()): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return 'Choose the date.';
+  return date > settlementToday(now) ? 'The date cannot be later than today.' : null;
+}

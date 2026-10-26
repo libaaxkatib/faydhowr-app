@@ -132,8 +132,8 @@ export function ClientCompaniesPage() {
       <div className="flex flex-col gap-4">
         {visibleCompanies.map((company) => (
           <Card key={company.id}>
-            <CardHeader>
-              <div>
+            <CardHeader className="flex-wrap">
+              <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-display text-sm font-bold text-ink">{company.name}</h3>
                   <StatusBadge
@@ -149,13 +149,13 @@ export function ClientCompaniesPage() {
                   <p className="text-xs text-ink-faint">Also known as: {visibleAliases(company.name, company.aliases).join(', ')}</p>
                 )}
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex flex-wrap items-center gap-1">
               <Link to={`/hr/companies/${company.id}/employees`} state={{ fromPath: `${window.location.pathname}${window.location.search}` }} className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-border px-2.5 text-xs font-semibold text-ink hover:bg-surface-alt">
                 <Icon name="users" size={14} />
                 Employees
               </Link>
               <PermissionGate module="hr">
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center gap-1">
                   <Button variant="outline" size="sm" onClick={() => setLocationModal({ clientCompanyId: company.id, editing: null })}>
                     <Icon name="plus" size={14} />
                     Add Location
