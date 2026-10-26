@@ -9,6 +9,7 @@ use App\Models\EmployeePayment;
 use App\Models\PayrollCorrection;
 use App\Models\PayrollCorrectionTransaction;
 use App\Support\ApiResponse;
+use App\Support\Hr\Facility\FacilityCalendar;
 use App\Support\Hr\Payroll\PayrollMoney;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -88,7 +89,7 @@ class VoidCorrectionTransactionAction
 
         $cents = (int) $transaction->amount_cents;
         $before = (int) $correction->outstanding_cents;
-        $today = now()->toDateString();
+        $today = FacilityCalendar::today()->toDateString();
 
         $reversalPayment = EmployeePayment::query()->create([
             'employee_id' => $original->employee_id,

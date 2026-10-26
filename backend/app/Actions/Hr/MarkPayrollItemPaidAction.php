@@ -9,6 +9,7 @@ use App\Models\EmployeePayment;
 use App\Models\PayrollItem;
 use App\Models\PayrollRun;
 use App\Support\ApiResponse;
+use App\Support\Hr\Facility\FacilityCalendar;
 use App\Support\Hr\Payroll\PayrollMoney;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -49,7 +50,7 @@ class MarkPayrollItemPaidAction
             $payment = EmployeePayment::query()->create([
                 'employee_id' => $item->employee_id,
                 'payroll_item_id' => $earlier === null ? $item->id : null,
-                'payment_date' => $paymentDate ?? now()->toDateString(),
+                'payment_date' => $paymentDate ?? FacilityCalendar::today()->toDateString(),
                 'amount' => PayrollMoney::format($item->net_cents),
                 'currency' => PayrollMoney::CURRENCY,
                 'notes' => "Payroll {$item->period}".($earlier === null ? '' : " (line #{$item->id}, paid again after payment #{$earlier->id} was voided)"),

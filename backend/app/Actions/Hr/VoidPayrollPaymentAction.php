@@ -11,6 +11,7 @@ use App\Models\PayrollItem;
 use App\Models\PayrollPaymentVoid;
 use App\Models\PayrollRun;
 use App\Support\ApiResponse;
+use App\Support\Hr\Facility\FacilityCalendar;
 use App\Support\Hr\Payroll\PayrollMoney;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -59,7 +60,7 @@ class VoidPayrollPaymentAction
             }
 
             $cents = (int) round(((float) $original->amount) * 100);
-            $today = now()->toDateString();
+            $today = FacilityCalendar::today()->toDateString();
 
             $reversal = EmployeePayment::query()->create([
                 'employee_id' => $original->employee_id,
