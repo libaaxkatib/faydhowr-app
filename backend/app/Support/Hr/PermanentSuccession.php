@@ -32,8 +32,11 @@ use Illuminate\Support\Facades\DB;
  *                 anywhere else), the new Permanent assignment goes through CreateWorkAssignmentAction, and the salary is the one HR enters
  *                 (the existing rule for a Permanent successor; it is never assumed to be inherited).
  *
- * The new Permanent assignment starts on the day AFTER the departing assignment's last paid day (the system convention: the end date is the last
- * paid day, inclusive; a successor may not start on or before it). Everything - ending, the type change, the appointment, the new assignment and the
+ * The new Permanent assignment starts on the EFFECTIVE DATE HR selects, INCLUSIVE (U9): that day is part of the new salary calculation and is never
+ * shifted. When none is given it is the day after the departing assignment's last paid day. It must be after that last paid day (the end date is the
+ * last paid day, inclusive; a successor may not start on or before it); an earlier or equal date is refused, never silently moved. The employee's
+ * employment type changes as soon as the selection is saved; the assignment and its salary begin only on the effective date. Everything - ending,
+ * the type change, the appointment, the new assignment and the
  * record in assignment_successions - happens in the caller's transaction, so a failure leaves nothing half done.
  *
  * Not covered, on purpose: a Replacement-type assignment (the rule is about Permanent), a cancelled mistake (CancelWorkAssignmentAction refuses once
@@ -74,7 +77,7 @@ final class PermanentSuccession
      * and missing or not one of the two permitted kinds. Nothing is written.
      *
      * @param  array<string, mixed>|null  $choice
-     * @return array{type: string, employee: Employee, cover: ?TemporaryReplacement, salary: array{amount: string, currency: string, frequency: string, source: string}, last_day: CarbonImmutable, start: CarbonImmutable}|null
+     * @return array{type: string, employee: Employee, cover: ?TemporaryReplacement, salary: array{amount: string, currency: string, frequency: string, source: string}, last_day: CarbonImmutable, start: CarbonImmutable, effective_entered: bool}|null
      */
     public static function demand(EmployeeWorkAssignment $assignment, ?array $choice, CarbonImmutable $lastDay): ?array
     {
@@ -95,7 +98,7 @@ final class PermanentSuccession
 
     /**
      * @param  array<string, mixed>  $choice
-     * @return array{type: string, employee: Employee, cover: ?TemporaryReplacement, salary: array{amount: string, currency: string, frequency: string, source: string}, last_day: CarbonImmutable, start: CarbonImmutable}
+     * @return array{type: string, employee: Employee, cover: ?TemporaryReplacement, salary: array{amount: string, currency: string, frequency: string, source: string}, last_day: CarbonImmutable, start: CarbonImmutable, effective_entered: bool}
      */
     private static function plan(EmployeeWorkAssignment $assignment, array $choice, CarbonImmutable $lastDay): array
     {
@@ -117,6 +120,23 @@ final class PermanentSuccession
 
         if ((int) $employee->id === (int) $assignment->employee_id) {
             self::fail('An employee cannot be their own replacement.', 'SUCCESSOR_SAME_EMPLOYEE');
+        }
+
+        $effective = null;
+
+        if (! empty($choice['effective_date'])) {
+            try {
+                $effective = CarbonImmutable::parse((string) $choice['effective_date'])->startOfDay();
+            } catch (\Throwable) {
+                self::fail('The effective date of the replacement is not a valid date.', 'SUCCESSOR_EFFECTIVE_DATE_INVALID');
+            }
+
+            if ($effective->lte($lastDay)) {
+                self::fail(
+                    "The replacement's effective date ({$effective->toDateString()}) must be after the departing employee's last paid day ({$lastDay->toDateString()}). Both dates are inclusive, so the same day cannot be paid to two people; nothing was moved automatically.",
+                    'SUCCESSOR_EFFECTIVE_DATE_NOT_AFTER_LAST_DAY',
+                );
+            }
         }
 
         $cover = null;
@@ -168,7 +188,8 @@ final class PermanentSuccession
             'cover' => $cover,
             'salary' => $salary,
             'last_day' => $lastDay,
-            'start' => $lastDay->addDay(),
+            'start' => $effective ?? $lastDay->addDay(),
+            'effective_entered' => $effective !== null,
         ];
     }
 
@@ -197,7 +218,7 @@ final class PermanentSuccession
     /**
      * Carries out a validated plan after the departing assignment has been ended (its end_date is set). Runs in the caller's transaction.
      *
-     * @param  array{type: string, employee: Employee, cover: ?TemporaryReplacement, salary: array{amount: string, currency: string, frequency: string, source: string}, last_day: CarbonImmutable, start: CarbonImmutable}  $plan
+     * @param  array{type: string, employee: Employee, cover: ?TemporaryReplacement, salary: array{amount: string, currency: string, frequency: string, source: string}, last_day: CarbonImmutable, start: CarbonImmutable, effective_entered: bool}  $plan
      */
     public static function complete(EmployeeWorkAssignment $departing, array $plan, Admin $actor, string $trigger, ?string $correctionReason = null): AssignmentSuccession
     {
@@ -282,6 +303,8 @@ final class PermanentSuccession
                     'successor_assignment_id' => $new->id,
                     'departing_last_day' => $plan['last_day']->toDateString(),
                     'effective_date' => $plan['start']->toDateString(),
+                    'effective_date_entered' => $plan['effective_entered'] ?? false,
+                    'employment_type_changed_at_save' => $typeFrom !== $typeTo,
                     'employment_type' => ['from' => $typeFrom, 'to' => $typeTo],
                     'previous_salary' => null,
                     'new_salary' => ['amount' => $plan['salary']['amount'], 'currency' => $plan['salary']['currency'], 'frequency' => $plan['salary']['frequency'], 'source' => $plan['salary']['source']],

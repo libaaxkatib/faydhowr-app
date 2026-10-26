@@ -10,7 +10,7 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate } from '@/utils/formatters';
-import { EMPTY_SUCCESSOR, needsSuccessor, toSuccessorPayload, validateSuccessor, type SuccessorDraft } from '@/utils/successor';
+import { EMPTY_SUCCESSOR, effectiveStart, needsSuccessor, toSuccessorPayload, validateSuccessor, type SuccessorDraft } from '@/utils/successor';
 import { SuccessorPicker } from '@/features/hrm/companyEmployees/SuccessorPicker';
 import { additionalCompanyQuestion, friendlyErrorMessage } from '@/utils/hrHelpers';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -735,7 +735,7 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
   }, [row]);
 
   const mutation = useMutation({
-    mutationFn: () => companyEmployeesApi.stop(companyId, row!.assignment_id, { end_date: endDate, reason: reason.trim(), ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}), ...(askSuccessor ? { successor: toSuccessorPayload(successor) ?? undefined } : {}) }),
+    mutationFn: () => companyEmployeesApi.stop(companyId, row!.assignment_id, { end_date: endDate, reason: reason.trim(), ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}), ...(askSuccessor ? { successor: toSuccessorPayload(successor, endDate) ?? undefined } : {}) }),
     onSuccess: () => state.succeeded("Assignment stopped. The employee's HR status was not changed.", onClose),
     onError: (e) => {
       state.failed(e);
@@ -750,7 +750,7 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
     const needed = correctionError(state, correctionReason);
     if (needed) found.correction_reason = needed;
     if (askSuccessor) {
-      const missing = validateSuccessor(successor);
+      const missing = validateSuccessor(successor, endDate);
       if (missing) found.successor = missing;
     }
     setErrors(found);
@@ -793,7 +793,7 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
         </form>
       )}
       {row && confirming && (
-        <Summary rows={[['Employee', `${row.full_name} (${row.employee_number})`], ['Company', companyName], ['Last day', formatDate(endDate)], ['Reason', reason.trim()], ...(askSuccessor ? [['Replacement', successor.type === 'temporary' ? 'A Temporary employee who covered the position (becomes Permanent from the next day, same salary)' : 'A person from the HR Waiting List (appointed from the next day)'] as [string, string]] : []), ['HR employment status', 'not changed']]} />
+        <Summary rows={[['Employee', `${row.full_name} (${row.employee_number})`], ['Company', companyName], ['Last day', formatDate(endDate)], ['Reason', reason.trim()], ...(askSuccessor ? [['Replacement', successor.type === 'temporary' ? `A Temporary employee who covered the position (shown as Permanent at once; Permanent assignment and the same salary from ${formatDate(effectiveStart(endDate, successor))})` : `A person from the HR Waiting List (appointed; assigned from ${formatDate(effectiveStart(endDate, successor))})`] as [string, string]] : []), ['HR employment status', 'not changed']]} />
       )}
     </Modal>
   );

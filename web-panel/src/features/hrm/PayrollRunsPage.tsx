@@ -651,8 +651,8 @@ function ItemsTable({
 function replacementSummary(detail: PayrollDeductionDetail): string {
   const who = detail.temporary_employee_name ?? 'a Temporary employee';
   const number = detail.temporary_employee_number ? ` (${detail.temporary_employee_number})` : '';
-  const days = detail.verified_days ?? 0;
-  return `${who}${number} covered for ${days} verified day${days === 1 ? '' : 's'}`;
+  const days = detail.covered_days ?? detail.verified_days ?? 0;
+  return `${who}${number} covered for ${days} day${days === 1 ? '' : 's'}`;
 }
 
 function DeductionList({ item }: { item: PayrollItem }) {

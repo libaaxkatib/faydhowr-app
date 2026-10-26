@@ -91,6 +91,9 @@ export interface PayrollDeductionDetail {
   temporary_employee_name?: string | null;
   start_date?: string;
   end_date?: string | null;
+  /** Days charged: the cover's actual coverage period, both ends included. */
+  covered_days?: number;
+  /** Attendance days verified in the ledger; information only. */
   verified_days?: number;
   daily_rate?: string;
   days_in_month?: number;

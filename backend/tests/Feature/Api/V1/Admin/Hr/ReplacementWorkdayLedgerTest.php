@@ -61,35 +61,40 @@ class ReplacementWorkdayLedgerTest extends TestCase
         return $this->withToken($token)->postJson("/api/v1/admin/hr/temporary-replacements/{$r->id}/workdays", ['dates' => $dates, 'verify' => $verify]);
     }
 
-    public function test_verified_workdays_produce_the_derived_daily_rate_and_amount(): void
+    public function test_the_coverage_period_produces_the_derived_daily_rate_and_amount(): void
     {
         [, $token] = $this->superAdminToken();
         [, , , $replacement] = $this->scenario(300);
+        // U8: the cover ran from 3 to 10 September, both inclusive; the verified workdays are attendance records of the same days.
+        $replacement->update(['start_date' => '2026-09-03', 'end_date' => '2026-09-10']);
 
         $this->record($token, $replacement, $this->dates(3, 10))->assertCreated();
 
         $this->withToken($token)->getJson("/api/v1/admin/hr/temporary-replacements/{$replacement->id}/cost?period=2026-09")
             ->assertOk()
+            ->assertJsonPath('data.covered_days', 8)
             ->assertJsonPath('data.verified_days', 8)
             ->assertJsonPath('data.daily_rate', '10.0000')
             ->assertJsonPath('data.amount', '80.00')
             ->assertJsonPath('data.approved', false);
     }
 
-    public function test_recorded_but_unverified_days_cost_nothing_until_verified(): void
+    public function test_recorded_but_unverified_days_are_attendance_records_and_do_not_change_the_cost(): void
     {
         [, $token] = $this->superAdminToken();
         [, , , $replacement] = $this->scenario(300);
+        $replacement->update(['start_date' => '2026-09-03', 'end_date' => '2026-09-05']);
 
         $response = $this->record($token, $replacement, $this->dates(3, 5), false)->assertCreated();
+        // U8: the three days of the cover count whether or not attendance was verified.
         $this->withToken($token)->getJson("/api/v1/admin/hr/temporary-replacements/{$replacement->id}/cost?period=2026-09")
-            ->assertJsonPath('data.verified_days', 0)->assertJsonPath('data.amount', '0.00');
+            ->assertJsonPath('data.covered_days', 3)->assertJsonPath('data.verified_days', 0)->assertJsonPath('data.amount', '30.00');
         $this->assertSame(['recorded', 'recorded', 'recorded'], array_column($response->json('data'), 'status'));
 
         $first = $response->json('data.0.id');
         $this->withToken($token)->patchJson("/api/v1/admin/hr/temporary-replacements/{$replacement->id}/workdays/{$first}/verify")->assertOk()->assertJsonPath('data.status', 'verified');
         $this->withToken($token)->getJson("/api/v1/admin/hr/temporary-replacements/{$replacement->id}/cost?period=2026-09")
-            ->assertJsonPath('data.verified_days', 1)->assertJsonPath('data.amount', '10.00');
+            ->assertJsonPath('data.verified_days', 1)->assertJsonPath('data.covered_days', 3)->assertJsonPath('data.amount', '30.00');
         $this->withToken($token)->patchJson("/api/v1/admin/hr/temporary-replacements/{$replacement->id}/workdays/{$first}/verify")
             ->assertStatus(422)->assertJsonPath('error_code', 'WORKDAY_NOT_VERIFIABLE');
     }
@@ -137,7 +142,8 @@ class ReplacementWorkdayLedgerTest extends TestCase
     {
         [, $token] = $this->superAdminToken();
         [, $assignment, , $first] = $this->scenario(300);
-        $second = $this->makeReplacement($assignment, $this->makeEmployee('active', 'temporary'), '2026-09-11');
+        $first->update(['start_date' => '2026-09-03', 'end_date' => '2026-09-05']);
+        $second = $this->makeReplacement($assignment, $this->makeEmployee('active', 'temporary'), '2026-09-11', '2026-09-14');
 
         $this->record($token, $first, $this->dates(3, 5))->assertCreated();
         $this->record($token, $second, $this->dates(11, 14))->assertCreated();
@@ -171,13 +177,15 @@ class ReplacementWorkdayLedgerTest extends TestCase
     {
         [, $token] = $this->superAdminToken();
         [, , , $replacement] = $this->scenario(300);
+        $replacement->update(['start_date' => '2026-09-08', 'end_date' => '2026-09-08']);
         $id = $this->record($token, $replacement, ['2026-09-08'])->assertCreated()->json('data.0.id');
 
         $this->withToken($token)->patchJson("/api/v1/admin/hr/temporary-replacements/{$replacement->id}/workdays/{$id}/void", [])->assertStatus(422)->assertJsonValidationErrors('reason');
         $this->withToken($token)->patchJson("/api/v1/admin/hr/temporary-replacements/{$replacement->id}/workdays/{$id}/void", ['reason' => 'Entered on the wrong day'])
             ->assertOk()->assertJsonPath('data.status', 'void')->assertJsonPath('data.void_reason', 'Entered on the wrong day');
 
-        $this->withToken($token)->getJson("/api/v1/admin/hr/temporary-replacements/{$replacement->id}/cost?period=2026-09")->assertJsonPath('data.amount', '0.00');
+        // Voiding the attendance record does not shorten the cover: the day is still inside its coverage period.
+        $this->withToken($token)->getJson("/api/v1/admin/hr/temporary-replacements/{$replacement->id}/cost?period=2026-09")->assertJsonPath('data.amount', '10.00')->assertJsonPath('data.verified_days', 0);
         $this->record($token, $replacement, ['2026-09-08'])->assertCreated();
         $this->assertDatabaseCount('temporary_replacement_workdays', 2); // the voided row is kept
         $this->withToken($token)->patchJson("/api/v1/admin/hr/temporary-replacements/{$replacement->id}/workdays/{$id}/void", ['reason' => 'Again, for testing'])

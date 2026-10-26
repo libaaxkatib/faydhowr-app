@@ -76,7 +76,8 @@ class AbsenceDeductionApprovedRuleTest extends TestCase
         $temp = $this->makeEmployee('active', 'temporary');
         $replacement = TemporaryReplacement::query()->create([
             'work_assignment_id' => $assignment->id, 'replacement_employee_id' => $temp->id,
-            'start_date' => '2026-09-01', 'currency' => 'USD', 'status' => 'active', 'approved_at' => $approved ? now() : null,
+            // The cover's ACTUAL coverage period (inclusive) is what counts (docs/HR_PAYROLL_RULES.md U8); the workdays are attendance records only.
+            'start_date' => sprintf('2026-09-%02d', min($days)), 'end_date' => sprintf('2026-09-%02d', max($days)), 'currency' => 'USD', 'status' => 'active', 'approved_at' => $approved ? now() : null,
         ]);
 
         foreach ($days as $day) {
@@ -261,7 +262,8 @@ class AbsenceDeductionApprovedRuleTest extends TestCase
         ])->assertOk();
 
         $runId = $this->generate($token)->assertCreated()->json('data.id');
-        $item = $this->withToken($token)->getJson("/api/v1/admin/hr/payroll-runs/{$runId}")->json('data.items.0');
+        // The run also holds the replacement chosen at the separation: take the leaver's own line, not whichever is listed first.
+        $item = collect($this->withToken($token)->getJson("/api/v1/admin/hr/payroll-runs/{$runId}")->json('data.items'))->firstWhere('employee_id', $employee->id);
         $byKind = [];
         foreach ($item['deductions'] as $d) {
             $byKind[$d['kind']] = ($byKind[$d['kind']] ?? 0) + (float) $d['amount'];

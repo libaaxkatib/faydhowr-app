@@ -169,7 +169,8 @@ class PayrollSummaryReconciliationTest extends TestCase
         $temp = $this->makeEmployee('active', 'temporary');
         $replacement = TemporaryReplacement::query()->create([
             'work_assignment_id' => $assignment->id, 'replacement_employee_id' => $temp->id,
-            'start_date' => '2026-09-01', 'currency' => 'USD', 'status' => 'active', 'approved_at' => now(),
+            // The cover ran from 3 to 5 September, both inclusive (docs/HR_PAYROLL_RULES.md U8); the workdays are attendance records of those days.
+            'start_date' => '2026-09-03', 'end_date' => '2026-09-05', 'currency' => 'USD', 'status' => 'active', 'approved_at' => now(),
         ]);
         foreach ([3, 4, 5] as $day) {
             $replacement->workdays()->create(['work_assignment_id' => $assignment->id, 'replacement_employee_id' => $temp->id, 'work_date' => sprintf('2026-09-%02d', $day), 'status' => 'verified']);

@@ -55,9 +55,10 @@ class PayrollLifecycleTest extends TestCase
     private function cover(EmployeeWorkAssignment $assignment, array $days, bool $approved = true, bool $verified = true): TemporaryReplacement
     {
         $temp = $this->makeEmployee('active', 'temporary');
+        // The cover's ACTUAL coverage period (inclusive) is what counts (docs/HR_PAYROLL_RULES.md U8); the workdays are attendance records only.
         $replacement = TemporaryReplacement::query()->create([
             'work_assignment_id' => $assignment->id, 'replacement_employee_id' => $temp->id,
-            'start_date' => '2026-09-01', 'currency' => 'USD', 'status' => 'active', 'approved_at' => $approved ? now() : null,
+            'start_date' => sprintf('2026-09-%02d', min($days)), 'end_date' => sprintf('2026-09-%02d', max($days)), 'currency' => 'USD', 'status' => 'active', 'approved_at' => $approved ? now() : null,
         ]);
 
         foreach ($days as $day) {
@@ -74,7 +75,7 @@ class PayrollLifecycleTest extends TestCase
     {
         [, $token] = $this->superAdminToken();
         [$employee, $assignment] = $this->permanentWith(300);
-        $this->cover($assignment, range(3, 10)); // 8 verified days, 30-day month => 80.00
+        $this->cover($assignment, range(3, 10)); // covered 3-10 September inclusive: 8 days, 30-day month => 80.00
         EmployeePenalty::query()->create(['employee_id' => $employee->id, 'penalty_date' => '2026-09-05', 'reason' => 'Late', 'deduction_amount' => 15, 'currency' => 'USD', 'payroll_period' => self::P]);
         EmployeeAdvance::query()->create(['employee_id' => $employee->id, 'advance_date' => '2026-09-06', 'amount' => 20, 'currency' => 'USD', 'payroll_period' => self::P, 'reason' => 'Rent']);
 
@@ -132,13 +133,14 @@ class PayrollLifecycleTest extends TestCase
         $this->assertSame(5000, $snapshot['pending_replacements_not_deducted'][0]['amount_cents']);
     }
 
-    public function test_unverified_days_are_never_deducted(): void
+    public function test_unverified_attendance_does_not_change_the_deduction_the_coverage_period_decides(): void
     {
         [, $token] = $this->superAdminToken();
         [, $assignment] = $this->permanentWith(300);
         $this->cover($assignment, range(1, 5), verified: false);
 
-        $this->generate($token)->assertCreated()->assertJsonPath('data.totals.replacement_deductions', '0.00');
+        // U8: 1-5 September inclusive = 5 covered days x (300 / 30), whether or not each day's attendance was verified.
+        $this->generate($token)->assertCreated()->assertJsonPath('data.totals.replacement_deductions', '50.00');
     }
 
     public function test_a_temporary_employees_own_assignment_gets_no_payroll_line(): void

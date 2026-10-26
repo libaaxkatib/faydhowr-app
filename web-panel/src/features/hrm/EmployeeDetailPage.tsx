@@ -1923,9 +1923,9 @@ function EndAssignmentModal({
             size="sm"
             isLoading={isLoading}
             onClick={() => {
-              const missing = askSuccessor ? validateSuccessor(successor) : null;
+              const missing = askSuccessor ? validateSuccessor(successor, endDate) : null;
               setSuccessorError(missing ?? undefined);
-              if (missing === null) onConfirm(endDate, note || undefined, askSuccessor ? (toSuccessorPayload(successor) ?? undefined) : undefined);
+              if (missing === null) onConfirm(endDate, note || undefined, askSuccessor ? (toSuccessorPayload(successor, endDate) ?? undefined) : undefined);
             }}
           >
             End Assignment
@@ -1966,7 +1966,7 @@ function MarkSeparatedModal({
   const [drafts, setDrafts] = useState<Record<number, SuccessorDraft>>({});
   const [showMissing, setShowMissing] = useState(false);
   const ids = permanentAssignments.map((a) => a.id);
-  const unresolved = missingSuccessors(ids, drafts);
+  const unresolved = missingSuccessors(ids, drafts, separationDate);
 
   if (!isOpen) return null;
 
@@ -1993,7 +1993,7 @@ function MarkSeparatedModal({
                 separation_date: separationDate,
                 rehire_eligible: rehireEligible,
                 notes: notes || null,
-                successors: ids.map((id) => ({ assignment_id: id, ...(toSuccessorPayload(drafts[id] ?? EMPTY_SUCCESSOR) as SuccessorPayload) })),
+                successors: ids.map((id) => ({ assignment_id: id, ...(toSuccessorPayload(drafts[id] ?? EMPTY_SUCCESSOR, separationDate) as SuccessorPayload) })),
               });
             }}
           >
@@ -2028,7 +2028,7 @@ function MarkSeparatedModal({
             lastDay={separationDate}
             value={drafts[assignment.id] ?? EMPTY_SUCCESSOR}
             onChange={(next) => setDrafts((current) => ({ ...current, [assignment.id]: next }))}
-            error={showMissing && unresolved.includes(assignment.id) ? (validateSuccessor(drafts[assignment.id] ?? EMPTY_SUCCESSOR) ?? undefined) : undefined}
+            error={showMissing && unresolved.includes(assignment.id) ? (validateSuccessor(drafts[assignment.id] ?? EMPTY_SUCCESSOR, separationDate) ?? undefined) : undefined}
             idPrefix={`sep-successor-${assignment.id}`}
           />
         </div>

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { EMPTY_SUCCESSOR, missingSuccessors, needsSuccessor, successorStartDate, toSuccessorPayload, validateSuccessor } from './successor.ts';
+import { EMPTY_SUCCESSOR, effectiveStart, missingSuccessors, needsSuccessor, successorStartDate, toSuccessorPayload, validateSuccessor } from './successor.ts';
 
 test('only a Permanent assignment needs a replacement choice', () => {
   assert.equal(needsSuccessor('permanent'), true);
@@ -43,4 +43,26 @@ test('a separation lists every open Permanent assignment that still has no choic
   assert.deepEqual(missingSuccessors([10, 11, 12], { 11: ok }), [10, 12]);
   assert.deepEqual(missingSuccessors([11], { 11: ok }), []);
   assert.deepEqual(missingSuccessors([], {}), []);
+});
+
+test('the effective date is included, never shifted, and must come after the last paid day', () => {
+  const base = { ...EMPTY_SUCCESSOR, type: 'temporary' as const, employeeId: 4 };
+
+  // Chosen: 10 October after a last paid day of 9 October - sent exactly as chosen, not moved to the 11th.
+  assert.equal(validateSuccessor({ ...base, effectiveDate: '2026-10-10' }, '2026-10-09'), null);
+  assert.deepEqual(toSuccessorPayload({ ...base, effectiveDate: '2026-10-10' }, '2026-10-09'), { type: 'temporary', employee_id: 4, effective_date: '2026-10-10' });
+  assert.equal(effectiveStart('2026-10-09', { ...base, effectiveDate: '2026-10-10' }), '2026-10-10');
+
+  // On or before the last paid day: refused, not corrected.
+  assert.match(validateSuccessor({ ...base, effectiveDate: '2026-10-09' }, '2026-10-09') ?? '', /must be after the last paid day/);
+  assert.match(validateSuccessor({ ...base, effectiveDate: '2026-10-08' }, '2026-10-09') ?? '', /must be after the last paid day/);
+  assert.equal(toSuccessorPayload({ ...base, effectiveDate: '2026-10-09' }, '2026-10-09'), null);
+  assert.match(validateSuccessor({ ...base, effectiveDate: '10/10/2026' }, '2026-10-09') ?? '', /valid date/);
+});
+
+test('without an effective date the replacement starts the day after the last paid day and no date is sent', () => {
+  const base = { ...EMPTY_SUCCESSOR, type: 'temporary' as const, employeeId: 4 };
+  assert.equal(effectiveStart('2026-10-09', base), '2026-10-10');
+  assert.deepEqual(toSuccessorPayload(base, '2026-10-09'), { type: 'temporary', employee_id: 4 });
+  assert.deepEqual(missingSuccessors([1], { 1: { ...base, effectiveDate: '2026-10-09' } }, '2026-10-09'), [1], 'a separation also reports an invalid effective date');
 });

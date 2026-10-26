@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\EmployeeSeparation;
 use App\Models\EmployeeStatusHistory;
 use App\Models\EmployeeWorkAssignment;
+use App\Models\PayrollRun;
 use App\Models\TemporaryReplacement;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
@@ -446,5 +447,118 @@ class PermanentSuccessionTest extends TestCase
         }
 
         $this->assertUntouched($a);
+    }
+
+    // ------------------------------------------------------------------ U9: employment type now, payroll from the effective date
+
+    /** @return array<string, mixed> the employee's payroll line of the month */
+    private function payrollLine(string $token, string $period, Employee $employee): array
+    {
+        $runId = $this->withToken($token)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => $period])->assertCreated()->json('data.id');
+
+        return collect($this->withToken($token)->getJson("/api/v1/admin/hr/payroll-runs/{$runId}")->json('data.items'))->firstWhere('employee_id', $employee->id) ?? [];
+    }
+
+    public function test_the_effective_date_is_inclusive_and_is_never_shifted_to_the_next_day(): void
+    {
+        [, $token] = $this->superAdminToken();
+        [$permanent, $a] = $this->position(310);
+        $temp = $this->makeEmployee('active', 'temporary');
+        $this->cover($a, $temp);
+
+        // The departing employee's last paid day is 9 October; HR selects 10 October as the effective date.
+        $this->stop($token, $a, '2026-10-09', $this->temporaryChoice($temp) + ['effective_date' => '2026-10-10'])->assertOk();
+
+        $new = EmployeeWorkAssignment::query()->where('employee_id', $temp->id)->sole();
+        $this->assertSame('2026-10-10', $new->start_date->toDateString(), 'not moved to 11 October');
+        $this->assertSame('2026-10-10', $new->salaryHistories()->sole()->effective_from->toDateString());
+        $this->assertSame(['2026-10-09', '2026-10-10'], [$a->fresh()->end_date->toDateString(), AssignmentSuccession::query()->sole()->successor_start_date->toDateString()]);
+        $meta = json_decode(DB::table('audit_logs')->where('entity_type', EmployeeWorkAssignment::class)->where('entity_id', $a->id)->where('description', 'like', 'Replacement chosen%')->value('metadata'), true);
+        $this->assertSame(['2026-10-10', true], [$meta['effective_date'], $meta['effective_date_entered']]);
+
+        // October: 10 October is the first day of the new Permanent (22 days of 31 = 220.00); the former Permanent keeps 1-9 October (9 days = 90.00).
+        $this->assertSame('220.00', $this->payrollLine($token, '2026-10', $temp->fresh())['gross'], '10 October is included: 22 days, not 21');
+        $this->assertSame('90.00', $this->payrollLine($token, '2026-10', $permanent)['gross']);
+    }
+
+    public function test_the_employment_type_changes_when_the_selection_is_saved_but_pay_starts_only_on_the_effective_date(): void
+    {
+        [, $token] = $this->superAdminToken();
+        [$permanent, $a] = $this->position(300);
+        $temp = $this->makeEmployee('active', 'temporary');
+        $cover = $this->cover($a, $temp);
+
+        // Saved on 20 October; the departing employee's last day is 31 October and the effective date is 10 November (1-9 November uncovered).
+        $this->stop($token, $a, '2026-10-31', $this->temporaryChoice($temp) + ['effective_date' => '2026-11-10'])->assertOk();
+
+        // The record shows Permanent immediately; it is still the same employee.
+        $this->withToken($token)->getJson("/api/v1/admin/hr/employees/{$temp->id}")->assertOk()->assertJsonPath('data.employment_type', 'permanent')->assertJsonPath('data.id', $temp->id);
+        $this->assertSame(1, Employee::query()->where('employee_number', $temp->employee_number)->count());
+
+        // But the assignment and the salary begin on 10 November: no October pay for the new Permanent, and November counts from the 10th (21 days of 30).
+        $new = EmployeeWorkAssignment::query()->where('employee_id', $temp->id)->sole();
+        $this->assertSame('2026-11-10', $new->start_date->toDateString(), 'a later effective date is not backdated');
+        $this->assertSame([], $this->payrollLine($token, '2026-10', $temp->fresh()), 'no line for the new Permanent before the effective date');
+        $this->assertSame('210.00', $this->payrollLine($token, '2026-11', $temp->fresh())['gross']);
+
+        // The former Permanent still carries the cover's cost in October, and the cover and the history are intact.
+        $this->assertSame('ended', $cover->fresh()->status->value);
+        $line = $this->payrollLine($token, '2026-10', $permanent);
+        $this->assertSame('300.00', $line['gross']);
+        $this->assertSame('permanent', $temp->fresh()->employment_type, 'the type flag never changes what was calculated for earlier periods');
+    }
+
+    public function test_an_effective_date_on_or_before_the_last_paid_day_is_refused_not_moved(): void
+    {
+        [, $token] = $this->superAdminToken();
+        [, $a] = $this->position();
+        $temp = $this->makeEmployee('active', 'temporary');
+        $this->cover($a, $temp);
+
+        foreach (['2026-10-09', '2026-10-08'] as $effective) {
+            $this->stop($token, $a, '2026-10-09', $this->temporaryChoice($temp) + ['effective_date' => $effective])
+                ->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSOR_EFFECTIVE_DATE_NOT_AFTER_LAST_DAY');
+        }
+
+        $this->assertUntouched($a);
+        $this->assertSame('temporary', $temp->fresh()->employment_type, 'a refused selection changes nothing');
+        $this->stop($token, $a, '2026-10-09', $this->temporaryChoice($temp) + ['effective_date' => 'not a date'])->assertStatus(422);
+
+        // Without an effective date it is the day after the last paid day.
+        $this->stop($token, $a, '2026-10-09', $this->temporaryChoice($temp))->assertOk();
+        $this->assertSame('2026-10-10', EmployeeWorkAssignment::query()->where('employee_id', $temp->id)->sole()->start_date->toDateString());
+    }
+
+    public function test_a_waiting_list_person_also_starts_on_the_chosen_effective_date(): void
+    {
+        [, $token] = $this->superAdminToken();
+        [, $a] = $this->position();
+
+        $this->stop($token, $a, '2026-10-15', $this->waitingSuccessor() + ['effective_date' => '2026-10-20'])->assertOk();
+
+        $this->assertSame('2026-10-20', AssignmentSuccession::query()->sole()->successor_start_date->toDateString());
+    }
+
+    public function test_a_back_dated_effective_date_in_a_closed_month_is_a_super_admin_correction(): void
+    {
+        [$admin, $super] = $this->superAdminToken();
+        $hr = $this->tokenWithOnly(['hr.view', 'hr.manage']);
+        [, $a] = $this->position(300);
+        $temp = $this->makeEmployee('active', 'temporary');
+        $this->cover($a, $temp, '2026-08-01');
+        PayrollRun::query()->create(['period' => '2026-09', 'status' => 'approved']);
+        $body = $this->temporaryChoice($temp) + ['effective_date' => '2026-09-11'];
+
+        // Not for an HR editor: it would change what approved September paid. Nothing is left behind.
+        $this->stop($hr, $a, '2026-09-10', $body)->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        $this->app['auth']->forgetGuards();
+        // A Super Admin needs a reason.
+        $this->stop($super, $a, '2026-09-10', $body)->assertStatus(422)->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');
+        $this->assertUntouched($a);
+        $this->assertSame('temporary', $temp->fresh()->employment_type);
+
+        $this->withToken($super)->postJson($this->stopUrl($a), ['end_date' => '2026-09-10', 'reason' => 'Left', 'correction_reason' => 'Appointed with effect from 11 September', 'successor' => $body])->assertOk();
+        $this->assertSame('permanent', $temp->fresh()->employment_type);
+        $this->assertSame('2026-09-11', EmployeeWorkAssignment::query()->where('employee_id', $temp->id)->sole()->start_date->toDateString());
     }
 }

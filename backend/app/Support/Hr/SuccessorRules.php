@@ -19,6 +19,8 @@ final class SuccessorRules
             $prefix => ['sometimes', 'nullable', 'array'],
             "{$prefix}.type" => ['required_with:'.$prefix, Rule::in(AssignmentSuccession::types())],
             "{$prefix}.employee_id" => ['required_with:'.$prefix, 'integer', 'exists:employees,id'],
+            // The date the replacement's Permanent assignment and salary take effect, INCLUSIVE. Optional: the day after the last paid day when omitted.
+            "{$prefix}.effective_date" => ['sometimes', 'nullable', 'date'],
             "{$prefix}.salary_amount" => ['sometimes', 'nullable', 'numeric', 'gt:0', 'max:9999999999.99'],
             "{$prefix}.salary_currency" => ['sometimes', 'nullable', 'string', 'size:3', 'alpha'],
             "{$prefix}.salary_frequency" => ['sometimes', 'nullable', Rule::in(SalaryFrequency::values())],

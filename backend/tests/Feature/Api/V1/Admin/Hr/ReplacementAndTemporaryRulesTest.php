@@ -177,9 +177,12 @@ class ReplacementAndTemporaryRulesTest extends TestCase
     private function cover(EmployeeWorkAssignment $assignment, array $verifiedDays, array $recordedDays = [], bool $approved = true): TemporaryReplacement
     {
         $temp = $this->makeEmployee('active', 'temporary');
+        // The cover's ACTUAL coverage period (inclusive) is what counts (docs/HR_PAYROLL_RULES.md U8): from the first to the last day given here.
+        // The recorded/verified workdays below are attendance records and never change the amount.
+        $all = array_merge($verifiedDays, $recordedDays);
         $replacement = TemporaryReplacement::query()->create([
             'work_assignment_id' => $assignment->id, 'replacement_employee_id' => $temp->id,
-            'start_date' => '2026-09-01', 'currency' => 'USD', 'status' => 'active', 'approved_at' => $approved ? now() : null,
+            'start_date' => sprintf('2026-09-%02d', min($all)), 'end_date' => sprintf('2026-09-%02d', max($all)), 'currency' => 'USD', 'status' => 'active', 'approved_at' => $approved ? now() : null,
         ]);
 
         foreach ([[$verifiedDays, 'verified'], [$recordedDays, 'recorded']] as [$days, $status]) {
@@ -194,7 +197,7 @@ class ReplacementAndTemporaryRulesTest extends TestCase
         return $replacement;
     }
 
-    public function test_temporary_coverage_leaves_the_permanent_assignment_in_place_and_is_paid_per_verified_day(): void
+    public function test_temporary_coverage_leaves_the_permanent_assignment_in_place_and_is_paid_for_its_coverage_period(): void
     {
         $permanent = $this->makeEmployee();
         $assignment = $this->makeAssignment($permanent, $this->company, null, 300, '2026-01-01');
@@ -208,7 +211,7 @@ class ReplacementAndTemporaryRulesTest extends TestCase
         $this->assertNull($assignment->fresh()->end_date);
         $this->assertSame(1, EmployeeWorkAssignment::query()->count(), 'no second assignment is created for Temporary coverage');
         $this->assertSame(30000, (int) $line->gross_cents);
-        $this->assertSame(3000, (int) $line->replacement_deduction_cents, '3 verified days x (300 / 30) come off the covered Permanent employee');
+        $this->assertSame(3000, (int) $line->replacement_deduction_cents, '3 covered days (3-5 September, both ends inclusive) x (300 / 30) come off the covered Permanent employee');
         $this->assertSame(27000, (int) $line->net_cents);
         $this->assertSame(1, PayrollItem::query()->count(), 'the Temporary worker has no salary line of their own: they are paid the deducted amount');
         $this->assertSame($cover->replacement_employee_id, $cover->fresh()->replacement_employee_id);
@@ -252,15 +255,16 @@ class ReplacementAndTemporaryRulesTest extends TestCase
         $this->assertSame('replacement', EmployeeWorkAssignment::query()->findOrFail($id)->assignment_type->value);
     }
 
-    public function test_missing_or_unverified_attendance_is_never_assumed_to_be_present(): void
+    public function test_the_coverage_period_decides_the_deduction_not_which_days_attendance_was_verified(): void
     {
         $assignment = $this->makeAssignment($this->makeEmployee(), $this->company, null, 300, '2026-01-01');
-        $this->cover($assignment, [3], [4, 5]); // day 3 verified by HR; 4 and 5 only recorded; every other day has no record at all
+        $this->cover($assignment, [3], [4, 5]); // the cover ran from 3 to 5 September; only day 3 was verified by HR, 4 and 5 were only recorded
 
         $this->generate();
         $line = $this->lines()[$assignment->id];
 
-        $this->assertSame(1000, (int) $line->replacement_deduction_cents, 'only the HR-verified day is paid for; recorded-but-unverified and unrecorded days are not assumed worked');
+        // U8: the actual coverage period (inclusive) is used for the Temporary's entitlement and for the deduction. Attendance is a record only.
+        $this->assertSame(3000, (int) $line->replacement_deduction_cents, 'all three days of the cover period are deducted, whatever was verified');
     }
 
     public function test_the_same_absence_is_never_deducted_twice(): void

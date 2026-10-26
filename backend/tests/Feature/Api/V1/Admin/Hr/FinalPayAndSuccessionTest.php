@@ -300,7 +300,8 @@ class FinalPayAndSuccessionTest extends TestCase
         $temp = $this->makeEmployee('active', 'temporary');
         $replacement = TemporaryReplacement::query()->create([
             'work_assignment_id' => $assignment->id, 'replacement_employee_id' => $temp->id,
-            'start_date' => '2026-09-01', 'end_date' => $end, 'currency' => 'USD', 'status' => 'active', 'approved_at' => now(),
+            // The cover's ACTUAL coverage period (inclusive) is what counts (docs/HR_PAYROLL_RULES.md U8): first to last day given, or up to `$end`.
+            'start_date' => sprintf('2026-09-%02d', min($days)), 'end_date' => $end ?? sprintf('2026-09-%02d', max($days)), 'currency' => 'USD', 'status' => 'active', 'approved_at' => now(),
         ]);
 
         foreach ($days as $day) {
@@ -327,7 +328,8 @@ class FinalPayAndSuccessionTest extends TestCase
         $this->assertTrue(collect($run->json('data.warnings'))->contains(fn ($w) => str_contains($w, '2026-09-11') && str_contains($w, 'NOT charged')));
         $detail = $this->lineFor($token, $run->json('data.id'), $leaver)['deductions'][0]['detail'];
         $this->assertSame(['2026-09-11', '2026-09-12'], $detail['not_chargeable']['outside_assignment']);
-        $this->assertSame(3, $detail['verified_days']);
+        $this->assertSame(3, $detail['covered_days'], 'U8: only the covered days inside the assignment are charged');
+        $this->assertSame(5, $detail['verified_days'], 'the attendance records of the five days are kept and shown for information');
     }
 
     public function test_temporary_days_already_unpaid_leave_are_not_deducted_a_second_time(): void
@@ -362,7 +364,7 @@ class FinalPayAndSuccessionTest extends TestCase
         $this->generate($token)->assertCreated()->assertJsonPath('data.totals.replacement_deductions', '10.00');
     }
 
-    public function test_verified_temporary_days_for_an_assignment_that_ended_before_the_month_are_reported(): void
+    public function test_covered_temporary_days_for_an_assignment_that_ended_before_the_month_are_reported(): void
     {
         [, $token] = $this->superAdminToken();
         [, $assignment] = $this->leaver(300);
@@ -371,7 +373,7 @@ class FinalPayAndSuccessionTest extends TestCase
 
         $run = $this->generate($token)->assertCreated();
 
-        $this->assertTrue(collect($run->json('data.warnings'))->contains(fn ($w) => str_contains($w, '2 verified Temporary replacement day(s)') && str_contains($w, 'no payroll line')));
+        $this->assertTrue(collect($run->json('data.warnings'))->contains(fn ($w) => str_contains($w, '2 covered Temporary replacement day(s)') && str_contains($w, 'no payroll line')));
     }
 
     public function test_the_same_replacement_cost_is_charged_only_once_across_two_runs_of_the_same_month(): void

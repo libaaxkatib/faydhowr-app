@@ -18,7 +18,6 @@ use App\Models\PayrollCorrectionTransaction;
 use App\Models\PayrollItemDeduction;
 use App\Models\PayrollRecoveryDeduction;
 use App\Models\TemporaryReplacement;
-use App\Models\TemporaryReplacementWorkday;
 use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\PositionSuccession;
 use Carbon\CarbonImmutable;
@@ -124,7 +123,7 @@ class PayrollRunCalculator
 
                 $this->warnAboutNonChargeableDays($assignment, $replacement, $cost, $warnings);
 
-                if ($cost['verified_days'] === 0 && $cost['amount_cents'] === 0) {
+                if ($cost['covered_days'] === 0 && $cost['amount_cents'] === 0) {
                     continue;
                 }
 
@@ -135,7 +134,12 @@ class PayrollRunCalculator
                     'temporary_employee_name' => $replacement->replacementEmployee?->full_name,
                     'start_date' => $replacement->start_date->toDateString(),
                     'end_date' => $replacement->end_date?->toDateString(),
+                    // U8: the days that count are the cover's ACTUAL coverage period (inclusive); the ledger's verified days are attendance, shown for information.
+                    'covered_days' => $cost['covered_days'],
                     'verified_days' => $cost['verified_days'],
+                    'entitlement_cents' => $cost['entitlement_cents'],
+                    'coverage' => $cost['coverage'],
+                    'planned_end_date' => $replacement->planned_end_date?->toDateString(),
                     'daily_rate' => $cost['daily_rate'],
                     'days_in_month' => $cost['days_in_month'],
                     'charged_dates' => $cost['charged_dates'],
@@ -158,7 +162,7 @@ class PayrollRunCalculator
                     'source_type' => 'temporary_replacement',
                     'source_id' => $replacement->id,
                     'amount_cents' => $cost['amount_cents'],
-                    'description' => "Temporary cover by {$detail['temporary_employee_name']}: {$cost['verified_days']} verified day(s)",
+                    'description' => "Temporary cover by {$detail['temporary_employee_name']}: {$cost['covered_days']} covered day(s)",
                     'detail' => $detail,
                 ];
             }
@@ -505,7 +509,7 @@ class PayrollRunCalculator
     }
 
     /**
-     * Verified Temporary-cover days that are NOT charged to the covered employee
+     * Temporary-cover days that are NOT charged to the covered employee
      * (they were not payable that day) are reported, never silently dropped.
      *
      * @param  array<string, mixed>  $cost
@@ -517,31 +521,45 @@ class PayrollRunCalculator
         $leave = $cost['not_chargeable']['on_unpaid_leave'] ?? [];
 
         if ($after !== []) {
-            $warnings[] = 'Temporary replacement #'.$replacement->id.': '.count($after).' verified day(s) ('.implode(', ', $after)."), fall outside assignment #{$assignment->id}'s paid dates, so they were NOT charged to the employee.";
+            $warnings[] = 'Temporary replacement #'.$replacement->id.': '.count($after).' covered day(s) ('.implode(', ', $after)."), fall outside assignment #{$assignment->id}'s paid dates, so they were NOT charged to the employee.";
         }
 
         if ($leave !== []) {
-            $warnings[] = 'Temporary replacement #'.$replacement->id.': '.count($leave).' verified day(s) ('.implode(', ', $leave).') were already unpaid leave for the covered employee, so they were NOT charged again.';
+            $warnings[] = 'Temporary replacement #'.$replacement->id.': '.count($leave).' covered day(s) ('.implode(', ', $leave).') were already unpaid leave for the covered employee, so they were NOT charged again.';
         }
     }
 
     /**
-     * Verified replacement days whose covered employee has no payroll line this
+     * Covered Temporary-cover days whose covered employee has no payroll line this
      * month would never be deducted; say so instead of dropping them silently.
      *
      * @param  list<string>  $warnings
      */
     private function warnAboutUnpayableReplacementDays(EmployeeWorkAssignment $assignment, \DateTimeImmutable $first, \DateTimeImmutable $last, array &$warnings): void
     {
-        $days = TemporaryReplacementWorkday::query()
-            ->where('work_assignment_id', $assignment->id)
-            ->where('status', TemporaryReplacementWorkday::STATUS_VERIFIED)
-            ->whereDate('work_date', '>=', $first->format('Y-m-d'))->whereDate('work_date', '<=', $last->format('Y-m-d'))
-            ->count();
+        $days = $this->coveredDaysOf(TemporaryReplacement::query()->where('work_assignment_id', $assignment->id)->get(), $first->format('Y-m'));
 
         if ($days > 0) {
-            $warnings[] = "{$days} verified Temporary replacement day(s) for assignment #{$assignment->id} could NOT be deducted because that assignment has no payroll line this month.";
+            $warnings[] = "{$days} covered Temporary replacement day(s) for assignment #{$assignment->id} could NOT be deducted because that assignment has no payroll line this month.";
         }
+    }
+
+    /**
+     * Calendar days of the month that the given covers declare (the days they declare between their start and actual end).
+     *
+     * @param  iterable<TemporaryReplacement>  $covers
+     */
+    private function coveredDaysOf(iterable $covers, string $period): int
+    {
+        $end = CarbonImmutable::parse("{$period}-01")->endOfMonth()->startOfDay();
+        $days = 0;
+
+        foreach ($covers as $cover) {
+            // The days the cover declares in this month: the covered assignment has no line, so none of them can be deducted.
+            $days += count(array_filter(CoveragePeriod::declaredDates($cover, $end), fn (string $iso): bool => str_starts_with($iso, $period.'-')));
+        }
+
+        return $days;
     }
 
     /**
@@ -562,16 +580,16 @@ class PayrollRunCalculator
             }
         }
 
-        $stranded = TemporaryReplacementWorkday::query()
-            ->where('status', TemporaryReplacementWorkday::STATUS_VERIFIED)
-            ->whereDate('work_date', '>=', "{$period}-01")->whereDate('work_date', '<=', CarbonImmutable::parse("{$period}-01")->endOfMonth()->toDateString())
+        // Covered days of Temporary covers whose covered assignment has no payroll line this month (the coverage period decides, not the attendance ledger).
+        $stranded = TemporaryReplacement::query()
             ->whereNotIn('work_assignment_id', $assignmentIds === [] ? [0] : $assignmentIds)
-            ->selectRaw('work_assignment_id, count(*) as days')
+            ->get()
             ->groupBy('work_assignment_id')
-            ->get();
+            ->map(fn ($covers): int => $this->coveredDaysOf($covers, $period))
+            ->filter(fn (int $days): bool => $days > 0);
 
-        foreach ($stranded as $row) {
-            $warnings[] = "{$row->days} verified Temporary replacement day(s) for assignment #{$row->work_assignment_id} fall in {$period}, but that assignment has no payroll line this month (for example it ended earlier), so nothing was charged to the employee.";
+        foreach ($stranded as $assignmentId => $days) {
+            $warnings[] = "{$days} covered Temporary replacement day(s) for assignment #{$assignmentId} fall in {$period}, but that assignment has no payroll line this month (for example it ended earlier), so nothing was charged to the employee.";
         }
 
         foreach (EmployeePenalty::query()->where('payroll_period', $period)->whereNotIn('employee_id', $employeeIds)->get() as $penalty) {

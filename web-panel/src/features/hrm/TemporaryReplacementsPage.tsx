@@ -503,8 +503,9 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
         footer={<Button variant="outline" size="sm" onClick={onClose}>Close</Button>}
       >
         <p className="mb-5 rounded-sm bg-surface-alt px-3 py-2 text-xs text-ink-muted">
-          Record the days the Temporary employee really worked. <strong>Only verified days are charged.</strong> Once the replacement is
-          approved, the month&apos;s cost is deducted once from {coveredName}&apos;s pay.
+          The amount is worked out from the <strong>days the cover actually existed</strong> (first to last day, both included), not from these
+          records. Once the replacement is approved, the month&apos;s cost is deducted once from {coveredName}&apos;s pay. The days below are the
+          attendance record of the cover.
         </p>
 
         <h3 className="mb-2 font-display text-sm font-bold text-ink">Days worked</h3>
@@ -613,8 +614,8 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
             {cost && (
               <dl className="space-y-1.5 text-sm">
                 <div className="flex justify-between">
-                  <dt className="text-ink-muted">Verified days charged</dt>
-                  <dd className="text-ink">{cost.verified_days}</dd>
+                  <dt className="text-ink-muted">Days covered (first to last day, both included)</dt>
+                  <dd className="text-ink">{cost.covered_days ?? cost.verified_days}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
                   <dt className="text-ink-muted">Daily rate (covered salary ÷ days in the month)</dt>
@@ -669,7 +670,7 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
       <ConfirmDialog
         isOpen={isApproveOpen}
         title="Approve this replacement?"
-        description={`Once approved, the cost of the verified days is deducted once from ${coveredName}'s pay in the payroll run. Only verified days are counted. Check the days above before you continue.`}
+        description={`Once approved, the cost of the days the cover existed is deducted once from ${coveredName}'s pay in the payroll run. Check the cover's start and end dates before you continue.`}
         confirmLabel="Approve"
         isLoading={approveMutation.isPending}
         onConfirm={() => approveMutation.mutate()}

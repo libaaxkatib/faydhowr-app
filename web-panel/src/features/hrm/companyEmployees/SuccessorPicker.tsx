@@ -5,13 +5,14 @@ import { hrApi } from '@/api/hr';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { formatDate } from '@/utils/formatters';
-import { EMPTY_SUCCESSOR, successorStartDate, type SuccessorDraft } from '@/utils/successor';
+import { EMPTY_SUCCESSOR, effectiveStart, type SuccessorDraft } from '@/utils/successor';
 
 /**
  * The replacement choice that is required when a Permanent assignment is removed (docs/HR_PAYROLL_RULES.md N1-N3). Exactly two kinds are offered:
  * a Temporary employee who has been covering this very position, or a person from the HR Waiting List. Nobody is preselected. A Temporary becomes
- * Permanent on the day after the last day and inherits the departing salary automatically; a Waiting List person is appointed through the normal
- * status workflow and needs the salary HR agrees.
+ * Permanent as soon as this is saved (the record shows it at once) and inherits the departing salary automatically; a Waiting List person is appointed
+ * through the normal status workflow and needs the salary HR agrees. Pay and the assignment begin on the EFFECTIVE DATE, which is included: it defaults to
+ * the day after the last day, can be set later, and is never moved by the system.
  */
 export function SuccessorPicker({
   assignmentId,
@@ -43,14 +44,15 @@ export function SuccessorPicker({
     enabled: assignmentId > 0,
   });
 
-  const choose = (type: SuccessorDraft['type']) => onChange({ ...EMPTY_SUCCESSOR, type, salaryCurrency: value.salaryCurrency || 'USD' });
-  const startText = /^\d{4}-\d{2}-\d{2}$/.test(lastDay) ? formatDate(successorStartDate(lastDay)) : 'the day after the last day';
+  const choose = (type: SuccessorDraft['type']) => onChange({ ...EMPTY_SUCCESSOR, type, effectiveDate: value.effectiveDate, salaryCurrency: value.salaryCurrency || 'USD' });
+  const start = effectiveStart(lastDay, value);
+  const startText = start !== '' ? formatDate(start) : 'the day after the last day';
 
   return (
     <fieldset className="mb-4 rounded-sm border border-border p-3" aria-describedby={`${idPrefix}-help`}>
       <legend className="px-1 text-sm font-medium text-ink">Who takes over this Permanent position? <span className="text-danger">*</span></legend>
       <p id={`${idPrefix}-help`} className="mb-3 text-xs text-ink-muted">
-        This position cannot be left without a replacement. The replacement starts as a Permanent employee on {startText}.
+        This position cannot be left without a replacement. The replacement&apos;s Permanent assignment and salary start on {startText} (that day is included).
       </p>
 
       <div className="mb-3 flex flex-col gap-2 text-sm text-ink">
@@ -63,6 +65,10 @@ export function SuccessorPicker({
           A person from the HR Waiting List
         </label>
       </div>
+
+      <FormField label="Effective date (first day of the replacement)" htmlFor={`${idPrefix}-effective`} hint="Leave empty for the day after the last day. That day is included in the new salary. It must be after the last day.">
+        <input id={`${idPrefix}-effective`} type="date" className={inputClasses} value={value.effectiveDate} onChange={(e) => onChange({ ...value, effectiveDate: e.target.value })} />
+      </FormField>
 
       {value.type === 'temporary' && (
         <FormField label="Temporary employee" htmlFor={`${idPrefix}-temp`} required hint="Becomes Permanent with the same employee record. The salary of the departing employee is inherited automatically; nothing to enter.">

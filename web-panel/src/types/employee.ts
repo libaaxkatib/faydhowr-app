@@ -503,9 +503,14 @@ export interface RecordReplacementWorkdaysPayload {
   notes?: string | null;
 }
 
-/** Month cost preview for one replacement. Only verified days are charged. */
+/** Month cost preview for one replacement: every calendar day the cover existed is charged (docs/HR_PAYROLL_RULES.md U8). */
 export interface TemporaryReplacementCost {
+  /** Days charged: the cover's actual coverage period, both ends included. */
+  covered_days?: number;
+  /** Days whose attendance was verified in the ledger - information only, it never changes the amount. */
   verified_days: number;
+  /** The Temporary's entitlement for the month before the unpaid-leave rule, in cents. */
+  entitlement_cents?: number;
   /** A number like '10.0000', or a plain-text note such as 'varies...' when the covered salary changed during the month. */
   daily_rate: string;
   amount: string;
@@ -1120,6 +1125,8 @@ export type SuccessorType = 'temporary' | 'waiting_list';
 export interface SuccessorPayload {
   type: SuccessorType;
   employee_id: number;
+  /** First day of the replacement's Permanent assignment and salary, INCLUDED. Omitted: the day after the last paid day. Never shifted. */
+  effective_date?: string;
   /** Waiting List only: the salary HR agrees. A Temporary inherits the departing salary automatically. */
   salary_amount?: number;
   salary_currency?: string;
@@ -1152,7 +1159,8 @@ export interface TemporaryExpectedPayment {
   ended_early: boolean;
   months: TemporaryExpectedPaymentMonth[];
   expected: string;
-  verified_days_cost: string;
+  /** What the same coverage period deducts from the covered Permanent once the cover is approved. */
+  permanent_deduction: string;
   approved: boolean;
   paid_so_far: string;
   balance: string;

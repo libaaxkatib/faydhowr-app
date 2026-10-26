@@ -78,23 +78,23 @@ class TemporaryExpectedPaymentTest extends TestCase
             ->assertJsonPath('data.balance', '200.00');
     }
 
-    public function test_every_calendar_day_of_the_cover_counts_not_only_verified_workdays_and_the_deducted_cost_is_unchanged(): void
+    public function test_every_calendar_day_of_the_cover_counts_whatever_attendance_was_recorded_and_the_cost_follows_the_same_period(): void
     {
         [, $token] = $this->superAdminToken();
         [$a, $temp] = $this->position(600);
         $r = $this->cover($a, $temp, '2026-09-21', '2026-09-30');
 
-        // No workday was recorded at all: the expected payment is still the whole period; the verified-days cost is 0.
+        // No workday was recorded at all: the expected payment is still the whole period, and so is the cost deducted from the Permanent (U8).
         $first = $this->expected($token, $r)->assertOk();
-        $first->assertJsonPath('data.expected', '200.00')->assertJsonPath('data.verified_days_cost', '0.00');
+        $first->assertJsonPath('data.expected', '200.00')->assertJsonPath('data.permanent_deduction', '200.00');
         $codes = array_column($first->json('data.warnings'), 'code');
-        $this->assertContains('DIFFERS_FROM_VERIFIED_COST', $codes);
-        $this->assertContains('COST_NOT_APPROVED', $codes, 'an unapproved cost is never silently treated as approved');
+        $this->assertNotContains('DEDUCTION_DIFFERS', $codes);
+        $this->assertContains('COST_NOT_APPROVED', $codes, 'an unapproved cover is never silently treated as approved');
 
-        // Three verified workdays: the cost deducted from the Permanent is still the verified-days cost (A6), the expected payment unchanged.
+        // Three verified attendance days change nothing: attendance is a record, the period decides.
         $this->withToken($token)->postJson("/api/v1/admin/hr/temporary-replacements/{$r->id}/workdays", ['dates' => ['2026-09-21', '2026-09-22', '2026-09-23'], 'verify' => true])->assertCreated();
-        $this->withToken($token)->getJson("/api/v1/admin/hr/temporary-replacements/{$r->id}/cost?period=2026-09")->assertOk()->assertJsonPath('data.verified_days', 3)->assertJsonPath('data.amount', '60.00');
-        $this->expected($token, $r)->assertOk()->assertJsonPath('data.expected', '200.00')->assertJsonPath('data.verified_days_cost', '60.00');
+        $this->withToken($token)->getJson("/api/v1/admin/hr/temporary-replacements/{$r->id}/cost?period=2026-09")->assertOk()->assertJsonPath('data.verified_days', 3)->assertJsonPath('data.covered_days', 10)->assertJsonPath('data.amount', '200.00');
+        $this->expected($token, $r)->assertOk()->assertJsonPath('data.expected', '200.00')->assertJsonPath('data.permanent_deduction', '200.00');
     }
 
     public function test_months_of_28_29_30_and_31_days_use_their_real_length_including_leap_february(): void

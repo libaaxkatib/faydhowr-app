@@ -119,20 +119,20 @@ class PayrollSafetyNetsTest extends TestCase
         $this->assertSame('pending', PayrollAdjustment::query()->firstOrFail()->status);
     }
 
-    public function test_verified_cover_days_that_cannot_be_deducted_are_reported(): void
+    public function test_covered_days_that_cannot_be_deducted_are_reported(): void
     {
         [, $token] = $this->superAdminToken();
         $employee = $this->makeEmployee();
         $assignment = $this->makeAssignment($employee, $this->makeCompany(), null, 300, '2026-01-01');
         $assignment->salaryHistories()->update(['frequency' => 'weekly']); // payroll refuses non-monthly pay
         $temp = $this->makeEmployee('active', 'temporary');
-        $replacement = TemporaryReplacement::query()->create(['work_assignment_id' => $assignment->id, 'replacement_employee_id' => $temp->id, 'start_date' => '2026-09-01', 'currency' => 'USD', 'status' => 'active', 'approved_at' => now()]);
+        $replacement = TemporaryReplacement::query()->create(['work_assignment_id' => $assignment->id, 'replacement_employee_id' => $temp->id, 'start_date' => '2026-09-01', 'end_date' => '2026-09-03', 'currency' => 'USD', 'status' => 'active', 'approved_at' => now()]);
         $replacement->workdays()->create(['work_assignment_id' => $assignment->id, 'replacement_employee_id' => $temp->id, 'work_date' => '2026-09-03', 'status' => 'verified']);
 
         $response = $this->generate($token)->assertCreated();
 
         $this->assertSame(0, $response->json('data.item_count'));
         $this->assertStringContainsString('non-monthly', $response->json('data.warnings.0'));
-        $this->assertStringContainsString('1 verified Temporary replacement day(s)', $response->json('data.warnings.1'));
+        $this->assertStringContainsString('3 covered Temporary replacement day(s)', $response->json('data.warnings.1'));
     }
 }

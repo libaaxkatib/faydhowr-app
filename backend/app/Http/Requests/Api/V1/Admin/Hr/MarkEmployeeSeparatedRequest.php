@@ -32,6 +32,7 @@ class MarkEmployeeSeparatedRequest extends FormRequest
             'successors.*.assignment_id' => ['required', 'integer', 'exists:employee_work_assignments,id'],
             'successors.*.type' => ['required', Rule::in(AssignmentSuccession::types())],
             'successors.*.employee_id' => ['required', 'integer', 'exists:employees,id'],
+            'successors.*.effective_date' => ['sometimes', 'nullable', 'date'],
             'successors.*.salary_amount' => ['sometimes', 'nullable', 'numeric', 'gt:0', 'max:9999999999.99'],
             'successors.*.salary_currency' => ['sometimes', 'nullable', 'string', 'size:3', 'alpha'],
             'successors.*.salary_frequency' => ['sometimes', 'nullable', Rule::in(SalaryFrequency::values())],
