@@ -39,9 +39,10 @@ class TemporaryReplacementTest extends TestCase
         ]);
     }
 
-    private function makeActiveAssignment(string $token, Employee $employee, WorkLocation $location): int
+    private function makeActiveAssignment(string $token, Employee $employee, WorkLocation $location, ?string $shift = null): int
     {
         return $this->withToken($token)->postJson("/api/v1/admin/hr/employees/{$employee->id}/work-assignments", [
+            'shift' => $shift,
             'work_location_id' => $location->id,
             'start_date' => now()->toDateString(),
             'salary_amount' => 100,
@@ -164,9 +165,11 @@ class TemporaryReplacementTest extends TestCase
         $originalEmployee = $this->makeEmployee();
         $replacementEmployee = $this->makeEmployee('active', 'temporary');
 
-        // The replacement already has their own active assignment at Company B's location.
-        $this->makeActiveAssignment($token, $replacementEmployee, $locationB);
-        $assignmentAtA = $this->makeActiveAssignment($token, $originalEmployee, $locationA);
+        // The replacement already has their own active assignment at Company B's location - on the DAY shift, while the position at Company A is a NIGHT
+        // shift. Two recorded, different shifts do not overlap (docs/HR_PAYROLL_RULES.md U1), so the cover is allowed. Without recorded shifts it would be
+        // refused (see TemporaryCoverConflictTest).
+        $this->makeActiveAssignment($token, $replacementEmployee, $locationB, 'day');
+        $assignmentAtA = $this->makeActiveAssignment($token, $originalEmployee, $locationA, 'night');
 
         $this->withToken($token)->postJson('/api/v1/admin/hr/temporary-replacements', [
             'work_assignment_id' => $assignmentAtA,

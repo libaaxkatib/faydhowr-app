@@ -1,6 +1,7 @@
 import { apiRequest, apiRequestWithMeta, downloadAuthenticatedFile } from '@/api/client';
 import type { PageMeta } from '@/types/api';
 import type { OfficeStaffSummary } from '@/utils/officeStaff';
+import type { CoverConflict } from '@/utils/coverConflict';
 import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollCorrectionsResponse, PayrollItem, PayrollRun } from '@/types/payroll';
 import type {
   AttendanceRosterEntry,
@@ -289,6 +290,9 @@ export const hrApi = {
     list: () => apiRequest<TemporaryReplacement[]>('admin/hr/temporary-replacements'),
     create: (payload: CreateTemporaryReplacementPayload) =>
       apiRequest<TemporaryReplacement>('admin/hr/temporary-replacements', { method: 'POST', body: payload }),
+    /** Would this cover be refused (docs/HR_PAYROLL_RULES.md U1, U12)? Saves nothing; the save runs the very same check. */
+    conflictCheck: (params: { work_assignment_id: number; replacement_employee_id: number; start_date: string; end_date?: string | null }) =>
+      apiRequest<{ conflict: CoverConflict | null }>('admin/hr/temporary-replacements/conflict-check', { query: params }),
     end: (id: number, payload: EndTemporaryReplacementPayload) =>
       apiRequest<TemporaryReplacement>(`admin/hr/temporary-replacements/${id}/end`, { method: 'PATCH', body: payload }),
     addPayment: (id: number, payload: RecordTemporaryReplacementPaymentPayload) =>

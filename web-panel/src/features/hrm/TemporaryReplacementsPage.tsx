@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { returnState } from '@/utils/urlFilters';
 import { overrideWarning, paymentDiffers } from '@/utils/temporaryPayment';
+import { canCheckConflict, conflictFromError, conflictHeading, type CoverConflict } from '@/utils/coverConflict';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -279,6 +280,24 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
   const [startDate, setStartDate] = useState(localToday());
   const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
+  // A conflict the server returned when saving; it belongs to the exact choices made then and disappears as soon as any of them changes.
+  const [refused, setRefused] = useState<{ key: string; conflict: CoverConflict } | null>(null);
+
+  const fieldsKey = [workAssignmentId, replacementEmployeeId, startDate, endDate].join('|');
+  const checkable = canCheckConflict({ workAssignmentId, replacementEmployeeId, startDate, endDate });
+  // Asks the server the same question the save asks (overlap with another Temporary cover of the position or the person, or the person's own assignment).
+  const { data: preview } = useQuery({
+    queryKey: ['cover-conflict', fieldsKey],
+    queryFn: () =>
+      hrApi.temporaryReplacements.conflictCheck({
+        work_assignment_id: Number(workAssignmentId),
+        replacement_employee_id: Number(replacementEmployeeId),
+        start_date: startDate,
+        end_date: endDate || undefined,
+      }),
+    enabled: isOpen && checkable,
+  });
+  const conflict = (checkable ? preview?.conflict : null) ?? (refused?.key === fieldsKey ? refused.conflict : null);
 
   const { data: coveredEmployee } = useQuery({
     queryKey: ['employee', coveredEmployeeId],
@@ -304,7 +323,11 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
       setReason('');
       onCreated();
     },
-    onError: (err) => show(friendlyErrorMessage(err, 'Could not create temporary replacement.'), 'error'),
+    onError: (err) => {
+      const refusal = conflictFromError(err);
+      if (refusal) setRefused({ key: fieldsKey, conflict: refusal });
+      else show(friendlyErrorMessage(err, 'Could not create temporary replacement.'), 'error');
+    },
   });
 
   if (!isOpen) return null;
@@ -326,7 +349,7 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
           <Button
             size="sm"
             isLoading={createMutation.isPending}
-            disabled={!workAssignmentId || !replacementEmployeeId || !startDate}
+            disabled={!workAssignmentId || !replacementEmployeeId || !startDate || conflict !== null}
             onClick={() => createMutation.mutate()}
           >
             Create
@@ -381,6 +404,15 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
       <FormField label="Reason" htmlFor="tr-reason">
         <textarea id="tr-reason" rows={2} className={inputClasses + ' h-auto py-2'} value={reason} onChange={(e) => setReason(e.target.value)} />
       </FormField>
+      {conflict && (
+        <div role="alert" data-testid="cover-conflict" className="rounded-sm bg-danger-soft px-3 py-2 text-xs text-ink">
+          <p className="font-semibold text-danger">{conflictHeading(conflict.code)}</p>
+          <p className="mt-1" lang={conflict.code === 'TEMPORARY_EMPLOYEE_HAS_OVERLAPPING_ASSIGNMENT' ? 'so' : 'en'}>
+            {conflict.message}
+          </p>
+          <p className="mt-1 text-ink-muted">Nothing is cancelled or changed for you. Fix the dates, the shifts or the earlier record first.</p>
+        </div>
+      )}
     </Modal>
   );
 }

@@ -3,6 +3,7 @@
 namespace App\Actions\Hr;
 
 use App\Enums\AdminRole;
+use App\Enums\AssignmentShift;
 use App\Enums\AssignmentType;
 use App\Enums\AuditAction;
 use App\Enums\WorkAssignmentStatus;
@@ -16,6 +17,7 @@ use App\Support\ApiResponse;
 use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\CompanyLocationResolver;
 use App\Support\Hr\ConcurrentAssignmentGuard;
+use App\Support\Hr\CoverConflicts;
 use App\Support\Hr\Payroll\ClosedPayrollCorrection;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\PermanentSuccession;
@@ -180,6 +182,7 @@ class UpdateWorkAssignmentAction
 
         $this->guardSuccession($assignment, $data);
         $this->guardConcurrency($assignment, $data);
+        $this->guardCovers($assignment, $data);
 
         $wasUnresolved = UnresolvedTemporaryReplacements::isUnresolved($assignment);
 
@@ -245,6 +248,33 @@ class UpdateWorkAssignmentAction
         $endValue = $data['end_date'] ?? $assignment->end_date;
 
         ConcurrentAssignmentGuard::assertAllowed($assignment->employee, $assignment->client_company_id, $start, $endValue === null ? null : CarbonImmutable::parse($endValue)->startOfDay(), $assignment->id);
+    }
+
+    /**
+     * Changing the dates or the shift of an assignment must not make it overlap a Temporary cover of its holder (U1), nor make the covers it
+     * carries overlap each other (U12). Only a real change is checked; the edited assignment is never compared with itself.
+     */
+    private function guardCovers(EmployeeWorkAssignment $assignment, array $data): void
+    {
+        $start = CarbonImmutable::parse($data['start_date'] ?? $assignment->start_date)->toDateString();
+        $endValue = array_key_exists('end_date', $data) && $data['end_date'] !== null ? $data['end_date'] : $assignment->end_date;
+        $end = $endValue === null ? null : CarbonImmutable::parse($endValue)->toDateString();
+        $shift = array_key_exists('shift', $data) ? AssignmentShift::tryFrom((string) ($data['shift'] ?? '')) : $assignment->shift;
+
+        $unchanged = $start === $assignment->start_date?->toDateString() && $end === $assignment->end_date?->toDateString() && $shift === $assignment->shift;
+
+        if ($unchanged) {
+            return;
+        }
+
+        CoverConflicts::assertOwnAssignmentFree($assignment->employee, $start, $end, $shift);
+
+        $probe = $assignment->replicate();
+        $probe->id = $assignment->id;
+        $probe->start_date = $start;
+        $probe->end_date = $end;
+        $probe->shift = $shift;
+        CoverConflicts::assertCoversStillFree($probe);
     }
 
     /**

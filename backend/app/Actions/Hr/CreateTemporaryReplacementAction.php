@@ -12,7 +12,9 @@ use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\TemporaryReplacement;
 use App\Support\ApiResponse;
+use App\Support\Hr\CoverConflicts;
 use App\Support\Hr\EmployeeRegistrationWorkflow;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
@@ -80,6 +82,18 @@ class CreateTemporaryReplacementAction
         }
 
         return DB::transaction(function () use ($workAssignment, $replacementEmployee, $data, $actor) {
+            // Two people saving at the same moment must not both pass the overlap check: the position and the person are locked, in this order, until the cover is saved.
+            EmployeeWorkAssignment::query()->whereKey($workAssignment->id)->lockForUpdate()->first();
+            Employee::query()->whereKey($replacementEmployee->id)->lockForUpdate()->first();
+
+            // U12 / U1 (docs/HR_PAYROLL_RULES.md): refused when it overlaps another Temporary cover of the position or of the person, or the person's own assignment.
+            CoverConflicts::assertFree(
+                $workAssignment,
+                $replacementEmployee,
+                CarbonImmutable::parse($data['start_date'])->toDateString(),
+                empty($data['end_date']) ? null : CarbonImmutable::parse($data['end_date'])->toDateString(),
+            );
+
             $replacement = TemporaryReplacement::query()->create([
                 ...$data,
                 'currency' => $data['currency'] ?? 'USD',

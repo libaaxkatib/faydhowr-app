@@ -3,6 +3,7 @@
 namespace App\Actions\Hr;
 
 use App\Enums\AdminRole;
+use App\Enums\AssignmentShift;
 use App\Enums\AssignmentType;
 use App\Enums\AuditAction;
 use App\Enums\WorkAssignmentStatus;
@@ -17,6 +18,7 @@ use App\Support\ApiResponse;
 use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\CompanyLocationResolver;
 use App\Support\Hr\ConcurrentAssignmentGuard;
+use App\Support\Hr\CoverConflicts;
 use App\Support\Hr\EmployeeRegistrationWorkflow;
 use App\Support\Hr\Payroll\ClosedPayrollCorrection;
 use App\Support\Hr\Payroll\PayrollMoney;
@@ -145,6 +147,14 @@ class CreateWorkAssignmentAction
         }
 
         $this->guardCapacity($workLocation, $data, $actor);
+
+        // U1 seen from the other side: a person who already covers a position as a Temporary cannot be given an assignment of their own over the same days.
+        CoverConflicts::assertOwnAssignmentFree(
+            $employee,
+            CarbonImmutable::parse($data['start_date'])->toDateString(),
+            empty($data['end_date']) ? null : CarbonImmutable::parse($data['end_date'])->toDateString(),
+            AssignmentShift::tryFrom((string) ($data['shift'] ?? '')),
+        );
 
         return DB::transaction(function () use ($employee, $data, $actor, $workLocation, $companyId) {
             $predecessor = $this->lockPredecessor($employee, $data, $companyId);

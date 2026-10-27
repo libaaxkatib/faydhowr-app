@@ -46,9 +46,9 @@ class ReplacementCostService
 
         $inMonth = array_filter($coverage['days'], fn (string $iso): bool => str_starts_with($iso, $period.'-'), ARRAY_FILTER_USE_KEY);
         $numerator = array_sum($inMonth);
-        // Declared days of the cover that the covered assignment's own dates cut off (or that an earlier cover owns) are not counted; say which.
+        // Declared days of the cover that the covered assignment's own dates cut off are not counted; say which.
         $declared = array_filter(CoveragePeriod::declaredDates($replacement, $monthEnd), fn (string $iso): bool => str_starts_with($iso, $period.'-'));
-        $cut = array_values(array_filter($declared, fn (string $iso): bool => ! isset($inMonth[$iso]) && ! isset($coverage['overlap_days'][$iso])));
+        $cut = array_values(array_filter($declared, fn (string $iso): bool => ! isset($inMonth[$iso])));
 
         $result = $this->calculator->monthlyCost($period, $salary, [
             'replacement_id' => $replacement->id,
@@ -78,7 +78,6 @@ class ReplacementCostService
                 'through' => $coverage['empty'] ? null : $coverage['last']->toDateString(),
                 'planned_end_date' => $replacement->planned_end_date?->toDateString(),
                 'actual_end_date' => $replacement->end_date?->toDateString(),
-                'overlap_days' => count($coverage['overlap_days']),
             ],
         ]);
     }

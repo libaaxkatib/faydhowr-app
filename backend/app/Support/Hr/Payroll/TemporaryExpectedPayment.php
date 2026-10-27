@@ -5,6 +5,7 @@ namespace App\Support\Hr\Payroll;
 use App\Enums\TemporaryReplacementStatus;
 use App\Models\TemporaryReplacement;
 use App\Support\ApiResponse;
+use App\Support\Hr\CoverConflicts;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use RuntimeException;
@@ -85,8 +86,12 @@ final class TemporaryExpectedPayment
             $warnings[] = ['code' => 'COST_NOT_APPROVED', 'message' => 'This cover has not been approved for deduction yet. The expected payment is a calculation, not an approval.'];
         }
 
-        if ($coverage['overlap_days'] !== []) {
-            $warnings[] = ['code' => 'OVERLAPPING_COVER', 'message' => count($coverage['overlap_days']).' day(s) are also covered by an earlier cover of the same position and are counted only for that cover.'];
+        // Overlapping covers are refused when saved (U12), so none is expected. Should one exist from before the rule, nothing is silently shared out
+        // between them: both are counted in full and HR is told, with the other record, so it can be corrected.
+        $overlap = CoverConflicts::find($replacement->workAssignment()->firstOrFail(), $replacement->replacementEmployee()->firstOrFail(), $replacement->start_date->toDateString(), $replacement->end_date?->toDateString(), $replacement->id);
+
+        if ($overlap !== null) {
+            $warnings[] = ['code' => 'OVERLAPPING_COVER', 'message' => $overlap['message']];
         }
 
         if ($totalCents !== $deductionCents) {
@@ -109,7 +114,7 @@ final class TemporaryExpectedPayment
             'permanent_deduction_cents' => $deductionCents,
             'permanent_deduction' => PayrollMoney::format($deductionCents),
             'approved' => $replacement->approved_at !== null,
-            'overlap' => ['days' => count($coverage['overlap_days']), 'with' => $coverage['overlap_with']],
+            'overlap' => $overlap === null ? null : ['code' => $overlap['code'], 'with' => $overlap['conflicts']],
             'warnings' => $warnings,
         ];
     }

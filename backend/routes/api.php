@@ -1448,6 +1448,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
 
     Route::post('v1/admin/hr/temporary-replacements', [AdminTemporaryReplacementController::class, 'store'])
         ->name('api.v1.admin.hr.temporary-replacements.store');
+    // Read-only preview of the same overlap rules the save enforces (docs/HR_PAYROLL_RULES.md U1, U12): lets the form warn before anything is saved.
+    Route::get('v1/admin/hr/temporary-replacements/conflict-check', [AdminTemporaryReplacementController::class, 'conflictCheck'])
+        ->name('api.v1.admin.hr.temporary-replacements.conflict-check');
     Route::patch('v1/admin/hr/temporary-replacements/{temporaryReplacement}/end', [AdminTemporaryReplacementController::class, 'end'])
         ->whereNumber('temporaryReplacement')
         ->name('api.v1.admin.hr.temporary-replacements.end');

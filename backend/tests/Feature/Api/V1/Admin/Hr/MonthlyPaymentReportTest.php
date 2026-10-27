@@ -83,7 +83,7 @@ class MonthlyPaymentReportTest extends TestCase
         $out = [];
         foreach (array_slice($rows, 4) as $row) {
             // The total line under the table (Total / Company total) is not an employee row.
-            if (($row[0] ?? null) === null || in_array($row[0], ['Total', 'Company total'], true)) {
+            if (($row[0] ?? null) === null || in_array($row[0], ['Total', 'Company total'], true) || str_contains((string) $row[0], 'Temporary workers total') || str_contains((string) $row[0], 'including Temporary workers')) {
                 continue;
             }
             $out[] = array_combine($headers, $row);
@@ -573,8 +573,9 @@ class MonthlyPaymentReportTest extends TestCase
             'Company / Guri', 'Company category', 'Monthly salary (USD)',
             'Days paid', 'Days in month', 'Gross pay (USD)', 'Deductions (USD)', 'Adjustments (USD)',
             'Payment amount (USD)', 'Payment status', 'Data checks', 'Internal employee ID',
-        ], array_slice($sheet->toArray(null, true, false, false)[3], 0, 16));
-        $this->assertSame('A4:P5', $sheet->getAutoFilter()->getRange());
+        ], array_slice($sheet->toArray(null, true, false, false)[3], 0, 16), 'columns A-P are exactly the agreed layout, in the same order');
+        $this->assertSame(['Row type', 'Linked employee', 'Cover period', 'Paid to date (USD)', 'Balance (USD)'], array_slice($sheet->toArray(null, true, false, false)[3], 16, 5), 'the Temporary columns were only ADDED at the right');
+        $this->assertSame('A4:U5', $sheet->getAutoFilter()->getRange());
         $this->assertSame('D5', $sheet->getFreezePane());
         foreach (['B', 'C', 'D', 'E', 'O'] as $col) {
             $this->assertGreaterThanOrEqual(26, $sheet->getColumnDimension($col)->getWidth());

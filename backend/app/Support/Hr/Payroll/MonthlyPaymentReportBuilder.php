@@ -7,7 +7,11 @@ use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
 use App\Models\PayrollRun;
+use App\Models\TemporaryReplacement;
+use App\Models\TemporaryReplacementPayment;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Collection;
 
 /**
  * Builds the monthly "who do we pay, how much, to which number" list for one payroll month.
@@ -26,6 +30,14 @@ use Carbon\CarbonImmutable;
  * is used directly; with neither, the number is reported as missing. Every row names the employee together with the number and says
  * which of the two it is. Nothing is ever written back. An optional company filter produces the list
  * of one company only (only that company's lines are counted, so its total is that company's total).
+ *
+ * TEMPORARY WORKERS (docs/HR_PAYROLL_RULES.md, owner decision of 2026-10-27): a Temporary who covered a Permanent employee's position in the month is
+ * listed on a row of their own, directly BENEATH the covered Permanent's row (the same adjacency the payroll run workbook uses), linked by the
+ * recorded cover (temporary_replacements.work_assignment_id -> the covered assignment's employee) - never by name. The Temporary row has no payroll
+ * line: its amount is the cover's entitlement for the month from TemporaryExpectedPayment (the one coverage-period calculation also used for the
+ * deduction), and its balance is that entitlement accrued up to the end of the month minus the payments recorded up to then. Because the
+ * Temporary is paid through the cover and the Permanent's line only has the deduction taken off, nobody is paid twice: Permanent net + Temporary
+ * amount = the covered salary. Employee counts and the existing totals are the Permanent employees' only; the Temporary figures are added beside them.
  */
 class MonthlyPaymentReportBuilder
 {
@@ -45,7 +57,18 @@ class MonthlyPaymentReportBuilder
 
     public const FLAG_MULTIPLE = 'More than one assignment this month (amounts added together)';
 
-    public function __construct(private readonly PayrollPeriodView $periodView = new PayrollPeriodView) {}
+    public const FLAG_COVER_NOT_APPROVED = 'Cover not approved: nothing is deducted from the Permanent employee yet';
+
+    public const FLAG_DEDUCTION_DIFFERS = 'Deduction from the Permanent is smaller than this amount (days already unpaid leave)';
+
+    public const FLAG_PERMANENT_NOT_LISTED = 'The covered Permanent employee has no payment line this month';
+
+    public const FLAG_COVER_OVERLAP = 'Overlaps another cover recorded before the no-overlap rule: correct the dates';
+
+    public function __construct(
+        private readonly PayrollPeriodView $periodView = new PayrollPeriodView,
+        private readonly TemporaryExpectedPayment $temporaryPayments = new TemporaryExpectedPayment,
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -142,16 +165,224 @@ class MonthlyPaymentReportBuilder
         // A company list is about that company's people only; the active-but-unassigned list belongs to the all-company report.
         $notInPayroll = $clientCompanyId === null ? $this->employeesNotInPayroll($period, $monthStart, $monthEnd, array_column($rows, 'employee_id')) : [];
 
+        // Temporary workers: one row per cover with days in the month, placed beneath the covered Permanent. They are not payroll lines, so every
+        // count and total above stays the Permanent employees' own; the Temporary figures are reported next to them.
+        $temporaryRows = $this->temporaryRows($period, $monthStart, $monthEnd, $clientCompanyId, $rows);
+
         return [
             'period' => $period,
             'generated_at' => CarbonImmutable::now('UTC')->format('Y-m-d H:i').' UTC',
             'source' => $view['source'],
             'is_estimate' => $view['is_estimate'],
             'run_status' => $view['run_status'],
-            'rows' => $rows,
+            'rows' => $this->withTemporaryRows($rows, $temporaryRows),
             'not_in_payroll' => $notInPayroll,
             'warnings' => $view['warnings'],
-            'summary' => [...$this->summary($rows, $companyTotals, $notInPayroll, $view), 'company_filter' => $clientCompanyId !== null],
+            'summary' => [
+                ...$this->summary($rows, $companyTotals, $notInPayroll, $view),
+                ...$this->temporarySummary($temporaryRows, $lines, $rows),
+                'company_filter' => $clientCompanyId !== null,
+            ],
+        ];
+    }
+
+    /**
+     * One row per Temporary cover that has days in the month. The relationship comes from the recorded cover itself (the covered assignment and its
+     * employee), never from names. The amounts are the cover's entitlement (TemporaryExpectedPayment): nothing is recalculated here.
+     *
+     * @param  list<array<string, mixed>>  $permanentRows  the rows already built (their employee ids say which covered Permanents are listed)
+     * @return list<array<string, mixed>>
+     */
+    private function temporaryRows(string $period, \DateTimeImmutable $monthStart, \DateTimeImmutable $monthEnd, ?int $clientCompanyId, array $permanentRows): array
+    {
+        $listed = array_flip(array_column($permanentRows, 'employee_id'));
+        $through = CarbonImmutable::parse($monthEnd->format('Y-m-d'));
+
+        $covers = TemporaryReplacement::query()
+            ->with(['workAssignment.employee', 'workAssignment.clientCompany', 'workAssignment.workLocation.clientCompany', 'replacementEmployee'])
+            ->whereDate('start_date', '<=', $monthEnd->format('Y-m-d'))
+            ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $monthStart->format('Y-m-d')))
+            ->orderBy('start_date')
+            ->orderBy('id')
+            ->get();
+
+        $rows = [];
+
+        foreach ($covers as $cover) {
+            $position = $cover->workAssignment;
+            $temporary = $cover->replacementEmployee;
+            $permanent = $position?->employee;
+
+            if ($position === null || $temporary === null || $permanent === null) {
+                continue;
+            }
+
+            $company = $position->clientCompany ?? $position->workLocation?->clientCompany;
+
+            if ($clientCompanyId !== null && ($company === null || (int) $company->id !== $clientCompanyId)) {
+                continue;
+            }
+
+            try {
+                $expected = $this->temporaryPayments->forReplacement($cover, $through);
+            } catch (HttpResponseException) {
+                $expected = null; // no covered salary: the amount is never guessed, the row says so
+            }
+
+            $month = $expected === null ? null : collect($expected['months'])->firstWhere('period', $period);
+
+            if ($expected !== null && $month === null) {
+                continue; // none of the cover's counted days falls in this month
+            }
+
+            $paid = PayrollMoney::toCents((string) TemporaryReplacementPayment::query()->where('temporary_replacement_id', $cover->id)->whereDate('payment_date', '<=', $monthEnd->format('Y-m-d'))->sum('amount'));
+            $accrued = $expected === null ? null : array_sum(array_column($expected['months'], 'amount_cents'));
+            $balance = $accrued === null ? null : $accrued - $paid;
+            [$companyName, $categoryLabel] = $this->companyOf($position);
+            $payment = PaymentNumber::resolve($temporary);
+            $isListed = isset($listed[$permanent->id]);
+            $flags = [];
+
+            if ($payment['number'] === null) {
+                $flags[] = self::FLAG_NO_PAYMENT_NUMBER;
+            }
+            if ($payment['needs_review']) {
+                $flags[] = self::FLAG_REGISTER_MISMATCH;
+            }
+            if ($expected === null) {
+                $flags[] = self::FLAG_NO_SALARY;
+            }
+            if ($expected !== null && $cover->approved_at === null) {
+                $flags[] = self::FLAG_COVER_NOT_APPROVED;
+            }
+            if ($expected !== null && $cover->approved_at !== null && $month['deduction_cents'] !== $month['amount_cents']) {
+                $flags[] = self::FLAG_DEDUCTION_DIFFERS;
+            }
+            if (! $isListed) {
+                $flags[] = self::FLAG_PERMANENT_NOT_LISTED;
+            }
+            if ($expected !== null && collect($expected['warnings'])->contains('code', 'OVERLAPPING_COVER')) {
+                $flags[] = self::FLAG_COVER_OVERLAP;
+            }
+            $segments = $month['segments'] ?? [];
+            $lastSegment = $segments === [] ? null : $segments[array_key_last($segments)];
+
+            $rows[] = [
+                'row_type' => 'temporary',
+                'employee_id' => $temporary->id,
+                'employee_number' => $temporary->employee_number,
+                'employee_name' => $temporary->full_name,
+                'cover_id' => $cover->id,
+                'linked_employee_id' => $permanent->id,
+                'linked_employee_number' => $permanent->employee_number,
+                'linked_employee_name' => $permanent->full_name,
+                'linked_listed' => $isListed,
+                'company' => $companyName,
+                'category' => $categoryLabel,
+                // The salary the cover is calculated on is the covered Permanent's; it is not the Temporary's own salary, so the salary cell stays "n/a".
+                'monthly_salary_cents' => null,
+                'covered_salary_cents' => $lastSegment['monthly_cents'] ?? null,
+                'eligible_days' => $month['days'] ?? 0,
+                'days_in_month' => $month['days_in_month'] ?? (int) $monthStart->format('t'),
+                'gross_cents' => $month['amount_cents'] ?? 0,
+                'deductions_cents' => 0,
+                'adjustment_cents' => 0,
+                'net_cents' => $month['amount_cents'] ?? 0,
+                'cover_from' => $expected['from'] ?? $cover->start_date->toDateString(),
+                'cover_through' => $expected['through'] ?? $cover->end_date?->toDateString(),
+                'cover_open_ended' => $cover->end_date === null,
+                'planned_end_date' => $cover->planned_end_date?->toDateString(),
+                'approved' => $cover->approved_at !== null,
+                // What is actually taken off the Permanent's line for this cover: the calculated deduction counts only once the cover is approved.
+                'permanent_deduction_cents' => $cover->approved_at !== null ? ($month['deduction_cents'] ?? 0) : 0,
+                'accrued_cents' => $accrued,
+                'paid_cents' => $paid,
+                'balance_cents' => $balance,
+                'payment_account' => $payment['number'],
+                'payment_account_source' => $payment['label'],
+                'payment_from_phone' => $payment['from_phone'],
+                'payment_status' => $this->temporaryPaymentStatus($accrued, $paid),
+                'flags' => $flags,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /** Whether a Temporary has been paid what the cover has earned up to the end of the month. This one IS recorded (cover payments are their own records). */
+    private function temporaryPaymentStatus(?int $accrued, int $paid): string
+    {
+        return match (true) {
+            $accrued === null => 'Not calculated (no covered salary)',
+            $paid > $accrued => 'Paid more than the amount earned',
+            $paid === $accrued => 'Paid',
+            $paid === 0 => 'Not paid',
+            default => 'Partly paid',
+        };
+    }
+
+    /**
+     * Each Temporary row directly beneath its Permanent's row (several covers: oldest first). A cover whose Permanent has no row this month is kept,
+     * flagged, after the listed employees - it is still money owed to the Temporary.
+     *
+     * @param  list<array<string, mixed>>  $permanentRows
+     * @param  list<array<string, mixed>>  $temporaryRows
+     * @return list<array<string, mixed>>
+     */
+    private function withTemporaryRows(array $permanentRows, array $temporaryRows): array
+    {
+        $byPermanent = [];
+
+        foreach ($temporaryRows as $row) {
+            $byPermanent[$row['linked_employee_id']][] = $row;
+        }
+
+        $merged = [];
+
+        foreach ($permanentRows as $row) {
+            $merged[] = $row;
+
+            foreach ($byPermanent[$row['employee_id']] ?? [] as $temporary) {
+                $merged[] = $temporary;
+            }
+
+            unset($byPermanent[$row['employee_id']]);
+        }
+
+        $orphans = array_merge([], ...array_values($byPermanent));
+        usort($orphans, fn (array $a, array $b): int => [$a['company'], $a['linked_employee_name'], $a['cover_from'], $a['cover_id']] <=> [$b['company'], $b['linked_employee_name'], $b['cover_from'], $b['cover_id']]);
+
+        return [...$merged, ...$orphans];
+    }
+
+    /**
+     * The Temporary figures beside the existing totals, and the reconciliation: what the covers earned in the month against what was taken off the
+     * Permanent employees' lines for them (the two are the same calculation; they differ only by covers not yet approved or days already unpaid leave).
+     *
+     * @param  list<array<string, mixed>>  $temporaryRows
+     * @param  Collection<int, array<string, mixed>>  $lines  the payroll lines of the listed Permanent employees
+     * @param  list<array<string, mixed>>  $permanentRows
+     * @return array<string, mixed>
+     */
+    private function temporarySummary(array $temporaryRows, Collection $lines, array $permanentRows): array
+    {
+        $earned = array_sum(array_column($temporaryRows, 'net_cents'));
+        $coverDeductions = array_sum(array_column($temporaryRows, 'permanent_deduction_cents'));
+        $lineDeductions = (int) $lines->sum('replacement_deduction_cents');
+        $balances = array_filter(array_column($temporaryRows, 'balance_cents'), fn ($v): bool => $v !== null);
+
+        return [
+            'temporary_cover_count' => count($temporaryRows),
+            'temporary_employee_count' => count(array_unique(array_column($temporaryRows, 'employee_id'))),
+            'temporary_total_cents' => $earned,
+            'temporary_paid_to_date_cents' => array_sum(array_column($temporaryRows, 'paid_cents')),
+            'temporary_balance_cents' => array_sum($balances),
+            'temporary_cover_deductions_cents' => $coverDeductions,
+            'permanent_replacement_deductions_cents' => $lineDeductions,
+            // The two deduction figures are the same calculation; they agree to the cent unless a cover or leave changed after an approved run was stored.
+            'temporary_deductions_reconcile' => $coverDeductions === $lineDeductions,
+            'temporary_not_deducted_cents' => $earned - $coverDeductions,
+            'total_with_temporary_cents' => array_sum(array_column($permanentRows, 'net_cents')) + $earned,
         ];
     }
 
@@ -231,6 +462,7 @@ class MonthlyPaymentReportBuilder
         }
 
         return [
+            'row_type' => 'permanent',
             'employee_id' => $row['employee_id'],
             'employee_number' => $row['employee_number'],
             'employee_name' => $row['employee_name'],

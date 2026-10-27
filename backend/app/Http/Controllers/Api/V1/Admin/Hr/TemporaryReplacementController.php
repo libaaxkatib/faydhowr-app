@@ -17,7 +17,10 @@ use App\Models\EmployeeWorkAssignment;
 use App\Models\TemporaryReplacement;
 use App\Support\AdminPermissionResolver;
 use App\Support\ApiResponse;
+use App\Support\Hr\CoverConflicts;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class TemporaryReplacementController extends Controller
 {
@@ -34,6 +37,26 @@ class TemporaryReplacementController extends Controller
         $replacement = $action->handle($workAssignment, $replacementEmployee, $request->safe()->except(['work_assignment_id', 'replacement_employee_id']), $request->user());
 
         return ApiResponse::success('Temporary replacement recorded successfully.', new TemporaryReplacementResource($replacement), 201);
+    }
+
+    /** Would this cover be refused? Never saves anything; the save runs the very same check again. */
+    public function conflictCheck(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'work_assignment_id' => ['required', 'integer', 'exists:employee_work_assignments,id'],
+            'replacement_employee_id' => ['required', 'integer', 'exists:employees,id'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $conflict = CoverConflicts::find(
+            EmployeeWorkAssignment::query()->findOrFail($data['work_assignment_id']),
+            Employee::query()->findOrFail($data['replacement_employee_id']),
+            CarbonImmutable::parse($data['start_date'])->toDateString(),
+            empty($data['end_date']) ? null : CarbonImmutable::parse($data['end_date'])->toDateString(),
+        );
+
+        return ApiResponse::success('Conflict check completed.', ['conflict' => $conflict]);
     }
 
     public function end(EndTemporaryReplacementRequest $request, TemporaryReplacement $temporaryReplacement, EndTemporaryReplacementAction $action): JsonResponse

@@ -199,21 +199,20 @@ class TemporaryExpectedPaymentTest extends TestCase
         $this->assertSame('61.00', $response->json('data.expected'));
     }
 
-    public function test_overlapping_covers_of_one_position_never_count_a_day_twice(): void
+    public function test_data_that_overlaps_from_before_the_rule_is_counted_in_full_and_reported_never_shared_out(): void
     {
+        // Overlapping covers are refused when saved (TemporaryCoverConflictTest). Rows written directly, as old data could be, are NOT silently shared out
+        // between the covers ("the earlier cover owns the day" no longer exists): each counts all of its own days and HR is warned about the other record.
         [, $token] = $this->superAdminToken();
         [$a, $first] = $this->position(600);
         $one = $this->cover($a, $first, '2026-09-21', '2026-09-30');
         $two = $this->cover($a, $this->makeEmployee('active', 'temporary'), '2026-09-26', '2026-10-03');
 
-        $this->expected($token, $one)->assertOk()->assertJsonPath('data.counted_days', 10)->assertJsonPath('data.overlap.days', 0);
+        $this->expected($token, $one)->assertOk()->assertJsonPath('data.counted_days', 10)->assertJsonPath('data.overlap.code', 'TEMPORARY_COVER_OVERLAPS_POSITION')->assertJsonPath('data.overlap.with.0.id', $two->id);
         $response = $this->expected($token, $two)->assertOk();
-        // 26-30 September belong to the cover that started first; the second counts 1-3 October only.
-        $response->assertJsonPath('data.counted_days', 3)->assertJsonPath('data.overlap.days', 5);
+        $response->assertJsonPath('data.counted_days', 8)->assertJsonPath('data.overlap.with.0.id', $one->id);
         $this->assertContains('OVERLAPPING_COVER', array_column($response->json('data.warnings'), 'code'));
     }
-
-    // ------------------------------------------------------------------ N5: prefill, warning, permitted override, audit
 
     public function test_the_expected_payment_is_prefilled_and_a_matching_payment_is_recorded_with_its_calculation(): void
     {
