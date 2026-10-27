@@ -1,0 +1,1172 @@
+[
+  {
+    "file": "features/system/dataIssueOptions.ts",
+    "text": "*",
+    "reason": "English defaults of option lists; every one is translated at render by stored value (translateOptions) and falls back to this text."
+  },
+  {
+    "file": "features/system/settingsSchema.ts",
+    "text": "*",
+    "reason": "English defaults of settings field labels, hints and options; translated at render by stored key and falling back to this text."
+  },
+  {
+    "file": "types/system.ts",
+    "text": "*",
+    "reason": "English role, status and permission labels kept as the stored-value fallback; screens translate them with tValue / adminRoleLabel."
+  },
+  {
+    "file": "features/system/AdminUsersPage.tsx",
+    "text": "Super Admin",
+    "reason": "English default of the role option; the label shown is adminRoleLabel(), which is translated at render."
+  },
+  {
+    "file": "features/system/ResolveDataIssueDialog.tsx",
+    "text": "Resolved — understood and fixed",
+    "reason": "English default; outcomeOptions() translates it by stored value at render."
+  },
+  {
+    "file": "features/system/ResolveDataIssueDialog.tsx",
+    "text": "Accepted Difference — known, intentionally left as-is",
+    "reason": "English default; outcomeOptions() translates it by stored value at render."
+  },
+  {
+    "file": "features/system/ResolveDataIssueDialog.tsx",
+    "text": "Cannot Resolve — investigated, evidence insufficient",
+    "reason": "English default; outcomeOptions() translates it by stored value at render."
+  },
+  {
+    "file": "features/system/SettingsPage.tsx",
+    "text": "KB ·",
+    "reason": "Technical unit (kilobytes) shown next to a file size; the same in both languages."
+  },
+  {
+    "file": "App.tsx",
+    "text": "Damiin Needed",
+    "reason": "Route title prop: the English default of a page title that the page itself translates with its catalogue key."
+  },
+  {
+    "file": "App.tsx",
+    "text": "Contract Pending",
+    "reason": "Route title prop: the English default of a page title that the page itself translates with its catalogue key."
+  },
+  {
+    "file": "App.tsx",
+    "text": "Uniform Pending",
+    "reason": "Route title prop: the English default of a page title that the page itself translates with its catalogue key."
+  },
+  {
+    "file": "App.tsx",
+    "text": "Need Training",
+    "reason": "Route title prop: the English default of a page title that the page itself translates with its catalogue key."
+  },
+  {
+    "file": "App.tsx",
+    "text": "Need Practical",
+    "reason": "Route title prop: the English default of a page title that the page itself translates with its catalogue key."
+  },
+  {
+    "file": "App.tsx",
+    "text": "Practical Repeat",
+    "reason": "Route title prop: the English default of a page title that the page itself translates with its catalogue key."
+  },
+  {
+    "file": "App.tsx",
+    "text": "Rejected",
+    "reason": "Route title prop: the English default of a page title that the page itself translates with its catalogue key."
+  },
+  {
+    "file": "App.tsx",
+    "text": "Rejected (Historical)",
+    "reason": "Route title prop: the English default of a page title that the page itself translates with its catalogue key."
+  },
+  {
+    "file": "App.tsx",
+    "text": "Supervisor Pool",
+    "reason": "Route title prop: the English default of a page title that the page itself translates with its catalogue key."
+  },
+  {
+    "file": "App.tsx",
+    "text": "Office Staff",
+    "reason": "Route title prop: the English default of a page title that the page itself translates with its catalogue key."
+  },
+  {
+    "file": "components/Logo.tsx",
+    "text": "Fayadhowr",
+    "reason": "Brand name (proper name), used as the logo image description."
+  },
+  {
+    "file": "features/dashboard/DashboardPage.tsx",
+    "text": "Dashboard",
+    "reason": "Dashboard stays English by owner decision (HR-NAV-002)."
+  },
+  {
+    "file": "features/hrm/ClientCompaniesPage.tsx",
+    "text": "Company",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/ClientCompaniesPage.tsx",
+    "text": "Guri (household)",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/companyEmployees/AssignmentDialogs.tsx",
+    "text": "Permanent",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeeDetailPage.tsx",
+    "text": "Damiin Needed",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeeDetailPage.tsx",
+    "text": "Contract Pending",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeeDetailPage.tsx",
+    "text": "Uniform Pending",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeeDetailPage.tsx",
+    "text": "Need Training",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeeDetailPage.tsx",
+    "text": "Need Practical",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeeDetailPage.tsx",
+    "text": "Practical Repeat",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeeDetailPage.tsx",
+    "text": "Rejected (Historical)",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeeDetailPage.tsx",
+    "text": "Waiting Analytics",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeeDetailPage.tsx",
+    "text": "Workforce Requests",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeeDetailPage.tsx",
+    "text": "Training Batches",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeeDetailPage.tsx",
+    "text": "Practical Batches",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeeDetailPage.tsx",
+    "text": "Temporary Replacements",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeeDetailPage.tsx",
+    "text": "Supervisor Pool",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeeDetailPage.tsx",
+    "text": "Office Staff",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeesListPage.tsx",
+    "text": "Damiin Needed",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeesListPage.tsx",
+    "text": "Contract Pending",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeesListPage.tsx",
+    "text": "Uniform Pending",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeesListPage.tsx",
+    "text": "Need Training",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeesListPage.tsx",
+    "text": "Need Practical",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeesListPage.tsx",
+    "text": "Practical Repeat",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeesListPage.tsx",
+    "text": "Temporary",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/EmployeesListPage.tsx",
+    "text": "Damiin",
+    "reason": "Proper name or the owner's own term; intentionally the same in both languages."
+  },
+  {
+    "file": "features/hrm/FacilityInspectionsPage.tsx",
+    "text": "Due and overdue states are calculated when this list is opened. No automatic reminder is sent.",
+    "reason": "Server text matcher: compared with the text the API returns so it can be replaced by its catalogue wording; not shown as written."
+  },
+  {
+    "file": "features/hrm/FacilityReportPage.tsx",
+    "text": "Due soon",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/FacilityReportPage.tsx",
+    "text": "Never inspected",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/FacilityReportPage.tsx",
+    "text": "Up to date",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/FacilityReportPage.tsx",
+    "text": "No frequency set",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/FormerEmployeesPage.tsx",
+    "text": "Former Employees",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/HrDashboardPage.tsx",
+    "text": "Dashboard",
+    "reason": "Dashboard stays English by owner decision (HR-NAV-002)."
+  },
+  {
+    "file": "features/hrm/HrReportsPage.tsx",
+    "text": "Active",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/HrReportsPage.tsx",
+    "text": "Ended",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/HrReportsPage.tsx",
+    "text": "Cancelled",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/HrReportsPage.tsx",
+    "text": "Damiin Needed",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/HrReportsPage.tsx",
+    "text": "Contract Pending",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/HrReportsPage.tsx",
+    "text": "Uniform Pending",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/HrReportsPage.tsx",
+    "text": "Need Training",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/HrReportsPage.tsx",
+    "text": "Need Practical",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/HrReportsPage.tsx",
+    "text": "Practical Repeat",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/LeaveReportPage.tsx",
+    "text": "Annual",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/LeaveReportPage.tsx",
+    "text": "Sick",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/LeaveReportPage.tsx",
+    "text": "Unpaid",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/LeaveReportPage.tsx",
+    "text": "Other",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/PayrollRunsPage.tsx",
+    "text": "Temporary cover",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/PayrollRunsPage.tsx",
+    "text": "Salary advance",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/PayrollRunsPage.tsx",
+    "text": "Unpaid leave",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/PayrollRunsPage.tsx",
+    "text": "Overpayment recovery",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/PerformanceReportPage.tsx",
+    "text": "Excellent",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/PerformanceReportPage.tsx",
+    "text": "Good",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/PerformanceReportPage.tsx",
+    "text": "Needs Improvement",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/PerformanceReportPage.tsx",
+    "text": "Poor",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/PracticalBatchesPage.tsx",
+    "text": "Practical Batches",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/TemporaryReplacementHistoryPage.tsx",
+    "text": "Active",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/TemporaryReplacementHistoryPage.tsx",
+    "text": "Ended",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/TemporaryReplacementsPage.tsx",
+    "text": "Temporary Replacements",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/TemporaryReplacementsPage.tsx",
+    "text": "Recorded - not verified yet",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/TemporaryReplacementsPage.tsx",
+    "text": "Verified",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/TemporaryReplacementsPage.tsx",
+    "text": "Voided",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/WaitingAnalyticsPage.tsx",
+    "text": "Waiting Analytics",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/WorkforceRequestHistoryPage.tsx",
+    "text": "Open",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/WorkforceRequestHistoryPage.tsx",
+    "text": "Partially Filled",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/WorkforceRequestHistoryPage.tsx",
+    "text": "Fulfilled",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/WorkforceRequestHistoryPage.tsx",
+    "text": "Cancelled",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/WorkforceRequestsPage.tsx",
+    "text": "Partially Filled",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/WorkforceRequestsPage.tsx",
+    "text": "Workforce Requests",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/FollowUpsPage.tsx",
+    "text": "Today's Follow-ups",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/FollowUpsPage.tsx",
+    "text": "Upcoming",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/FollowUpsPage.tsx",
+    "text": "Overdue",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/FollowUpsPage.tsx",
+    "text": "Pending",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/FollowUpsPage.tsx",
+    "text": "Quotation",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/FollowUpsPage.tsx",
+    "text": "Done",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/FollowUpsPage.tsx",
+    "text": "Cancelled",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/FollowUpsPage.tsx",
+    "text": "WhatsApp",
+    "reason": "Proper name or the owner's own term; intentionally the same in both languages."
+  },
+  {
+    "file": "features/marketing/MarketingDashboardPage.tsx",
+    "text": "Dashboard",
+    "reason": "Dashboard stays English by owner decision (HR-NAV-002)."
+  },
+  {
+    "file": "features/marketing/MarketingRecordDetailPage.tsx",
+    "text": "Draft",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/MarketingRecordDetailPage.tsx",
+    "text": "Sent",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/MarketingRecordDetailPage.tsx",
+    "text": "Accepted",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/MarketingRecordDetailPage.tsx",
+    "text": "Declined",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/MarketingRecordsListPage.tsx",
+    "text": "Pending",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/MarketingRecordsListPage.tsx",
+    "text": "Quotation",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/MarketingRecordsListPage.tsx",
+    "text": "Done",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/MarketingRecordsListPage.tsx",
+    "text": "Cancelled",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/MarketingReportsPage.tsx",
+    "text": "Pending",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/MarketingReportsPage.tsx",
+    "text": "Quotation",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/MarketingReportsPage.tsx",
+    "text": "Done",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/MarketingReportsPage.tsx",
+    "text": "Cancelled",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/MarketingReportsPage.tsx",
+    "text": "XARUN & PROJECT",
+    "reason": "Proper name or the owner's own term; intentionally the same in both languages."
+  },
+  {
+    "file": "features/marketing/ProjectFormDialog.tsx",
+    "text": "Construction Company",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/ProjectFormDialog.tsx",
+    "text": "Engineer",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/ProjectFormDialog.tsx",
+    "text": "Owner / Individual",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/ProjectFormDialog.tsx",
+    "text": "Other Responsible Person",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/XarunFormDialog.tsx",
+    "text": "General Cleaning",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/XarunFormDialog.tsx",
+    "text": "Deep Cleaning",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/XarunFormDialog.tsx",
+    "text": "Pest Control",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/XarunFormDialog.tsx",
+    "text": "Tree Cutting",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/marketing/XarunFormDialog.tsx",
+    "text": "Other Services",
+    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "layouts/Header.tsx",
+    "text": "Ctrl K",
+    "reason": "Keyboard shortcut hint, the same in both languages."
+  },
+  {
+    "file": "layouts/Header.tsx",
+    "text": "Dashboard",
+    "reason": "Dashboard stays English by owner decision (HR-NAV-002)."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Human Resources",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Dashboard",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Employee Registration",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Employees",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Damiin Needed",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Contract Pending",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Uniform Pending",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Need Training",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Need Practical",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Practical Repeat",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Rejected",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Rejected (Historical)",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Waiting",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Workforce Requests",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Training Batches",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Practical Batches",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Temporary Replacements",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Former Employees",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Supervisor Pool",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Office Staff",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Attendance",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Departments",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Positions",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Categories",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Companies & Workplaces",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Facility Inspections",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Complaints",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Payroll",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Excel Imports",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Reports",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Waiting Analytics",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Workforce Request History",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Temporary Replacement History",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Leave Report",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Performance Report",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Financial Ledger",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Payroll Rollup",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Facility Report",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Marketing",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Follow-ups",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Teams",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Commission",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Mobile App Management",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Customers",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Services",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Products",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Bookings",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Quotations",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Orders",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Payments",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Inventory",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Reviews",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Notifications",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Accounting",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "System",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Admin Users",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Roles & Permissions",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Settings",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Audit Log",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
+    "text": "Data Issues & Reconciliation",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/Sidebar.tsx",
+    "text": "Dashboard",
+    "reason": "Dashboard stays English by owner decision (HR-NAV-002)."
+  },
+  {
+    "file": "utils/clientCompanyFilter.ts",
+    "text": "All",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/clientCompanyFilter.ts",
+    "text": "Company",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/clientCompanyFilter.ts",
+    "text": "Guri",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/companyEmployees.ts",
+    "text": "Permanent",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/companyEmployees.ts",
+    "text": "Replacement",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/companyEmployees.ts",
+    "text": "Day shift",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/companyEmployees.ts",
+    "text": "Night shift",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/companyEmployees.ts",
+    "text": "Added to company",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/companyEmployees.ts",
+    "text": "Assignment ended",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/companyEmployees.ts",
+    "text": "Salary changed",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/employeeCategories.ts",
+    "text": "Office Staff",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/facility.ts",
+    "text": "Windows",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/facility.ts",
+    "text": "Doors",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/facility.ts",
+    "text": "Cleaning supplies",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/facility.ts",
+    "text": "Mirrors",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/facility.ts",
+    "text": "Stairs",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/facility.ts",
+    "text": "Walls",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/facility.ts",
+    "text": "Toilets",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/facility.ts",
+    "text": "Beds",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/facility.ts",
+    "text": "Plants",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/facility.ts",
+    "text": "Employee uniforms",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/facility.ts",
+    "text": "Electrical sockets",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/facility.ts",
+    "text": "Fans",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/hrHelpers.ts",
+    "text": "Fayadhowr Office",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/officeStaff.ts",
+    "text": "Identification document",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/officeStaff.ts",
+    "text": "Identity Documents",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/officeStaff.ts",
+    "text": "Employment / appointment document",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/officeStaff.ts",
+    "text": "Employment Documents",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/officeStaff.ts",
+    "text": "Guarantor documents",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/officeStaff.ts",
+    "text": "Guarantor Documents",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/officeStaff.ts",
+    "text": "Other supporting documents",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/officeStaff.ts",
+    "text": "Other HR Documents",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/payrollCorrections.ts",
+    "text": "Still open",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/payrollCorrections.ts",
+    "text": "Fully recovered",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/payrollCorrections.ts",
+    "text": "Written off",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/payrollCorrections.ts",
+    "text": "Paid in full",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/positions.ts",
+    "text": "Administrative Officer",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/positions.ts",
+    "text": "HR Officer",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/positions.ts",
+    "text": "Marketing Officer",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/positions.ts",
+    "text": "Sales Officer",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/positions.ts",
+    "text": "Customer Service Officer",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/positions.ts",
+    "text": "Secretary / Receptionist",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/positions.ts",
+    "text": "Office Cleaner",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/registrationWorkflow.ts",
+    "text": "Damiin Needed",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/registrationWorkflow.ts",
+    "text": "Contract Pending",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/registrationWorkflow.ts",
+    "text": "Uniform Pending",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/registrationWorkflow.ts",
+    "text": "Training (Need Training)",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/registrationWorkflow.ts",
+    "text": "Practice (Need Practical)",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/registrationWorkflow.ts",
+    "text": "Practical Repeat",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/registrationWorkflow.ts",
+    "text": "Waiting List",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/unsavedChanges.ts",
+    "text": "Discard your changes?",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "utils/unsavedChanges.ts",
+    "text": "You have unsaved changes. If you leave now they will be lost.",
+    "reason": "English map in a pure helper (no React): the screen translates each entry by stored value or label key at render and falls back to this text, so English is unchanged."
+  },
+  {
+    "file": "features/hrm/DeepCleaningOverview.tsx",
+    "text": "Built only from Deep Cleaning completions recorded inside facility inspections. Nothing is assumed for months with no record.",
+    "reason": "Server text matcher: compared with the basis text the API returns so it can be replaced by its catalogue wording; not shown as written."
+  }
+]

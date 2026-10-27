@@ -2,6 +2,8 @@
 // validation, the "would this overwrite something?" check and the payload can be unit-tested by Node's native
 // test runner (officeStaff.test.ts). The BACKEND is the real guard; these give quick, clear feedback first.
 
+import { tNow, tValueNow } from '../i18n/active.ts';
+
 export type OfficeStaffMode = 'existing' | 'new';
 
 export interface OfficeStaffDocumentFile {
@@ -71,18 +73,18 @@ export function emptyForm(today: string): OfficeStaffForm {
 /** A plain non-negative amount with at most two decimals ("0", "120", "350.50"). Zero is allowed; blank, text, negatives and 3 decimals are not. */
 export function salaryError(value: string): string | null {
   const trimmed = value.trim();
-  if (trimmed === '') return 'Enter the monthly salary.';
-  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return 'Enter a valid amount such as 350 or 350.50 (no negative numbers, at most two decimals).';
-  if (Number(trimmed) > 9999999.99) return 'That salary is too large.';
+  if (trimmed === '') return tNow('validation.employees.salaryRequired');
+  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return tNow('validation.employees.salaryInvalid');
+  if (Number(trimmed) > 9999999.99) return tNow('validation.employees.salaryTooLarge');
 
   return null;
 }
 
 export function phoneError(value: string): string | null {
   const trimmed = value.trim();
-  if (trimmed === '') return 'Enter a phone number.';
+  if (trimmed === '') return tNow('validation.employees.phoneRequired');
 
-  return PHONE_PATTERN.test(trimmed) ? null : 'Enter a valid phone number (at least 6 digits).';
+  return PHONE_PATTERN.test(trimmed) ? null : tNow('validation.employees.phoneInvalid');
 }
 
 const requiredText = (value: string, message: string): string | null => (value.trim() === '' ? message : null);
@@ -90,17 +92,17 @@ const requiredText = (value: string, message: string): string | null => (value.t
 /** Field -> message for everything that blocks saving. An empty object means the form is complete. */
 export function validateOfficeStaffForm(form: OfficeStaffForm, mode: OfficeStaffMode): Record<string, string> {
   const errors: Record<string, string | null> = {
-    position_id: form.position_id === '' ? 'Choose a position.' : null,
+    position_id: form.position_id === '' ? tNow('validation.employees.positionRequired') : null,
     monthly_salary: salaryError(form.monthly_salary),
-    start_date: requiredText(form.start_date, 'Choose a start date.'),
-    emergency_contact_name: requiredText(form.emergency_contact_name, 'Enter the emergency contact name.'),
+    start_date: requiredText(form.start_date, tNow('validation.employees.startDateRequired')),
+    emergency_contact_name: requiredText(form.emergency_contact_name, tNow('validation.employees.emergencyNameRequired')),
     emergency_contact_phone: phoneError(form.emergency_contact_phone),
-    guarantor_name: requiredText(form.guarantor_name, 'Enter the guarantor name.'),
+    guarantor_name: requiredText(form.guarantor_name, tNow('validation.employees.guarantorNameRequired')),
     guarantor_phone: phoneError(form.guarantor_phone),
   };
 
   if (mode === 'new') {
-    errors.full_name = requiredText(form.full_name, 'Enter the full name.');
+    errors.full_name = requiredText(form.full_name, tNow('validation.employees.fullNameRequired'));
     errors.phone = phoneError(form.phone);
   }
 
@@ -205,7 +207,7 @@ export function documentSummary(groups: OfficeStaffDocumentGroup[]): string {
   const required = groups.filter((group) => group.required);
   const onFile = required.filter((group) => group.status === 'on_file').length;
 
-  return `${onFile} of ${required.length} required documents on file`;
+  return tNow('status.employees.documentSummary', { onFile, required: required.length });
 }
 
 /**
@@ -228,15 +230,20 @@ export const DEFAULT_DOCUMENT_GROUPS: Pick<OfficeStaffDocumentGroup, 'key' | 'la
   { key: 'other', label: 'Other supporting documents', category: 'Other HR Documents', required: false },
 ];
 
+/** The label of a document group in the language of the screen; a group without a translation keeps the label it came with. */
+export function documentGroupLabel(group: Pick<OfficeStaffDocumentGroup, 'key' | 'label'>): string {
+  return tValueNow('option.employees.documentGroup', group.key) ?? group.label;
+}
+
 /** Same limits as the server's employee document rule, checked before upload so the user gets instant feedback. */
 export const ALLOWED_DOCUMENT_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'];
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 export function documentFileError(file: { name: string; size: number }): string | null {
   const extension = file.name.includes('.') ? (file.name.split('.').pop() ?? '').toLowerCase() : '';
-  if (!ALLOWED_DOCUMENT_EXTENSIONS.includes(extension)) return `"${file.name}" is not an allowed file type (allowed: ${ALLOWED_DOCUMENT_EXTENSIONS.join(', ')}).`;
-  if (file.size > MAX_DOCUMENT_BYTES) return `"${file.name}" is larger than 10 MB.`;
-  if (file.size === 0) return `"${file.name}" is empty.`;
+  if (!ALLOWED_DOCUMENT_EXTENSIONS.includes(extension)) return tNow('validation.employees.fileTypeNotAllowed', { name: file.name, allowed: ALLOWED_DOCUMENT_EXTENSIONS.join(', ') });
+  if (file.size > MAX_DOCUMENT_BYTES) return tNow('validation.employees.fileTooLarge', { name: file.name });
+  if (file.size === 0) return tNow('validation.employees.fileEmpty', { name: file.name });
 
   return null;
 }

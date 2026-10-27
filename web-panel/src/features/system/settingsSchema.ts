@@ -140,3 +140,22 @@ export const SETTINGS_CATEGORY_ORDER: SettingCategory[] = [
   'localization',
   'backup',
 ];
+
+type StoredValueLabel = (prefix: string, value: string) => string | undefined;
+
+/** Display helpers: the Somali text when Somali is chosen and there is an entry for this category/field, otherwise the English text above. */
+export function settingCategoryLabel(category: SettingCategory, tValue: StoredValueLabel): string {
+  return tValue('option.system.settingsCategory', category) ?? SETTINGS_CATEGORY_LABELS[category];
+}
+
+export function settingFieldLabel(category: SettingCategory, field: SettingFieldSchema, tValue: StoredValueLabel): string {
+  return tValue('option.system.settingField', `${category}.${field.key}`) ?? field.label;
+}
+
+export function settingFieldHint(category: SettingCategory, field: SettingFieldSchema, tValue: StoredValueLabel): string | undefined {
+  return tValue('warning.system.settingHint', `${category}.${field.key}`) ?? field.hint;
+}
+
+export function settingOptionLabel(category: SettingCategory, field: SettingFieldSchema, option: { value: string; label: string }, tValue: StoredValueLabel): string {
+  return tValue('option.system.settingOption', `${category}.${field.key}.${option.value}`) ?? option.label;
+}

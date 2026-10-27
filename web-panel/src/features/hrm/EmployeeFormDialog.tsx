@@ -10,9 +10,12 @@ import { Select } from '@/components/ui/Select';
 import { CreateCategoryDialog, CreatePositionDialog } from '@/features/hrm/QuickCreateDialogs';
 import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
+import type { I18nContextValue } from '@/i18n/i18nContext';
+import type { MessageKey, Translate } from '@/i18n/messages';
+import { useI18n } from '@/i18n/useI18n';
 import { duplicateMatchesFromError, friendlyErrorMessage } from '@/utils/hrHelpers';
 import { recruitmentCategories } from '@/utils/employeeCategories';
-import { TYPE_CHANGE_BLOCKED_ENGLISH, TYPE_CHANGE_BLOCKED_SOMALI, isBlockedTypeChange, typeChangeBlockFromError } from '@/utils/employmentTypeChange';
+import { isBlockedTypeChange, isTypeChangeBlockedError } from '@/utils/employmentTypeChange';
 import type {
   CreateEmployeePayload,
   DuplicateEmployeeMatch,
@@ -29,14 +32,14 @@ interface EmployeeFormDialogProps {
   employee?: Employee;
 }
 
-const GENDER_OPTIONS: { value: EmployeeGender; label: string }[] = [
-  { value: 'female', label: 'Female' },
-  { value: 'male', label: 'Male' },
+const GENDER_OPTIONS: { value: EmployeeGender; labelKey: MessageKey }[] = [
+  { value: 'female', labelKey: 'option.gender.female' },
+  { value: 'male', labelKey: 'option.gender.male' },
 ];
 
-const EMPLOYMENT_TYPE_OPTIONS: { value: EmploymentType; label: string }[] = [
-  { value: 'permanent', label: 'Permanent' },
-  { value: 'temporary', label: 'Temporary' },
+const EMPLOYMENT_TYPE_OPTIONS: { value: EmploymentType; labelKey: MessageKey }[] = [
+  { value: 'permanent', labelKey: 'option.employmentType.permanent' },
+  { value: 'temporary', labelKey: 'option.employmentType.temporary' },
 ];
 
 const MIN_DUPLICATE_REASON_LENGTH = 10;
@@ -71,6 +74,7 @@ const emptyForm = {
 export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: EmployeeFormDialogProps) {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   const [form, setForm] = useState(emptyForm);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   // Live warning from GET employees/duplicate-check, shown while typing.
@@ -82,8 +86,8 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
   const [acceptMismatch, setAcceptMismatch] = useState(false);
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [duplicateReason, setDuplicateReason] = useState('');
-  // The server refused Permanent -> Temporary because an assignment is still active (its Somali message).
-  const [typeChangeRefusal, setTypeChangeRefusal] = useState<string | null>(null);
+  // The server refused Permanent -> Temporary because an assignment is still active.
+  const [typeChangeRefusal, setTypeChangeRefusal] = useState(false);
   const checkSequence = useRef(0);
   const duplicatePanelRef = useRef<HTMLDivElement>(null);
 
@@ -93,7 +97,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
 
   useEffect(() => {
     if (isOpen) {
-      setTypeChangeRefusal(null);
+      setTypeChangeRefusal(false);
       setFieldErrors({});
       setLiveMatches([]);
       setServerMatches([]);
@@ -169,7 +173,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
 
   // Warn before sending: a Permanent employee with an active assignment cannot be switched to Temporary (the server enforces it too).
   const typeChangeBlocked = mode === 'edit' && isBlockedTypeChange(employee?.employment_type, form.employment_type, employee?.active_work_assignments?.length ?? 0);
-  const typeChangeMessage = typeChangeBlocked ? TYPE_CHANGE_BLOCKED_SOMALI : form.employment_type === 'temporary' ? typeChangeRefusal : null;
+  const typeChangeMessage = typeChangeBlocked || (form.employment_type === 'temporary' && typeChangeRefusal) ? t('warning.employees.typeChangeBlocked') : null;
 
   const phoneMatches = serverMatches.length > 0 ? serverMatches : liveMatches.filter((match) => match.matched_on.includes('phone'));
   const nameOnlyMatches = liveMatches.filter((match) => !match.matched_on.includes('phone'));
@@ -246,14 +250,14 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       if (employee) queryClient.invalidateQueries({ queryKey: ['employee', employee.id] });
-      show(mode === 'create' ? 'Employee registered.' : 'Employee updated.');
+      show(mode === 'create' ? t('notify.employees.employeeRegistered') : t('notify.employees.employeeUpdated'));
       onClose();
     },
     onError: (error) => {
-      const typeRefusal = typeChangeBlockFromError(error);
+      const typeRefusal = isTypeChangeBlockedError(error);
       const duplicates = typeRefusal ? null : duplicateMatchesFromError(error);
       if (typeRefusal) {
-        setTypeChangeRefusal(typeRefusal);
+        setTypeChangeRefusal(true);
         setFieldErrors({});
       } else if (duplicates) {
         // Same phone as an existing person: stop and ask HR to confirm this is someone different.
@@ -264,7 +268,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
       } else if (error instanceof ApiClientError && error.isValidation) {
         setFieldErrors(error.fieldErrors ?? {});
       } else {
-        show(friendlyErrorMessage(error, 'Something went wrong.'), 'error');
+        show(friendlyErrorMessage(error, t('notify.employees.somethingWentWrong')), 'error');
       }
     },
   });
@@ -281,7 +285,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
       confirmDiscard
       isOpen={isOpen}
       onClose={onClose}
-      title={mode === 'create' ? 'Register Employee' : 'Edit Employee'}
+      title={mode === 'create' ? t('action.registerEmployee') : t('action.editEmployee')}
       size="lg"
       footer={
         <>
@@ -289,18 +293,18 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
           <Button size="sm" onClick={handleSubmit} isLoading={mutation.isPending} disabled={duplicateConfirmationMissing || typeChangeBlocked}>
             {needsDuplicateConfirmation
               ? mode === 'create'
-                ? 'Register as a different person'
-                : 'Save as a different person'
+                ? t('action.employees.registerAsDifferent')
+                : t('action.employees.saveAsDifferent')
               : mode === 'create'
-                ? 'Register'
-                : 'Save Changes'}
+                ? t('action.employees.register')
+                : t('action.saveChanges')}
           </Button>
         </>
       }
     >
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Full name" htmlFor="full_name" required error={fieldErrors.full_name?.[0]}>
+          <FormField label={t('option.label.fullName')} htmlFor="full_name" required error={fieldErrors.full_name?.[0]}>
             <input
               id="full_name"
               required
@@ -311,10 +315,10 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
             />
           </FormField>
           <FormField
-            label="Phone"
+            label={t('option.label.phone')}
             htmlFor="phone"
             required={mode === 'create'}
-            hint={mode === 'edit' ? 'May be left blank — some migrated employees have no phone on record.' : undefined}
+            hint={mode === 'edit' ? t('warning.employees.phoneBlankHint') : undefined}
             error={fieldErrors.phone?.[0]}
           >
             <input
@@ -342,7 +346,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Alternate phone (employee's own)" htmlFor="alternate_phone" error={fieldErrors.alternate_phone?.[0]}>
+          <FormField label={t('option.employees.alternatePhone')} htmlFor="alternate_phone" error={fieldErrors.alternate_phone?.[0]}>
             <input
               id="alternate_phone"
               className={inputClasses}
@@ -351,17 +355,17 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
               onBlur={runDuplicateCheck}
             />
           </FormField>
-          <FormField label="Reference / guarantor name" htmlFor="reference_name" error={fieldErrors.reference_name?.[0]}>
+          <FormField label={t('option.employees.referenceGuarantorName')} htmlFor="reference_name" error={fieldErrors.reference_name?.[0]}>
             <input id="reference_name" className={inputClasses} value={form.reference_name} onChange={(e) => setForm({ ...form, reference_name: e.target.value })} />
           </FormField>
         </div>
 
         {(mode === 'create' || employee?.payment_account_number !== undefined) && (
           <FormField
-            label="Payment / account number (optional)"
+            label={t('option.employees.paymentAccountNumber')}
             htmlFor="payment_account_number"
             error={fieldErrors.payment_account_number?.[0]}
-            hint="Used only to pay this employee. It is not their phone number and is never used to find or match them."
+            hint={t('warning.employees.paymentAccountHint')}
           >
             <input
               id="payment_account_number"
@@ -374,103 +378,103 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
             {mode === 'edit' && employee?.payment_account_register_check === 'mismatch' && (
               <label className="mt-2 flex items-start gap-2 text-xs text-warning">
                 <input type="checkbox" className="mt-0.5" checked={acceptMismatch} onChange={(e) => setAcceptMismatch(e.target.checked)} />
-                This imported number differs from the registration phone. Tick to confirm that this is intended (the number is kept either way).
+                {t('warning.employees.paymentMismatch')}
               </label>
             )}
           </FormField>
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Secondary/emergency contact name" htmlFor="secondary_contact_name" error={fieldErrors.secondary_contact_name?.[0]}>
+          <FormField label={t('option.employees.secondaryContactName')} htmlFor="secondary_contact_name" error={fieldErrors.secondary_contact_name?.[0]}>
             <input id="secondary_contact_name" className={inputClasses} value={form.secondary_contact_name} onChange={(e) => setForm({ ...form, secondary_contact_name: e.target.value })} />
           </FormField>
-          <FormField label="Secondary/emergency contact phone" htmlFor="secondary_contact_phone" error={fieldErrors.secondary_contact_phone?.[0]}>
+          <FormField label={t('option.employees.secondaryContactPhone')} htmlFor="secondary_contact_phone" error={fieldErrors.secondary_contact_phone?.[0]}>
             <input id="secondary_contact_phone" className={inputClasses} value={form.secondary_contact_phone} onChange={(e) => setForm({ ...form, secondary_contact_phone: e.target.value })} />
           </FormField>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <FormField
-            label="Location"
+            label={t('option.label.location')}
             htmlFor="location"
             required={mode === 'create'}
-            hint={mode === 'create' ? 'Residential/home location — used for future Waiting-list matching.' : 'May be left blank — some migrated employees have no location on record.'}
+            hint={mode === 'create' ? t('warning.employees.locationCreateHint') : t('warning.employees.locationBlankHint')}
             error={fieldErrors.location?.[0]}
           >
             <input id="location" required={mode === 'create'} className={inputClasses} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
           </FormField>
           <FormField
-            label="Gender"
+            label={t('option.label.gender')}
             htmlFor="gender"
             required={mode === 'create'}
-            hint={mode === 'edit' ? 'May be left unset — some migrated employees have no gender on record.' : undefined}
+            hint={mode === 'edit' ? t('warning.employees.genderUnsetHint') : undefined}
             error={fieldErrors.gender?.[0]}
           >
             <Select
               id="gender"
               value={form.gender}
               onChange={(e) => setForm({ ...form, gender: e.target.value as EmployeeGender })}
-              placeholder="Select gender"
-              options={GENDER_OPTIONS}
+              placeholder={t('option.employees.selectGender')}
+              options={GENDER_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
             />
           </FormField>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Age" htmlFor="age" error={fieldErrors.age?.[0]}>
+          <FormField label={t('option.label.age')} htmlFor="age" error={fieldErrors.age?.[0]}>
             <input id="age" type="number" min={14} max={100} className={inputClasses} value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} />
           </FormField>
-          <FormField label="Marital status" htmlFor="marital_status" error={fieldErrors.marital_status?.[0]}>
+          <FormField label={t('option.employees.maritalStatus')} htmlFor="marital_status" error={fieldErrors.marital_status?.[0]}>
             <input id="marital_status" className={inputClasses} value={form.marital_status} onChange={(e) => setForm({ ...form, marital_status: e.target.value })} />
           </FormField>
         </div>
 
-        <FormField label="Lives with" htmlFor="lives_with" error={fieldErrors.lives_with?.[0]}>
+        <FormField label={t('option.employees.livesWith')} htmlFor="lives_with" error={fieldErrors.lives_with?.[0]}>
           <input id="lives_with" className={inputClasses} value={form.lives_with} onChange={(e) => setForm({ ...form, lives_with: e.target.value })} />
         </FormField>
 
         <div className="grid grid-cols-3 gap-3">
-          <FormField label="Category" htmlFor="employee_category_id" required error={fieldErrors.employee_category_id?.[0]}>
+          <FormField label={t('option.label.category')} htmlFor="employee_category_id" required error={fieldErrors.employee_category_id?.[0]}>
             <Select
               id="employee_category_id"
               value={form.employee_category_id}
               onChange={(e) => setForm({ ...form, employee_category_id: e.target.value })}
-              placeholder="Select category"
+              placeholder={t('option.employees.selectCategory')}
               // Office Staff is assigned by the Office Staff workflow, not picked while recruiting (an employee who already has it keeps it).
               options={recruitmentCategories(categories ?? [], employee ? employee.employee_category_id : null).map((c) => ({ value: String(c.id), label: c.name }))}
             />
             <button type="button" onClick={() => setCreatingCategory(true)} className="mt-1 text-xs font-semibold text-primary hover:underline">
-              + Create Category
+              {t('action.employees.createCategoryLink')}
             </button>
           </FormField>
-          <FormField label="Department" htmlFor="department_id" error={fieldErrors.department_id?.[0]}>
+          <FormField label={t('option.label.department')} htmlFor="department_id" error={fieldErrors.department_id?.[0]}>
             <Select
               id="department_id"
               value={form.department_id}
               onChange={(e) => setForm({ ...form, department_id: e.target.value })}
-              placeholder="Not set"
+              placeholder={t('option.employees.notSet')}
               options={(departments ?? []).map((d) => ({ value: String(d.id), label: d.name }))}
             />
           </FormField>
-          <FormField label="Position" htmlFor="position_id" error={fieldErrors.position_id?.[0]}>
+          <FormField label={t('option.label.position')} htmlFor="position_id" error={fieldErrors.position_id?.[0]}>
             <Select
               id="position_id"
               value={form.position_id}
               onChange={(e) => setForm({ ...form, position_id: e.target.value })}
-              placeholder="Not set"
+              placeholder={t('option.employees.notSet')}
               options={(positions ?? []).map((p) => ({ value: String(p.id), label: p.name }))}
             />
             <button type="button" onClick={() => setCreatingPosition(true)} className="mt-1 text-xs font-semibold text-primary hover:underline">
-              + Create Position
+              {t('action.employees.createPositionLink')}
             </button>
           </FormField>
         </div>
 
         {mode === 'edit' && (
           <FormField
-            label="Category specialization"
+            label={t('option.employees.categorySpecialization')}
             htmlFor="category_specialization"
-            hint="Home Team: Work Type (e.g. Full Time – Jiif). Cooking: Specialization (e.g. Cook)."
+            hint={t('warning.employees.specializationHint')}
             error={fieldErrors.category_specialization?.[0]}
           >
             <input
@@ -484,10 +488,10 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
 
         <div className="grid grid-cols-2 gap-3">
           <FormField
-            label="Application date"
+            label={t('option.employees.applicationDate')}
             htmlFor="application_date"
             required={mode === 'create'}
-            hint={mode === 'edit' ? 'May be left blank — some migrated employees have no application date on record.' : undefined}
+            hint={mode === 'edit' ? t('warning.employees.applicationDateBlankHint') : undefined}
             error={fieldErrors.application_date?.[0]}
           >
             <input
@@ -500,18 +504,18 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
             />
           </FormField>
           {mode === 'edit' && (
-            <FormField label="Joining date" htmlFor="joining_date" error={fieldErrors.joining_date?.[0]}>
+            <FormField label={t('option.employees.joiningDate')} htmlFor="joining_date" error={fieldErrors.joining_date?.[0]}>
               <input id="joining_date" type="date" className={inputClasses} value={form.joining_date} onChange={(e) => setForm({ ...form, joining_date: e.target.value })} />
             </FormField>
           )}
         </div>
 
-        <FormField label="Experience" htmlFor="experience" error={fieldErrors.experience?.[0]}>
+        <FormField label={t('option.employees.experience')} htmlFor="experience" error={fieldErrors.experience?.[0]}>
           <textarea id="experience" rows={2} className={inputClasses + ' h-auto py-2'} value={form.experience} onChange={(e) => setForm({ ...form, experience: e.target.value })} />
         </FormField>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Training fee amount" htmlFor="training_fee_amount" error={fieldErrors.training_fee_amount?.[0]}>
+          <FormField label={t('option.employees.trainingFeeAmount')} htmlFor="training_fee_amount" error={fieldErrors.training_fee_amount?.[0]}>
             <input
               id="training_fee_amount"
               type="number"
@@ -522,7 +526,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
               onChange={(e) => setForm({ ...form, training_fee_amount: e.target.value })}
             />
           </FormField>
-          <FormField label="Training fee status" htmlFor="training_fee_status" error={fieldErrors.training_fee_status?.[0]}>
+          <FormField label={t('option.employees.trainingFeeStatus')} htmlFor="training_fee_status" error={fieldErrors.training_fee_status?.[0]}>
             <input
               id="training_fee_status"
               className={inputClasses}
@@ -533,34 +537,33 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Source" htmlFor="source" error={fieldErrors.source?.[0]}>
+          <FormField label={t('option.label.source')} htmlFor="source" error={fieldErrors.source?.[0]}>
             <input id="source" className={inputClasses} value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} />
           </FormField>
           <FormField
-            label="Employment type"
+            label={t('option.employees.employmentType')}
             htmlFor="employment_type"
-            hint="Temporary employees can cover a Permanent employee's assignment."
+            hint={t('warning.employees.employmentTypeHint')}
             error={fieldErrors.employment_type?.[0]}
           >
             <Select
               id="employment_type"
               value={form.employment_type}
               onChange={(e) => {
-                setTypeChangeRefusal(null);
+                setTypeChangeRefusal(false);
                 setForm({ ...form, employment_type: e.target.value as EmploymentType });
               }}
-              options={EMPLOYMENT_TYPE_OPTIONS}
+              options={EMPLOYMENT_TYPE_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
             />
           </FormField>
         </div>
         {typeChangeMessage && (
           <div role="alert" data-testid="type-change-blocked" className="mb-3 rounded-sm bg-danger-soft px-3 py-2 text-xs text-ink">
-            <p lang="so" className="font-semibold text-danger">{typeChangeMessage}</p>
-            <p className="mt-1 text-ink-muted">{TYPE_CHANGE_BLOCKED_ENGLISH}</p>
+            <p className="font-semibold text-danger">{typeChangeMessage}</p>
           </div>
         )}
 
-        <FormField label="Notes" htmlFor="notes" error={fieldErrors.notes?.[0]}>
+        <FormField label={t('option.label.notes')} htmlFor="notes" error={fieldErrors.notes?.[0]}>
           <textarea id="notes" rows={2} className={inputClasses + ' h-auto py-2'} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         </FormField>
       </form>
@@ -582,8 +585,8 @@ interface DuplicateWarningsProps {
   reasonError?: string;
 }
 
-function matchDescription(match: DuplicateEmployeeMatch): string {
-  const status = match.archived ? 'archived record' : match.status;
+function matchDescription(match: DuplicateEmployeeMatch, t: Translate, tValue: I18nContextValue['tValue']): string {
+  const status = match.archived ? t('status.employees.archivedRecord') : (tValue('status', match.status) ?? match.status);
   return `${match.full_name} (${match.employee_number}, ${status})`;
 }
 
@@ -602,19 +605,20 @@ function DuplicateWarnings({
   onReasonChange,
   reasonError,
 }: DuplicateWarningsProps) {
+  const { t, tValue } = useI18n();
   if (phoneMatches.length === 0 && nameOnlyMatches.length === 0) return null;
 
   return (
     <div className="mb-4 space-y-3">
       {phoneMatches.length > 0 && (
         <div className="rounded-sm border border-danger/40 bg-danger-soft px-3 py-3 text-sm" role="alert">
-          <p className="font-semibold text-danger">This phone number is already on record.</p>
+          <p className="font-semibold text-danger">{t('warning.employees.phoneOnRecord')}</p>
           <ul className="mt-1.5 space-y-1">
             {phoneMatches.map((match) => (
               <li key={match.id} className="text-ink">
-                This phone number already belongs to {matchDescription(match)}.{' '}
+                {t('warning.employees.phoneBelongsTo', { description: matchDescription(match, t, tValue) })}{' '}
                 <Link to={`/hr/employees/${match.id}`} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
-                  Open profile
+                  {t('action.employees.openProfile')}
                 </Link>
               </li>
             ))}
@@ -622,19 +626,19 @@ function DuplicateWarnings({
           {needsConfirmation ? (
             <div className="mt-3 border-t border-danger/20 pt-3">
               <p className="mb-2 text-xs text-ink-muted">
-                Registering the same person twice causes problems. Continue only if this really is a different person who shares the number.
+                {t('warning.employees.duplicatePersonWarning')}
               </p>
               <label className="flex items-center gap-2 text-sm text-ink">
                 <input type="checkbox" checked={confirmed} onChange={(e) => onConfirmedChange(e.target.checked)} />
-                This is a different person
+                {t('option.employees.differentPerson')}
               </label>
               {confirmed && (
                 <div className="mt-3">
                   <FormField
-                    label="Why is this a different person?"
+                    label={t('option.employees.whyDifferentPerson')}
                     htmlFor="duplicate_reason"
                     required
-                    hint="At least 10 characters. This is kept in the audit log."
+                    hint={t('warning.employees.differentPersonFormHint')}
                     error={reasonError}
                   >
                     <textarea
@@ -650,25 +654,25 @@ function DuplicateWarnings({
               )}
             </div>
           ) : (
-            <p className="mt-2 text-xs text-ink-muted">Fix the number, or save and then confirm that this is a different person.</p>
+            <p className="mt-2 text-xs text-ink-muted">{t('warning.employees.fixNumberOrConfirm')}</p>
           )}
         </div>
       )}
 
       {nameOnlyMatches.length > 0 && (
         <div className="rounded-sm border border-warning/40 bg-warning-soft px-3 py-3 text-sm">
-          <p className="font-semibold text-warning">Someone with the same name is already registered.</p>
+          <p className="font-semibold text-warning">{t('warning.employees.sameNameRegistered')}</p>
           <ul className="mt-1.5 space-y-1">
             {nameOnlyMatches.map((match) => (
               <li key={match.id} className="text-ink">
-                {matchDescription(match)}{' '}
+                {matchDescription(match, t, tValue)}{' '}
                 <Link to={`/hr/employees/${match.id}`} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
-                  Open profile
+                  {t('action.employees.openProfile')}
                 </Link>
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-ink-muted">Different people can share a name, so this will not stop you from saving.</p>
+          <p className="mt-2 text-xs text-ink-muted">{t('warning.employees.sameNameNote')}</p>
         </div>
       )}
     </div>

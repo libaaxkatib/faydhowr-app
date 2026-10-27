@@ -1,5 +1,6 @@
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+import { useI18n } from '@/i18n/useI18n';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -18,13 +19,15 @@ export function ConfirmDialog({
   isOpen,
   title,
   description,
-  confirmLabel = 'Confirm',
+  confirmLabel,
   tone = 'primary',
   isLoading,
   errorMessage,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const { t } = useI18n();
+
   return (
     <Modal
       isOpen={isOpen}
@@ -34,10 +37,10 @@ export function ConfirmDialog({
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onCancel} disabled={isLoading}>
-            Cancel
+            {t('action.cancel')}
           </Button>
           <Button variant={tone === 'danger' ? 'danger' : 'primary'} size="sm" onClick={onConfirm} isLoading={isLoading}>
-            {confirmLabel}
+            {confirmLabel ?? t('action.confirm')}
           </Button>
         </>
       }

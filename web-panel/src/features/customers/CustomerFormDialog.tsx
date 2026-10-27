@@ -8,6 +8,7 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
+import { useI18n } from '@/i18n/useI18n';
 import type { Customer, CreateCustomerPayload, UpdateCustomerPayload } from '@/types/customer';
 
 interface CustomerFormDialogProps {
@@ -30,6 +31,7 @@ const emptyForm = {
 export function CustomerFormDialog({ isOpen, onClose, mode, customer }: CustomerFormDialogProps) {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   const [form, setForm] = useState(emptyForm);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
@@ -79,14 +81,14 @@ export function CustomerFormDialog({ isOpen, onClose, mode, customer }: Customer
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       if (customer) queryClient.invalidateQueries({ queryKey: ['customer', customer.id] });
-      show(mode === 'create' ? 'Customer created.' : 'Customer updated.');
+      show(mode === 'create' ? t('notify.customers.created') : t('notify.customers.updated'));
       onClose();
     },
     onError: (error) => {
       if (error instanceof ApiClientError && error.isValidation) {
         setFieldErrors(error.fieldErrors ?? {});
       } else {
-        show(error instanceof Error ? error.message : 'Something went wrong.', 'error');
+        show(error instanceof Error ? error.message : t('notify.shell.somethingWrong'), 'error');
       }
     },
   });
@@ -100,20 +102,20 @@ export function CustomerFormDialog({ isOpen, onClose, mode, customer }: Customer
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={mode === 'create' ? 'Add Customer' : 'Edit Customer'}
+      title={mode === 'create' ? t('action.customers.add') : t('action.customers.edit')}
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>
-            Cancel
+            {t('action.cancel')}
           </Button>
           <Button size="sm" onClick={handleSubmit} isLoading={mutation.isPending}>
-            {mode === 'create' ? 'Create Customer' : 'Save Changes'}
+            {mode === 'create' ? t('action.customers.create') : t('action.saveChanges')}
           </Button>
         </>
       }
     >
       <form onSubmit={handleSubmit}>
-        <FormField label="Full name" htmlFor="full_name" required error={fieldErrors.full_name?.[0]}>
+        <FormField label={t('option.label.fullName')} htmlFor="full_name" required error={fieldErrors.full_name?.[0]}>
           <input
             id="full_name"
             required
@@ -124,7 +126,7 @@ export function CustomerFormDialog({ isOpen, onClose, mode, customer }: Customer
         </FormField>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Phone" htmlFor="phone" required error={fieldErrors.phone?.[0]}>
+          <FormField label={t('option.label.phone')} htmlFor="phone" required error={fieldErrors.phone?.[0]}>
             <input
               id="phone"
               required
@@ -133,7 +135,7 @@ export function CustomerFormDialog({ isOpen, onClose, mode, customer }: Customer
               onChange={(event) => setForm({ ...form, phone: event.target.value })}
             />
           </FormField>
-          <FormField label="Email" htmlFor="email" error={fieldErrors.email?.[0]}>
+          <FormField label={t('option.shell.email')} htmlFor="email" error={fieldErrors.email?.[0]}>
             <input
               id="email"
               type="email"
@@ -145,7 +147,7 @@ export function CustomerFormDialog({ isOpen, onClose, mode, customer }: Customer
         </div>
 
         {mode === 'create' && (
-          <FormField label="Temporary password" htmlFor="password" required hint="Minimum 8 characters." error={fieldErrors.password?.[0]}>
+          <FormField label={t('option.customers.temporaryPassword')} htmlFor="password" required hint={t('option.shell.minEightChars')} error={fieldErrors.password?.[0]}>
             <input
               id="password"
               type="password"
@@ -159,19 +161,19 @@ export function CustomerFormDialog({ isOpen, onClose, mode, customer }: Customer
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Gender" htmlFor="gender" error={fieldErrors.gender?.[0]}>
+          <FormField label={t('option.label.gender')} htmlFor="gender" error={fieldErrors.gender?.[0]}>
             <Select
               id="gender"
               value={form.gender}
               onChange={(event) => setForm({ ...form, gender: event.target.value as typeof form.gender })}
-              placeholder="Not specified"
+              placeholder={t('option.customers.notSpecified')}
               options={[
-                { value: 'male', label: 'Male' },
-                { value: 'female', label: 'Female' },
+                { value: 'male', label: t('option.gender.male') },
+                { value: 'female', label: t('option.gender.female') },
               ]}
             />
           </FormField>
-          <FormField label="Date of birth" htmlFor="date_of_birth" error={fieldErrors.date_of_birth?.[0]}>
+          <FormField label={t('option.customers.dateOfBirth')} htmlFor="date_of_birth" error={fieldErrors.date_of_birth?.[0]}>
             <input
               id="date_of_birth"
               type="date"
@@ -182,16 +184,16 @@ export function CustomerFormDialog({ isOpen, onClose, mode, customer }: Customer
           </FormField>
         </div>
 
-        <FormField label="Preferred language" htmlFor="preferred_language" error={fieldErrors.preferred_language?.[0]}>
+        <FormField label={t('option.customers.preferredLanguage')} htmlFor="preferred_language" error={fieldErrors.preferred_language?.[0]}>
           <Select
             id="preferred_language"
             value={form.preferred_language}
             onChange={(event) => setForm({ ...form, preferred_language: event.target.value as typeof form.preferred_language })}
-            placeholder="Not specified"
+            placeholder={t('option.customers.notSpecified')}
             options={[
-              { value: 'so', label: 'Somali' },
-              { value: 'en', label: 'English' },
-              { value: 'ar', label: 'Arabic' },
+              { value: 'so', label: t('option.customers.language.so') },
+              { value: 'en', label: t('option.customers.language.en') },
+              { value: 'ar', label: t('option.customers.language.ar') },
             ]}
           />
         </FormField>

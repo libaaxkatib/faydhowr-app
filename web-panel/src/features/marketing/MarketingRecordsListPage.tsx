@@ -19,14 +19,16 @@ import { PermissionGate } from '@/components/ui/PermissionGate';
 import { XarunFormDialog } from '@/features/marketing/XarunFormDialog';
 import { ProjectFormDialog } from '@/features/marketing/ProjectFormDialog';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useI18n } from '@/i18n/useI18n';
+import type { MessageKey } from '@/i18n/messages';
 import { formatDate } from '@/utils/formatters';
 import type { MarketingRecord, MarketingRecordStatus, MarketingRecordType } from '@/types/marketing';
 
-const STATUS_OPTIONS: { value: MarketingRecordStatus; label: string }[] = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'quotation', label: 'Quotation' },
-  { value: 'done', label: 'Done' },
-  { value: 'cancelled', label: 'Cancelled' },
+const STATUS_OPTIONS: { value: MarketingRecordStatus; label: string; labelKey: MessageKey }[] = [
+  { value: 'pending', label: 'Pending', labelKey: 'status.marketing.record.pending' },
+  { value: 'quotation', label: 'Quotation', labelKey: 'status.marketing.record.quotation' },
+  { value: 'done', label: 'Done', labelKey: 'status.marketing.record.done' },
+  { value: 'cancelled', label: 'Cancelled', labelKey: 'status.marketing.record.cancelled' },
 ];
 
 interface MarketingRecordsListPageProps {
@@ -42,6 +44,7 @@ interface MarketingRecordsListPageProps {
  */
 export function MarketingRecordsListPage({ type, title }: MarketingRecordsListPageProps) {
   const navigate = useNavigate();
+  const { t, tValue } = useI18n();
   const url = useUrlFilters();
   const search = url.get('q');
   const status = url.get('status') as MarketingRecordStatus | '';
@@ -68,7 +71,7 @@ export function MarketingRecordsListPage({ type, title }: MarketingRecordsListPa
   const columns = useMemo<ColumnDef<MarketingRecord, unknown>[]>(
     () => [
       {
-        header: type === 'xarun' ? 'Facility' : 'Responsible',
+        header: type === 'xarun' ? t('option.marketing.facility') : t('option.marketing.responsible'),
         id: 'primary',
         cell: ({ row }) => (
           <div>
@@ -80,32 +83,32 @@ export function MarketingRecordsListPage({ type, title }: MarketingRecordsListPa
         ),
       },
       {
-        header: 'Team',
+        header: t('option.marketing.team'),
         accessorKey: 'assigned_team_name',
         cell: ({ row }) =>
           row.original.assigned_team_name ? (
             <span className="text-ink">{row.original.assigned_team_name}</span>
           ) : (
-            <span className="italic text-ink-faint">Unassigned</span>
+            <span className="italic text-ink-faint">{t('option.employees.unassigned')}</span>
           ),
       },
       {
-        header: 'Employee',
+        header: t('option.label.employee'),
         accessorKey: 'assigned_admin_name',
         cell: ({ row }) =>
           row.original.assigned_admin_name ? (
             <span className="text-ink">{row.original.assigned_admin_name}</span>
           ) : (
-            <span className="italic text-ink-faint">Unassigned</span>
+            <span className="italic text-ink-faint">{t('option.employees.unassigned')}</span>
           ),
       },
       {
-        header: 'Status',
+        header: t('option.label.status'),
         accessorKey: 'status',
-        cell: ({ row }) => <StatusBadge status={row.original.status} tone={row.original.status === 'done' ? 'success' : row.original.status === 'cancelled' ? 'danger' : row.original.status === 'quotation' ? 'info' : 'warning'} />,
+        cell: ({ row }) => <StatusBadge status={row.original.status} label={tValue('status.marketing.record', row.original.status)} tone={row.original.status === 'done' ? 'success' : row.original.status === 'cancelled' ? 'danger' : row.original.status === 'quotation' ? 'info' : 'warning'} />,
       },
       {
-        header: 'Created',
+        header: t('option.marketing.created'),
         accessorKey: 'created_at',
         cell: ({ row }) => <span className="text-ink-muted">{formatDate(row.original.created_at)}</span>,
       },
@@ -126,19 +129,19 @@ export function MarketingRecordsListPage({ type, title }: MarketingRecordsListPa
         ),
       },
     ],
-    [navigate, type],
+    [navigate, type, t, tValue],
   );
 
   return (
     <div>
       <PageHeader
         title={title}
-        breadcrumb={[{ label: 'Marketing', to: '/marketing' }, { label: title }]}
+        breadcrumb={[{ label: t('nav.marketing.marketing'), to: '/marketing' }, { label: title }]}
         actions={
           <PermissionGate module="marketing">
             <Button onClick={() => setIsCreateOpen(true)}>
               <Icon name="plus" size={15} />
-              New {type === 'xarun' ? 'XARUN' : 'PROJECT'}
+              {t('action.marketing.newRecord', { type: type === 'xarun' ? 'XARUN' : 'PROJECT' })}
             </Button>
           </PermissionGate>
         }
@@ -152,7 +155,7 @@ export function MarketingRecordsListPage({ type, title }: MarketingRecordsListPa
               setSearch(value);
               setPage(1);
             }}
-            placeholder="Search…"
+            placeholder={t('option.marketing.searchPlaceholder')}
             className="w-full max-w-xs"
           />
           <Select
@@ -161,8 +164,8 @@ export function MarketingRecordsListPage({ type, title }: MarketingRecordsListPa
               setStatus(event.target.value as MarketingRecordStatus | '');
               setPage(1);
             }}
-            options={STATUS_OPTIONS}
-            placeholder="All statuses"
+            options={STATUS_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
+            placeholder={t('option.marketing.allStatuses')}
             className="w-44"
           />
         </div>
@@ -174,8 +177,8 @@ export function MarketingRecordsListPage({ type, title }: MarketingRecordsListPa
           error={error}
           onRetry={refetch}
           onRowClick={(record) => navigate(`/marketing/${type}/${record.id}`, { state: returnState(window.location.pathname, window.location.search, '' + (type === 'xarun' ? 'XARUN' : 'PROJECT') + '') })}
-          emptyTitle={`No ${type === 'xarun' ? 'XARUN' : 'PROJECT'} records found`}
-          emptyDescription="Try adjusting your search or filters."
+          emptyTitle={t('warning.marketing.noRecordsFound', { type: type === 'xarun' ? 'XARUN' : 'PROJECT' })}
+          emptyDescription={t('warning.marketing.adjustSearch')}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

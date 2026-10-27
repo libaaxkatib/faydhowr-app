@@ -12,6 +12,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { useDateRangePreset } from '@/hooks/useDateRangePreset';
 import { formatDate } from '@/utils/formatters';
 import type { EmployeePerformanceReview, PerformanceRating } from '@/types/employee';
+import { useI18n } from '@/i18n/useI18n';
 
 const RATING_OPTIONS: { value: PerformanceRating; label: string }[] = [
   { value: 'excellent', label: 'Excellent' },
@@ -22,6 +23,7 @@ const RATING_OPTIONS: { value: PerformanceRating; label: string }[] = [
 
 /** docs/HRM_MARKETING_SRS.md HR Phase 6: company-wide Performance Review list - categorical ratings only, no numeric scoring. */
 export function PerformanceReportPage() {
+  const { t, tValue } = useI18n();
   const { preset, setPreset, from, to, setFrom, setTo, options: presetOptions } = useDateRangePreset();
   const [departmentId, setDepartmentId] = useState('');
   const [rating, setRating] = useState<PerformanceRating | ''>('');
@@ -46,7 +48,7 @@ export function PerformanceReportPage() {
   const columns = useMemo<ColumnDef<EmployeePerformanceReview, unknown>[]>(
     () => [
       {
-        header: 'Employee',
+        header: t('option.label.employee'),
         id: 'employee',
         cell: ({ row }) => (
           <div className="min-w-0">
@@ -56,29 +58,29 @@ export function PerformanceReportPage() {
         ),
       },
       {
-        header: 'Rating',
+        header: t('option.employeeDetail.fieldRating'),
         accessorKey: 'rating_label',
-        cell: ({ row }) => <span className="text-ink">{row.original.rating_label}</span>,
+        cell: ({ row }) => <span className="text-ink">{tValue('status.pipeline.rating', row.original.rating) ?? row.original.rating_label}</span>,
       },
       {
-        header: 'Review Date',
+        header: t('option.reports.colReviewDate'),
         accessorKey: 'review_date',
         cell: ({ row }) => <span className="text-ink-muted">{formatDate(row.original.review_date)}</span>,
       },
       {
-        header: 'Reviewed By',
+        header: t('option.reports.colReviewedBy'),
         accessorKey: 'reviewed_by',
         cell: ({ row }) => <span className="text-ink-muted">{row.original.reviewed_by ?? '—'}</span>,
       },
     ],
-    [],
+    [t, tValue],
   );
 
   return (
     <div>
       <PageHeader
-        title="Performance Report"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Reports', to: '/hr/reports' }, { label: 'Performance Report' }]}
+        title={t('nav.performanceReport')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.reports'), to: '/hr/reports' }, { label: t('nav.performanceReport') }]}
       />
 
       <Card className="mb-4">
@@ -127,7 +129,7 @@ export function PerformanceReportPage() {
               setDepartmentId(e.target.value);
               setPage(1);
             }}
-            placeholder="All departments"
+            placeholder={t('option.pipeline.allDepartments')}
             options={(departments ?? []).map((d) => ({ value: String(d.id), label: d.name }))}
             className="w-44"
           />
@@ -137,8 +139,8 @@ export function PerformanceReportPage() {
               setRating(e.target.value as PerformanceRating | '');
               setPage(1);
             }}
-            placeholder="All ratings"
-            options={RATING_OPTIONS}
+            placeholder={t('option.pipeline.allRatings')}
+            options={RATING_OPTIONS.map((o) => ({ value: o.value, label: tValue('status.pipeline.rating', o.value) ?? o.label }))}
             className="w-44"
           />
         </div>
@@ -149,8 +151,8 @@ export function PerformanceReportPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          emptyTitle="No performance reviews recorded"
-          emptyDescription="Reviews appear here once recorded for an employee."
+          emptyTitle={t('option.reports.reviewsListEmptyTitle')}
+          emptyDescription={t('option.reports.reviewsListEmptyBody')}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

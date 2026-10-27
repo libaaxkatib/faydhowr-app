@@ -14,7 +14,8 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/useToast';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
-import { ADMIN_ROLE_LABELS, ASSIGNABLE_ADMIN_ROLES, permissionAllowedForRole } from '@/types/system';
+import { ASSIGNABLE_ADMIN_ROLES, adminRoleLabel, permissionAllowedForRole } from '@/types/system';
+import { useI18n } from '@/i18n/useI18n';
 import type { AdminRole } from '@/types/admin';
 import type { Permission } from '@/types/system';
 
@@ -32,6 +33,11 @@ function groupPermissions(permissions: Permission[]): [string, Permission[]][] {
   return Array.from(groups.entries());
 }
 
+/** The key a permission group's translation is stored under: the group name in lowercase, any other characters as "_". */
+function permissionGroupSlug(group: string): string {
+  return group.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
 interface PermissionChecklistProps {
   groups: [string, Permission[]][];
   selected: Set<string>;
@@ -40,11 +46,13 @@ interface PermissionChecklistProps {
 }
 
 function PermissionChecklist({ groups, selected, onToggle, disabled }: PermissionChecklistProps) {
+  const { tValue } = useI18n();
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {groups.map(([group, permissions]) => (
         <div key={group} className="rounded-md border border-border p-3.5">
-          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">{group}</p>
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">{tValue('option.system.permissionGroup', permissionGroupSlug(group)) ?? group}</p>
           <div className="space-y-1.5">
             {permissions.map((permission) => (
               <label key={permission.key} className="flex items-center gap-2 text-sm text-ink">
@@ -55,7 +63,7 @@ function PermissionChecklist({ groups, selected, onToggle, disabled }: Permissio
                   onChange={() => onToggle?.(permission.key)}
                   className="h-4 w-4 rounded-sm border-border text-primary focus:ring-primary/30"
                 />
-                {permission.name}
+                {tValue('option.system.permission', permission.key) ?? permission.name}
               </label>
             ))}
           </div>
@@ -66,6 +74,7 @@ function PermissionChecklist({ groups, selected, onToggle, disabled }: Permissio
 }
 
 function RoleTab() {
+  const { t, tValue } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const { hasPermission } = useEffectivePermissions();
@@ -88,9 +97,9 @@ function RoleTab() {
     mutationFn: () => permissionsApi.updateForRole(selectedRole, Array.from(draft)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['role-permissions', selectedRole] });
-      show(`${ADMIN_ROLE_LABELS[selectedRole]} permissions updated.`);
+      show(t('notify.system.rolePermissionsUpdated', { role: adminRoleLabel(selectedRole, tValue) }));
     },
-    onError: (err) => show(err instanceof ApiClientError ? err.message : 'Could not update role permissions.', 'error'),
+    onError: (err) => show(err instanceof ApiClientError ? err.message : t('notify.system.rolePermissionsFailed'), 'error'),
   });
 
   const groups = useMemo(
@@ -114,30 +123,30 @@ function RoleTab() {
               selectedRole === r.value ? 'bg-primary-soft text-primary' : 'text-ink-muted hover:bg-surface-alt'
             }`}
           >
-            {r.label}
+            {adminRoleLabel(r.value, tValue)}
           </button>
         ))}
         <div className="mt-2 border-t border-border pt-2">
-          <p className="px-3 py-1.5 text-xs text-ink-faint">Super Admin holds every permission implicitly and can't be edited here.</p>
+          <p className="px-3 py-1.5 text-xs text-ink-faint">{t('warning.system.superAdminNote')}</p>
         </div>
       </div>
 
       <Card className="p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-display text-base font-bold text-ink">{ADMIN_ROLE_LABELS[selectedRole]} permissions</h3>
+          <h3 className="font-display text-base font-bold text-ink">{t('option.system.rolePermissionsTitle', { role: adminRoleLabel(selectedRole, tValue) })}</h3>
           {hasPermission('roles.manage') && (
             <Button size="sm" isLoading={saveMutation.isPending} disabled={!isDirty} onClick={() => saveMutation.mutate()}>
-              Save changes
+              {t('action.company.saveChanges')}
             </Button>
           )}
         </div>
 
-        {(catalog.isLoading || rolePermissions.isLoading) && <LoadingState label="Loading permissions…" />}
+        {(catalog.isLoading || rolePermissions.isLoading) && <LoadingState label={t('option.system.loadingPermissions')} />}
         {(catalog.error || rolePermissions.error) && (
           <ErrorState error={catalog.error ?? rolePermissions.error} onRetry={() => rolePermissions.refetch()} />
         )}
         {catalog.data && rolePermissions.data && groups.length === 0 && (
-          <EmptyState icon="shield" title="No permissions defined yet" />
+          <EmptyState icon="shield" title={t('warning.system.noPermissions')} />
         )}
         {catalog.data && rolePermissions.data && groups.length > 0 && (
           <PermissionChecklist groups={groups} selected={draft} onToggle={(key) => {
@@ -158,6 +167,7 @@ function RoleTab() {
 }
 
 function AdminOverridesTab() {
+  const { t, tValue } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const { hasPermission } = useEffectivePermissions();
@@ -185,9 +195,9 @@ function AdminOverridesTab() {
     mutationFn: () => permissionsApi.updateForAdmin(adminId as number, Array.from(draft)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-permissions', adminId] });
-      show('Admin permission overrides updated.');
+      show(t('notify.system.overridesUpdated'));
     },
-    onError: (err) => show(err instanceof ApiClientError ? err.message : 'Could not update admin overrides.', 'error'),
+    onError: (err) => show(err instanceof ApiClientError ? err.message : t('notify.system.overridesFailed'), 'error'),
   });
 
   const selectedAdmin = adminsList.data?.data.find((a) => a.id === adminId);
@@ -206,18 +216,18 @@ function AdminOverridesTab() {
       <FormRow adminId={adminId} onChange={setAdminId} admins={adminsList.data?.data ?? []} />
 
       {adminId === '' && (
-        <EmptyState icon="users" title="Pick an admin" description="Choose an admin above to view or edit their direct permission overrides." />
+        <EmptyState icon="users" title={t('warning.system.pickAdminTitle')} description={t('warning.system.pickAdminText')} />
       )}
 
       {adminId !== '' && isSuperAdmin && (
         <p className="rounded-md border border-border bg-surface-alt px-3.5 py-3 text-sm text-ink-muted">
-          Super Admin already holds every permission implicitly. Direct overrides don't apply.
+          {t('warning.system.superAdminOverrides')}
         </p>
       )}
 
       {adminId !== '' && !isSuperAdmin && (
         <>
-          {(catalog.isLoading || adminPermissions.isLoading) && <LoadingState label="Loading permissions…" />}
+          {(catalog.isLoading || adminPermissions.isLoading) && <LoadingState label={t('option.system.loadingPermissions')} />}
           {(catalog.error || adminPermissions.error) && (
             <ErrorState error={catalog.error ?? adminPermissions.error} onRetry={() => adminPermissions.refetch()} />
           )}
@@ -225,16 +235,20 @@ function AdminOverridesTab() {
           {adminPermissions.data && (
             <>
               <p className="mb-3 text-xs text-ink-faint">
-                From role ({ADMIN_ROLE_LABELS[adminPermissions.data.role]}): {adminPermissions.data.role_permissions.length === 0
-                  ? 'no permissions granted yet'
-                  : adminPermissions.data.role_permissions.map((p) => p.name).join(', ')}
+                {t('option.system.fromRole', {
+                  role: adminRoleLabel(adminPermissions.data.role, tValue),
+                  permissions:
+                    adminPermissions.data.role_permissions.length === 0
+                      ? t('warning.system.noPermissionsGranted')
+                      : adminPermissions.data.role_permissions.map((p) => tValue('option.system.permission', p.key) ?? p.name).join(', '),
+                })}
               </p>
 
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="font-display text-base font-bold text-ink">Direct overrides</h3>
+                <h3 className="font-display text-base font-bold text-ink">{t('option.system.directOverrides')}</h3>
                 {hasPermission('roles.manage') && (
                   <Button size="sm" isLoading={saveMutation.isPending} disabled={!isDirty} onClick={() => saveMutation.mutate()}>
-                    Save changes
+                    {t('action.company.saveChanges')}
                   </Button>
                 )}
               </div>
@@ -269,12 +283,14 @@ function FormRow({
   onChange: (id: number | '') => void;
   admins: { id: number; full_name: string; email: string }[];
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="mb-4">
       <Select
         value={adminId === '' ? '' : String(adminId)}
         onChange={(event) => onChange(event.target.value === '' ? '' : Number(event.target.value))}
-        placeholder="Select an admin…"
+        placeholder={t('option.system.selectAdmin')}
         options={admins.map((a) => ({ value: String(a.id), label: `${a.full_name} (${a.email})` }))}
         className="w-full max-w-sm"
       />
@@ -283,11 +299,15 @@ function FormRow({
 }
 
 export function RolesPermissionsPage() {
+  const { t } = useI18n();
   const [tab, setTab] = useState<'roles' | 'overrides'>('roles');
 
   return (
     <div>
-      <PageHeader title="Roles & Permissions" breadcrumb={[{ label: 'System', to: '/system/roles' }, { label: 'Roles & Permissions' }]} />
+      <PageHeader
+        title={t('option.system.pageRoles')}
+        breadcrumb={[{ label: t('option.system.system'), to: '/system/roles' }, { label: t('option.system.pageRoles') }]}
+      />
 
       <div className="mb-5 flex items-center gap-1 border-b border-border">
         <button
@@ -297,7 +317,7 @@ export function RolesPermissionsPage() {
             tab === 'roles' ? 'border-primary text-primary' : 'border-transparent text-ink-muted hover:text-ink'
           }`}
         >
-          <Icon name="shield" size={14} /> Roles
+          <Icon name="shield" size={14} /> {t('option.system.tabRoles')}
         </button>
         <button
           type="button"
@@ -306,7 +326,7 @@ export function RolesPermissionsPage() {
             tab === 'overrides' ? 'border-primary text-primary' : 'border-transparent text-ink-muted hover:text-ink'
           }`}
         >
-          <Icon name="users" size={14} /> Per-Admin Overrides
+          <Icon name="users" size={14} /> {t('option.system.tabOverrides')}
         </button>
       </div>
 

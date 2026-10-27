@@ -15,6 +15,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { formatDate, formatDurationSince, formatNumber, initialsOf } from '@/utils/formatters';
 import type { Employee } from '@/types/employee';
+import { useI18n } from '@/i18n/useI18n';
 
 /**
  * docs/HRM_MARKETING_SRS.md HR Phase 6: aggregate Waiting analytics (duration
@@ -24,6 +25,7 @@ import type { Employee } from '@/types/employee';
  */
 export function WaitingAnalyticsPage() {
   const navigate = useNavigate();
+  const { t, tValue } = useI18n();
   const url = useUrlFilters();
   const orderBy: 'oldest' | 'newest' = url.get('order') === 'newest' ? 'newest' : 'oldest';
   const setOrderBy = (value: 'oldest' | 'newest') => url.set('order', value === 'oldest' ? '' : value);
@@ -44,7 +46,7 @@ export function WaitingAnalyticsPage() {
   const columns = useMemo<ColumnDef<Employee, unknown>[]>(
     () => [
       {
-        header: 'Employee',
+        header: t('option.label.employee'),
         accessorKey: 'full_name',
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
@@ -59,61 +61,61 @@ export function WaitingAnalyticsPage() {
         ),
       },
       {
-        header: 'Category',
+        header: t('option.label.category'),
         accessorKey: 'employee_category_name',
         cell: ({ row }) => <span className="text-ink">{row.original.employee_category_name ?? '—'}</span>,
       },
       {
-        header: 'Waiting Duration',
+        header: t('option.pipeline.waitingDuration'),
         accessorKey: 'waiting_since',
         cell: ({ row }) =>
           row.original.waiting_since ? (
             <span className="text-ink">{formatDurationSince(row.original.waiting_since)}</span>
           ) : (
-            <span className="text-xs italic text-ink-faint">Unavailable</span>
+            <span className="text-xs italic text-ink-faint">{t('option.pipeline.unavailable')}</span>
           ),
       },
       {
-        header: 'Applied',
+        header: t('option.pipeline.applied'),
         accessorKey: 'application_date',
         cell: ({ row }) => <span className="text-ink-muted">{formatDate(row.original.application_date)}</span>,
       },
     ],
-    [],
+    [t],
   );
 
   return (
     <div>
       <PageHeader
-        title="Waiting Analytics"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Reports', to: '/hr/reports' }, { label: 'Waiting Analytics' }]}
+        title={t('nav.waitingAnalytics')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.reports'), to: '/hr/reports' }, { label: t('nav.waitingAnalytics') }]}
       />
 
-      {summaryLoading && <LoadingState label="Loading analytics…" />}
+      {summaryLoading && <LoadingState label={t('option.pipeline.loadingAnalytics')} />}
       {summaryError && <ErrorState error={summaryError} onRetry={refetchSummary} />}
 
       {summary && (
         <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Waiting Duration</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.pipeline.waitingDuration')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
-              <Row label="Under 7 days" value={summary.waiting_duration_buckets.under_7_days} />
-              <Row label="7–30 days" value={summary.waiting_duration_buckets.seven_to_30_days} />
-              <Row label="30–90 days" value={summary.waiting_duration_buckets.thirty_to_90_days} />
-              <Row label="Over 90 days" value={summary.waiting_duration_buckets.over_90_days} />
-              <Row label="Unavailable (no waiting_since)" value={summary.waiting_duration_buckets.unavailable} />
+              <Row label={t('option.pipeline.under7Days')} value={summary.waiting_duration_buckets.under_7_days} />
+              <Row label={t('option.pipeline.days7to30')} value={summary.waiting_duration_buckets.seven_to_30_days} />
+              <Row label={t('option.pipeline.days30to90')} value={summary.waiting_duration_buckets.thirty_to_90_days} />
+              <Row label={t('option.pipeline.over90Days')} value={summary.waiting_duration_buckets.over_90_days} />
+              <Row label={t('option.pipeline.unavailableNoWaitingSince')} value={summary.waiting_duration_buckets.unavailable} />
             </CardBody>
           </Card>
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">By Category</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.pipeline.byCategory')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {summary.waiting_by_category.length === 0 ? (
-                <p className="text-sm text-ink-muted">No one currently waiting.</p>
+                <p className="text-sm text-ink-muted">{t('option.pipeline.noOneCurrentlyWaiting')}</p>
               ) : (
                 summary.waiting_by_category.map((category) => <Row key={category.id} label={category.name} value={category.total} />)
               )}
@@ -122,11 +124,11 @@ export function WaitingAnalyticsPage() {
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">By Gender / Location</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.pipeline.byGenderLocation')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {Object.entries(summary.waiting_by_gender).map(([gender, total]) => (
-                <Row key={gender} label={gender} value={total ?? 0} capitalize />
+                <Row key={gender} label={tValue('option.gender', gender) ?? gender} value={total ?? 0} capitalize />
               ))}
               {summary.waiting_by_location.slice(0, 5).map((entry) => (
                 <Row key={entry.location} label={entry.location} value={entry.total} />
@@ -138,7 +140,7 @@ export function WaitingAnalyticsPage() {
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
-          <label className="text-xs font-medium text-ink-muted">Sort by</label>
+          <label className="text-xs font-medium text-ink-muted">{t('option.pipeline.sortBy')}</label>
           <Select
             value={orderBy}
             onChange={(e) => {
@@ -146,8 +148,8 @@ export function WaitingAnalyticsPage() {
               setPage(1);
             }}
             options={[
-              { value: 'oldest', label: 'Oldest first' },
-              { value: 'newest', label: 'Newest first' },
+              { value: 'oldest', label: t('option.pipeline.oldestFirst') },
+              { value: 'newest', label: t('option.pipeline.newestFirst') },
             ]}
             className="w-40"
           />
@@ -160,8 +162,8 @@ export function WaitingAnalyticsPage() {
           error={rosterError}
           onRetry={refetchRoster}
           onRowClick={(employee) => navigate(`/hr/employees/${employee.id}`, { state: returnState(window.location.pathname, window.location.search, 'Waiting Analytics') })}
-          emptyTitle="No one is waiting"
-          emptyDescription="Employees appear here once Practical is Approved."
+          emptyTitle={t('option.pipeline.noOneWaiting')}
+          emptyDescription={t('option.pipeline.waitingEmptyDescription')}
         />
 
         {roster && roster.meta.total > 0 && <Pagination meta={roster.meta} onPageChange={setPage} />}

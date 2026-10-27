@@ -10,16 +10,21 @@ import { inputClasses } from '@/components/ui/FormField';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { deepCleaningGapText, deepCleaningStateTone, formatCalendarDate, monthLabel, shortMonth } from '@/utils/facility';
+import { useI18n } from '@/i18n/useI18n';
+import type { MessageKey } from '@/i18n/messages';
 import { withParam } from '@/utils/urlFilters';
 import type { FacilityDeepCleaningState } from '@/types/facility';
 
-const FILTERS: { value: FacilityDeepCleaningState | ''; label: string }[] = [
-  { value: '', label: 'All facilities' },
-  { value: 'completed', label: 'Completed this month' },
-  { value: 'not_completed', label: 'Not completed this month' },
-  { value: 'overdue_multiple', label: 'Overdue for several months' },
-  { value: 'no_history', label: 'No Deep Cleaning recorded' },
+const FILTERS: { value: FacilityDeepCleaningState | ''; labelKey: MessageKey }[] = [
+  { value: '', labelKey: 'option.hr.dcState.all' },
+  { value: 'completed', labelKey: 'option.hr.dcState.completed' },
+  { value: 'not_completed', labelKey: 'option.hr.dcState.not_completed' },
+  { value: 'overdue_multiple', labelKey: 'option.hr.dcState.overdue_multiple' },
+  { value: 'no_history', labelKey: 'option.hr.dcState.no_history' },
 ];
+
+/** The sentence the server sends as the basis of the overview; shown in Somali only when it is exactly this text. */
+const SERVER_BASIS = 'Built only from Deep Cleaning completions recorded inside facility inspections. Nothing is assumed for months with no record.';
 
 /**
  * The monthly Deep Cleaning overview inside Facility Inspections: for the chosen calendar month, which facilities were deep cleaned, which were
@@ -27,6 +32,7 @@ const FILTERS: { value: FacilityDeepCleaningState | ''; label: string }[] = [
  * written out in words (colour is only an extra), and the filters live in the address bar so the view can be shared and survives a refresh.
  */
 export function DeepCleaningOverview({ canManage, onRecord }: { canManage: boolean; onRecord: (companyId: number) => void }) {
+  const { t, tCount, tValue } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const monthParam = /^\d{4}-(0[1-9]|1[0-2])$/.test(searchParams.get('dcMonth') ?? '') ? (searchParams.get('dcMonth') as string) : '';
   const stateParam = FILTERS.some((f) => f.value === searchParams.get('dcState')) ? ((searchParams.get('dcState') ?? '') as FacilityDeepCleaningState | '') : '';
@@ -43,22 +49,23 @@ export function DeepCleaningOverview({ canManage, onRecord }: { canManage: boole
   const meta = overview.data?.meta;
   const rows = (overview.data?.rows ?? []).filter((row) => stateParam === '' || row.state === stateParam);
   const month = meta?.month.value ?? monthParam;
+  const basis = meta === undefined ? t('option.hr.dcBasisShort') : meta.basis === SERVER_BASIS ? t('option.hr.dcBasisFull') : meta.basis;
 
   return (
     <section className="mb-6" aria-labelledby="deep-cleaning-overview-heading" data-testid="deep-cleaning-overview">
       <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 id="deep-cleaning-overview-heading" className="font-display text-base font-bold text-ink">Monthly Deep Cleaning{month ? ` - ${monthLabel(month)}` : ''}</h2>
-          <p className="text-xs text-ink-muted">{meta?.basis ?? 'Built only from Deep Cleaning completions recorded inside facility inspections.'} Months and dates follow Mogadishu time (UTC+3).</p>
+          <h2 id="deep-cleaning-overview-heading" className="font-display text-base font-bold text-ink">{t('option.hr.dcMonthly')}{month ? ` - ${monthLabel(month)}` : ''}</h2>
+          <p className="text-xs text-ink-muted">{basis} {t('option.hr.dcTimeZone')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="text-xs font-medium text-ink-muted" htmlFor="dc-month">Month</label>
+          <label className="text-xs font-medium text-ink-muted" htmlFor="dc-month">{t('option.label.month')}</label>
           <input id="dc-month" type="month" value={month} max={meta?.current_month} onChange={(event) => setParam('dcMonth', event.target.value)} className={`${inputClasses} w-40`} />
-          <input value={search} onChange={(event) => setParam('dcQ', event.target.value)} placeholder="Search facility…" aria-label="Search facility" className={`${inputClasses} w-44`} />
+          <input value={search} onChange={(event) => setParam('dcQ', event.target.value)} placeholder={t('option.hr.searchFacilityPlaceholder')} aria-label={t('option.hr.searchFacility')} className={`${inputClasses} w-44`} />
         </div>
       </div>
 
-      <div role="group" aria-label="Filter by Deep Cleaning state" className="mb-3 flex flex-wrap items-center gap-2">
+      <div role="group" aria-label={t('option.hr.dcFilterByState')} className="mb-3 flex flex-wrap items-center gap-2">
         {FILTERS.map((option) => {
           const active = stateParam === option.value;
           const count = meta === undefined ? undefined : option.value === '' ? meta.counts.total : meta.counts[option.value];
@@ -73,47 +80,47 @@ export function DeepCleaningOverview({ canManage, onRecord }: { canManage: boole
                 active ? 'border-primary bg-primary text-white' : 'border-border bg-surface text-ink-muted hover:border-primary/40 hover:text-primary'
               }`}
             >
-              {option.label} {count !== undefined && <span className={active ? 'text-white/80' : 'text-ink-faint'}>({count})</span>}
+              {t(option.labelKey)} {count !== undefined && <span className={active ? 'text-white/80' : 'text-ink-faint'}>({count})</span>}
             </button>
           );
         })}
         <label className="ml-auto flex items-center gap-2 text-xs text-ink-muted">
           <input type="checkbox" checked={includeInactive} onChange={(event) => setParam('dcInactive', event.target.checked ? '1' : '')} />
-          Include inactive facilities
+          {t('option.hr.includeInactiveFacilities')}
         </label>
       </div>
 
       {meta !== undefined && !includeInactive && meta.inactive_hidden > 0 && (
         <p className="mb-2 text-xs text-ink-muted" data-testid="deep-cleaning-inactive-note">
-          {meta.inactive_hidden} inactive {meta.inactive_hidden === 1 ? 'facility is' : 'facilities are'} not listed (nothing recorded for this month). Tick "Include inactive facilities" to see them.
+          {tCount('warning.hr.dcInactiveHidden', meta.inactive_hidden)}
         </p>
       )}
 
       {/* While a new month or search loads, the previous result stays on screen; say so, so it is never mistaken for the new month. */}
       <p role="status" aria-live="polite" className={`mb-2 text-xs text-ink-muted ${overview.isFetching && overview.isPlaceholderData ? '' : 'sr-only'}`}>
-        {overview.isFetching && overview.isPlaceholderData ? 'Updating…' : ''}
+        {overview.isFetching && overview.isPlaceholderData ? t('option.hr.updating') : ''}
       </p>
 
       <Card className={overview.isFetching && overview.isPlaceholderData ? 'opacity-60' : undefined}>
-        {overview.isLoading && <LoadingState label="Loading Deep Cleaning…" />}
+        {overview.isLoading && <LoadingState label={t('option.hr.loadingDeepCleaning')} />}
         {overview.error && <ErrorState error={overview.error} onRetry={overview.refetch} />}
         {overview.data && rows.length === 0 && (
           <EmptyState
             icon="eye"
-            title={meta?.counts.total === 0 ? 'No facilities for this month' : 'No facilities match'}
-            description={meta?.counts.total === 0 ? 'Only facilities registered by the end of the month are listed. Change the month or the search.' : 'Change the filter or the search.'}
+            title={meta?.counts.total === 0 ? t('option.hr.dcNoFacilities') : t('option.hr.dcNoFacilitiesMatch')}
+            description={meta?.counts.total === 0 ? t('option.hr.dcNoFacilitiesHint') : t('option.hr.dcChangeFilterHint')}
           />
         )}
         {overview.data && rows.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <caption className="sr-only">Deep Cleaning status of each facility for {month ? monthLabel(month) : 'the selected month'}</caption>
+              <caption className="sr-only">{t('option.hr.dcTableCaption', { month: month ? monthLabel(month) : t('option.hr.dcSelectedMonth') })}</caption>
               <thead className="border-b border-border text-xs uppercase tracking-wide text-ink-muted">
                 <tr>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">Company / Guri</th>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">This month</th>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">Last Deep Cleaning</th>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">Last 6 months</th>
+                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('option.label.companyGuri')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('option.hr.dcColumnThisMonth')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('option.hr.dcColumnLast')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('option.hr.dcColumnLastSix')}</th>
                   <th className="px-4 py-2.5" />
                 </tr>
               </thead>
@@ -122,24 +129,24 @@ export function DeepCleaningOverview({ canManage, onRecord }: { canManage: boole
                   <tr key={row.client_company_id}>
                     <td className="px-4 py-2.5 font-medium text-ink">
                       {row.company}
-                      {row.category === 'guri' && <span className="ml-1.5 text-xs font-normal text-ink-faint">Guri</span>}
-                      {row.facility_status === 'inactive' && <span className="ml-1.5 text-xs font-normal text-ink-faint">Inactive</span>}
+                      {row.category === 'guri' && <span className="ml-1.5 text-xs font-normal text-ink-faint">{t('option.company.filterGuri')}</span>}
+                      {row.facility_status === 'inactive' && <span className="ml-1.5 text-xs font-normal text-ink-faint">{t('status.inactive')}</span>}
                     </td>
                     <td className="px-4 py-2.5">
-                      <StatusBadge status={row.state} label={row.state_label} tone={deepCleaningStateTone(row.state)} />
+                      <StatusBadge status={row.state} label={tValue('option.hr.dcState', row.state) ?? row.state_label} tone={deepCleaningStateTone(row.state)} />
                       <span className="mt-0.5 block text-xs text-ink-muted">{deepCleaningGapText(row)}</span>
                     </td>
-                    <td className="px-4 py-2.5 text-ink">{row.last_completed_on ? formatCalendarDate(row.last_completed_on) : <span className="text-ink-faint">Never recorded</span>}</td>
+                    <td className="px-4 py-2.5 text-ink">{row.last_completed_on ? formatCalendarDate(row.last_completed_on) : <span className="text-ink-faint">{t('status.hr.dcNeverRecorded')}</span>}</td>
                     <td className="px-4 py-2.5">
-                      <ul className="flex gap-1" aria-label={`Last six months for ${row.company}`}>
+                      <ul className="flex gap-1" aria-label={t('option.hr.dcLastSixAria', { company: row.company })}>
                         {row.history.map((m) => (
                           <li
                             key={m.month}
-                            title={`${monthLabel(m.month)}: ${m.completed ? `done on ${formatCalendarDate(m.completed_on ?? '')}` : 'not recorded'}`}
+                            title={m.completed ? t('option.hr.dcMonthDone', { month: monthLabel(m.month), date: formatCalendarDate(m.completed_on ?? '') }) : t('option.hr.dcMonthNone', { month: monthLabel(m.month) })}
                             className={`rounded-sm border px-1.5 py-0.5 text-center text-[11px] leading-tight ${m.completed ? 'border-success/40 bg-success-soft text-success' : 'border-border bg-surface-alt text-ink-faint'}`}
                           >
                             {shortMonth(m.month)}
-                            <span className="block font-semibold">{m.completed ? 'Done' : 'None'}</span>
+                            <span className="block font-semibold">{m.completed ? t('status.hr.dcDone') : t('status.hr.dcNone')}</span>
                           </li>
                         ))}
                       </ul>
@@ -147,7 +154,7 @@ export function DeepCleaningOverview({ canManage, onRecord }: { canManage: boole
                     <td className="px-4 py-2.5">
                       {canManage && (
                         <div className="flex justify-end">
-                          <Button size="sm" variant="outline" onClick={() => onRecord(row.client_company_id)}>Record inspection</Button>
+                          <Button size="sm" variant="outline" onClick={() => onRecord(row.client_company_id)}>{t('action.facility.recordInspection')}</Button>
                         </div>
                       )}
                     </td>

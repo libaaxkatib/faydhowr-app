@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "typecheck": "tsc -b --noEmit",
-    "test": "node --test src/**/*.test.ts"
+    "test": "node --test src/**/*.test.ts",
+    "i18n:scan": "node src/i18n/scanCli.ts",
+    "i18n:register": "node src/i18n/registerCli.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.59.0",

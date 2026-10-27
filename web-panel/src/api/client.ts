@@ -1,3 +1,4 @@
+import { tNow } from '../i18n/active.ts';
 import type { ApiErrorEnvelope, ApiSuccessEnvelope } from '@/types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -105,7 +106,7 @@ async function parseErrorResponse(response: Response): Promise<ApiClientError> {
     // response had no JSON body at all
   }
 
-  const message = body?.message ?? `Request failed with status ${response.status}.`;
+  const message = body?.message ?? tNow('notify.shell.requestFailed', { status: response.status });
   return new ApiClientError(response.status, message, body?.error_code, body?.errors);
 }
 
@@ -199,7 +200,7 @@ export async function apiRequestWithMeta<T>(
 ): Promise<{ data: T; meta: unknown }> {
   const result = await performRequest<T>(path, options);
   if (result instanceof Response) {
-    throw new ApiClientError(0, 'Expected a JSON envelope but received a binary response.');
+    throw new ApiClientError(0, tNow('notify.shell.unexpectedBinary'));
   }
   return { data: result.data, meta: result.meta };
 }

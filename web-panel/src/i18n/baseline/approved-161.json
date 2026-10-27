@@ -1,0 +1,1842 @@
+{
+  "description": "Verified baseline of the 161 owner-approved Somali messages (final, approved and locked by the owner on 2026-10-27). Source: catalogue as committed in 2a4ecc2, cross-checked against docs/HR_SOMALI_TRANSLATION_REGISTER.md of the same commit.",
+  "sourceCommit": "2a4ecc2",
+  "count": 161,
+  "messages": [
+    {
+      "key": "action.absent",
+      "id": "HR-ACT-025",
+      "en": "Absent",
+      "so": "Maqan",
+      "soSha256": "61aababc140ecb589bdc07d1a8896e50d6f85ddab734356070ad5710ba0a5da9",
+      "screens": [
+        "TrainingBatchesPage.tsx"
+      ]
+    },
+    {
+      "key": "action.addEmployee",
+      "id": "HR-ACT-035",
+      "en": "Add employee",
+      "so": "Ku dar shaqaale",
+      "soSha256": "81b9f122daa29d35b61cf188fcf0ebe0384b58d12192c93f38a8a25467454687",
+      "screens": [
+        "CompanyEmployeesPage.tsx",
+        "FacilityInspectionsPage.tsx",
+        "companyEmployees/AssignmentDialogs.tsx"
+      ]
+    },
+    {
+      "key": "action.addParticipant",
+      "id": "HR-ACT-024",
+      "en": "Add",
+      "so": "Ku dar",
+      "soSha256": "307bf4e573d4e114b605de8f6d089c951c0c80468c7875f2bc1381fa2f8339f8",
+      "screens": [
+        "TrainingBatchesPage.tsx"
+      ]
+    },
+    {
+      "key": "action.addReview",
+      "id": "HR-ACT-042",
+      "en": "Add Review",
+      "so": "Ku dar Dib-u-eegis Waxqabad",
+      "soSha256": "8dc04614a7b2dc798bbbe3b20c8edd41fe2a57360576b2e895e2c8ab881fff9b",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.addToSupervisorPool",
+      "id": "HR-ACT-006",
+      "en": "Add to Supervisor Pool",
+      "so": "Ku dar Kooxda Kormeerayaasha",
+      "soSha256": "ff60c008f9d84ab3b36c5c5255481e6a82ad1d6646785e5c2da3afa4e0ae468e",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.advanceTo",
+      "id": "HR-ACT-004",
+      "en": "Advance to {status}",
+      "so": "U gudub {status}",
+      "soSha256": "d4d703b0a31c008c5f06b4396aa5c539135a1c41906d431fe2a7d462005b5a98",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.approve",
+      "id": "HR-ACT-040",
+      "en": "Approve",
+      "so": "Ansixi",
+      "soSha256": "9a654ab701cbd6e1cc7dcc4faaa0fcfec3cb658165e6a0f3047f74e234e66d10",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.approveCost",
+      "id": "HR-ACT-051a",
+      "en": "Approve cost",
+      "so": "Ansixi Kharashka",
+      "soSha256": "b300f1bd57a9fc5095b728aa01292d40f3d0ba69d35e652e7483641661c9f303",
+      "screens": [
+        "TemporaryReplacementsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.approvePayroll",
+      "id": "HR-ACT-055b",
+      "en": "Approve payroll",
+      "so": "Ansixi Mushaharka",
+      "soSha256": "9a82a0582577ee2cbe996a5b80eac2d5c7aa6e649e07058d11d64a1a82b19d5d",
+      "screens": [
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.approvePayrollButton",
+      "id": "HR-ACT-055a",
+      "en": "Approve",
+      "so": "Ansixi",
+      "soSha256": "9a654ab701cbd6e1cc7dcc4faaa0fcfec3cb658165e6a0f3047f74e234e66d10",
+      "screens": [
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.approveReplacementCost",
+      "id": "HR-ACT-051b",
+      "en": "Approve",
+      "so": "Ansixi Kharashka",
+      "soSha256": "b300f1bd57a9fc5095b728aa01292d40f3d0ba69d35e652e7483641661c9f303",
+      "screens": [
+        "TemporaryReplacementsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.assign",
+      "id": "HR-ACT-032",
+      "en": "Assign",
+      "so": "U qoondee Shirkad",
+      "soSha256": "308a1c2ceaac581c3fb32906f1a77875bae1d96348fee22d90f57efbe86ca2bd",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.assignBoth",
+      "id": "HR-ACT-033",
+      "en": "Yes, assign to both",
+      "so": "Haa, labadaba u qoondee",
+      "soSha256": "ca4b73de171932b51eadba567bcd67d5462486cf016fa5e4e58ad1dd0ae63ed7",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "companyEmployees/AssignmentDialogs.tsx"
+      ]
+    },
+    {
+      "key": "action.back",
+      "id": "HR-ACT-067",
+      "en": "Back",
+      "so": "Dib u noqo",
+      "soSha256": "9be87f7e9f5036785a1c51d07ee435f3211a6d913f4c9db64786ded72a352625",
+      "screens": [
+        "companyEmployees/AssignmentDialogs.tsx"
+      ]
+    },
+    {
+      "key": "action.cancel",
+      "id": "HR-ACT-065",
+      "en": "Cancel",
+      "so": "Jooji",
+      "soSha256": "f1c4f19d956c2395c319bbfca7777dc0adad27845837773d5dbac2dab18a454a",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "FacilityComplaintsPage.tsx",
+        "FacilityInspectionsPage.tsx",
+        "MoveStageDialog.tsx",
+        "OfficeCapacityCard.tsx",
+        "OfficeStaffRegistrationPage.tsx",
+        "PayrollCorrectionsPanel.tsx",
+        "PayrollRunsPage.tsx",
+        "PracticalBatchesPage.tsx",
+        "StatusOverrideDialog.tsx",
+        "TemporaryReplacementsPage.tsx",
+        "TrainingBatchesPage.tsx",
+        "WorkforceRequestsPage.tsx",
+        "companyEmployees/AssignmentDialogs.tsx",
+        "companyEmployees/MultiCompanyPolicyCard.tsx",
+        "components/ui/ConfirmDialog.tsx",
+        "components/ui/Modal.tsx"
+      ]
+    },
+    {
+      "key": "action.cancelImport",
+      "id": "HR-ACT-063",
+      "en": "Cancel import",
+      "so": "Jooji soo dejinta",
+      "soSha256": "a084e9c393a8f098204e95d005b260bdf8d5235afdfcf2201d675c83aeed82f3",
+      "screens": [
+        "ExcelImportsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.cancelRequest",
+      "id": "HR-ACT-031",
+      "en": "Cancel Request",
+      "so": "Jooji Codsiga",
+      "soSha256": "113177c1b44e20a387aa51744c6a27ba14b6523f8b391f9a4c3eebffdcd442fe",
+      "screens": [
+        "WorkforceRequestsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.checkFile",
+      "id": "HR-ACT-061",
+      "en": "Check file and show preview",
+      "so": "Hubi faylka oo muuji horu-aragga",
+      "soSha256": "525e5a5245c72b9a3554fb2383e239cc15254c568447009ba316526f4540bec4",
+      "screens": [
+        "ExcelImportsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.confirmMatch",
+      "id": "HR-ACT-029",
+      "en": "Confirm",
+      "so": "Xaqiiji Doorashada",
+      "soSha256": "90652b9784a3254c72ed8c73f99f267f5c8b52eae8d6e22f56678ada46f28f5b",
+      "screens": [
+        "WorkforceRequestsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.confirmReplacement",
+      "id": "HR-ACT-036c",
+      "en": "Confirm replacement",
+      "so": "Xaqiiji Beddelka",
+      "soSha256": "823bf75f91f1083c93d326eaceae895e837ea95e3bc7302340a6a2c9050e1dc6",
+      "screens": [
+        "companyEmployees/AssignmentDialogs.tsx"
+      ]
+    },
+    {
+      "key": "action.confirmReturn",
+      "id": "HR-ACT-037b",
+      "en": "Confirm return",
+      "so": "Xaqiiji Soo celinta",
+      "soSha256": "6013ac4dcb7ec1e9eca04b4676d2ddebe80e7c24b1c719c3b30d3cbe36d7b855",
+      "screens": [
+        "companyEmployees/AssignmentDialogs.tsx"
+      ]
+    },
+    {
+      "key": "action.confirmUniform",
+      "id": "HR-ACT-018",
+      "en": "Confirm Uniform",
+      "so": "Xaqiiji Uniformka",
+      "soSha256": "f34b947ca3749f9c270282a8c2a145cf90cd3cdbd98212dd9c0105df7a73c2c2",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.continue",
+      "id": "HR-ACT-038b",
+      "en": "Continue",
+      "so": "Sii wad",
+      "soSha256": "49aa9cfa198dced57f4e5c2c77402a7199fa2f78990b5a90bfa60b2832c79d9f",
+      "screens": [
+        "companyEmployees/AssignmentDialogs.tsx"
+      ]
+    },
+    {
+      "key": "action.continueImport",
+      "id": "HR-ACT-064",
+      "en": "Continue importing",
+      "so": "Sii wad soo dejinta",
+      "soSha256": "7e6f8d995452d7addc99ab26b85c7d01bfc0c83747453dd03647c8a67892f39a",
+      "screens": [
+        "ExcelImportsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.createPracticalBatch",
+      "id": "HR-ACT-023",
+      "en": "Create Practical Batch",
+      "so": "Samee Koox Baraatiko",
+      "soSha256": "b5843e43fc60a78bc382a9becaadeb3fba7d40bde26bcde87ba81b080aa6e137",
+      "screens": [
+        "PracticalBatchesPage.tsx"
+      ]
+    },
+    {
+      "key": "action.createTrainingBatch",
+      "id": "HR-ACT-022",
+      "en": "Create Training Batch",
+      "so": "Samee Koox Tababar",
+      "soSha256": "5ccb6e54e1b057882c1583530df4b368a364762aa7eccd2ec27356ec51773518",
+      "screens": [
+        "TrainingBatchesPage.tsx"
+      ]
+    },
+    {
+      "key": "action.decisionApproved",
+      "id": "HR-ACT-019",
+      "en": "Approved",
+      "so": "La Ansixiyay",
+      "soSha256": "57a80772346e9b881b7d43e9b65c38ee4dad74ca3a81f2cc71593669a6986783",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.decisionKuCelis",
+      "id": "HR-ACT-020",
+      "en": "Ku Celis Practical",
+      "so": "KU celis Baraatiko",
+      "soSha256": "9f8c08a9486b9fba19705ff9e3645c1337a18f5a589b0370a56148ce95dc5973",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.decisionRejected",
+      "id": "HR-ACT-021",
+      "en": "Rejected",
+      "so": "La Kansalay",
+      "soSha256": "5c74d2ea3128075b64a3190d5daa34474568ae82a2d410368d82c75bff7d059b",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.editEmployee",
+      "id": "HR-ACT-002",
+      "en": "Edit Employee",
+      "so": "Wax ka beddel Shaqaalaha",
+      "soSha256": "0df5cc0147bd1ac45870056fa31e194ae29f1aea8af408ef5d4fff0b15d3d6a6",
+      "screens": [
+        "EmployeeFormDialog.tsx"
+      ]
+    },
+    {
+      "key": "action.endAssignment",
+      "id": "HR-ACT-034",
+      "en": "End Assignment",
+      "so": "Soo Afjar Qoondaynta",
+      "soSha256": "493e28d7cd0c21f008996c5fdc60c90acb56bada45e0b9a3952f4121fed08c73",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.endCoverage",
+      "id": "HR-ACT-052",
+      "en": "End Coverage",
+      "so": "Soo Afjar Beddelaadka",
+      "soSha256": "942d494f7a77b74bc92d8d1cfa6fb5f373089f6b6e15964c663ddf70989815f0",
+      "screens": [
+        "TemporaryReplacementsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.finalize",
+      "id": "HR-ACT-056a",
+      "en": "Finalize",
+      "so": "Dhammaystir",
+      "soSha256": "d2fa94f8b9e68135816c36ac91f83c1665c2d992f11f115298917bc819c482e4",
+      "screens": [
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.finalizePayroll",
+      "id": "HR-ACT-056b",
+      "en": "Finalize payroll",
+      "so": "Dhammaystir Mushaharka",
+      "soSha256": "ac6b5b3f0f2eb4db3adaa2999440bcd932ccb0607b73fe381ce761eedceb2417",
+      "screens": [
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.generateDraft",
+      "id": "HR-ACT-053",
+      "en": "Generate / refresh draft",
+      "so": "Samee / Cusboonaysii Qabyo",
+      "soSha256": "116f4e9c70e4cf807481640e89b3f217e05f2f2d8c865e6ea400df6039f30ef2",
+      "screens": [
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.importYes",
+      "id": "HR-ACT-062b",
+      "en": "Yes, import",
+      "so": "Haa, soo geli",
+      "soSha256": "07e9ca48df695f534e0ff981db3eab54bbf0fd0103dec3a43c78af482bf7ce7f",
+      "screens": [
+        "ExcelImportsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.issueContract",
+      "id": "HR-ACT-014",
+      "en": "Issue Contract",
+      "so": "Soo saar Hishiis",
+      "soSha256": "4efb55a41c72b2cf1e1e8150d249a50e234fff136c7245804a009c8e5d62ac6c",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.markAsPaid",
+      "id": "HR-ACT-058",
+      "en": "Mark as paid",
+      "so": "Calaamadi in la bixiyey",
+      "soSha256": "3fd9b5dd87c9561a954703e79bf84548db4c703e74b1a374cb5592fdf2650eea",
+      "screens": [
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.markBatchCompleted",
+      "id": "HR-ACT-026",
+      "en": "Mark Batch Completed",
+      "so": "Calaamadi in Kooxdu Dhammaatay",
+      "soSha256": "c96cd2feada91742ccd1b21e468dffb6dbdcb77328b415c4906610ea638f0b47",
+      "screens": [
+        "TrainingBatchesPage.tsx"
+      ]
+    },
+    {
+      "key": "action.markInactive",
+      "id": "HR-ACT-008",
+      "en": "Mark Inactive",
+      "so": "Calaamadi inaanu shaqaynayn",
+      "soSha256": "b8fef1a169c0c6233f8984160576a78f3d51f35e270827981b71ca58ae2230ac",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.markPaid",
+      "id": "HR-ACT-058",
+      "en": "Mark paid",
+      "so": "Calaamadi in la bixiyey",
+      "soSha256": "3fd9b5dd87c9561a954703e79bf84548db4c703e74b1a374cb5592fdf2650eea",
+      "screens": [
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.markPurchased",
+      "id": "HR-ACT-016",
+      "en": "Mark Purchased",
+      "so": "Calaamadi in la iibsaday",
+      "soSha256": "5c1e2445353dd0c59bc1bffb71ce16e3a202a9a4da1c7bd3eb140076f0661666",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.markReceived",
+      "id": "HR-ACT-017",
+      "en": "Mark Received",
+      "so": "Calaamadi in la helay",
+      "soSha256": "ad81188fe4fb5bdd448425099588dbed2b1c223b6636f2b7760f40d02c6f5b3e",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.markReviewed",
+      "id": "HR-ACT-054",
+      "en": "Mark reviewed",
+      "so": "Calaamadi Dib loo eegay",
+      "soSha256": "1c349aed2270bbe2d66cac6801cec2beefabcf6c4dc55df5e9b1a086f1c103e4",
+      "screens": [
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.markSigned",
+      "id": "HR-ACT-015",
+      "en": "Mark Signed",
+      "so": "Calaamadi in la saxiixay",
+      "soSha256": "24f82bb237595d6b09a71daeb36f5a19fbcb055cc6525f946ff7d6957d6e2e21",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.moveToStage",
+      "id": "HR-ACT-005",
+      "en": "Move to stage",
+      "so": "U wareeji marxalad",
+      "soSha256": "24a3f2fc0bf4d933554b7cb38b56780223b2f63f4dc96311b36a10c0f56301aa",
+      "screens": [
+        "MoveStageDialog.tsx"
+      ]
+    },
+    {
+      "key": "action.moveToStageMore",
+      "id": "HR-ACT-005",
+      "en": "Move to stage…",
+      "so": "U wareeji marxalad…",
+      "soSha256": "135c0fa45831f010b87b47675dda209ad3b549e67688001e9d250c3b881f2d85",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.newTemporaryReplacement",
+      "id": "HR-ACT-046",
+      "en": "New Temporary Replacement",
+      "so": "Beddelaad Ku-meel-gaar Cusub",
+      "soSha256": "ec35297749fe6a5720fca2951b11e84fbcbaa66817aeacbbc68bd59cac9b8461",
+      "screens": [
+        "TemporaryReplacementsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.newWorkforceRequest",
+      "id": "HR-ACT-027",
+      "en": "New Workforce Request",
+      "so": "Codsi Shaqaale Cusub",
+      "soSha256": "0b96f79e4a3f53059eddb6d7d96ba31e5c320a6a4bb099fc2e92d74d72eea8b5",
+      "screens": [
+        "WorkforceRequestsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.overrideStatus",
+      "id": "HR-ACT-010",
+      "en": "Override status",
+      "so": "Beddel Xaaladda",
+      "soSha256": "64b455df878d74871a0e2d372b5e476048e431249391f5f1b90e626f86186c41",
+      "screens": [
+        "StatusOverrideDialog.tsx"
+      ]
+    },
+    {
+      "key": "action.overrideStatusMore",
+      "id": "HR-ACT-010",
+      "en": "Override status…",
+      "so": "Beddel Xaaladda…",
+      "soSha256": "e81c9a4bda7cdd91b2d2912bc8e435672f1c4926aab3d7ca526b394bf7808da1",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.recordAdjustment",
+      "id": "HR-ACT-060",
+      "en": "Record adjustment",
+      "so": "Diiwaangeli Hagaajin",
+      "soSha256": "4ab10c125bdf75f3f798b276afa46ea00010158d1a447a863f7664ea10a46a39",
+      "screens": [
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.recordAdvance",
+      "id": "HR-ACT-045",
+      "en": "Record Advance",
+      "so": "Lacag hormaris",
+      "soSha256": "f3402cb4fdbbaae6391ee094dc886fc2c45642f1425f2b526004107b819ca8b7",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.recordAndVerify",
+      "id": "HR-ACT-048",
+      "en": "Record and verify",
+      "so": "Diiwaangeli oo Hubi",
+      "soSha256": "5be1c3a3a15f954e96c9b8ddd9253170ea945eca657b8ec4d6ebb688bffca74e",
+      "screens": [
+        "TemporaryReplacementsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.recordDays",
+      "id": "HR-ACT-047",
+      "en": "Record days",
+      "so": "Diiwaangeli maalmaha",
+      "soSha256": "a0017eae15f11bf22b74b8c1d87f0b958b734073fcca9715eb9b3cb7204a9dfc",
+      "screens": [
+        "TemporaryReplacementsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.recordLeave",
+      "id": "HR-ACT-039",
+      "en": "Record Leave",
+      "so": "Diiwaangeli Fasax",
+      "soSha256": "a01fd88396f50c17f835da412eb3016a54934736c8a6d85335033963b7568ced",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.recordPayment",
+      "id": "HR-ACT-043",
+      "en": "Record Payment",
+      "so": "Diiwaangeli Lacag-bixin",
+      "soSha256": "a0d4103c2c8229919799157426ab15f069be39034179e825974a2a631833e95c",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "TemporaryReplacementsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.recordPenalty",
+      "id": "HR-ACT-044",
+      "en": "Record Penalty",
+      "so": "Diiwaangeli Ganaax",
+      "soSha256": "1807a46d19ea48512793739f59076dacc4cc88aaaa2d06d309b30bee9d870627",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.registerEmployee",
+      "id": "HR-ACT-001",
+      "en": "Register Employee",
+      "so": "Diiwaangeli Shaqaale",
+      "soSha256": "88e3cf47523a2a010b1e7a588f60ca8a1c79639a8b04e4a29957bcabae7f4746",
+      "screens": [
+        "EmployeeFormDialog.tsx",
+        "EmployeesListPage.tsx"
+      ]
+    },
+    {
+      "key": "action.rehire",
+      "id": "HR-ACT-009",
+      "en": "Rehire",
+      "so": "Dib u shaqaalaysii",
+      "soSha256": "3a282bac3a18150788b3a9b012a25e4d15830dd77f81565880c1bb4297c6f51c",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "FormerEmployeesPage.tsx"
+      ]
+    },
+    {
+      "key": "action.rejectLeave",
+      "id": "HR-ACT-041",
+      "en": "Reject",
+      "so": "Diid",
+      "soSha256": "b35898d7f87ca0cbcce2685e092fc757827d6ba72dd71d38680cd6fe70863e17",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.removeFromSupervisorPool",
+      "id": "HR-ACT-007",
+      "en": "Remove from Supervisor Pool",
+      "so": "Ka saar Kooxda Kormeerayaasha",
+      "soSha256": "1b15e89e6abbd307e2aa0994c3d5b1f70d55140c09d36019c837e4859bbc3561",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.reopen",
+      "id": "HR-ACT-057a",
+      "en": "Reopen",
+      "so": "Dib u fur",
+      "soSha256": "07aed3c2c230b95b3d7c0dc538b5e70c24c35a40ee8c27e80497c4d0051a8c13",
+      "screens": [
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.reopenPayroll",
+      "id": "HR-ACT-057b",
+      "en": "Reopen payroll",
+      "so": "Dib u fur",
+      "soSha256": "07aed3c2c230b95b3d7c0dc538b5e70c24c35a40ee8c27e80497c4d0051a8c13",
+      "screens": [
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.replace",
+      "id": "HR-ACT-036a",
+      "en": "Replace",
+      "so": "Beddel",
+      "soSha256": "663a70857ebdc59ccfa8e8aadcc8218d45499ea6639779bc87eb38f7906fbc8a",
+      "screens": [
+        "CompanyEmployeesPage.tsx"
+      ]
+    },
+    {
+      "key": "action.restore",
+      "id": "HR-ACT-011",
+      "en": "Restore",
+      "so": "Soo celi Shaqaalaha",
+      "soSha256": "577eca790109320c5f70c5c0ef825190943f7f72efcd0cc959d0621543f87ffe",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "RestoreEmployeeDialog.tsx"
+      ]
+    },
+    {
+      "key": "action.restoreEmployee",
+      "id": "HR-ACT-011",
+      "en": "Restore employee",
+      "so": "Soo celi Shaqaalaha",
+      "soSha256": "577eca790109320c5f70c5c0ef825190943f7f72efcd0cc959d0621543f87ffe",
+      "screens": [
+        "RestoreEmployeeDialog.tsx"
+      ]
+    },
+    {
+      "key": "action.returnOriginal",
+      "id": "HR-ACT-037a",
+      "en": "Return original employee",
+      "so": "Dib ugu celi shaqaalihii asalka ahaa",
+      "soSha256": "adb9c207773613fd24839793c0b3f78f80983fbb7bc666c698d2b4992163091f",
+      "screens": [
+        "CompanyEmployeesPage.tsx",
+        "companyEmployees/AssignmentDialogs.tsx"
+      ]
+    },
+    {
+      "key": "action.reviewReplacement",
+      "id": "HR-ACT-036b",
+      "en": "Review",
+      "so": "Dib u eeg Beddelka",
+      "soSha256": "551d06cfdc82fe0b9c78c37a916b7dd04e2f20e727e98aa79bce4f690cca6e5d",
+      "screens": [
+        "companyEmployees/AssignmentDialogs.tsx"
+      ]
+    },
+    {
+      "key": "action.save",
+      "id": "HR-ACT-012",
+      "en": "Save",
+      "so": "Keydi",
+      "soSha256": "bdec67ef62d307e835a053077278e1e93f64b42561cea4dc32aea39f828d57cd",
+      "screens": [
+        "CategoriesPage.tsx",
+        "ClientCompaniesPage.tsx",
+        "DepartmentsPage.tsx",
+        "EmployeeDetailPage.tsx",
+        "FacilityInspectionsPage.tsx",
+        "OfficeCapacityCard.tsx",
+        "PositionsPage.tsx",
+        "WorkforceRequestsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.saveChanges",
+      "id": "HR-ACT-003",
+      "en": "Save Changes",
+      "so": "Keydi Isbeddellada",
+      "soSha256": "b341257cf349c2138fd867f6878d7354795ba74fcf5de412408a2aa2b622c02d",
+      "screens": [
+        "EmployeeFormDialog.tsx"
+      ]
+    },
+    {
+      "key": "action.setWorkplace",
+      "id": "HR-ACT-030",
+      "en": "Set workplace",
+      "so": "Dooro Goobta Shaqada",
+      "soSha256": "470524a4ac2e2fbe8e8d4a6f828d73b85a2952fac5de4f8b502d7200f74e83c2",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "WorkforceRequestsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.stop",
+      "id": "HR-ACT-038a",
+      "en": "Stop",
+      "so": "Jooji",
+      "soSha256": "f1c4f19d956c2395c319bbfca7777dc0adad27845837773d5dbac2dab18a454a",
+      "screens": [
+        "CompanyEmployeesPage.tsx"
+      ]
+    },
+    {
+      "key": "action.stopYes",
+      "id": "HR-ACT-038c",
+      "en": "Yes, stop this assignment",
+      "so": "Haa, jooji qoondaynta",
+      "soSha256": "32f1eeb03f6b816d8dbd8ffdfb2903ccd3e187c8d8656b0cbd1179212fbacb65",
+      "screens": [
+        "companyEmployees/AssignmentDialogs.tsx"
+      ]
+    },
+    {
+      "key": "action.verify",
+      "id": "HR-ACT-013",
+      "en": "Verify",
+      "so": "Hubi",
+      "soSha256": "98e9c49511ba36156af4a806ec749b9bc6ccf05a5eaceda49c2cd89607ef9b8c",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "action.verifyWorkday",
+      "id": "HR-ACT-049",
+      "en": "Verify",
+      "so": "Hubi",
+      "soSha256": "98e9c49511ba36156af4a806ec749b9bc6ccf05a5eaceda49c2cd89607ef9b8c",
+      "screens": [
+        "TemporaryReplacementsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.viewCandidates",
+      "id": "HR-ACT-028",
+      "en": "View Candidates",
+      "so": "Eeg Musharaxiinta",
+      "soSha256": "98c241c0c3c78bd19861edab4ccce55c3c420d69beb37c2990135f24faa14232",
+      "screens": [
+        "WorkforceRequestsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.void",
+      "id": "HR-ACT-050a",
+      "en": "Void",
+      "so": "Ka noqo",
+      "soSha256": "3cf95c487cdcc868db2d9547f4ab2eba4b07c32899088b6ca1ee73204792582b",
+      "screens": [
+        "FacilityComplaintsPage.tsx",
+        "TemporaryReplacementsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.voidDay",
+      "id": "HR-ACT-050b",
+      "en": "Void day",
+      "so": "Ka noqo",
+      "soSha256": "3cf95c487cdcc868db2d9547f4ab2eba4b07c32899088b6ca1ee73204792582b",
+      "screens": [
+        "TemporaryReplacementsPage.tsx"
+      ]
+    },
+    {
+      "key": "action.voidPayment",
+      "id": "HR-ACT-059",
+      "en": "Void payment",
+      "so": "Ka noqo Lacag-bixinta",
+      "soSha256": "ae2a9d1f78dcad273a91d2c1dc3b868e0ae0f22d160a0ee2dbfe16b209e47f38",
+      "screens": [
+        "PayrollCorrectionsPanel.tsx",
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "nav.attendance",
+      "id": "HR-NAV-021",
+      "en": "Attendance",
+      "so": "Xaadirinta",
+      "soSha256": "407243bda074095b2606c1a8dece9e83110af48074e80cf47e7f773c233d8869",
+      "screens": [
+        "AttendancePage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.categories",
+      "id": "HR-NAV-024",
+      "en": "Categories",
+      "so": "Qaybaha Shaqaalaha",
+      "soSha256": "13f3a91068208a31eb97a420f1c50e1a7fdaaad5deef7ec6fa36e3efaf353260",
+      "screens": [
+        "CategoriesPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.companiesWorkplaces",
+      "id": "HR-NAV-025",
+      "en": "Companies & Workplaces",
+      "so": "Shirkadaha & Goobaha Shaqada",
+      "soSha256": "498b35188f6945bcd8809556237c84e7c4b2fbd41e46967e4fbda82e3b2f49fb",
+      "screens": [
+        "ClientCompaniesPage.tsx",
+        "CompanyEmployeesPage.tsx",
+        "FacilityComplaintsPage.tsx",
+        "FacilityInspectionsPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.complaints",
+      "id": "HR-NAV-027",
+      "en": "Complaints",
+      "so": "Cabashooyin",
+      "soSha256": "6868ae1928bf57c619096ef5f5a76b535a5befc3dce8b7b3caf29c38eeb175ad",
+      "screens": [
+        "FacilityComplaintsPage.tsx",
+        "FacilityInspectionsPage.tsx",
+        "FacilityReportPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.damiinNeeded",
+      "id": "HR-NAV-005",
+      "en": "Damiin Needed",
+      "so": "Damiin Loo Baahan Yahay",
+      "soSha256": "62c7f28abc502763de6a8b5c1f74523906fd57ec3b35c24b9fecd8e0f074c9b6",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "EmployeesListPage.tsx",
+        "HrDashboardPage.tsx",
+        "layouts/nav.config.ts",
+        "utils/employeeRestore.ts"
+      ]
+    },
+    {
+      "key": "nav.departments",
+      "id": "HR-NAV-022",
+      "en": "Departments",
+      "so": "Waaxaha",
+      "soSha256": "ab00ce9972c404aacc9ca4e6dfbbad29c36d6951c1b74592371656fa313cd1da",
+      "screens": [
+        "DepartmentsPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.employees",
+      "id": "HR-NAV-004",
+      "en": "Employees",
+      "so": "Shaqaalaha",
+      "soSha256": "b6ee85ac8522587007058ef81dd4dcfc475b9280cb593b77abf8635efb331494",
+      "screens": [
+        "ClientCompaniesPage.tsx",
+        "EmployeeDetailPage.tsx",
+        "EmployeesListPage.tsx",
+        "layouts/nav.config.ts",
+        "utils/employeeRestore.ts"
+      ]
+    },
+    {
+      "key": "nav.excelImports",
+      "id": "HR-NAV-029",
+      "en": "Excel Imports",
+      "so": "Soo Dejinta Excel",
+      "soSha256": "7b158fe7eae019ef744a7a279b4ab2c5d92b0ff6e2e30855a2acc42067da408d",
+      "screens": [
+        "ExcelImportsPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.facilityInspections",
+      "id": "HR-NAV-026",
+      "en": "Facility Inspections",
+      "so": "Kormeerka Xarumaha",
+      "soSha256": "7ad8c93447fa118197954452463e3389a15bca362d1449eed7cab23443654b8d",
+      "screens": [
+        "ClientCompaniesPage.tsx",
+        "FacilityComplaintsPage.tsx",
+        "FacilityInspectionsPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.financialLedger",
+      "id": "HR-NAV-036",
+      "en": "Financial Ledger",
+      "so": "Diiwaanka Maaliyadeed",
+      "soSha256": "fd7b0007671224ed3e30488cb80c9fbd8128b745b3ce9bba2093ab46adb7d9f7",
+      "screens": [
+        "FinancialLedgerPage.tsx",
+        "HrReportsPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.leaveReport",
+      "id": "HR-NAV-034",
+      "en": "Leave Report",
+      "so": "Warbixinta Fasaxa",
+      "soSha256": "8223b15e7b5f240d7200c93ddc475c7ec8c1f792727de2e97952aa6d1cb9fb88",
+      "screens": [
+        "HrReportsPage.tsx",
+        "LeaveReportPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.officeStaff",
+      "id": "HR-NAV-020",
+      "en": "Office Staff",
+      "so": "Shaqaalaha Xafiiska",
+      "soSha256": "320665531e44d3e9899ace51eab8adbbd46b1d104c79a5508c05eb36408be06d",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "EmployeesListPage.tsx",
+        "OfficeStaffRegistrationPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.payroll",
+      "id": "HR-NAV-028",
+      "en": "Payroll",
+      "so": "Mushaharka",
+      "soSha256": "10e3ff8c3d30d0b863531feda5a68671c957a15658c36f286b946cbd853a795a",
+      "screens": [
+        "PayrollRunsPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.payrollRollup",
+      "id": "HR-NAV-037",
+      "en": "Payroll Rollup",
+      "so": "Isku-soo-koobka Mushaharka",
+      "soSha256": "2259e35a59c742f821ef0488cdf6a77554da0d083e3e2745e6feb25661d70739",
+      "screens": [
+        "HrReportsPage.tsx",
+        "PayrollRollupPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.performanceReport",
+      "id": "HR-NAV-035",
+      "en": "Performance Report",
+      "so": "Warbixinta Waxqabadka",
+      "soSha256": "f0e9e885c0b7a2abba44732b325ddc380eebf31910aec59266e1b51ebd8b9ea6",
+      "screens": [
+        "HrReportsPage.tsx",
+        "PerformanceReportPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.positions",
+      "id": "HR-NAV-023",
+      "en": "Positions",
+      "so": "Jagooyinka",
+      "soSha256": "db36aa3f5e16a9bc029b6f7d058465bea96198bc95e538f84a753c5932a99c0d",
+      "screens": [
+        "PositionsPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.registration",
+      "id": "HR-NAV-003",
+      "en": "Employee Registration",
+      "so": "Diiwaangelinta Shaqaalaha",
+      "soSha256": "0e26da9c296668541f8eaf88e36a45f0391bca4bb10e9e28c219ed1559852958",
+      "screens": [
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.reports",
+      "id": "HR-NAV-030",
+      "en": "Reports",
+      "so": "Warbixinno",
+      "soSha256": "304336bf39fcc271188994d91c4de341833c30827aacefb55f7b95820f2049a4",
+      "screens": [
+        "FacilityReportPage.tsx",
+        "FinancialLedgerPage.tsx",
+        "HrReportsPage.tsx",
+        "LeaveReportPage.tsx",
+        "PayrollRollupPage.tsx",
+        "PerformanceReportPage.tsx",
+        "TemporaryReplacementHistoryPage.tsx",
+        "WaitingAnalyticsPage.tsx",
+        "WorkforceRequestHistoryPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.supervisorPool",
+      "id": "HR-NAV-019",
+      "en": "Supervisor Pool",
+      "so": "Kooxda Kormeerayaasha",
+      "soSha256": "392fa0a64d2930ce49276fffe0ae03e9d5141b3c3944a2a8725b292dedaa0e74",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "EmployeesListPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.temporaryReplacementHistory",
+      "id": "HR-NAV-033",
+      "en": "Temporary Replacement History",
+      "so": "Taariikhda Beddelaadaha Ku-meel-gaarka",
+      "soSha256": "c12bc9c540df0e5cfc3b6e94697c0be58da5f9e5efb193b4192fd43157d6a957",
+      "screens": [
+        "HrReportsPage.tsx",
+        "TemporaryReplacementHistoryPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.temporaryReplacements",
+      "id": "HR-NAV-017",
+      "en": "Temporary Replacements",
+      "so": "Beddelaad Ku-meel-gaar ah",
+      "soSha256": "3970ea4bfaa18b4c634cdb7f23e27e40c0d0ae51fe7fde4cdb57c9a265b04c7c",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "TemporaryReplacementsPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.waitingAnalytics",
+      "id": "HR-NAV-031",
+      "en": "Waiting Analytics",
+      "so": "Falanqaynta Sugitaanka",
+      "soSha256": "a3d381dc4f120833324456c010eb4ed21be8f9a00bd820edc1c239d959a6b323",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "HrReportsPage.tsx",
+        "WaitingAnalyticsPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.workforceRequestHistory",
+      "id": "HR-NAV-032",
+      "en": "Workforce Request History",
+      "so": "Taariikhda Codsiyada Shaqaalaha",
+      "soSha256": "095be00b964778a86d81f626c895da87d9e4919ffd953d54dd4ef50edc30a0b4",
+      "screens": [
+        "HrReportsPage.tsx",
+        "WorkforceRequestHistoryPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "nav.workforceRequests",
+      "id": "HR-NAV-014",
+      "en": "Workforce Requests",
+      "so": "Codsiyada Shaqaalaha",
+      "soSha256": "2537771303e27cb483583293d8a198b4d8d6ba12cf37a68196649de1abdac227",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "WorkforceRequestsPage.tsx",
+        "layouts/nav.config.ts"
+      ]
+    },
+    {
+      "key": "option.addEligibleEmployee",
+      "id": "HR-OPT-043",
+      "en": "Add eligible employee…",
+      "so": "Ku dar shaqaale u qalma…",
+      "soSha256": "72ee2c63a4f10324a336babd5084c678db7b660af59007a0e3954456a3a42950",
+      "screens": [
+        "TrainingBatchesPage.tsx"
+      ]
+    },
+    {
+      "key": "option.assignmentType.permanent",
+      "id": "HR-OPT-010",
+      "en": "Permanent",
+      "so": "Joogto",
+      "soSha256": "3d25f9e982d7da21feaaf30efef2b6229bcfe328cf1fede6cbd33e7410236908",
+      "screens": [
+        "companyEmployees/AssignmentDialogs.tsx",
+        "utils/companyEmployees.ts"
+      ]
+    },
+    {
+      "key": "option.assignmentType.replacement",
+      "id": "HR-OPT-011",
+      "en": "Replacement",
+      "so": "Beddelaad",
+      "soSha256": "6869c42fd3c2dbed28df9ddfe927626aa8a65cb8fd39f351c8dc55df360c2c3c",
+      "screens": [
+        "utils/companyEmployees.ts"
+      ]
+    },
+    {
+      "key": "option.attendance.absent",
+      "id": "HR-OPT-025",
+      "en": "Absent",
+      "so": "Maqnaa",
+      "soSha256": "ea427340184363ba9cfe222b938840efab8f2fde4a3a99fa78140c266b8d7130",
+      "screens": [
+        "AttendancePage.tsx",
+        "EmployeeDetailPage.tsx",
+        "HrReportsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.attendance.late",
+      "id": "HR-OPT-024",
+      "en": "Late",
+      "so": "Daahay",
+      "soSha256": "3f7b8cb4f0048840765e6e87c3c01d6e102e825f3f83effd4e804d0f4ff1a7b5",
+      "screens": [
+        "AttendancePage.tsx",
+        "EmployeeDetailPage.tsx",
+        "HrReportsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.attendance.present",
+      "id": "HR-OPT-023",
+      "en": "Present",
+      "so": "Joogay",
+      "soSha256": "0fd1fc886dffbe125658b519172909eb00aea856505008073dc976ad09484707",
+      "screens": [
+        "AttendancePage.tsx",
+        "EmployeeDetailPage.tsx",
+        "HrReportsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.changeFrom",
+      "id": "HR-OPT-047",
+      "en": "Change from",
+      "so": "Ka beddel",
+      "soSha256": "f460b1feb333858dab36c69ef5216a6a9907a5c67f4a5ae9911e1c01d57686bd",
+      "screens": [
+        "StatusOverrideDialog.tsx"
+      ]
+    },
+    {
+      "key": "option.changeTo",
+      "id": "HR-OPT-047",
+      "en": "Change to",
+      "so": "U beddel",
+      "soSha256": "d0c9d838fbee90c2623ebb163b6fe0319b01d741bc742ed4b294802d293c0de3",
+      "screens": [
+        "StatusOverrideDialog.tsx"
+      ]
+    },
+    {
+      "key": "option.chooseStage",
+      "id": "HR-OPT-038",
+      "en": "Choose a stage",
+      "so": "Dooro marxalad",
+      "soSha256": "2f498a647a7e43d1d9d754e0e54835c1afcfe1bd97e5f47f9879459b7bf3d7ea",
+      "screens": [
+        "MoveStageDialog.tsx"
+      ]
+    },
+    {
+      "key": "option.chooseStatus",
+      "id": "HR-OPT-039",
+      "en": "Choose a status",
+      "so": "Dooro xaalad",
+      "soSha256": "9dfb573abc1048097696a5a48fa004ccc5159c8efb5d5bb0cb891344b448011f",
+      "screens": [
+        "StatusOverrideDialog.tsx"
+      ]
+    },
+    {
+      "key": "option.companyCategory.company",
+      "id": "HR-OPT-017",
+      "en": "Company",
+      "so": "Shirkad",
+      "soSha256": "bfbea4a344c9ee532b87230ec9d32e6ec00257b8451d0495b759087630279dd7",
+      "screens": [
+        "ClientCompaniesPage.tsx",
+        "utils/clientCompanyFilter.ts"
+      ]
+    },
+    {
+      "key": "option.companyCategory.guri",
+      "id": "HR-OPT-018",
+      "en": "Guri (household)",
+      "so": "Guri",
+      "soSha256": "f49bbba43ecedba03d1c3272646dbf112cd505dbf48a1d3c5be4454bb6cc5e3d",
+      "screens": [
+        "ClientCompaniesPage.tsx"
+      ]
+    },
+    {
+      "key": "option.currentStage",
+      "id": "HR-OPT-044",
+      "en": "Current stage",
+      "so": "Marxaladda hadda",
+      "soSha256": "71ea56a2cb64359227210676fc54e4fd97aab38f8286c1568d4391662341edc9",
+      "screens": [
+        "MoveStageDialog.tsx"
+      ]
+    },
+    {
+      "key": "option.employmentType.permanent",
+      "id": "HR-OPT-006",
+      "en": "Permanent",
+      "so": "Joogto",
+      "soSha256": "3d25f9e982d7da21feaaf30efef2b6229bcfe328cf1fede6cbd33e7410236908",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "EmployeeFormDialog.tsx",
+        "EmployeesListPage.tsx"
+      ]
+    },
+    {
+      "key": "option.employmentType.temporary",
+      "id": "HR-OPT-007",
+      "en": "Temporary",
+      "so": "Ku-meel-gaar",
+      "soSha256": "95e1d3d9046a9ea9b275547df7b6083b373f72ae975d41f6a2b770fae0bb3112",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "EmployeeFormDialog.tsx",
+        "EmployeesListPage.tsx"
+      ]
+    },
+    {
+      "key": "option.frequency.daily",
+      "id": "HR-OPT-016",
+      "en": "Daily",
+      "so": "Maalinle",
+      "soSha256": "7d3815c1141c600c61a185a611aa4da5780242d93cedf13099016f4df8d20202",
+      "screens": [
+        "CompanyEmployeesPage.tsx",
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "option.frequency.monthly",
+      "id": "HR-OPT-014",
+      "en": "Monthly",
+      "so": "Bille",
+      "soSha256": "9c8f61667fa0bb9e4dfbbbd19607e6cacb7150d1e6910f1e16573da3de03c741",
+      "screens": [
+        "CompanyEmployeesPage.tsx",
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "option.frequency.weekly",
+      "id": "HR-OPT-015",
+      "en": "Weekly",
+      "so": "Toddobaadle",
+      "soSha256": "1b7698c6a26d9beecbbdeabe252ed9d57f311791adfd128d6c64cd7cd41d4367",
+      "screens": [
+        "CompanyEmployeesPage.tsx",
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "option.gender.female",
+      "id": "HR-OPT-008",
+      "en": "Female",
+      "so": "Dheddig",
+      "soSha256": "47d2bd412d9d48003495ce601990e384b8b4a8d9c386bc92350d4e55e14e1598",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "EmployeeFormDialog.tsx",
+        "EmployeesListPage.tsx",
+        "HrReportsPage.tsx",
+        "WaitingAnalyticsPage.tsx",
+        "WaitingQueuePage.tsx",
+        "WorkforceRequestsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.gender.male",
+      "id": "HR-OPT-009",
+      "en": "Male",
+      "so": "Lab",
+      "soSha256": "efdcf466b553a06853a1b667caafede9db058c7c53763110520ccecd3f1e8f3b",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "EmployeeFormDialog.tsx",
+        "EmployeesListPage.tsx",
+        "HrReportsPage.tsx",
+        "WaitingAnalyticsPage.tsx",
+        "WaitingQueuePage.tsx",
+        "WorkforceRequestsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.importRow.all",
+      "id": "HR-OPT-026",
+      "en": "All rows",
+      "so": "Dhammaan safafka",
+      "soSha256": "5be5b5fad8d1f546838e01f7f7ac315f044afaf8c3d4a74b419286e76c7409c9",
+      "screens": [
+        "ExcelImportsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.importRow.duplicate",
+      "id": "HR-OPT-029",
+      "en": "Already exist",
+      "so": "Hore ayay u jiraan",
+      "soSha256": "8df985702f6cb08eb6be3ea5f6b493edb43442335d3463813336549073a7df2c",
+      "screens": [
+        "ExcelImportsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.importRow.duplicateRow",
+      "id": "HR-OPT-029",
+      "en": "Already exists",
+      "so": "Hore ayay u jiraan",
+      "soSha256": "8df985702f6cb08eb6be3ea5f6b493edb43442335d3463813336549073a7df2c",
+      "screens": [
+        "utils/hrImports.ts"
+      ]
+    },
+    {
+      "key": "option.importRow.failed",
+      "id": "HR-OPT-033",
+      "en": "Failed",
+      "so": "Fashilmay",
+      "soSha256": "f42851ec0cf64a6764b2d46a5f512617a1551166adfe7d95c9ab621b4165db9d",
+      "screens": [
+        "ExcelImportsPage.tsx",
+        "utils/hrImports.ts"
+      ]
+    },
+    {
+      "key": "option.importRow.imported",
+      "id": "HR-OPT-031",
+      "en": "Imported",
+      "so": "La soo geliyey",
+      "soSha256": "3185f1bb04bb57cd7a2a1a51301589dfcc13c14783e137403ae5fab47b567b3e",
+      "screens": [
+        "ExcelImportsPage.tsx",
+        "utils/hrImports.ts"
+      ]
+    },
+    {
+      "key": "option.importRow.invalid",
+      "id": "HR-OPT-030",
+      "en": "Invalid",
+      "so": "Aan sax ahayn",
+      "soSha256": "94dbdc1c8a29593078d6047267e934d2906ad38c7c199b6af46f075163492069",
+      "screens": [
+        "ExcelImportsPage.tsx",
+        "utils/hrImports.ts"
+      ]
+    },
+    {
+      "key": "option.importRow.review",
+      "id": "HR-OPT-028",
+      "en": "Needs review",
+      "so": "U baahan dib-u-eegis",
+      "soSha256": "1bc37d5fd1fab9192de8c49635c902b129b78bec85e2bae48d86b17a9900b8c0",
+      "screens": [
+        "ExcelImportsPage.tsx",
+        "utils/hrImports.ts"
+      ]
+    },
+    {
+      "key": "option.importRow.skipped",
+      "id": "HR-OPT-032",
+      "en": "Skipped",
+      "so": "La dhaafay",
+      "soSha256": "29ae651a5801e90d3b911b95d197de1824e42d5668c5777db5a8116e346c9dd5",
+      "screens": [
+        "ExcelImportsPage.tsx",
+        "utils/hrImports.ts"
+      ]
+    },
+    {
+      "key": "option.importRow.valid",
+      "id": "HR-OPT-027",
+      "en": "Ready",
+      "so": "Diyaar",
+      "soSha256": "c63c9affe2c3e96be4d42c1c97eeabfdbed4bcee8b5abb6d93fd3ec940c2cb32",
+      "screens": [
+        "ExcelImportsPage.tsx",
+        "utils/hrImports.ts"
+      ]
+    },
+    {
+      "key": "option.leaveType.annual",
+      "id": "HR-OPT-019",
+      "en": "Annual",
+      "so": "Fasax sannadle",
+      "soSha256": "913e67c4524df7f050222de8c6a82404cc98e2b827ec462a2a067a1bd950e788",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "LeaveReportPage.tsx"
+      ]
+    },
+    {
+      "key": "option.leaveType.other",
+      "id": "HR-OPT-022",
+      "en": "Other",
+      "so": "Fasax kale",
+      "soSha256": "127889c4cfb2c5fd62d1a67c9fbd0d062e04580179a8fd8a366b040a169f0870",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "LeaveReportPage.tsx"
+      ]
+    },
+    {
+      "key": "option.leaveType.sick",
+      "id": "HR-OPT-020",
+      "en": "Sick",
+      "so": "Fasax jirro",
+      "soSha256": "3542bf2171f0c632eea22c5d0953db03ccd1deda385e4b939ca82e3beee7c75e",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "LeaveReportPage.tsx"
+      ]
+    },
+    {
+      "key": "option.leaveType.unpaid",
+      "id": "HR-OPT-021",
+      "en": "Unpaid",
+      "so": "Fasax aan mushahar lahayn",
+      "soSha256": "82ab75e3477e6fcd277ad80aaa1187d469870b13e4d694d4a45c9b3d2d46645b",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "LeaveReportPage.tsx"
+      ]
+    },
+    {
+      "key": "option.moveTo",
+      "id": "HR-OPT-045",
+      "en": "Move to",
+      "so": "U wareeji",
+      "soSha256": "5655ac2c707aaae5a7ada3c1dce062572ba91689db87aa2732233c570e5fe676",
+      "screens": [
+        "MoveStageDialog.tsx"
+      ]
+    },
+    {
+      "key": "option.payrollStatus.approved",
+      "id": "HR-OPT-036",
+      "en": "Approved",
+      "so": "La ansixiyey",
+      "soSha256": "2c8d384b254a502a011cff857fbdafd6d3a8ff6f33a6b1f8eedc84aeaeb689d2",
+      "screens": [
+        "CompanyEmployeesPage.tsx",
+        "EmployeeDetailPage.tsx",
+        "PayrollRollupPage.tsx",
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.payrollStatus.draft",
+      "id": "HR-OPT-034",
+      "en": "Draft",
+      "so": "Qabyo",
+      "soSha256": "3e8cc049774987964bff6de14553a7e5ca1a1740f46e7d733fc1f08a930cb975",
+      "screens": [
+        "CompanyEmployeesPage.tsx",
+        "EmployeeDetailPage.tsx",
+        "PayrollRollupPage.tsx",
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.payrollStatus.finalized",
+      "id": "HR-OPT-037",
+      "en": "Finalized",
+      "so": "La dhammaystiray",
+      "soSha256": "06fca20c4ce757bd6de7e8677b850a41f6209958fc1424528099ced5137255cd",
+      "screens": [
+        "CompanyEmployeesPage.tsx",
+        "EmployeeDetailPage.tsx",
+        "PayrollRollupPage.tsx",
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.payrollStatus.reviewed",
+      "id": "HR-OPT-035",
+      "en": "Reviewed",
+      "so": "Dib u eegay",
+      "soSha256": "c860c2842eba73f65e4809d30b80312b686cdec53a3e5f246749ef07ca78a5de",
+      "screens": [
+        "CompanyEmployeesPage.tsx",
+        "EmployeeDetailPage.tsx",
+        "PayrollRollupPage.tsx",
+        "PayrollRunsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.practicalBatchOptional",
+      "id": "HR-OPT-042",
+      "en": "Practical batch (optional)",
+      "so": "Koox Baraatiko (ikhtiyaari ah)",
+      "soSha256": "e9c6f1a3c25f9c0cd66a586d91f1788c7b35c37b5eebe05289114d28f0a29e1f",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "option.reasonRequired",
+      "id": "HR-OPT-046",
+      "en": "Reason (required)",
+      "so": "Sabab (waajib)",
+      "soSha256": "d4f19273ab2f81900aade2e6189e8784535cc7b31ce68588ef535c73507f2a84",
+      "screens": [
+        "MoveStageDialog.tsx",
+        "StatusOverrideDialog.tsx"
+      ]
+    },
+    {
+      "key": "option.rehireEligible",
+      "id": "HR-OPT-005",
+      "en": "Eligible for rehire in the future",
+      "so": "Mustaqbalka dib loogu shaqaalaysiin karo",
+      "soSha256": "f36f04058a4cc05e13260cb2a14ab351c909a0969beb21636b0aaf61c471dea4",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "option.selectCompany",
+      "id": "HR-OPT-040",
+      "en": "Select a company",
+      "so": "Dooro shirkad",
+      "soSha256": "4be6fe1654fb0304ed1e99682071d572f04894a588513ff098e2a157e862e457",
+      "screens": [
+        "EmployeeDetailPage.tsx"
+      ]
+    },
+    {
+      "key": "option.separation.contract_ended",
+      "id": "HR-OPT-003",
+      "en": "Contract Ended",
+      "so": "Heshiiskii wuu dhammaaday",
+      "soSha256": "8b98684cf96424d5a2a88c366fc402002d858a6cfa2e068204fda04073107cc8",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "HrReportsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.separation.other",
+      "id": "HR-OPT-004",
+      "en": "Other",
+      "so": "Kale",
+      "soSha256": "392759167cdc73d01aded1f84bda8ee68cb4a58fceb9b28d432570bc5d6b9641",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "HrReportsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.separation.resigned",
+      "id": "HR-OPT-001",
+      "en": "Resigned",
+      "so": "Iska casilay",
+      "soSha256": "90061a6c4245a5226f11cd4c3af1e2d70b147e87d96482949211b524db15d185",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "HrReportsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.separation.terminated",
+      "id": "HR-OPT-002",
+      "en": "Terminated",
+      "so": "La eryay",
+      "soSha256": "a43c4dcf51ca442ef941f33f243a4c3205142681dbd270a68cb05614210b7a13",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "HrReportsPage.tsx"
+      ]
+    },
+    {
+      "key": "option.shift.day",
+      "id": "HR-OPT-012",
+      "en": "Day shift",
+      "so": "Shaqada Maalinta",
+      "soSha256": "25ffdc9b9a3c22d58b95b1a065ecabe868bc70e3c771ec03148d4f4bb9f9a9c8",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "utils/companyEmployees.ts"
+      ]
+    },
+    {
+      "key": "option.shift.night",
+      "id": "HR-OPT-013",
+      "en": "Night shift",
+      "so": "Shaqada Habeenka",
+      "soSha256": "44ca21e9c5687ca28bb07f2899c42f6decc05d4ffe1f092d09d53def2595725b",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "utils/companyEmployees.ts"
+      ]
+    },
+    {
+      "key": "option.workplaceNotSet",
+      "id": "HR-OPT-041",
+      "en": "Workplace not set yet",
+      "so": "Goobta shaqada weli lama dooran",
+      "soSha256": "a1634cbdd6d2687ae017d1df375e8240e0cd6c83a816fd668e9800c280044763",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "PayrollRunsPage.tsx",
+        "TemporaryReplacementsPage.tsx",
+        "WorkforceRequestsPage.tsx"
+      ]
+    },
+    {
+      "key": "status.active",
+      "id": "HR-STS-005",
+      "en": "Active",
+      "so": "Shaqeynaya",
+      "soSha256": "cd32de750013358dd9d020171b0253d0595774697822077cc8f6328edc89a824",
+      "screens": [
+        "CompanyEmployeesPage.tsx",
+        "EmployeeDetailPage.tsx",
+        "EmployeeFormDialog.tsx",
+        "EmployeesListPage.tsx",
+        "HrReportsPage.tsx",
+        "MoveStageDialog.tsx",
+        "OfficeStaffRegistrationPage.tsx",
+        "RestoreEmployeeDialog.tsx",
+        "StatusOverrideDialog.tsx",
+        "companyEmployees/EmployeePicker.tsx",
+        "companyEmployees/HistoryDialog.tsx"
+      ]
+    },
+    {
+      "key": "status.applicant",
+      "id": "HR-STS-001",
+      "en": "Applicant",
+      "so": "Codsade",
+      "soSha256": "3eddb1d52684e80d2ab3de0fdd15017cabf479c5c2846a126e0d0d4383d47f0a",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "EmployeeFormDialog.tsx",
+        "EmployeesListPage.tsx",
+        "HrReportsPage.tsx",
+        "MoveStageDialog.tsx",
+        "OfficeStaffRegistrationPage.tsx",
+        "RestoreEmployeeDialog.tsx",
+        "StatusOverrideDialog.tsx",
+        "companyEmployees/EmployeePicker.tsx",
+        "companyEmployees/HistoryDialog.tsx"
+      ]
+    },
+    {
+      "key": "status.approved",
+      "id": "HR-STS-004",
+      "en": "Approved",
+      "so": "La Ansixiyay",
+      "soSha256": "57a80772346e9b881b7d43e9b65c38ee4dad74ca3a81f2cc71593669a6986783",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "EmployeeFormDialog.tsx",
+        "EmployeesListPage.tsx",
+        "HrReportsPage.tsx",
+        "MoveStageDialog.tsx",
+        "OfficeStaffRegistrationPage.tsx",
+        "RestoreEmployeeDialog.tsx",
+        "StatusOverrideDialog.tsx",
+        "companyEmployees/EmployeePicker.tsx",
+        "companyEmployees/HistoryDialog.tsx"
+      ]
+    },
+    {
+      "key": "status.inactive",
+      "id": "HR-STS-006",
+      "en": "Inactive",
+      "so": "Aan Shaqeynayn",
+      "soSha256": "2acfae715e44dd7996ed5277d1a269f7773a6b9748ded195230d0b51a8f999b9",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "EmployeeFormDialog.tsx",
+        "EmployeesListPage.tsx",
+        "HrReportsPage.tsx",
+        "MoveStageDialog.tsx",
+        "OfficeStaffRegistrationPage.tsx",
+        "RestoreEmployeeDialog.tsx",
+        "StatusOverrideDialog.tsx",
+        "companyEmployees/EmployeePicker.tsx",
+        "companyEmployees/HistoryDialog.tsx"
+      ]
+    },
+    {
+      "key": "status.practical",
+      "id": "HR-STS-003",
+      "en": "Practical",
+      "so": "Baraatiko",
+      "soSha256": "70c3e0c01066661463f83577bce20a10ea69b00a9473a3172971dc76a3bcfbc8",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "EmployeeFormDialog.tsx",
+        "EmployeesListPage.tsx",
+        "HrReportsPage.tsx",
+        "MoveStageDialog.tsx",
+        "OfficeStaffRegistrationPage.tsx",
+        "RestoreEmployeeDialog.tsx",
+        "StatusOverrideDialog.tsx",
+        "companyEmployees/EmployeePicker.tsx",
+        "companyEmployees/HistoryDialog.tsx"
+      ]
+    },
+    {
+      "key": "status.recruitment",
+      "id": "HR-STS-002",
+      "en": "Recruitment",
+      "so": "Qorista",
+      "soSha256": "4462e21e6c67e68d20e59ae71c390815289f6a4e9c5af888f30c3130c51d3e68",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "EmployeeFormDialog.tsx",
+        "EmployeesListPage.tsx",
+        "HrReportsPage.tsx",
+        "MoveStageDialog.tsx",
+        "OfficeStaffRegistrationPage.tsx",
+        "RestoreEmployeeDialog.tsx",
+        "StatusOverrideDialog.tsx",
+        "companyEmployees/EmployeePicker.tsx",
+        "companyEmployees/HistoryDialog.tsx"
+      ]
+    },
+    {
+      "key": "status.stage.damiin_needed",
+      "id": "HR-NAV-005",
+      "en": "Damiin Needed",
+      "so": "Damiin Loo Baahan Yahay",
+      "soSha256": "62c7f28abc502763de6a8b5c1f74523906fd57ec3b35c24b9fecd8e0f074c9b6",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "EmployeeFormDialog.tsx",
+        "EmployeesListPage.tsx",
+        "HrReportsPage.tsx",
+        "MoveStageDialog.tsx",
+        "OfficeStaffRegistrationPage.tsx",
+        "RestoreEmployeeDialog.tsx",
+        "StatusOverrideDialog.tsx",
+        "companyEmployees/EmployeePicker.tsx",
+        "companyEmployees/HistoryDialog.tsx",
+        "utils/registrationWorkflow.ts"
+      ]
+    },
+    {
+      "key": "status.stageMove.waiting",
+      "id": "HR-STG-003",
+      "en": "Waiting List",
+      "so": "Liiska Sugitaanka",
+      "soSha256": "881078e02e95fc9209bb30d0793dc55a92be2055d3c28a66331b599b9c9080a7",
+      "screens": [
+        "EmployeeDetailPage.tsx",
+        "EmployeeFormDialog.tsx",
+        "EmployeesListPage.tsx",
+        "HrReportsPage.tsx",
+        "MoveStageDialog.tsx",
+        "OfficeStaffRegistrationPage.tsx",
+        "RestoreEmployeeDialog.tsx",
+        "StatusOverrideDialog.tsx",
+        "companyEmployees/EmployeePicker.tsx",
+        "companyEmployees/HistoryDialog.tsx",
+        "utils/registrationWorkflow.ts"
+      ]
+    }
+  ]
+}

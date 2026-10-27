@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { hrApi } from '@/api/hr';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
+import { useI18n } from '@/i18n/useI18n';
 import { formatDate } from '@/utils/formatters';
 import { EMPTY_SUCCESSOR, effectiveStart, type SuccessorDraft } from '@/utils/successor';
 
@@ -30,6 +31,7 @@ export function SuccessorPicker({
   error?: string;
   idPrefix?: string;
 }) {
+  const { t } = useI18n();
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
 
@@ -46,43 +48,43 @@ export function SuccessorPicker({
 
   const choose = (type: SuccessorDraft['type']) => onChange({ ...EMPTY_SUCCESSOR, type, effectiveDate: value.effectiveDate, salaryCurrency: value.salaryCurrency || 'USD' });
   const start = effectiveStart(lastDay, value);
-  const startText = start !== '' ? formatDate(start) : 'the day after the last day';
+  const startText = start !== '' ? formatDate(start) : t('option.hr.dayAfterLastDay');
 
   return (
     <fieldset className="mb-4 rounded-sm border border-border p-3" aria-describedby={`${idPrefix}-help`}>
-      <legend className="px-1 text-sm font-medium text-ink">Who takes over this Permanent position? <span className="text-danger">*</span></legend>
+      <legend className="px-1 text-sm font-medium text-ink">{t('option.hr.successorQuestion')} <span className="text-danger">*</span></legend>
       <p id={`${idPrefix}-help`} className="mb-3 text-xs text-ink-muted">
-        This position cannot be left without a replacement. The replacement&apos;s Permanent assignment and salary start on {startText} (that day is included).
+        {t('option.hr.successorHelp', { start: startText })}
       </p>
 
       <div className="mb-3 flex flex-col gap-2 text-sm text-ink">
         <label className="flex items-center gap-2">
           <input type="radio" name={`${idPrefix}-type`} checked={value.type === 'temporary'} onChange={() => choose('temporary')} />
-          A Temporary employee who has been covering this position
+          {t('option.hr.successorTemporaryChoice')}
         </label>
         <label className="flex items-center gap-2">
           <input type="radio" name={`${idPrefix}-type`} checked={value.type === 'waiting_list'} onChange={() => choose('waiting_list')} />
-          A person from the HR Waiting List
+          {t('option.hr.successorWaitingChoice')}
         </label>
       </div>
 
-      <FormField label="Effective date (first day of the replacement)" htmlFor={`${idPrefix}-effective`} hint="Leave empty for the day after the last day. That day is included in the new salary. It must be after the last day.">
+      <FormField label={t('option.hr.successorEffectiveDate')} htmlFor={`${idPrefix}-effective`} hint={t('option.hr.successorEffectiveDateHint')}>
         <input id={`${idPrefix}-effective`} type="date" className={inputClasses} value={value.effectiveDate} onChange={(e) => onChange({ ...value, effectiveDate: e.target.value })} />
       </FormField>
 
       {value.type === 'temporary' && (
-        <FormField label="Temporary employee" htmlFor={`${idPrefix}-temp`} required hint="Becomes Permanent with the same employee record. The salary of the departing employee is inherited automatically; nothing to enter.">
+        <FormField label={t('option.pipeline.temporaryEmployeeFallback')} htmlFor={`${idPrefix}-temp`} required hint={t('option.hr.successorTemporaryHint')}>
           {options.isLoading ? (
-            <p className="text-xs text-ink-faint">Loading…</p>
+            <p className="text-xs text-ink-faint">{t('option.label.loading')}</p>
           ) : (options.data?.temporary.length ?? 0) === 0 ? (
-            <p className="text-sm text-ink-muted">No Temporary employee has covered this position. Choose a person from the Waiting List instead.</p>
+            <p className="text-sm text-ink-muted">{t('option.hr.successorNoTemporary')}</p>
           ) : (
             <Select
               id={`${idPrefix}-temp`}
               value={value.employeeId === null ? '' : String(value.employeeId)}
               onChange={(e) => onChange({ ...value, employeeId: e.target.value === '' ? null : Number(e.target.value) })}
-              placeholder="Choose the Temporary employee"
-              options={(options.data?.temporary ?? []).map((t) => ({ value: String(t.employee_id), label: `${t.name} (${t.employee_number}) - covered from ${formatDate(t.cover_start_date)}` }))}
+              placeholder={t('option.hr.chooseTemporaryEmployee')}
+              options={(options.data?.temporary ?? []).map((candidate) => ({ value: String(candidate.employee_id), label: t('option.hr.successorCoveredFrom', { name: candidate.name, number: candidate.employee_number, date: formatDate(candidate.cover_start_date) }) }))}
             />
           )}
         </FormField>
@@ -90,23 +92,23 @@ export function SuccessorPicker({
 
       {value.type === 'waiting_list' && (
         <>
-          <FormField label="Search the Waiting List" htmlFor={`${idPrefix}-search`} hint="Type a name or an employee number.">
-            <input id={`${idPrefix}-search`} className={inputClasses} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name or employee number" autoComplete="off" />
+          <FormField label={t('option.hr.searchWaitingList')} htmlFor={`${idPrefix}-search`} hint={t('option.hr.typeNameOrNumber')}>
+            <input id={`${idPrefix}-search`} className={inputClasses} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('option.hr.nameOrEmployeeNumber')} autoComplete="off" />
           </FormField>
-          <FormField label="Person from the Waiting List" htmlFor={`${idPrefix}-waiting`} required hint="The person is appointed through the normal status workflow; a registration that is not complete is refused.">
+          <FormField label={t('option.hr.personFromWaitingList')} htmlFor={`${idPrefix}-waiting`} required hint={t('option.hr.waitingAppointHint')}>
             <Select
               id={`${idPrefix}-waiting`}
               value={value.employeeId === null ? '' : String(value.employeeId)}
               onChange={(e) => onChange({ ...value, employeeId: e.target.value === '' ? null : Number(e.target.value) })}
-              placeholder={options.isLoading ? 'Loading…' : 'Choose a person'}
+              placeholder={options.isLoading ? t('option.label.loading') : t('option.hr.choosePerson')}
               options={(options.data?.waiting_list ?? []).map((w) => ({ value: String(w.employee_id), label: `${w.name} (${w.employee_number})` }))}
             />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Agreed salary (per month)" htmlFor={`${idPrefix}-salary`} required>
+            <FormField label={t('option.hr.agreedSalaryPerMonth')} htmlFor={`${idPrefix}-salary`} required>
               <input id={`${idPrefix}-salary`} type="number" min="0" step="0.01" className={inputClasses} value={value.salaryAmount} onChange={(e) => onChange({ ...value, salaryAmount: e.target.value })} />
             </FormField>
-            <FormField label="Currency" htmlFor={`${idPrefix}-currency`} required>
+            <FormField label={t('confirm.company.currency')} htmlFor={`${idPrefix}-currency`} required>
               <input id={`${idPrefix}-currency`} maxLength={3} className={inputClasses} value={value.salaryCurrency} onChange={(e) => onChange({ ...value, salaryCurrency: e.target.value.toUpperCase() })} />
             </FormField>
           </div>

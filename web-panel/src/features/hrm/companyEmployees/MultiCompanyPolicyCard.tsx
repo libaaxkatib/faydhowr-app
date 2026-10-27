@@ -8,6 +8,7 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/useToast';
+import { useI18n } from '@/i18n/useI18n';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
 
 interface HrPolicy {
@@ -35,6 +36,7 @@ interface HrPoliciesResponse {
 export function MultiCompanyPolicyCard() {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -47,11 +49,11 @@ export function MultiCompanyPolicyCard() {
     onSuccess: (_result, enabled) => {
       queryClient.invalidateQueries({ queryKey: ['hr-policies'] });
       queryClient.invalidateQueries({ queryKey: ['company-employee-candidates'] });
-      show(enabled ? 'Multiple-company assignments are now ON.' : 'Multiple-company assignments are now OFF.');
+      show(enabled ? t('notify.company.policyOn') : t('notify.company.policyOff'));
       setOpen(false);
       setReason('');
     },
-    onError: (e) => setError(friendlyErrorMessage(e, 'Could not change the policy. Nothing was changed.')),
+    onError: (e) => setError(friendlyErrorMessage(e, t('notify.company.couldNotChangePolicy'))),
   });
 
   if (!policy) return null;
@@ -65,17 +67,17 @@ export function MultiCompanyPolicyCard() {
         <div className="max-w-2xl">
           <p className="flex items-center gap-2 text-sm font-semibold text-ink">
             {policy.label}
-            <StatusBadge status={policy.enabled ? 'active' : 'inactive'} label={policy.enabled ? 'On' : 'Off'} tone={policy.enabled ? 'warning' : 'neutral'} />
+            <StatusBadge status={policy.enabled ? 'active' : 'inactive'} label={policy.enabled ? t('status.company.on') : t('status.company.off')} tone={policy.enabled ? 'warning' : 'neutral'} />
           </p>
           <p className="text-xs text-ink-muted">{policy.description}</p>
-          {policy.changed_by && <p className="mt-1 text-xs text-ink-faint">Last changed by {policy.changed_by}{policy.reason ? ` — ${policy.reason}` : ''}</p>}
+          {policy.changed_by && <p className="mt-1 text-xs text-ink-faint">{t('option.company.lastChangedBy', { name: policy.changed_by })}{policy.reason ? ` — ${policy.reason}` : ''}</p>}
           {policy.enabled && (data?.employees_with_concurrent_assignments ?? 0) > 0 && (
-            <p className="mt-1 text-xs text-ink-muted">{data?.employees_with_concurrent_assignments} employee(s) currently hold more than one open assignment.</p>
+            <p className="mt-1 text-xs text-ink-muted">{t('option.company.concurrentEmployees', { count: data?.employees_with_concurrent_assignments ?? 0 })}</p>
           )}
         </div>
         {policy.can_change === true && (
           <Button variant="outline" size="sm" onClick={() => { setError(null); setOpen(true); }}>
-            {policy.enabled ? 'Turn off' : 'Turn on'}
+            {policy.enabled ? t('action.company.turnOff') : t('action.company.turnOn')}
           </Button>
         )}
       </CardBody>
@@ -83,13 +85,13 @@ export function MultiCompanyPolicyCard() {
       <Modal
         isOpen={open}
         onClose={() => setOpen(false)}
-        title={target ? 'Turn on multiple-company assignments?' : 'Turn off multiple-company assignments?'}
+        title={target ? t('confirm.company.policyTurnOnTitle') : t('confirm.company.policyTurnOffTitle')}
         size="sm"
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={mutation.isPending}>Cancel</Button>
+            <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={mutation.isPending}>{t('action.cancel')}</Button>
             <Button size="sm" isLoading={mutation.isPending} disabled={!reasonOk} onClick={() => mutation.mutate(target)}>
-              {target ? 'Turn on' : 'Turn off'}
+              {target ? t('action.company.turnOn') : t('action.company.turnOff')}
             </Button>
           </>
         }
@@ -97,10 +99,10 @@ export function MultiCompanyPolicyCard() {
         {error && <div role="alert" className="mb-4 rounded-md border border-danger/30 bg-danger-soft px-3.5 py-2.5 text-sm text-danger">{error}</div>}
         <p className="mb-4 text-sm text-ink-muted">
           {target
-            ? 'Employees will be able to hold assignments at more than one company at the same time. Each assignment keeps its own company, position, dates, salary and currency; payroll makes one line per assignment.'
-            : 'No new overlapping assignment at a different company will be allowed. Assignments that already exist are not changed.'}
+            ? t('confirm.company.policyTurnOnBody')
+            : t('confirm.company.policyTurnOffBody')}
         </p>
-        <FormField label="Reason (recorded in the audit history)" htmlFor="policy-reason" required hint="At least 5 characters.">
+        <FormField label={t('confirm.company.policyReasonLabel')} htmlFor="policy-reason" required hint={t('confirm.company.policyReasonHint')}>
           <input id="policy-reason" className={inputClasses} value={reason} onChange={(event) => setReason(event.target.value)} />
         </FormField>
       </Modal>

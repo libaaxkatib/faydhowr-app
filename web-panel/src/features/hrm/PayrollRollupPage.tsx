@@ -10,6 +10,8 @@ import { DataTable } from '@/components/ui/DataTable';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Msg } from '@/i18n/Msg';
+import { useI18n } from '@/i18n/useI18n';
 import type { PayrollRollupRow } from '@/types/employee';
 
 function currentPeriod(): string {
@@ -26,6 +28,7 @@ function currentPeriod(): string {
  * note only.
  */
 export function PayrollRollupPage() {
+  const { t, tValue } = useI18n();
   const [period, setPeriod] = useState(currentPeriod());
   const [clientCompanyId, setClientCompanyId] = useState('');
   const [departmentId, setDepartmentId] = useState('');
@@ -47,11 +50,13 @@ export function PayrollRollupPage() {
 
   const rows = data?.rows ?? [];
   const meta = data?.meta;
+  const runStatus = meta?.run_status ?? '';
+  const runStatusLabel = tValue('option.payrollStatus', runStatus) ?? runStatus;
 
   const columns = useMemo<ColumnDef<PayrollRollupRow, unknown>[]>(
     () => [
       {
-        header: 'Employee',
+        header: t('option.label.employee'),
         id: 'employee',
         cell: ({ row }) => (
           <div className="min-w-0">
@@ -61,7 +66,7 @@ export function PayrollRollupPage() {
         ),
       },
       {
-        header: 'Monthly Salary',
+        header: t('option.payroll.rollupMonthlySalary'),
         accessorKey: 'monthly_salary',
         cell: ({ row }) => (
           <span className="text-ink">
@@ -70,79 +75,79 @@ export function PayrollRollupPage() {
         ),
       },
       {
-        header: 'Days paid',
+        header: t('option.payroll.rollupDaysPaid'),
         id: 'days_paid',
         cell: ({ row }) => (
           <span className="text-ink-muted">
             {row.original.eligible_days}/{row.original.days_in_month}
-            {row.original.final_pay && <span className="ml-1 text-xs text-warning">final pay</span>}
+            {row.original.final_pay && <span className="ml-1 text-xs text-warning">{t('option.payroll.rollupFinalPay')}</span>}
           </span>
         ),
       },
       {
-        header: 'Gross',
+        header: t('option.payroll.gross'),
         accessorKey: 'gross_pay',
         cell: ({ row }) => <span className="text-ink">{row.original.gross_pay}</span>,
       },
       {
-        header: 'Absence',
+        header: t('status.payroll.deduction.absence'),
         id: 'absence',
         cell: ({ row }) => (
           <span className="text-ink-muted">
-            {row.original.absent_days}d · {row.original.absence_deduction}
+            {t('option.payroll.rollupAbsence', { days: row.original.absent_days, amount: row.original.absence_deduction })}
           </span>
         ),
       },
       {
-        header: 'Penalties',
+        header: t('option.payroll.penalties'),
         accessorKey: 'penalty_deduction',
         cell: ({ row }) => <span className="text-ink-muted">{row.original.penalty_deduction}</span>,
       },
       {
-        header: 'Advances',
+        header: t('option.payroll.advances'),
         accessorKey: 'advance_deduction',
         cell: ({ row }) => <span className="text-ink-muted">{row.original.advance_deduction}</span>,
       },
       {
-        header: 'Replacement',
+        header: t('option.label.replacement'),
         accessorKey: 'replacement_deduction',
         cell: ({ row }) => <span className="text-ink-muted">{row.original.replacement_deduction}</span>,
       },
       {
-        header: 'Unpaid leave',
+        header: t('status.payroll.deduction.unpaid_leave'),
         accessorKey: 'unpaid_leave_deduction',
         cell: ({ row }) => <span className="text-ink-muted">{row.original.unpaid_leave_deduction}</span>,
       },
       {
-        header: 'Net Payable',
+        header: t('option.payroll.rollupNetPayable'),
         accessorKey: 'net_payable',
         cell: ({ row }) => <span className="font-semibold text-ink">{row.original.net_payable}</span>,
       },
       {
-        header: 'Overtime',
+        header: t('option.payroll.rollupOvertime'),
         id: 'overtime',
         cell: ({ row }) =>
           row.original.location_type === 'office' ? (
-            <span className="text-xs italic text-ink-faint">Pending management decision</span>
+            <span className="text-xs italic text-ink-faint">{t('option.payroll.rollupOvertimePending')}</span>
           ) : (
             <span className="text-xs text-ink-faint">—</span>
           ),
       },
     ],
-    [],
+    [t],
   );
 
   return (
     <div>
       <PageHeader
-        title="Payroll Rollup"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Reports', to: '/hr/reports' }, { label: 'Payroll Rollup' }]}
+        title={t('nav.payrollRollup')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.reports'), to: '/hr/reports' }, { label: t('nav.payrollRollup') }]}
       />
 
       <Card className="mb-4">
         <CardBody className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-muted">Period</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.label.period')}</label>
             <input
               type="month"
               value={period}
@@ -151,21 +156,21 @@ export function PayrollRollupPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-muted">Client company</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.payroll.rollupClientCompany')}</label>
             <Select
               value={clientCompanyId}
               onChange={(e) => setClientCompanyId(e.target.value)}
-              placeholder="All companies"
+              placeholder={t('option.label.allCompanies')}
               options={(companies ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
               className="w-48"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-muted">Department</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.label.department')}</label>
             <Select
               value={departmentId}
               onChange={(e) => setDepartmentId(e.target.value)}
-              placeholder="All departments"
+              placeholder={t('option.employees.allDepartments')}
               options={(departments ?? []).map((d) => ({ value: String(d.id), label: d.name }))}
               className="w-44"
             />
@@ -173,7 +178,7 @@ export function PayrollRollupPage() {
         </CardBody>
       </Card>
 
-      {isLoading && <LoadingState label="Loading payroll rollup…" />}
+      {isLoading && <LoadingState label={t('option.payroll.rollupLoading')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
 
       {meta && (
@@ -183,17 +188,20 @@ export function PayrollRollupPage() {
         >
           {meta.is_estimate ? (
             <>
-              <p className="font-semibold text-ink">Estimate</p>
+              <p className="font-semibold text-ink">{t('option.payroll.rollupEstimate')}</p>
               <p>{meta.estimate_note}</p>
               {meta.run_id && meta.differs_from_run && (
                 <p className="mt-1 font-medium text-danger">
-                  The {meta.run_status} payroll run for this month no longer matches these figures. Regenerate it on the Payroll page.
+                  {t('warning.payroll.rollupStale', { status: runStatusLabel })}
                 </p>
               )}
             </>
           ) : (
             <p>
-              Final figures from the <span className="font-semibold text-ink">{meta.run_status}</span> payroll run for {meta.period}.
+              <Msg
+                id="option.payroll.rollupFinalFigures"
+                values={{ status: <span className="font-semibold text-ink">{runStatusLabel}</span>, period: meta.period }}
+              />
             </p>
           )}
         </div>
@@ -210,13 +218,13 @@ export function PayrollRollupPage() {
       {data && (
         <Card>
           {rows.length === 0 ? (
-            <EmptyState title="No payroll lines" description="No payable assignments matched the selected period and filters." />
+            <EmptyState title={t('option.payroll.noLines')} description={t('option.payroll.rollupEmpty')} />
           ) : (
             <>
               <div className="flex items-center justify-between border-b border-border px-5 py-3">
-                <span className="text-sm text-ink-muted">{rows.length} employee(s)</span>
+                <span className="text-sm text-ink-muted">{t('option.payroll.rollupEmployeeCount', { n: rows.length })}</span>
                 <span className="text-sm font-semibold text-ink">
-                  Total Net Payable{meta?.is_estimate ? ' (estimate)' : ''}: {meta?.totals.net_payable}
+                  {t(meta?.is_estimate ? 'option.payroll.rollupTotalEstimate' : 'option.payroll.rollupTotal', { amount: meta?.totals.net_payable ?? '' })}
                 </span>
               </div>
               <DataTable columns={columns} data={rows} />

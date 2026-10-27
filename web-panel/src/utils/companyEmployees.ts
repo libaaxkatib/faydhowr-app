@@ -3,27 +3,40 @@
  * round trip. The server validates everything again and is the authority; nothing here decides who may do what.
  */
 
+import { getActiveLanguage, tNow, tValueNow } from '../i18n/active.ts';
+import { monthYearLabel } from '../i18n/dates.ts';
+import type { MessageKey } from '../i18n/messages/index.ts';
+
 export type AssignmentTypeValue = 'permanent' | 'replacement';
 
 export const ASSIGNMENT_TYPE_LABELS: Record<AssignmentTypeValue, string> = { permanent: 'Permanent', replacement: 'Replacement' };
 
-export const ASSIGNMENT_TYPE_OPTIONS = [
-  { value: 'permanent', label: 'Permanent' },
-  { value: 'replacement', label: 'Replacement' },
+const ASSIGNMENT_TYPE_KEYS: Record<AssignmentTypeValue, MessageKey> = { permanent: 'option.assignmentType.permanent', replacement: 'option.assignmentType.replacement' };
+
+/** The label of an assignment type in the language the HR screen is showing. */
+export function assignmentTypeLabel(type: AssignmentTypeValue): string {
+  return tNow(ASSIGNMENT_TYPE_KEYS[type]);
+}
+
+export const ASSIGNMENT_TYPE_OPTIONS: { value: string; label: string; labelKey: MessageKey }[] = [
+  { value: 'permanent', label: 'Permanent', labelKey: 'option.assignmentType.permanent' },
+  { value: 'replacement', label: 'Replacement', labelKey: 'option.assignmentType.replacement' },
 ];
 
 export type ShiftValue = 'day' | 'night';
 
 export const SHIFT_LABELS: Record<ShiftValue, string> = { day: 'Day shift', night: 'Night shift' };
 
-export const SHIFT_OPTIONS = [
-  { value: 'day', label: 'Day shift' },
-  { value: 'night', label: 'Night shift' },
+const SHIFT_KEYS: Record<ShiftValue, MessageKey> = { day: 'option.shift.day', night: 'option.shift.night' };
+
+export const SHIFT_OPTIONS: { value: string; label: string; labelKey: MessageKey }[] = [
+  { value: 'day', label: 'Day shift', labelKey: 'option.shift.day' },
+  { value: 'night', label: 'Night shift', labelKey: 'option.shift.night' },
 ];
 
 /** What the screens show for the shift of an assignment. An assignment that never had one is "Not recorded" - it is never assumed. */
 export function assignmentShiftLabel(shift: string | null | undefined): string {
-  return shift === 'day' || shift === 'night' ? SHIFT_LABELS[shift] : 'Not recorded';
+  return shift === 'day' || shift === 'night' ? tNow(SHIFT_KEYS[shift]) : tNow('option.company.shiftNotRecorded');
 }
 
 /**
@@ -55,7 +68,7 @@ export function isValidPeriod(period: string): boolean {
 export function periodLabel(period: string): string {
   if (!isValidPeriod(period)) return period;
   const [year, month] = period.split('-').map(Number);
-  return new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  return monthYearLabel(getActiveLanguage(), year, month - 1);
 }
 
 /** The day before a date (YYYY-MM-DD), used as the default last day of the person being replaced. */
@@ -98,8 +111,8 @@ export interface SalaryFields {
 function salaryErrors(f: SalaryFields): { salary_amount?: string; salary_currency?: string } {
   const out: { salary_amount?: string; salary_currency?: string } = {};
   const amount = Number(f.salary_amount);
-  if (f.salary_amount.trim() === '' || Number.isNaN(amount) || amount <= 0) out.salary_amount = 'Enter a salary greater than zero.';
-  if (!/^[A-Za-z]{3}$/.test(f.salary_currency.trim())) out.salary_currency = 'Use a 3-letter currency code, for example USD.';
+  if (f.salary_amount.trim() === '' || Number.isNaN(amount) || amount <= 0) out.salary_amount = tNow('validation.company.salaryAmount');
+  if (!/^[A-Za-z]{3}$/.test(f.salary_currency.trim())) out.salary_currency = tNow('validation.company.currencyCodeExample');
   return out;
 }
 
@@ -112,10 +125,10 @@ export interface AssignForm extends SalaryFields {
 
 export function validateAssignForm(f: AssignForm): FieldErrors<AssignForm> {
   const errors: FieldErrors<AssignForm> = { ...salaryErrors(f) };
-  if (f.employee_id === '') errors.employee_id = 'Search and choose a registered employee.';
-  if (f.assignment_type === '') errors.assignment_type = 'Choose Permanent or Replacement.';
-  if (f.position_id === '') errors.position_id = 'Choose a position.';
-  if (f.start_date === '') errors.start_date = 'Enter the start date.';
+  if (f.employee_id === '') errors.employee_id = tNow('validation.company.chooseEmployee');
+  if (f.assignment_type === '') errors.assignment_type = tNow('validation.company.chooseAssignmentType');
+  if (f.position_id === '') errors.position_id = tNow('validation.company.choosePosition');
+  if (f.start_date === '') errors.start_date = tNow('validation.company.enterStartDate');
   return errors;
 }
 
@@ -130,14 +143,14 @@ export interface ReplaceForm extends SalaryFields {
 export function validateReplaceForm(f: ReplaceForm, originalStart: string, originalEmployeeId: number): FieldErrors<ReplaceForm> {
   // A Replacement has no salary of its own (the server uses the replaced Permanent's), so only a Permanent successor needs one.
   const errors: FieldErrors<ReplaceForm> = f.assignment_type === 'replacement' ? {} : { ...salaryErrors(f) };
-  if (f.replacement_employee_id === '') errors.replacement_employee_id = 'Search and choose the replacement employee.';
-  else if (f.replacement_employee_id === originalEmployeeId) errors.replacement_employee_id = 'An employee cannot replace themselves.';
-  if (f.replacement_date === '') errors.replacement_date = 'Enter the replacement date.';
-  if (f.assignment_type === '') errors.assignment_type = 'Say whether the replacement is Permanent or a Replacement.';
+  if (f.replacement_employee_id === '') errors.replacement_employee_id = tNow('validation.company.chooseReplacementEmployee');
+  else if (f.replacement_employee_id === originalEmployeeId) errors.replacement_employee_id = tNow('validation.company.cannotReplaceSelf');
+  if (f.replacement_date === '') errors.replacement_date = tNow('validation.company.enterReplacementDate');
+  if (f.assignment_type === '') errors.assignment_type = tNow('validation.company.chooseReplacementKind');
   const lastDay = f.original_last_day || (f.replacement_date ? dayBefore(f.replacement_date) : '');
   if (f.replacement_date !== '' && lastDay !== '') {
-    if (lastDay >= f.replacement_date) errors.original_last_day = "The original employee's last day must be before the replacement date.";
-    else if (lastDay < originalStart) errors.replacement_date = `The assignment started on ${originalStart}; choose a later replacement date.`;
+    if (lastDay >= f.replacement_date) errors.original_last_day = tNow('validation.company.lastDayBeforeReplacement');
+    else if (lastDay < originalStart) errors.replacement_date = tNow('validation.company.replacementAfterStart', { date: originalStart });
   }
   return errors;
 }
@@ -152,12 +165,12 @@ export interface ReturnFormErrors {
 /** The returning employee's salary is never assumed: HR must enter (or keep) it and tick that they checked it. */
 export function validateReturnForm(returnDate: string, replacementStart: string, salary: { amount: string; currency: string; confirmed: boolean }): ReturnFormErrors {
   const errors: ReturnFormErrors = {};
-  if (returnDate === '') errors.return_date = 'Enter the return date.';
-  else if (returnDate <= replacementStart) errors.return_date = `The replacement started on ${replacementStart}; the return date must be after that day.`;
+  if (returnDate === '') errors.return_date = tNow('validation.company.enterReturnDate');
+  else if (returnDate <= replacementStart) errors.return_date = tNow('validation.company.returnAfterReplacementStart', { date: replacementStart });
   const amount = Number(salary.amount);
-  if (salary.amount.trim() === '' || Number.isNaN(amount) || amount <= 0) errors.salary_amount = 'Enter the salary of the returning employee (greater than zero).';
-  if (!/^[A-Za-z]{3}$/.test(salary.currency.trim())) errors.salary_currency = 'Use a 3-letter currency code, for example USD.';
-  if (!salary.confirmed) errors.salary_confirmed = 'Confirm that you checked this salary. It is not assumed to be unchanged.';
+  if (salary.amount.trim() === '' || Number.isNaN(amount) || amount <= 0) errors.salary_amount = tNow('validation.company.returnSalary');
+  if (!/^[A-Za-z]{3}$/.test(salary.currency.trim())) errors.salary_currency = tNow('validation.company.currencyCodeExample');
+  if (!salary.confirmed) errors.salary_confirmed = tNow('validation.company.confirmReturnSalary');
   return errors;
 }
 
@@ -173,9 +186,9 @@ export function isTemporaryWorker(candidate: { employment_type?: string | null }
 
 export function validateStopForm(endDate: string, reason: string, start: string): { end_date?: string; reason?: string } {
   const errors: { end_date?: string; reason?: string } = {};
-  if (endDate === '') errors.end_date = 'Enter the last day.';
-  else if (endDate < start) errors.end_date = `The assignment started on ${start}; the last day cannot be before it.`;
-  if (reason.trim().length < 3) errors.reason = 'Give a reason (at least 3 characters).';
+  if (endDate === '') errors.end_date = tNow('validation.company.enterLastDay');
+  else if (endDate < start) errors.end_date = tNow('validation.company.stopLastDayBeforeStart', { date: start });
+  if (reason.trim().length < 3) errors.reason = tNow('validation.company.stopReason');
   return errors;
 }
 
@@ -183,7 +196,7 @@ export function validateStopForm(endDate: string, reason: string, start: string)
 export function startDateChangeWarning(oldStart: string, newStart: string): string | null {
   if (oldStart === newStart || newStart === '') return null;
   const earlier = newStart < oldStart ? newStart : oldStart;
-  return `Changing the start date changes the payable days of every month from ${earlier.slice(0, 7)} on. The original date (${oldStart}) is kept in the history. If an approved or finalized payroll month is really affected, only a Super Admin can make the change, with a reason: the closed month stays as it was and any overpayment is deducted from later salaries.`;
+  return tNow('warning.company.startDateChange', { month: earlier.slice(0, 7), oldStart });
 }
 
 export const EVENT_LABELS: Record<string, string> = {
@@ -197,3 +210,8 @@ export const EVENT_LABELS: Record<string, string> = {
   cancelled: 'Cancelled',
   changed: 'Changed',
 };
+
+/** The label of a history event in the language the HR screen is showing; an unknown event shows as it is. */
+export function eventLabel(event: string): string {
+  return tValueNow('option.company.event', event) ?? EVENT_LABELS[event] ?? event;
+}

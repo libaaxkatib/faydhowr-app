@@ -16,6 +16,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate } from '@/utils/formatters';
+import { useI18n } from '@/i18n/useI18n';
 
 /**
  * docs/HRM_MARKETING_SRS.md HR §9: HR creates batches and selects eligible
@@ -25,6 +26,7 @@ import { formatDate } from '@/utils/formatters';
 export function TrainingBatchesPage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t, tValue } = useI18n();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [batchDate, setBatchDate] = useState(new Date().toISOString().slice(0, 10));
   const [location, setLocation] = useState('');
@@ -42,12 +44,12 @@ export function TrainingBatchesPage() {
     mutationFn: () => hrApi.trainingBatches.create({ batch_date: batchDate, location: location || null, team_or_group: teamOrGroup || null }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['training-batches'] });
-      show('Training batch created.');
+      show(t('notify.pipeline.trainingBatchCreated'));
       setIsCreateOpen(false);
       setLocation('');
       setTeamOrGroup('');
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Something went wrong.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.somethingWrong'), 'error'),
   });
 
   const addParticipantMutation = useMutation({
@@ -56,9 +58,9 @@ export function TrainingBatchesPage() {
       queryClient.invalidateQueries({ queryKey: ['training-batches'] });
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       setPendingEmployeeByBatch((prev) => ({ ...prev, [variables.batchId]: '' }));
-      show('Participant added.');
+      show(t('notify.pipeline.participantAdded'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not add participant.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.couldNotAddParticipant'), 'error'),
   });
 
   const removeParticipantMutation = useMutation({
@@ -66,9 +68,9 @@ export function TrainingBatchesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['training-batches'] });
       queryClient.invalidateQueries({ queryKey: ['employees'] });
-      show('Participant removed.');
+      show(t('notify.pipeline.participantRemoved'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not remove participant.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.couldNotRemoveParticipant'), 'error'),
   });
 
   const completeMutation = useMutation({
@@ -76,9 +78,9 @@ export function TrainingBatchesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['training-batches'] });
       queryClient.invalidateQueries({ queryKey: ['employees'] });
-      show('Batch marked completed.');
+      show(t('notify.pipeline.batchCompleted'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not complete batch.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.couldNotCompleteBatch'), 'error'),
   });
 
   function toggleAbsent(batchId: number, employeeId: number) {
@@ -93,21 +95,21 @@ export function TrainingBatchesPage() {
   return (
     <div>
       <PageHeader
-        title="Training Batches"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Training Batches' }]}
+        title={t('nav.trainingBatches')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.trainingBatches') }]}
         actions={
           <PermissionGate module="hr">
             <Button onClick={() => setIsCreateOpen(true)}>
               <Icon name="plus" size={15} />
-              Create Training Batch
+              {t('action.createTrainingBatch')}
             </Button>
           </PermissionGate>
         }
       />
 
-      {isLoading && <LoadingState label="Loading training batches…" />}
+      {isLoading && <LoadingState label={t('option.pipeline.loadingTrainingBatches')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
-      {data && data.length === 0 && <EmptyState icon="calendar" title="No training batches yet" />}
+      {data && data.length === 0 && <EmptyState icon="calendar" title={t('option.pipeline.noTrainingBatchesYet')} />}
 
       {data && data.length > 0 && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -120,10 +122,14 @@ export function TrainingBatchesPage() {
                     {formatDate(batch.batch_date)} {batch.location && `· ${batch.location}`} {batch.team_or_group && `· ${batch.team_or_group}`}
                   </p>
                 </div>
-                <StatusBadge status={batch.status} tone={batch.status === 'completed' ? 'success' : batch.status === 'cancelled' ? 'danger' : 'warning'} />
+                <StatusBadge
+                  status={batch.status}
+                  label={tValue('status.pipeline.batch', batch.status)}
+                  tone={batch.status === 'completed' ? 'success' : batch.status === 'cancelled' ? 'danger' : 'warning'}
+                />
               </div>
 
-              <p className="mb-1.5 text-xs font-medium text-ink-faint">Participants</p>
+              <p className="mb-1.5 text-xs font-medium text-ink-faint">{t('option.pipeline.participants')}</p>
               {batch.participants.length > 0 ? (
                 <div className="mb-3 space-y-1.5">
                   {batch.participants.map((p) => (
@@ -131,13 +137,13 @@ export function TrainingBatchesPage() {
                       <span className="text-ink">{p.employee_name}</span>
                       <div className="flex items-center gap-2">
                         {p.result !== 'pending' ? (
-                          <StatusBadge status={p.result} tone={p.result === 'completed' ? 'success' : 'neutral'} />
+                          <StatusBadge status={p.result} label={tValue('status.pipeline.participant', p.result)} tone={p.result === 'completed' ? 'success' : 'neutral'} />
                         ) : (
                           batch.status === 'scheduled' && (
                             <PermissionGate module="hr">
                               <label className="flex items-center gap-1 text-xs text-ink-muted">
                                 <input type="checkbox" checked={absenteesByBatch[batch.id]?.has(p.employee_id) ?? false} onChange={() => toggleAbsent(batch.id, p.employee_id)} />
-                                Absent
+                                {t('action.absent')}
                               </label>
                             </PermissionGate>
                           )
@@ -154,7 +160,7 @@ export function TrainingBatchesPage() {
                   ))}
                 </div>
               ) : (
-                <p className="mb-3 text-xs italic text-ink-faint">No participants yet.</p>
+                <p className="mb-3 text-xs italic text-ink-faint">{t('option.pipeline.noParticipantsYet')}</p>
               )}
 
               {batch.status === 'scheduled' && (
@@ -163,7 +169,7 @@ export function TrainingBatchesPage() {
                     <Select
                       value={pendingEmployeeByBatch[batch.id] ?? ''}
                       onChange={(e) => setPendingEmployeeByBatch((prev) => ({ ...prev, [batch.id]: e.target.value }))}
-                      placeholder="Add eligible employee…"
+                      placeholder={t('option.addEligibleEmployee')}
                       options={(eligible?.data ?? [])
                         .filter((e) => !batch.participants.some((p) => p.employee_id === e.id))
                         .map((e) => ({ value: String(e.id), label: e.full_name }))}
@@ -176,7 +182,7 @@ export function TrainingBatchesPage() {
                       isLoading={addParticipantMutation.isPending}
                       onClick={() => addParticipantMutation.mutate({ batchId: batch.id, employeeId: Number(pendingEmployeeByBatch[batch.id]) })}
                     >
-                      Add
+                      {t('action.addParticipant')}
                     </Button>
                   </div>
                   {batch.participants.length > 0 && (
@@ -187,7 +193,7 @@ export function TrainingBatchesPage() {
                       isLoading={completeMutation.isPending}
                       onClick={() => completeMutation.mutate({ batchId: batch.id, absentIds: Array.from(absenteesByBatch[batch.id] ?? []) })}
                     >
-                      Mark Batch Completed
+                      {t('action.markBatchCompleted')}
                     </Button>
                   )}
                 </PermissionGate>
@@ -200,22 +206,22 @@ export function TrainingBatchesPage() {
       <Modal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        title="New Training Batch"
+        title={t('confirm.pipeline.newTrainingBatch')}
         size="sm"
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-            <Button size="sm" isLoading={createMutation.isPending} onClick={() => createMutation.mutate()}>Create</Button>
+            <Button variant="outline" size="sm" onClick={() => setIsCreateOpen(false)}>{t('action.cancel')}</Button>
+            <Button size="sm" isLoading={createMutation.isPending} onClick={() => createMutation.mutate()}>{t('action.create')}</Button>
           </>
         }
       >
-        <FormField label="Batch date" htmlFor="batch-date" required>
+        <FormField label={t('option.pipeline.batchDate')} htmlFor="batch-date" required>
           <input id="batch-date" type="date" className={inputClasses} value={batchDate} onChange={(e) => setBatchDate(e.target.value)} />
         </FormField>
-        <FormField label="Location" htmlFor="batch-location">
+        <FormField label={t('option.pipeline.location')} htmlFor="batch-location">
           <input id="batch-location" className={inputClasses} value={location} onChange={(e) => setLocation(e.target.value)} />
         </FormField>
-        <FormField label="Team / group" htmlFor="batch-team">
+        <FormField label={t('option.pipeline.teamOrGroup')} htmlFor="batch-team">
           <input id="batch-team" className={inputClasses} value={teamOrGroup} onChange={(e) => setTeamOrGroup(e.target.value)} />
         </FormField>
       </Modal>

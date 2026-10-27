@@ -7,6 +7,7 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
+import { useI18n } from '@/i18n/useI18n';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import {
   canSubmitStageMove,
@@ -33,24 +34,26 @@ interface Props {
  */
 export function MoveStageDialog({ isOpen, employee, onClose, onDone }: Props) {
   const { show } = useToast();
+  const { t, tValue } = useI18n();
   const [target, setTarget] = useState<string>('');
   const [reason, setReason] = useState('');
   const [touched, setTouched] = useState(false);
 
   const current = currentStageValue(employee.status, employee.pipeline_stage);
-  const currentLabel = STAGE_MOVE_TARGETS.find((t) => t.value === current)?.label ?? employee.status[0].toUpperCase() + employee.status.slice(1);
+  const currentTarget = STAGE_MOVE_TARGETS.find((target) => target.value === current);
+  const currentLabel = currentTarget ? t(currentTarget.labelKey) : (tValue('status', employee.status) ?? employee.status[0].toUpperCase() + employee.status.slice(1));
 
   const mutation = useMutation({
     mutationFn: () => hrApi.employees.moveStage(employee.id, target, normalizeStageReason(reason)),
     onSuccess: () => {
-      show('Moved to the new stage. The reason was recorded.');
+      show(t('notify.employees.stageMoved'));
       setTarget('');
       setReason('');
       setTouched(false);
       onDone();
       onClose();
     },
-    onError: (error) => show(friendlyErrorMessage(error, 'Could not move the employee.'), 'error'),
+    onError: (error) => show(friendlyErrorMessage(error, t('notify.employees.stageMoveFailed')), 'error'),
   });
 
   const reasonError = touched ? stageMoveReasonError(reason) : null;
@@ -59,12 +62,12 @@ export function MoveStageDialog({ isOpen, employee, onClose, onDone }: Props) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Move to stage"
+      title={t('action.moveToStage')}
       size="md"
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>
-            Cancel
+            {t('action.cancel')}
           </Button>
           <Button
             size="sm"
@@ -72,34 +75,32 @@ export function MoveStageDialog({ isOpen, employee, onClose, onDone }: Props) {
             disabled={!canSubmitStageMove(employee.status, employee.pipeline_stage, target, reason)}
             onClick={() => mutation.mutate()}
           >
-            Move to stage
+            {t('action.moveToStage')}
           </Button>
         </>
       }
     >
       <div className="space-y-4">
         <p className="rounded-sm border border-border bg-surface-alt p-3 text-sm text-ink">
-          {employee.full_name} was registered before the registration workflow, so you can place them in the stage they need. Their
-          guarantor, contract, uniform, training and practice records are kept as they are. Your name, the time, the old and new stage and
-          your reason are recorded.
+          {t('warning.employees.moveStageIntro', { name: employee.full_name })}
         </p>
-        <FormField label="Current stage" htmlFor="move-stage-from">
+        <FormField label={t('option.currentStage')} htmlFor="move-stage-from">
           <input id="move-stage-from" className={inputClasses} value={currentLabel} disabled readOnly />
         </FormField>
-        <FormField label="Move to" htmlFor="move-stage-to">
+        <FormField label={t('option.moveTo')} htmlFor="move-stage-to">
           <Select
             id="move-stage-to"
             value={target}
             onChange={(e) => setTarget(e.target.value)}
-            placeholder="Choose a stage"
-            options={stageMoveOptions(employee.status, employee.pipeline_stage).map((option) => ({ value: option.value, label: option.label }))}
+            placeholder={t('option.chooseStage')}
+            options={stageMoveOptions(employee.status, employee.pipeline_stage).map((option) => ({ value: option.value, label: t(option.labelKey) }))}
           />
         </FormField>
         <FormField
-          label="Reason (required)"
+          label={t('option.reasonRequired')}
           htmlFor="move-stage-reason"
           error={reasonError ?? undefined}
-          hint={`${normalizeStageReason(reason).length}/${STAGE_MOVE_MAX_LENGTH}, at least 10 characters.`}
+          hint={t('validation.employees.reasonCounter', { count: normalizeStageReason(reason).length, max: STAGE_MOVE_MAX_LENGTH })}
         >
           <textarea
             id="move-stage-reason"

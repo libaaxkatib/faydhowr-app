@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
@@ -12,7 +12,8 @@ import { Pagination } from '@/components/ui/Pagination';
 import { Modal } from '@/components/ui/Modal';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { formatDateTime } from '@/utils/formatters';
-import { ADMIN_ROLE_LABELS } from '@/types/system';
+import { adminRoleLabel } from '@/types/system';
+import { useI18n } from '@/i18n/useI18n';
 import type { AuditLogEntry } from '@/types/auditLog';
 
 /** Every AuditAction value the backend defines (App\Enums\AuditAction) — not fabricated, copied from source. */
@@ -30,7 +31,14 @@ const ACTION_OPTIONS = [
   'service_feature_toggle',
 ].map((value) => ({ value, label: value.replace(/_/g, ' ') }));
 
+/** An audit action as the screen shows it in English: the stored value with spaces for underscores. */
+function englishAction(value: string): string {
+  return value.replace(/_/g, ' ');
+}
+
 export function AuditLogPage() {
+  const { t, tValue } = useI18n();
+  const actionLabel = useCallback((value: string): string => tValue('option.system.auditAction', value) ?? englishAction(value), [tValue]);
   const [action, setAction] = useState('');
   const [entityType, setEntityType] = useState('');
   const [adminId, setAdminId] = useState('');
@@ -60,30 +68,30 @@ export function AuditLogPage() {
   const columns = useMemo<ColumnDef<AuditLogEntry, unknown>[]>(
     () => [
       {
-        header: 'When',
+        header: t('option.system.colWhen'),
         accessorKey: 'created_at',
         cell: ({ row }) => <span className="text-ink-muted">{formatDateTime(row.original.created_at)}</span>,
       },
       {
-        header: 'Admin',
+        header: t('option.system.colAdmin'),
         accessorKey: 'admin',
         cell: ({ row }) =>
           row.original.admin ? (
             <div>
               <p className="text-ink">{row.original.admin.full_name}</p>
-              <p className="text-xs text-ink-faint">{ADMIN_ROLE_LABELS[row.original.admin.role] ?? row.original.admin.role}</p>
+              <p className="text-xs text-ink-faint">{adminRoleLabel(row.original.admin.role, tValue)}</p>
             </div>
           ) : (
-            <span className="text-ink-faint">System</span>
+            <span className="text-ink-faint">{t('option.system.system')}</span>
           ),
       },
       {
-        header: 'Action',
+        header: t('option.system.colAction'),
         accessorKey: 'action',
-        cell: ({ row }) => <span className="text-ink">{row.original.action.replace(/_/g, ' ')}</span>,
+        cell: ({ row }) => <span className="text-ink">{actionLabel(row.original.action)}</span>,
       },
       {
-        header: 'Entity',
+        header: t('option.system.colEntity'),
         accessorKey: 'entity_type',
         cell: ({ row }) => (
           <span className="text-ink-muted">
@@ -93,7 +101,7 @@ export function AuditLogPage() {
         ),
       },
       {
-        header: 'Description',
+        header: t('option.system.colDescription'),
         accessorKey: 'description',
         cell: ({ row }) => <span className="text-ink">{row.original.description}</span>,
       },
@@ -110,17 +118,22 @@ export function AuditLogPage() {
               }}
               className="text-xs font-medium text-primary hover:underline"
             >
-              Details
+              {t('action.system.details')}
             </button>
           ),
       },
     ],
-    [],
+    [t, tValue, actionLabel],
   );
+
+  const actionOptions = ACTION_OPTIONS.map((option) => ({ value: option.value, label: actionLabel(option.value) }));
 
   return (
     <div>
-      <PageHeader title="Audit Log" breadcrumb={[{ label: 'System', to: '/system/audit-log' }, { label: 'Audit Log' }]} />
+      <PageHeader
+        title={t('option.system.pageAuditLog')}
+        breadcrumb={[{ label: t('option.system.system'), to: '/system/audit-log' }, { label: t('option.system.pageAuditLog') }]}
+      />
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
@@ -130,8 +143,8 @@ export function AuditLogPage() {
               setAction(event.target.value);
               setPage(1);
             }}
-            options={ACTION_OPTIONS}
-            placeholder="All actions"
+            options={actionOptions}
+            placeholder={t('option.system.allActions')}
             className="w-44"
           />
           <Select
@@ -141,7 +154,7 @@ export function AuditLogPage() {
               setPage(1);
             }}
             options={(admins.data?.data ?? []).map((a) => ({ value: String(a.id), label: a.full_name }))}
-            placeholder="All admins"
+            placeholder={t('option.system.allAdmins')}
             className="w-44"
           />
           <input
@@ -151,7 +164,7 @@ export function AuditLogPage() {
               setEntityType(event.target.value);
               setPage(1);
             }}
-            placeholder="Entity type (e.g. Admin)"
+            placeholder={t('option.system.entityTypePlaceholder')}
             className="h-10 w-44 rounded-sm border border-border bg-surface px-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
           <input
@@ -180,33 +193,33 @@ export function AuditLogPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          emptyTitle="No audit log entries found"
-          emptyDescription="Try adjusting your filters."
+          emptyTitle={t('warning.system.noAuditEntries')}
+          emptyDescription={t('option.system.noMatchFiltersHint')}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}
       </Card>
 
-      <Modal isOpen={detail !== null} onClose={() => setDetail(null)} title="Audit log entry" size="md">
+      <Modal isOpen={detail !== null} onClose={() => setDetail(null)} title={t('option.system.auditEntryTitle')} size="md">
         {detail && (
           <div className="space-y-3 text-sm">
             <p>
-              <span className="font-medium text-ink">When:</span> <span className="text-ink-muted">{formatDateTime(detail.created_at)}</span>
+              <span className="font-medium text-ink">{t('option.system.colWhen')}:</span> <span className="text-ink-muted">{formatDateTime(detail.created_at)}</span>
             </p>
             <p>
-              <span className="font-medium text-ink">Admin:</span>{' '}
-              <span className="text-ink-muted">{detail.admin?.full_name ?? 'System'}</span>
+              <span className="font-medium text-ink">{t('option.system.colAdmin')}:</span>{' '}
+              <span className="text-ink-muted">{detail.admin?.full_name ?? t('option.system.system')}</span>
             </p>
             <p>
-              <span className="font-medium text-ink">Action:</span>{' '}
-              <span className="text-ink-muted">{detail.action.replace(/_/g, ' ')}</span>
+              <span className="font-medium text-ink">{t('option.system.colAction')}:</span>{' '}
+              <span className="text-ink-muted">{actionLabel(detail.action)}</span>
             </p>
             <p>
-              <span className="font-medium text-ink">Description:</span> <span className="text-ink-muted">{detail.description}</span>
+              <span className="font-medium text-ink">{t('option.system.colDescription')}:</span> <span className="text-ink-muted">{detail.description}</span>
             </p>
             {detail.metadata && (
               <div>
-                <p className="mb-1 font-medium text-ink">Metadata</p>
+                <p className="mb-1 font-medium text-ink">{t('option.system.metadata')}</p>
                 <pre className="max-h-64 overflow-auto rounded-sm bg-surface-alt p-3 text-xs text-ink-muted">
                   {JSON.stringify(detail.metadata, null, 2)}
                 </pre>

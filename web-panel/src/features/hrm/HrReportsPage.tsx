@@ -12,15 +12,17 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { useDateRangePreset } from '@/hooks/useDateRangePreset';
 import { formatNumber } from '@/utils/formatters';
 import type { WorkAssignmentStatus } from '@/types/employee';
+import type { MessageKey } from '@/i18n/messages';
+import { useI18n } from '@/i18n/useI18n';
 
-const REPORT_LINKS: { label: string; to: string }[] = [
-  { label: 'Waiting Analytics', to: '/hr/reports/waiting-analytics' },
-  { label: 'Workforce Request History', to: '/hr/reports/workforce-requests' },
-  { label: 'Temporary Replacement History', to: '/hr/reports/temporary-replacements' },
-  { label: 'Leave Report', to: '/hr/reports/leaves' },
-  { label: 'Performance Report', to: '/hr/reports/performance-reviews' },
-  { label: 'Financial Ledger', to: '/hr/reports/financial-ledger' },
-  { label: 'Payroll Rollup', to: '/hr/reports/payroll-rollup' },
+const REPORT_LINKS: { labelKey: MessageKey; to: string }[] = [
+  { labelKey: 'nav.waitingAnalytics', to: '/hr/reports/waiting-analytics' },
+  { labelKey: 'nav.workforceRequestHistory', to: '/hr/reports/workforce-requests' },
+  { labelKey: 'nav.temporaryReplacementHistory', to: '/hr/reports/temporary-replacements' },
+  { labelKey: 'nav.leaveReport', to: '/hr/reports/leaves' },
+  { labelKey: 'nav.performanceReport', to: '/hr/reports/performance-reviews' },
+  { labelKey: 'nav.financialLedger', to: '/hr/reports/financial-ledger' },
+  { labelKey: 'nav.payrollRollup', to: '/hr/reports/payroll-rollup' },
 ];
 
 const ASSIGNMENT_STATUS_OPTIONS: { value: WorkAssignmentStatus; label: string }[] = [
@@ -50,6 +52,7 @@ const PIPELINE_STAGE_LABELS: Record<string, string> = {
 };
 
 export function HrReportsPage() {
+  const { t, tValue } = useI18n();
   const { preset, setPreset, from, to, setFrom, setTo, options: presetOptions } = useDateRangePreset();
   const [clientCompanyId, setClientCompanyId] = useState('');
   const [workLocationId, setWorkLocationId] = useState('');
@@ -72,7 +75,7 @@ export function HrReportsPage() {
 
   return (
     <div>
-      <PageHeader title="HR Reports" breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Reports' }]} />
+      <PageHeader title={t('option.reports.title')} breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.reports') }]} />
 
       <Card className="mb-4">
         <CardBody className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
@@ -91,40 +94,40 @@ export function HrReportsPage() {
         </CardBody>
         <CardBody className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-muted">Date from</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.reports.dateFrom')}</label>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-sm border border-border bg-surface px-2 text-sm" />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-muted">Date to</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.reports.dateTo')}</label>
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-sm border border-border bg-surface px-2 text-sm" />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-muted">Client company</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.reports.clientCompany')}</label>
             <Select
               value={clientCompanyId}
               onChange={(e) => setClientCompanyId(e.target.value)}
-              placeholder="All companies"
+              placeholder={t('option.label.allCompanies')}
               options={(companies ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
               className="w-44"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-muted">Work location</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.pipeline.workLocation')}</label>
             <Select
               value={workLocationId}
               onChange={(e) => setWorkLocationId(e.target.value)}
-              placeholder="All locations"
+              placeholder={t('option.reports.allLocations')}
               options={(locations ?? []).map((l) => ({ value: String(l.id), label: l.name }))}
               className="w-44"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-muted">Assignment status</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.reports.assignmentStatus')}</label>
             <Select
               value={assignmentStatus}
               onChange={(e) => setAssignmentStatus(e.target.value as WorkAssignmentStatus | '')}
-              placeholder="Active (default)"
-              options={ASSIGNMENT_STATUS_OPTIONS}
+              placeholder={t('option.reports.activeDefault')}
+              options={ASSIGNMENT_STATUS_OPTIONS.map((o) => ({ value: o.value, label: tValue('status.pipeline.assignment', o.value) ?? o.label }))}
               className="w-40"
             />
           </div>
@@ -133,27 +136,27 @@ export function HrReportsPage() {
 
       <Card className="mb-4">
         <CardHeader>
-          <h3 className="font-display text-sm font-bold text-ink">Detailed Reports</h3>
+          <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.detailedReports')}</h3>
         </CardHeader>
         <CardBody className="flex flex-wrap gap-2">
           {REPORT_LINKS.map((link) => (
             <Link key={link.to} to={link.to}>
               <Button type="button" size="sm" variant="outline" className="h-8 px-3 text-xs">
-                {link.label}
+                {t(link.labelKey)}
               </Button>
             </Link>
           ))}
         </CardBody>
       </Card>
 
-      {isLoading && <LoadingState label="Loading report…" />}
+      {isLoading && <LoadingState label={t('option.reports.loading')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
 
       {data && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Registrations</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.registrations')}</h3>
             </CardHeader>
             <CardBody>
               <p className="font-display text-3xl font-bold text-ink">{formatNumber(data.registrations_in_range)}</p>
@@ -165,12 +168,12 @@ export function HrReportsPage() {
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">By Status</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.byStatus')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {Object.entries(data.status_breakdown).map(([status, total]) => (
                 <div key={status} className="flex items-center justify-between text-sm">
-                  <span className="text-ink-muted">{STATUS_LABELS[status] ?? status}</span>
+                  <span className="text-ink-muted">{tValue('status', status) ?? STATUS_LABELS[status] ?? status}</span>
                   <span className="font-semibold text-ink">{formatNumber(total ?? 0)}</span>
                 </div>
               ))}
@@ -179,15 +182,15 @@ export function HrReportsPage() {
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Pipeline Breakdown</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.pipelineBreakdown')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {Object.keys(data.pipeline_breakdown).length === 0 ? (
-                <p className="text-sm text-ink-muted">No one currently in the pre-Waiting pipeline.</p>
+                <p className="text-sm text-ink-muted">{t('option.reports.pipelineEmpty')}</p>
               ) : (
                 Object.entries(data.pipeline_breakdown).map(([stage, total]) => (
                   <div key={stage} className="flex items-center justify-between text-sm">
-                    <span className="text-ink-muted">{PIPELINE_STAGE_LABELS[stage] ?? stage}</span>
+                    <span className="text-ink-muted">{tValue('status.stage', stage) ?? PIPELINE_STAGE_LABELS[stage] ?? stage}</span>
                     <span className="font-semibold text-ink">{formatNumber(total ?? 0)}</span>
                   </div>
                 ))
@@ -197,7 +200,7 @@ export function HrReportsPage() {
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">By Category</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.byCategory')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {data.category_breakdown.map((category) => (
@@ -211,11 +214,11 @@ export function HrReportsPage() {
 
           <Card className="lg:col-span-3">
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">By Department</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.byDepartment')}</h3>
             </CardHeader>
             <CardBody>
               {data.department_breakdown.length === 0 ? (
-                <p className="text-sm text-ink-muted">No departments configured yet.</p>
+                <p className="text-sm text-ink-muted">{t('option.reports.departmentsEmpty')}</p>
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {data.department_breakdown.map((department) => (
@@ -231,7 +234,7 @@ export function HrReportsPage() {
 
           <Card className="lg:col-span-2">
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">By Workplace</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.byWorkplace')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {data.workplace_breakdown.map((location) => (
@@ -247,7 +250,7 @@ export function HrReportsPage() {
               ))}
               {data.assignments_without_workplace > 0 && (
                 <div className="flex items-center justify-between border-t border-border pt-2 text-sm">
-                  <span className="text-ink-muted">Company recorded, workplace not set yet</span>
+                  <span className="text-ink-muted">{t('option.reports.noWorkplaceYet')}</span>
                   <span className="font-semibold text-ink">{formatNumber(data.assignments_without_workplace)}</span>
                 </div>
               )}
@@ -257,11 +260,11 @@ export function HrReportsPage() {
           {data.company_salary_totals !== undefined && (
             <Card>
               <CardHeader>
-                <h3 className="font-display text-sm font-bold text-ink">Salary by Company</h3>
+                <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.salaryByCompany')}</h3>
               </CardHeader>
               <CardBody className="space-y-2">
                 {data.company_salary_totals.length === 0 ? (
-                  <p className="text-sm text-ink-muted">No company-assigned salaries yet.</p>
+                  <p className="text-sm text-ink-muted">{t('option.reports.salaryByCompanyEmpty')}</p>
                 ) : (
                   data.company_salary_totals.map((company) => (
                     <div key={company.id} className="flex items-center justify-between text-sm">
@@ -277,11 +280,11 @@ export function HrReportsPage() {
           {data.penalty_totals_by_department !== undefined && (
             <Card>
               <CardHeader>
-                <h3 className="font-display text-sm font-bold text-ink">Penalties by Department</h3>
+                <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.penaltiesByDepartment')}</h3>
               </CardHeader>
               <CardBody className="space-y-2">
                 {data.penalty_totals_by_department.length === 0 ? (
-                  <p className="text-sm text-ink-muted">No penalties recorded in this range.</p>
+                  <p className="text-sm text-ink-muted">{t('option.reports.penaltiesEmpty')}</p>
                 ) : (
                   data.penalty_totals_by_department.map((department) => (
                     <div key={department.id} className="flex items-center justify-between text-sm">
@@ -297,11 +300,11 @@ export function HrReportsPage() {
           {data.advance_totals_by_department !== undefined && (
             <Card>
               <CardHeader>
-                <h3 className="font-display text-sm font-bold text-ink">Advances by Department</h3>
+                <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.advancesByDepartment')}</h3>
               </CardHeader>
               <CardBody className="space-y-2">
                 {data.advance_totals_by_department.length === 0 ? (
-                  <p className="text-sm text-ink-muted">No salary advances recorded in this range.</p>
+                  <p className="text-sm text-ink-muted">{t('option.reports.advancesEmpty')}</p>
                 ) : (
                   data.advance_totals_by_department.map((department) => (
                     <div key={department.id} className="flex items-center justify-between text-sm">
@@ -316,24 +319,24 @@ export function HrReportsPage() {
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Waiting Duration</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.waitingDuration')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
-              <BreakdownRow label="Under 7 days" value={data.waiting_duration_buckets.under_7_days} />
-              <BreakdownRow label="7–30 days" value={data.waiting_duration_buckets.seven_to_30_days} />
-              <BreakdownRow label="30–90 days" value={data.waiting_duration_buckets.thirty_to_90_days} />
-              <BreakdownRow label="Over 90 days" value={data.waiting_duration_buckets.over_90_days} />
-              <BreakdownRow label="Unavailable (no waiting_since)" value={data.waiting_duration_buckets.unavailable} />
+              <BreakdownRow label={t('option.reports.waitingUnder7')} value={data.waiting_duration_buckets.under_7_days} />
+              <BreakdownRow label={t('option.reports.waiting7to30')} value={data.waiting_duration_buckets.seven_to_30_days} />
+              <BreakdownRow label={t('option.reports.waiting30to90')} value={data.waiting_duration_buckets.thirty_to_90_days} />
+              <BreakdownRow label={t('option.reports.waitingOver90')} value={data.waiting_duration_buckets.over_90_days} />
+              <BreakdownRow label={t('option.reports.waitingUnavailable')} value={data.waiting_duration_buckets.unavailable} />
             </CardBody>
           </Card>
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Waiting by Category</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.waitingByCategory')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {data.waiting_by_category.length === 0 ? (
-                <p className="text-sm text-ink-muted">No one currently waiting.</p>
+                <p className="text-sm text-ink-muted">{t('option.reports.waitingByCategoryEmpty')}</p>
               ) : (
                 data.waiting_by_category.map((category) => <BreakdownRow key={category.id} label={category.name} value={category.total} />)
               )}
@@ -342,11 +345,11 @@ export function HrReportsPage() {
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Workforce Requests by Company</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.requestsByCompany')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {data.workforce_requests_by_company.length === 0 ? (
-                <p className="text-sm text-ink-muted">No workforce requests recorded.</p>
+                <p className="text-sm text-ink-muted">{t('option.reports.requestsEmpty')}</p>
               ) : (
                 data.workforce_requests_by_company.map((company) => <BreakdownRow key={company.name} label={company.name} value={company.total} />)
               )}
@@ -355,14 +358,14 @@ export function HrReportsPage() {
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Active Workforce by Gender</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.activeByGender')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {Object.keys(data.active_by_gender).length === 0 ? (
-                <p className="text-sm text-ink-muted">No active employees with a recorded gender.</p>
+                <p className="text-sm text-ink-muted">{t('option.reports.activeByGenderEmpty')}</p>
               ) : (
                 Object.entries(data.active_by_gender).map(([gender, total]) => (
-                  <BreakdownRow key={gender} label={gender} value={total ?? 0} capitalize />
+                  <BreakdownRow key={gender} label={tValue('option.gender', gender) ?? gender} value={total ?? 0} capitalize />
                 ))
               )}
             </CardBody>
@@ -371,11 +374,11 @@ export function HrReportsPage() {
           {data.replacement_totals_by_company !== undefined && (
             <Card>
               <CardHeader>
-                <h3 className="font-display text-sm font-bold text-ink">Temporary Replacements by Company</h3>
+                <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.replacementsByCompany')}</h3>
               </CardHeader>
               <CardBody className="space-y-2">
                 {data.replacement_totals_by_company.length === 0 ? (
-                  <p className="text-sm text-ink-muted">No temporary replacements recorded.</p>
+                  <p className="text-sm text-ink-muted">{t('option.reports.replacementsEmpty')}</p>
                 ) : (
                   data.replacement_totals_by_company.map((company) => (
                     <div key={company.name} className="flex items-center justify-between text-sm">
@@ -390,42 +393,42 @@ export function HrReportsPage() {
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Separations & Rehires</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.separationsRehires')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {Object.keys(data.separation_reason_breakdown).length === 0 ? (
-                <p className="text-sm text-ink-muted">No separations recorded in this range.</p>
+                <p className="text-sm text-ink-muted">{t('option.reports.separationsEmpty')}</p>
               ) : (
                 Object.entries(data.separation_reason_breakdown).map(([reason, total]) => (
-                  <BreakdownRow key={reason} label={reason.replace(/_/g, ' ')} value={total ?? 0} capitalize />
+                  <BreakdownRow key={reason} label={tValue('option.separation', reason) ?? reason.replace(/_/g, ' ')} value={total ?? 0} capitalize />
                 ))
               )}
-              <BreakdownRow label="Rehired in range" value={data.rehire_count_in_range} />
+              <BreakdownRow label={t('option.reports.rehiredInRange')} value={data.rehire_count_in_range} />
             </CardBody>
           </Card>
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Supervisor Pool & Office Staff</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.supervisorOffice')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
-              <BreakdownRow label="Nominated supervisors in range" value={data.supervisors_since_range} />
+              <BreakdownRow label={t('option.reports.nominatedSupervisors')} value={data.supervisors_since_range} />
               {data.office_staff_by_department.map((department) => (
-                <BreakdownRow key={department.id} label={`Office · ${department.name}`} value={department.total} />
+                <BreakdownRow key={department.id} label={t('option.reports.officeDepartment', { name: department.name })} value={department.total} />
               ))}
             </CardBody>
           </Card>
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Attendance Breakdown</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.attendanceBreakdown')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {Object.keys(data.attendance_breakdown).length === 0 ? (
-                <p className="text-sm text-ink-muted">No attendance recorded in this range.</p>
+                <p className="text-sm text-ink-muted">{t('option.reports.attendanceEmpty')}</p>
               ) : (
                 Object.entries(data.attendance_breakdown).map(([status, total]) => (
-                  <BreakdownRow key={status} label={status} value={total ?? 0} capitalize />
+                  <BreakdownRow key={status} label={tValue('option.attendance', status) ?? status} value={total ?? 0} capitalize />
                 ))
               )}
             </CardBody>
@@ -433,14 +436,14 @@ export function HrReportsPage() {
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Performance Reviews by Rating</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.reviewsByRating')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {Object.keys(data.reviews_by_rating).length === 0 ? (
-                <p className="text-sm text-ink-muted">No performance reviews recorded in this range.</p>
+                <p className="text-sm text-ink-muted">{t('option.reports.reviewsEmpty')}</p>
               ) : (
                 Object.entries(data.reviews_by_rating).map(([rating, total]) => (
-                  <BreakdownRow key={rating} label={rating.replace(/_/g, ' ')} value={total ?? 0} capitalize />
+                  <BreakdownRow key={rating} label={tValue('status.pipeline.rating', rating) ?? rating.replace(/_/g, ' ')} value={total ?? 0} capitalize />
                 ))
               )}
             </CardBody>

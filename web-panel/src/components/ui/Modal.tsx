@@ -4,7 +4,8 @@ import { useBlocker } from 'react-router-dom';
 
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
-import { DISCARD_TEXT, DISCARD_TITLE, decideClose } from '@/utils/unsavedChanges';
+import { useI18n } from '@/i18n/useI18n';
+import { decideClose } from '@/utils/unsavedChanges';
 
 interface ModalProps {
   isOpen: boolean;
@@ -31,17 +32,19 @@ const openModals: symbol[] = [];
 const ModalCloseContext = createContext<(() => void) | null>(null);
 
 /** Cancel button for a modal footer: closes like the cross does, asking first when the form has unsaved changes. */
-export function ModalCancelButton({ children = 'Cancel', disabled, onClose }: { children?: ReactNode; disabled?: boolean; onClose?: () => void }) {
+export function ModalCancelButton({ children, disabled, onClose }: { children?: ReactNode; disabled?: boolean; onClose?: () => void }) {
   const request = useContext(ModalCloseContext);
+  const { t } = useI18n();
 
   return (
     <Button variant="outline" size="sm" disabled={disabled} onClick={() => (request ? request() : onClose?.())}>
-      {children}
+      {children ?? t('action.cancel')}
     </Button>
   );
 }
 
 export function Modal({ isOpen, onClose, title, children, footer, size = 'md', confirmDiscard = false, dirty = false }: ModalProps) {
+  const { t } = useI18n();
   const [touched, setTouched] = useState(false);
   const [asking, setAsking] = useState(false);
   const warn = decideClose({ protectedForm: confirmDiscard && isOpen, touched: touched || dirty }) === 'ask';
@@ -108,7 +111,7 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md', c
   return createPortal(
     <ModalCloseContext.Provider value={requestClose}>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" role="dialog" aria-modal="true">
-        <button type="button" aria-label="Close" className="absolute inset-0 cursor-default" onClick={requestClose} />
+        <button type="button" aria-label={t('action.closeLabel')} className="absolute inset-0 cursor-default" onClick={requestClose} />
         {/* A change event bubbles up through React (portals included): this modal marks itself changed and stops it, so typing in a nested
             dialog does not mark the form underneath as changed. */}
         <div
@@ -122,7 +125,7 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md', c
             <h2 className="font-display text-base font-bold text-ink">{title}</h2>
             <button
               type="button"
-              aria-label="Close dialog"
+              aria-label={t('action.closeDialog')}
               onClick={requestClose}
               className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-ink"
             >
@@ -136,11 +139,11 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md', c
         {asking && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-ink/30 px-4" data-testid="discard-changes">
             <div role="alertdialog" aria-modal="true" aria-labelledby="discard-title" className="w-full max-w-sm rounded-lg border border-border bg-surface p-5 shadow-card">
-              <h3 id="discard-title" className="font-display text-base font-bold text-ink">{DISCARD_TITLE}</h3>
-              <p className="mt-2 text-sm text-ink-muted">{DISCARD_TEXT}</p>
+              <h3 id="discard-title" className="font-display text-base font-bold text-ink">{t('confirm.discard.title')}</h3>
+              <p className="mt-2 text-sm text-ink-muted">{t('confirm.discard.text')}</p>
               <div className="mt-4 flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={stay} autoFocus>Keep editing</Button>
-                <Button variant="danger" size="sm" onClick={discard}>Discard changes</Button>
+                <Button variant="outline" size="sm" onClick={stay} autoFocus>{t('confirm.discard.keep')}</Button>
+                <Button variant="danger" size="sm" onClick={discard}>{t('confirm.discard.discard')}</Button>
               </div>
             </div>
           </div>

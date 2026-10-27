@@ -1,7 +1,17 @@
 // Pure helpers for the Excel Imports screen: no React, no network and no `@/` alias imports, so they can be
 // unit-tested directly by Node's native test runner (hrImports.test.ts).
 
+import { tNow } from '../i18n/active.ts';
+import type { MessageKey } from '../i18n/messages/index.ts';
 import type { ImportBatch, ImportBatchStatus, ImportRowStatus, ImportType } from '../types/hrImport.ts';
+
+/** A code-to-text table whose texts are read when asked for, so they follow the language the screen is showing. */
+function translatedTable(keys: Record<string, MessageKey>): Record<string, string> {
+  const table: Record<string, string> = {};
+  for (const [code, key] of Object.entries(keys)) Object.defineProperty(table, code, { get: () => tNow(key), enumerable: true });
+
+  return table;
+}
 
 export interface ImportTypeInfo {
   value: ImportType;
@@ -17,32 +27,48 @@ export interface ImportTypeInfo {
 export const IMPORT_TYPES: ImportTypeInfo[] = [
   {
     value: 'companies',
-    label: 'Companies',
-    summary: 'Registers client companies and their other spellings. A company that already exists is skipped, never changed.',
+    get label() {
+      return tNow('option.imports.typeCompanies');
+    },
+    get summary() {
+      return tNow('warning.imports.summaryCompanies');
+    },
     required: ['name', 'category (company or guri)'],
     optional: ['aliases (other spellings separated by |)'],
     previewOnly: false,
   },
   {
     value: 'employee_registrations',
-    label: 'New employee registrations',
-    summary: 'Registers NEW people at the Application stage. An employee who already exists is skipped, never updated.',
+    get label() {
+      return tNow('option.imports.typeEmployeeRegistrations');
+    },
+    get summary() {
+      return tNow('warning.imports.summaryEmployeeRegistrations');
+    },
     required: ['full_name', 'phone (registration phone)', 'gender', 'location', 'category', 'application_date'],
     optional: ['alternate_phone', 'payment_account_number (never used for matching)', 'age', 'marital_status', 'lives_with', 'reference_name', 'secondary_contact_name', 'secondary_contact_phone', 'department', 'position', 'experience', 'source', 'notes'],
     previewOnly: false,
   },
   {
     value: 'waiting_list',
-    label: 'Waiting list',
-    summary: 'Moves EXISTING employees to Waiting when their name and registration phone both match. Anything unsure goes to manual review. Nobody is created or changed otherwise.',
+    get label() {
+      return tNow('option.imports.typeWaitingList');
+    },
+    get summary() {
+      return tNow('warning.imports.summaryWaitingList');
+    },
     required: ['full_name', 'phone (registration phone)'],
     optional: ['notes'],
     previewOnly: false,
   },
   {
     value: 'activation_preview',
-    label: 'Activation preview (read-only)',
-    summary: 'Checks the approved employee plan and shows how each person would become Active. It never activates anyone.',
+    get label() {
+      return tNow('option.imports.typeActivationPreview');
+    },
+    get summary() {
+      return tNow('warning.imports.summaryActivationPreview');
+    },
     required: ['employee_id', 'employee_number', 'name_key'],
     optional: ['source_row', 'expected_status', 'company', 'salary', 'start_date'],
     previewOnly: true,
@@ -58,29 +84,84 @@ export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 /** Quick client-side check before uploading; the server re-checks the real file content. */
 export function checkImportFile(file: { name: string; size: number }): string | null {
   const extension = file.name.toLowerCase().split('.').pop() ?? '';
-  if (!['xlsx', 'csv'].includes(extension)) return 'Choose an .xlsx or .csv file.';
-  if (file.size <= 0) return 'The file is empty.';
-  if (file.size > MAX_IMPORT_BYTES) return 'The file is larger than 5 MB.';
+  if (!['xlsx', 'csv'].includes(extension)) return tNow('validation.imports.fileType');
+  if (file.size <= 0) return tNow('validation.imports.fileEmpty');
+  if (file.size > MAX_IMPORT_BYTES) return tNow('validation.imports.fileLarge');
   return null;
 }
 
 export type Tone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
 export const ROW_STATUS: Record<ImportRowStatus, { label: string; tone: Tone }> = {
-  valid: { label: 'Ready', tone: 'success' },
-  invalid: { label: 'Invalid', tone: 'danger' },
-  duplicate: { label: 'Already exists', tone: 'neutral' },
-  review: { label: 'Needs review', tone: 'warning' },
-  imported: { label: 'Imported', tone: 'success' },
-  skipped: { label: 'Skipped', tone: 'neutral' },
-  failed: { label: 'Failed', tone: 'danger' },
+  valid: {
+    get label() {
+      return tNow('option.importRow.valid');
+    },
+    tone: 'success',
+  },
+  invalid: {
+    get label() {
+      return tNow('option.importRow.invalid');
+    },
+    tone: 'danger',
+  },
+  duplicate: {
+    get label() {
+      return tNow('option.importRow.duplicateRow');
+    },
+    tone: 'neutral',
+  },
+  review: {
+    get label() {
+      return tNow('option.importRow.review');
+    },
+    tone: 'warning',
+  },
+  imported: {
+    get label() {
+      return tNow('option.importRow.imported');
+    },
+    tone: 'success',
+  },
+  skipped: {
+    get label() {
+      return tNow('option.importRow.skipped');
+    },
+    tone: 'neutral',
+  },
+  failed: {
+    get label() {
+      return tNow('option.importRow.failed');
+    },
+    tone: 'danger',
+  },
 };
 
 export const BATCH_STATUS: Record<ImportBatchStatus, { label: string; tone: Tone }> = {
-  staged: { label: 'Waiting for confirmation', tone: 'warning' },
-  processing: { label: 'Importing', tone: 'info' },
-  completed: { label: 'Completed', tone: 'success' },
-  cancelled: { label: 'Cancelled', tone: 'neutral' },
+  staged: {
+    get label() {
+      return tNow('status.imports.staged');
+    },
+    tone: 'warning',
+  },
+  processing: {
+    get label() {
+      return tNow('status.imports.processing');
+    },
+    tone: 'info',
+  },
+  completed: {
+    get label() {
+      return tNow('status.imports.completed');
+    },
+    tone: 'success',
+  },
+  cancelled: {
+    get label() {
+      return tNow('status.imports.cancelled');
+    },
+    tone: 'neutral',
+  },
 };
 
 export type BatchStage = 'review' | 'importing' | 'finished' | 'preview' | 'cancelled';
@@ -119,24 +200,24 @@ export function daysUntilDeletion(retentionExpiresAt: string | null, now: Date =
   return Math.max(0, Math.ceil(ms / 86_400_000));
 }
 
-const ERROR_TEXT: Record<string, string> = {
-  FILE_TYPE_NOT_ALLOWED: 'Only .xlsx and .csv files can be imported.',
-  FILE_CONTENT_MISMATCH: 'This file is not what its name says. Save the sheet again as .xlsx or .csv.',
-  FILE_TOO_LARGE: 'The file is larger than 5 MB. Split it into smaller files.',
-  FILE_EMPTY: 'The file has no data rows.',
-  FILE_UNREADABLE: 'The file could not be read. Save it again as .xlsx or .csv and retry.',
-  HEADER_NOT_FOUND: 'No header row was found. The first row must name the columns.',
-  MISSING_COLUMNS: 'The file is missing a required column.',
-  DUPLICATE_COLUMN: 'A column appears more than once in the header row.',
-  TOO_MANY_ROWS: 'The file has too many rows. Split it into smaller files (2,000 rows at most).',
-  DUPLICATE_IMPORT: 'This exact file was already uploaded. Open its existing import instead.',
-  IMPORT_BUSY: 'This import is already being processed. Wait a moment.',
-  IMPORT_NOT_CONFIRMED: 'Confirm the import first.',
-  IMPORT_CANCELLED: 'This import was cancelled.',
-  IMPORT_EXPIRED: 'The details of this import were deleted. Upload the file again.',
-  PREVIEW_ONLY: 'This is a read-only preview. It cannot be confirmed.',
-  FORBIDDEN: 'Imports are reserved for a Super Admin or an HR Manager who holds the Import HR Data permission.',
-};
+const ERROR_TEXT = translatedTable({
+  FILE_TYPE_NOT_ALLOWED: 'notify.imports.errorFileTypeNotAllowed',
+  FILE_CONTENT_MISMATCH: 'notify.imports.errorFileContentMismatch',
+  FILE_TOO_LARGE: 'notify.imports.errorFileTooLarge',
+  FILE_EMPTY: 'notify.imports.errorFileEmpty',
+  FILE_UNREADABLE: 'notify.imports.errorFileUnreadable',
+  HEADER_NOT_FOUND: 'notify.imports.errorHeaderNotFound',
+  MISSING_COLUMNS: 'notify.imports.errorMissingColumns',
+  DUPLICATE_COLUMN: 'notify.imports.errorDuplicateColumn',
+  TOO_MANY_ROWS: 'notify.imports.errorTooManyRows',
+  DUPLICATE_IMPORT: 'notify.imports.errorDuplicateImport',
+  IMPORT_BUSY: 'notify.imports.errorImportBusy',
+  IMPORT_NOT_CONFIRMED: 'notify.imports.errorImportNotConfirmed',
+  IMPORT_CANCELLED: 'notify.imports.errorImportCancelled',
+  IMPORT_EXPIRED: 'notify.imports.errorImportExpired',
+  PREVIEW_ONLY: 'notify.imports.errorPreviewOnly',
+  FORBIDDEN: 'notify.imports.errorForbidden',
+});
 
 /** Plain-language text for an API error code; falls back to the server message. */
 export function describeImportError(code: string | undefined, fallback: string): string {
@@ -144,56 +225,56 @@ export function describeImportError(code: string | undefined, fallback: string):
 }
 
 /** Plain-language names for the row codes shown in the preview and the report. */
-export const ROW_CODE_TEXT: Record<string, string> = {
-  NAME_REQUIRED: 'Name missing',
-  PHONE_INVALID: 'Phone is not a full number',
-  GENDER_INVALID: 'Gender must be male or female',
-  LOCATION_INVALID: 'Location missing',
-  CATEGORY_INVALID: 'Category must be company or guri',
-  CATEGORY_UNKNOWN: 'Unknown employee category',
-  DATE_INVALID: 'Date not understood',
-  DATE_IN_FUTURE: 'Date is in the future',
-  COMPANY_EXISTS: 'Company already exists',
-  ALIAS_EXISTS: 'Already a known spelling of a company',
-  EMPLOYEE_EXISTS: 'Employee already registered',
-  DUPLICATE_IN_FILE: 'Repeated earlier in the file',
-  AMBIGUOUS_MATCH: 'Matches more than one company',
-  ALIAS_BELONGS_TO_OTHER_COMPANY: 'Spelling belongs to another company',
-  ALIAS_SHARED_IN_FILE: 'Spelling shared with another row',
-  PHONE_SHARED_DIFFERENT_NAME: 'Phone belongs to someone with another name',
-  SAME_NAME_DIFFERENT_PHONE: 'Same name, different phone',
-  NAME_CONFLICT: 'Phone matches, name differs',
-  NAME_ONLY_MATCH: 'Name matches, phone differs',
-  NO_MATCH: 'No matching employee',
-  MULTIPLE_PHONE_MATCHES: 'Several employees share this phone',
-  ALTERNATE_PHONE_ONLY_MATCH: 'Only matches an alternate phone',
-  ARCHIVED_MATCH: 'Only matches an archived record',
-  ALREADY_WAITING: 'Already on the waiting list',
-  TRANSITION_NOT_ALLOWED: 'Status cannot move to Waiting',
-  REGISTRATION_WORKFLOW_INCOMPLETE: 'New registration - the guarantor, contract, uniform, training and practical steps are not complete',
-  ALREADY_ACTIVE: 'Already Active',
-  IDENTITY_MISMATCH: 'Employee number or name does not match the plan',
-  EMPLOYEE_NOT_FOUND: 'Employee not found',
-  EMPLOYEE_ARCHIVED: 'Employee is archived',
-  STATUS_CHANGED_SINCE_PLAN: 'Status changed since the plan was made',
-  EMPLOYEE_NUMBER_CONFLICT: 'Plan number belongs to a different employee record',
-  SALARY_OR_START_MISSING: 'Salary or start date missing',
-  RETENTION_EXPIRED: 'Not imported before the details were deleted',
-  MATCH_CHANGED: 'Employee changed after the preview',
-  MATCH_LOST: 'Matched employee no longer exists',
-  NEEDS_REVIEW_SINCE_PREVIEW: 'A similar employee appeared after the preview',
-  IMPORTED: 'Imported',
-  UNEXPECTED_ERROR: 'Unexpected error (rolled back)',
-};
+export const ROW_CODE_TEXT = translatedTable({
+  NAME_REQUIRED: 'validation.imports.rowNameRequired',
+  PHONE_INVALID: 'validation.imports.rowPhoneInvalid',
+  GENDER_INVALID: 'validation.imports.rowGenderInvalid',
+  LOCATION_INVALID: 'validation.imports.rowLocationInvalid',
+  CATEGORY_INVALID: 'validation.imports.rowCategoryInvalid',
+  CATEGORY_UNKNOWN: 'validation.imports.rowCategoryUnknown',
+  DATE_INVALID: 'validation.imports.rowDateInvalid',
+  DATE_IN_FUTURE: 'validation.imports.rowDateInFuture',
+  COMPANY_EXISTS: 'validation.imports.rowCompanyExists',
+  ALIAS_EXISTS: 'validation.imports.rowAliasExists',
+  EMPLOYEE_EXISTS: 'validation.imports.rowEmployeeExists',
+  DUPLICATE_IN_FILE: 'validation.imports.rowDuplicateInFile',
+  AMBIGUOUS_MATCH: 'validation.imports.rowAmbiguousMatch',
+  ALIAS_BELONGS_TO_OTHER_COMPANY: 'validation.imports.rowAliasBelongsToOtherCompany',
+  ALIAS_SHARED_IN_FILE: 'validation.imports.rowAliasSharedInFile',
+  PHONE_SHARED_DIFFERENT_NAME: 'validation.imports.rowPhoneSharedDifferentName',
+  SAME_NAME_DIFFERENT_PHONE: 'validation.imports.rowSameNameDifferentPhone',
+  NAME_CONFLICT: 'validation.imports.rowNameConflict',
+  NAME_ONLY_MATCH: 'validation.imports.rowNameOnlyMatch',
+  NO_MATCH: 'validation.imports.rowNoMatch',
+  MULTIPLE_PHONE_MATCHES: 'validation.imports.rowMultiplePhoneMatches',
+  ALTERNATE_PHONE_ONLY_MATCH: 'validation.imports.rowAlternatePhoneOnlyMatch',
+  ARCHIVED_MATCH: 'validation.imports.rowArchivedMatch',
+  ALREADY_WAITING: 'validation.imports.rowAlreadyWaiting',
+  TRANSITION_NOT_ALLOWED: 'validation.imports.rowTransitionNotAllowed',
+  REGISTRATION_WORKFLOW_INCOMPLETE: 'validation.imports.rowRegistrationWorkflowIncomplete',
+  ALREADY_ACTIVE: 'validation.imports.alreadyActive',
+  IDENTITY_MISMATCH: 'validation.imports.rowIdentityMismatch',
+  EMPLOYEE_NOT_FOUND: 'validation.imports.rowEmployeeNotFound',
+  EMPLOYEE_ARCHIVED: 'validation.imports.rowEmployeeArchived',
+  STATUS_CHANGED_SINCE_PLAN: 'validation.imports.rowStatusChangedSincePlan',
+  EMPLOYEE_NUMBER_CONFLICT: 'validation.imports.rowEmployeeNumberConflict',
+  SALARY_OR_START_MISSING: 'validation.imports.rowSalaryOrStartMissing',
+  RETENTION_EXPIRED: 'validation.imports.rowRetentionExpired',
+  MATCH_CHANGED: 'validation.imports.rowMatchChanged',
+  MATCH_LOST: 'validation.imports.rowMatchLost',
+  NEEDS_REVIEW_SINCE_PREVIEW: 'validation.imports.rowNeedsReviewSincePreview',
+  IMPORTED: 'option.importRow.imported',
+  UNEXPECTED_ERROR: 'validation.imports.rowUnexpectedError',
+});
 
 export function rowCodeText(code: string | null): string {
   if (!code) return '';
   return ROW_CODE_TEXT[code] ?? code;
 }
 
-export const ACTIVATION_PATH_TEXT: Record<string, string> = {
-  normal_step: 'Normal step (Waiting to Active)',
-  rehire: 'Rehire (Inactive to Active)',
-  super_admin_override_required: 'Needs Super Admin override with a reason',
-  already_active: 'Already Active',
-};
+export const ACTIVATION_PATH_TEXT = translatedTable({
+  normal_step: 'option.imports.pathNormalStep',
+  rehire: 'option.imports.pathRehire',
+  super_admin_override_required: 'option.imports.pathSuperAdminOverride',
+  already_active: 'validation.imports.alreadyActive',
+});

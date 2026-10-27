@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/useToast';
 import { useAuth } from '@/features/auth/useAuth';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
+import { useI18n } from '@/i18n/useI18n';
 import { AddTeamMemberDialog } from '@/features/marketing/AddTeamMemberDialog';
 import { manageableTeams } from '@/utils/teamMemberForm';
 import type { MarketingEmployee } from '@/types/marketing';
@@ -27,6 +28,7 @@ import type { MarketingEmployee } from '@/types/marketing';
 export function MarketingEmployeesPage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   const { admin, isSuperAdmin } = useAuth();
   const { hasPermission } = useEffectivePermissions();
   // Management (inactive people, teams, Add Team Member) is for Super Admin and the Marketing Manager role AND needs the real permission.
@@ -45,9 +47,9 @@ export function MarketingEmployeesPage() {
     mutationFn: ({ employee, status }: { employee: MarketingEmployee; status: 'active' | 'inactive' }) => marketingApi.employees.update(employee.id, { status }),
     onSuccess: (_result, { status }) => {
       queryClient.invalidateQueries({ queryKey: ['marketing-employees'] });
-      show(status === 'active' ? 'Account activated.' : 'Account deactivated.');
+      show(status === 'active' ? t('notify.marketing.accountActivated') : t('notify.marketing.accountDeactivated'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Something went wrong.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.somethingWentWrong'), 'error'),
   });
 
   // The Super Admin and the Marketing Manager manage the members of both teams; the server decides (can_manage_members).
@@ -56,23 +58,23 @@ export function MarketingEmployeesPage() {
   return (
     <div>
       <PageHeader
-        title="Employees"
-        breadcrumb={[{ label: 'Marketing', to: '/marketing' }, { label: 'Employees' }]}
+        title={t('nav.employees')}
+        breadcrumb={[{ label: t('nav.marketing.marketing'), to: '/marketing' }, { label: t('nav.employees') }]}
         actions={
           manageable.length > 0 ? (
             <Button onClick={() => setIsAddOpen(true)}>
               <Icon name="plus" size={15} />
-              Add Team Member
+              {t('action.marketing.addTeamMember')}
             </Button>
           ) : undefined
         }
       />
 
       <Card>
-        {isLoading && <LoadingState label="Loading marketing employees…" />}
+        {isLoading && <LoadingState label={t('option.marketing.loadingEmployees')} />}
         {error && <ErrorState error={error} onRetry={refetch} />}
         {data && data.length === 0 && (
-          <EmptyState icon="users" title="No marketing employees yet" description="Use Add Team Member to create the first account for a team." />
+          <EmptyState icon="users" title={t('warning.marketing.noEmployees')} description={t('warning.marketing.noEmployeesHint')} />
         )}
         {data && data.length > 0 && (
           <div className="divide-y divide-border">
@@ -82,7 +84,7 @@ export function MarketingEmployeesPage() {
                   <p className="text-sm font-medium text-ink">
                     {employee.full_name}
                     {employee.status === 'inactive' && (
-                      <span className="ml-2 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-danger">Inactive</span>
+                      <span className="ml-2 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-danger">{t('status.inactive')}</span>
                     )}
                   </p>
                   <p className="text-xs text-ink-muted">{employee.email}</p>
@@ -97,10 +99,10 @@ export function MarketingEmployeesPage() {
                       ))}
                     </div>
                   ) : (
-                    <span className="text-xs italic text-ink-faint">No team</span>
+                    <span className="text-xs italic text-ink-faint">{t('option.marketing.noTeam')}</span>
                   )}
                   <span className="rounded-full bg-secondary-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-secondary">
-                    {employee.role === 'marketing_manager' ? 'Manager' : 'Employee'}
+                    {employee.role === 'marketing_manager' ? t('option.marketing.roleManager') : t('option.label.employee')}
                   </span>
                   {canManage(employee) && (
                     <Button
@@ -109,7 +111,7 @@ export function MarketingEmployeesPage() {
                       isLoading={statusMutation.isPending && statusMutation.variables?.employee.id === employee.id}
                       onClick={() => statusMutation.mutate({ employee, status: employee.status === 'inactive' ? 'active' : 'inactive' })}
                     >
-                      {employee.status === 'inactive' ? 'Activate' : 'Deactivate'}
+                      {employee.status === 'inactive' ? t('action.marketing.activate') : t('action.marketing.deactivate')}
                     </Button>
                   )}
                 </div>

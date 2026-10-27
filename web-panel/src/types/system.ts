@@ -93,3 +93,11 @@ export interface AdminPermissionsDetail {
 }
 
 export type { Admin };
+
+/** Looks up the Somali label of a stored value (`tValue` from `useI18n()`); undefined in English, so the English label is kept. */
+type StoredValueLabel = (prefix: string, value: string) => string | undefined;
+
+/** The label of a role for display: Somali when Somali is chosen and the role has an entry, otherwise the English label (or the raw value). */
+export function adminRoleLabel(role: string, tValue: StoredValueLabel): string {
+  return tValue('status.system.role', role) ?? ADMIN_ROLE_LABELS[role as AdminRole] ?? role;
+}

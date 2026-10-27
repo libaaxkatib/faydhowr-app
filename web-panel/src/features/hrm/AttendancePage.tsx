@@ -13,6 +13,8 @@ import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { inputClasses } from '@/components/ui/FormField';
 import type { AttendanceStatus } from '@/types/employee';
+import type { MessageKey } from '@/i18n/messages';
+import { useI18n } from '@/i18n/useI18n';
 
 const STATUS_TONE: Record<AttendanceStatus, 'success' | 'warning' | 'danger'> = {
   present: 'success',
@@ -20,10 +22,10 @@ const STATUS_TONE: Record<AttendanceStatus, 'success' | 'warning' | 'danger'> = 
   absent: 'danger',
 };
 
-const STATUS_LABEL: Record<AttendanceStatus, string> = {
-  present: 'Present',
-  late: 'Late',
-  absent: 'Absent',
+const STATUS_LABEL_KEY: Record<AttendanceStatus, MessageKey> = {
+  present: 'option.attendance.present',
+  late: 'option.attendance.late',
+  absent: 'option.attendance.absent',
 };
 
 /**
@@ -35,6 +37,7 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
 export function AttendancePage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -49,24 +52,24 @@ export function AttendancePage() {
       queryClient.invalidateQueries({ queryKey: ['attendance', date] });
       queryClient.invalidateQueries({ queryKey: ['hr-dashboard'] });
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not record attendance.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.couldNotRecordAttendance'), 'error'),
   });
 
   return (
     <div>
-      <PageHeader title="Attendance" breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Attendance' }]} />
+      <PageHeader title={t('nav.attendance')} breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.attendance') }]} />
 
       <Card>
         <div className="flex items-center gap-3 border-b border-border px-5 py-4">
           <label htmlFor="attendance-date" className="text-xs font-medium text-ink-faint">
-            Date
+            {t('option.label.date')}
           </label>
           <input id="attendance-date" type="date" className={`${inputClasses} w-44`} value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
 
-        {isLoading && <LoadingState label="Loading roster…" />}
+        {isLoading && <LoadingState label={t('option.employees.loadingRoster')} />}
         {error && <ErrorState error={error} onRetry={refetch} />}
-        {data && data.length === 0 && <EmptyState icon="users" title="No Office Staff yet" description="Assign an employee to Fayadhowr Office to see them here." />}
+        {data && data.length === 0 && <EmptyState icon="users" title={t('option.employees.noOfficeStaffYet')} description={t('option.employees.noOfficeStaffHint')} />}
 
         {data && data.length > 0 && (
           <div className="divide-y divide-border">
@@ -80,9 +83,9 @@ export function AttendancePage() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {entry.attendance_status ? (
-                    <StatusBadge status={entry.attendance_status} label={STATUS_LABEL[entry.attendance_status]} tone={STATUS_TONE[entry.attendance_status]} />
+                    <StatusBadge status={entry.attendance_status} label={t(STATUS_LABEL_KEY[entry.attendance_status])} tone={STATUS_TONE[entry.attendance_status]} />
                   ) : (
-                    <span className="text-xs italic text-ink-faint">Not marked</span>
+                    <span className="text-xs italic text-ink-faint">{t('status.pipeline.notMarked')}</span>
                   )}
                   <PermissionGate module="hr">
                     {(['present', 'late', 'absent'] as AttendanceStatus[]).map((status) => (
@@ -94,7 +97,7 @@ export function AttendancePage() {
                         isLoading={markMutation.isPending && markMutation.variables?.employeeId === entry.id && markMutation.variables?.status === status}
                         onClick={() => markMutation.mutate({ employeeId: entry.id, status })}
                       >
-                        {STATUS_LABEL[status]}
+                        {t(STATUS_LABEL_KEY[status])}
                       </Button>
                     ))}
                   </PermissionGate>

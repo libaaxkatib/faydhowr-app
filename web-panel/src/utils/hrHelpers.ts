@@ -1,6 +1,9 @@
 // Pure helpers for the HR screens: no React, no network and no `@/` alias imports,
 // so they can be unit-tested directly by Node's native test runner (hrHelpers.test.ts).
 
+import { getActiveLanguage, tNow } from '../i18n/active.ts';
+import type { MessageKey } from '../i18n/messages/index.ts';
+
 export const OFFICE_LABEL = 'Fayadhowr Office';
 
 interface AssignmentLike {
@@ -9,11 +12,16 @@ interface AssignmentLike {
   work_location_name?: string | null;
 }
 
+/** The Fayadhowr Office in the language the HR screen is showing (the stored name stays `OFFICE_LABEL`). */
+export function officeLabel(): string {
+  return tNow('option.pipeline.fayadhowrOffice');
+}
+
 /** "Fayadhowr Office", "Company · Workplace", or just "Company" while the workplace is not set yet. */
 export function assignmentLabel(assignment: AssignmentLike): string {
-  if (assignment.location_type === 'office') return OFFICE_LABEL;
+  if (assignment.location_type === 'office') return officeLabel();
   const parts = [assignment.client_company_name, assignment.work_location_name].filter((part): part is string => Boolean(part));
-  return parts.length > 0 ? parts.join(' · ') : 'Company not recorded';
+  return parts.length > 0 ? parts.join(' · ') : tNow('option.pipeline.companyNotRecorded');
 }
 
 /** True for a company assignment that still has no workplace (HR may set one, once). */
@@ -21,51 +29,114 @@ export function isWorkplaceMissing(assignment: { location_type?: 'client' | 'off
   return assignment.location_type !== 'office' && (assignment.work_location_id === null || assignment.work_location_id === undefined);
 }
 
-/** Plain-language replacements for the server's error codes that HR users meet most. Anything else falls back to the server's own message. */
-const ERROR_MESSAGES: Record<string, string> = {
-  LOCATION_COMPANY_MISMATCH: 'That workplace belongs to a different company. Choose a workplace that belongs to the selected company.',
-  OFFICE_ASSIGNMENT_HAS_NO_COMPANY: 'The Fayadhowr Office is not a client company, so it cannot be linked to one. Choose the office on its own.',
-  EMPLOYEE_ALREADY_ASSIGNED_AT_COMPANY:
-    'This employee is already working for this company. End the current assignment first if they are moving.',
-  EMPLOYEE_ALREADY_ASSIGNED_AT_LOCATION:
-    'This employee is already working at this workplace. End the current assignment first if they are moving.',
-  WORK_LOCATION_CAPACITY_EXCEEDED: 'This workplace is already full. Choose another workplace, or ask a Super Admin to override the limit.',
-  ASSIGNMENT_LOCATION_ALREADY_SET:
-    'This assignment already has a workplace. Moving someone to a different workplace is a new assignment.',
-  PAYROLL_PERIOD_LOCKED:
-    "That month's payroll is already approved or finalized, so this cannot be changed. Ask for a payroll adjustment instead.",
-  SALARY_BEFORE_ASSIGNMENT_START: 'The new salary cannot start before the assignment itself started. Choose a later effective date.',
-  REPLACEMENT_EMPLOYEE_NOT_TEMPORARY: 'The person doing the cover must be a Temporary employee. Change their employment type first.',
-  COVERED_EMPLOYEE_NOT_PERMANENT: 'The person being covered must be a Permanent employee.',
-  EMPLOYEE_CANNOT_REPLACE_SELF: 'An employee cannot cover their own assignment.',
-  EMPLOYEE_NOT_ACTIVE: 'Both employees must be Active. Make the employee Active first.',
-  REPLACEMENT_ALREADY_APPROVED: 'This replacement has already been approved.',
-  WORKDAY_IN_FUTURE: 'You cannot record a day that has not happened yet.',
-  WORKDAY_OUTSIDE_REPLACEMENT_WINDOW: 'One of the days falls outside the dates this replacement covers.',
-  WORKDAY_OUTSIDE_ASSIGNMENT: 'One of the days falls outside the covered assignment.',
-  WORKDAY_NO_PERMANENT_SALARY: 'The covered employee had no salary on one of those days, so the day cannot be charged.',
-  WORKDAY_ALREADY_CHARGED_FOR_POSITION:
-    'Another temporary employee is already charged for the same position on one of those days. A position is only charged once per day.',
-  EMPLOYEE_ALREADY_RECORDED_THAT_DAY: 'This temporary employee already has a recorded day on one of those dates.',
-  PAYROLL_RUN_LOCKED: 'This month is already approved or finalized and cannot be regenerated. Reopen it first if it is only approved.',
-  PAYROLL_RUN_EMPTY: 'There are no payroll lines to review for this month.',
-  APPROVER_MUST_DIFFER_FROM_REVIEWER: 'A different person must approve this payroll. The person who marked it reviewed cannot approve it.',
-  PAYROLL_RUN_NOT_FINALIZED: 'Adjustments and payments can only be recorded on finalized payroll.',
-  ADJUSTMENT_PERIOD_NOT_LATER: 'An adjustment must apply in a later month than the one it corrects.',
-  ADJUSTMENT_PERIOD_LOCKED: 'That later month is already approved or finalized. Choose a month after it.',
-  PAYROLL_ITEM_ALREADY_REVERSED: 'This payroll line has already been reversed.',
-  PAYROLL_ITEM_ALREADY_PAID: 'This payroll line is already marked as paid.',
-  LEAVE_OVERLAPS_UNPAID_LEAVE: 'This employee already has unpaid leave on some of those dates. Change the dates or reject the other leave first.',
-  APPROVER_MUST_DIFFER_FROM_RECORDER: 'A different person must approve this leave. The person who recorded it cannot approve it.',
-  SUCCESSION_OVERLAP: 'That would pay two people for the same calendar day. The replacement must start the day after the last paid day of the previous employee.',
-  SUCCESSION_PREDECESSOR_STILL_OPEN: 'Record the separation of the previous employee (or end their assignment) first, so their last paid day is known.',
-  SUCCESSION_ALREADY_REPLACED: 'Someone already takes over this assignment.',
-  SUCCESSION_DIFFERENT_COMPANY: 'The assignment being replaced belongs to a different company.',
-  SUCCESSION_SAME_EMPLOYEE: 'An employee cannot take over their own assignment.',
-  SUCCESSION_PREDECESSOR_CANCELLED: 'The assignment being replaced was cancelled.',
-  LEAVE_ALREADY_APPROVED: 'This leave is already approved.',
-  LEAVE_ALREADY_REJECTED: 'This leave is already rejected.',
-};
+/**
+ * The server's error codes that have plain-language wording for HR users. The wording itself (English and Somali) lives in the translation
+ * catalogue under `notify.error.<CODE>`; anything not listed here falls back to the server's own message.
+ */
+const ERROR_CODES: ReadonlySet<string> = new Set([
+  'LOCATION_COMPANY_MISMATCH',
+  'OFFICE_ASSIGNMENT_HAS_NO_COMPANY',
+  'EMPLOYEE_ALREADY_ASSIGNED_AT_COMPANY',
+  'EMPLOYEE_ALREADY_ASSIGNED_AT_LOCATION',
+  'WORK_LOCATION_CAPACITY_EXCEEDED',
+  'ASSIGNMENT_LOCATION_ALREADY_SET',
+  'PAYROLL_PERIOD_LOCKED',
+  'SALARY_BEFORE_ASSIGNMENT_START',
+  'REPLACEMENT_EMPLOYEE_NOT_TEMPORARY',
+  'COVERED_EMPLOYEE_NOT_PERMANENT',
+  'EMPLOYEE_CANNOT_REPLACE_SELF',
+  'EMPLOYEE_NOT_ACTIVE',
+  'REPLACEMENT_ALREADY_APPROVED',
+  'WORKDAY_IN_FUTURE',
+  'WORKDAY_OUTSIDE_REPLACEMENT_WINDOW',
+  'WORKDAY_OUTSIDE_ASSIGNMENT',
+  'WORKDAY_NO_PERMANENT_SALARY',
+  'WORKDAY_ALREADY_CHARGED_FOR_POSITION',
+  'EMPLOYEE_ALREADY_RECORDED_THAT_DAY',
+  'PAYROLL_RUN_LOCKED',
+  'PAYROLL_RUN_EMPTY',
+  'APPROVER_MUST_DIFFER_FROM_REVIEWER',
+  'PAYROLL_RUN_NOT_FINALIZED',
+  'ADJUSTMENT_PERIOD_NOT_LATER',
+  'ADJUSTMENT_PERIOD_LOCKED',
+  'PAYROLL_ITEM_ALREADY_REVERSED',
+  'PAYROLL_ITEM_ALREADY_PAID',
+  'LEAVE_OVERLAPS_UNPAID_LEAVE',
+  'APPROVER_MUST_DIFFER_FROM_RECORDER',
+  'SUCCESSION_OVERLAP',
+  'SUCCESSION_PREDECESSOR_STILL_OPEN',
+  'SUCCESSION_ALREADY_REPLACED',
+  'SUCCESSION_DIFFERENT_COMPANY',
+  'SUCCESSION_SAME_EMPLOYEE',
+  'SUCCESSION_PREDECESSOR_CANCELLED',
+  'LEAVE_ALREADY_APPROVED',
+  'LEAVE_ALREADY_REJECTED',
+]);
+
+/**
+ * Server error codes whose English wording comes from the server itself (it names the people, dates and amounts involved), so English keeps showing
+ * the server's own message exactly as before. Only when the panel is in Somali do these codes show the plain-language Somali sentence from the
+ * catalogue (`notify.error.<CODE>`), which cannot name the person but says what is wrong.
+ */
+export const SOMALI_WORDING_CODES: ReadonlySet<string> = new Set([
+  'SUCCESSOR_TYPE_INVALID',
+  'SUCCESSOR_LAST_DAY_BEFORE_START',
+  'SUCCESSOR_NOT_FOUND',
+  'SUCCESSOR_SAME_EMPLOYEE',
+  'SUCCESSOR_EFFECTIVE_DATE_INVALID',
+  'SUCCESSOR_NOT_TEMPORARY',
+  'SUCCESSOR_NOT_COVERING',
+  'SUCCESSOR_NOT_WAITING',
+  'SUCCESSOR_NO_SALARY_TO_INHERIT',
+  'SUCCESSOR_SALARY_REQUIRED',
+  'SUCCESSOR_SALARY_FREQUENCY_INVALID',
+  'TEMPORARY_REGISTERED_AS_REPLACEMENT',
+  'START_DATE_PASSES_SALARY_CHANGE',
+  'REPLACEMENT_BEFORE_ASSIGNMENT_START',
+  'REPLACEMENT_NEEDS_REPLACED_ASSIGNMENT',
+  'REPLACEMENT_NO_SALARY_BASIS',
+  'REPLACEMENT_SALARY_IS_INHERITED',
+  'REPLACEMENT_SAME_EMPLOYEE',
+  'RETURN_BEFORE_REPLACEMENT_STARTED',
+  'RETURN_NOT_A_REPLACEMENT',
+  'RETURN_NO_ORIGINAL',
+  'RETURN_SALARY_REQUIRED',
+  'STOP_BEFORE_ASSIGNMENT_START',
+  'USE_REPLACE_EMPLOYEE',
+  'ASSIGNMENT_NOT_ACTIVE',
+  'ASSIGNMENT_CANCELLED',
+  'WORK_ASSIGNMENT_ALREADY_CANCELLED',
+  'WORK_ASSIGNMENT_HAS_PAYROLL',
+  'WORK_ASSIGNMENT_HAS_REPLACEMENTS',
+  'WORKDAY_ALREADY_VOID',
+  'WORKDAY_NOT_VERIFIABLE',
+  'WORKDAY_DATES_REQUIRED',
+  'TEMPORARY_REPLACEMENT_NOT_ACTIVE',
+  'EXPECTED_PAYMENT_NO_SALARY',
+  'PAYROLL_UNSUPPORTED_SALARY',
+  'PAYROLL_UNRESOLVED_TEMPORARY_REPLACEMENT',
+  'PAYROLL_RUN_NOT_REOPENABLE',
+  'PAYROLL_RUN_WRONG_STATE',
+  'PAYROLL_ITEM_NOTHING_TO_PAY',
+  'PAYROLL_ITEM_NOT_PAID',
+  'PAYROLL_ITEM_VOIDED',
+  'PAYROLL_PAYMENT_VOID_NOT_ALLOWED',
+  'PAYROLL_CORRECTION_NOT_ALLOWED',
+  'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY',
+  'PAYMENT_ALREADY_VOIDED',
+  'PAYMENT_LEDGER_ENTRY_MISSING',
+  'TRANSACTION_ALREADY_VOIDED',
+  'TRANSACTION_NOT_VOIDABLE',
+  'CORRECTION_WRONG_KIND',
+  'VOID_REASON_REQUIRED',
+  'WRITE_OFF_REASON_REQUIRED',
+  'ADJUSTMENT_AMOUNT_REQUIRED',
+  'AMOUNT_EXCEEDS_OUTSTANDING',
+  'NO_PAYMENT_RECORDS',
+  'DEEP_CLEANING_CHANGE_REASON_REQUIRED',
+  'DEEP_CLEANING_ALREADY_RECORDED',
+  'WORKPLACE_NOT_OF_COMPANY',
+]);
 
 interface ErrorLike {
   code?: unknown;
@@ -89,13 +160,14 @@ export function additionalCompanyQuestion(error: unknown): string | null {
   if (errorCodeOf(error) !== ADDITIONAL_COMPANY_CODE) return null;
   const message = (error as ErrorLike | null | undefined)?.message;
 
-  return typeof message === 'string' && message.length > 0 ? message : 'This employee is already assigned to another company. Do you want to assign them to this company as well?';
+  return typeof message === 'string' && message.length > 0 ? message : tNow('confirm.errors.additionalCompany');
 }
 
 /** A message safe to show an HR user: our plain-language wording for known codes, otherwise the server's message, otherwise `fallback`. */
 export function friendlyErrorMessage(error: unknown, fallback: string): string {
   const code = errorCodeOf(error);
-  if (code && ERROR_MESSAGES[code]) return ERROR_MESSAGES[code];
+  if (code && ERROR_CODES.has(code)) return tNow(`notify.error.${code}` as MessageKey);
+  if (code && SOMALI_WORDING_CODES.has(code) && getActiveLanguage() === 'so') return tNow(`notify.error.${code}` as MessageKey);
   // A generic "The given data was invalid." tells HR nothing - show the first specific field message instead.
   if (code === undefined || code === 'VALIDATION_ERROR') {
     const fieldErrors = (error as { fieldErrors?: Record<string, unknown> } | null | undefined)?.fieldErrors;
@@ -171,6 +243,6 @@ export function nextMonth(period: string): string {
 /** A daily rate such as '10.0000' becomes '$10.00 per day'; text such as 'varies...' is shown as it is. */
 export function describeDailyRate(rate: string): string {
   const numeric = Number(rate);
-  if (rate.trim() !== '' && Number.isFinite(numeric)) return `$${numeric.toFixed(2)} per day`;
+  if (rate.trim() !== '' && Number.isFinite(numeric)) return tNow('option.common.perDay', { amount: '$' + numeric.toFixed(2) });
   return rate;
 }

@@ -8,6 +8,8 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
+import { useI18n } from '@/i18n/useI18n';
+import { needLabel } from '@/utils/marketingLabels';
 import type { MarketingRecord } from '@/types/marketing';
 
 interface XarunFormDialogProps {
@@ -36,6 +38,7 @@ const emptyForm = {
 export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDialogProps) {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   const [form, setForm] = useState(emptyForm);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
@@ -87,14 +90,14 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['marketing-records'] });
       if (record) queryClient.invalidateQueries({ queryKey: ['marketing-record', record.id] });
-      show(mode === 'create' ? 'XARUN registered.' : 'XARUN updated.');
+      show(mode === 'create' ? t('notify.marketing.recordRegistered', { type: 'XARUN' }) : t('notify.marketing.recordUpdated', { type: 'XARUN' }));
       onClose();
     },
     onError: (error) => {
       if (error instanceof ApiClientError && error.isValidation) {
         setFieldErrors(error.fieldErrors ?? {});
       } else {
-        show(error instanceof Error ? error.message : 'Something went wrong.', 'error');
+        show(error instanceof Error ? error.message : t('notify.marketing.somethingWentWrong'), 'error');
       }
     },
   });
@@ -115,41 +118,41 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={mode === 'create' ? 'New XARUN' : 'Edit XARUN'}
+      title={mode === 'create' ? t('action.marketing.newRecord', { type: 'XARUN' }) : t('confirm.marketing.editRecord', { type: 'XARUN' })}
       size="lg"
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>Cancel</Button>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>{t('action.cancel')}</Button>
           <Button size="sm" onClick={handleSubmit} isLoading={mutation.isPending}>
-            {mode === 'create' ? 'Register XARUN' : 'Save Changes'}
+            {mode === 'create' ? t('action.marketing.registerRecord', { type: 'XARUN' }) : t('action.saveChanges')}
           </Button>
         </>
       }
     >
       <form onSubmit={handleSubmit}>
-        <FormField label="Facility / Company name" htmlFor="facility_name" required error={fieldErrors.facility_name?.[0]}>
+        <FormField label={t('option.marketing.facilityCompanyName')} htmlFor="facility_name" required error={fieldErrors.facility_name?.[0]}>
           <input id="facility_name" required className={inputClasses} value={form.facility_name} onChange={(e) => setForm({ ...form, facility_name: e.target.value })} />
         </FormField>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Manager / contact person" htmlFor="manager_name" error={fieldErrors.manager_name?.[0]}>
+          <FormField label={t('option.marketing.managerContactPerson')} htmlFor="manager_name" error={fieldErrors.manager_name?.[0]}>
             <input id="manager_name" className={inputClasses} value={form.manager_name} onChange={(e) => setForm({ ...form, manager_name: e.target.value })} />
           </FormField>
-          <FormField label="Contact title" htmlFor="manager_title" error={fieldErrors.manager_title?.[0]}>
+          <FormField label={t('option.marketing.contactTitle')} htmlFor="manager_title" error={fieldErrors.manager_title?.[0]}>
             <input id="manager_title" className={inputClasses} value={form.manager_title} onChange={(e) => setForm({ ...form, manager_title: e.target.value })} />
           </FormField>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Phone" htmlFor="phone" error={fieldErrors.phone?.[0]}>
+          <FormField label={t('option.label.phone')} htmlFor="phone" error={fieldErrors.phone?.[0]}>
             <input id="phone" className={inputClasses} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </FormField>
-          <FormField label="Location area" htmlFor="location" error={fieldErrors.location?.[0]}>
+          <FormField label={t('option.marketing.locationArea')} htmlFor="location" error={fieldErrors.location?.[0]}>
             <input id="location" className={inputClasses} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
           </FormField>
         </div>
 
-        <FormField label="Need / service required" htmlFor="needs">
+        <FormField label={t('option.marketing.needService')} htmlFor="needs">
           <div className="flex flex-wrap gap-2">
             {NEED_OPTIONS.map((need) => (
               <button
@@ -160,7 +163,7 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
                   form.needs.includes(need) ? 'border-primary bg-primary-soft text-primary' : 'border-border text-ink-muted hover:bg-surface-alt'
                 }`}
               >
-                {need}
+                {needLabel(need, t)}
               </button>
             ))}
           </div>
@@ -168,33 +171,33 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
 
         {mode === 'create' && (
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Assigned team" htmlFor="assigned_team_id">
+            <FormField label={t('option.marketing.assignedTeam')} htmlFor="assigned_team_id">
               <Select
                 id="assigned_team_id"
                 value={form.assigned_team_id}
                 onChange={(e) => setForm({ ...form, assigned_team_id: e.target.value })}
-                placeholder="Unassigned"
-                options={(teams ?? []).map((t) => ({ value: String(t.id), label: t.name }))}
+                placeholder={t('option.employees.unassigned')}
+                options={(teams ?? []).map((team) => ({ value: String(team.id), label: team.name }))}
               />
             </FormField>
-            <FormField label="Marketing employee" htmlFor="assigned_admin_id">
+            <FormField label={t('option.marketing.marketingEmployee')} htmlFor="assigned_admin_id">
               <Select
                 id="assigned_admin_id"
                 value={form.assigned_admin_id}
                 onChange={(e) => setForm({ ...form, assigned_admin_id: e.target.value })}
-                placeholder="Unassigned"
+                placeholder={t('option.employees.unassigned')}
                 options={(employees ?? []).map((e) => ({ value: String(e.id), label: e.full_name }))}
               />
             </FormField>
           </div>
         )}
 
-        <FormField label="Description" htmlFor="description" error={fieldErrors.description?.[0]}>
+        <FormField label={t('option.label.description')} htmlFor="description" error={fieldErrors.description?.[0]}>
           <textarea id="description" rows={3} className={inputClasses + ' h-auto py-2'} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </FormField>
 
         {mode === 'edit' && (
-          <FormField label="Feedback" htmlFor="feedback" error={fieldErrors.feedback?.[0]}>
+          <FormField label={t('option.marketing.feedback')} htmlFor="feedback" error={fieldErrors.feedback?.[0]}>
             <textarea id="feedback" rows={3} className={inputClasses + ' h-auto py-2'} value={form.feedback} onChange={(e) => setForm({ ...form, feedback: e.target.value })} />
           </FormField>
         )}

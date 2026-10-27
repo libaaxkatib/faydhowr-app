@@ -7,6 +7,7 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
+import { useI18n } from '@/i18n/useI18n';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import { canSubmitOverride, normalizeReason, overrideReasonError, overrideTargets, OVERRIDE_MAX_LENGTH } from '@/utils/statusOverride';
 import type { Employee, EmployeeStatus } from '@/types/employee';
@@ -24,6 +25,7 @@ interface Props {
  */
 export function StatusOverrideDialog({ isOpen, employee, onClose, onDone }: Props) {
   const { show } = useToast();
+  const { t, tValue } = useI18n();
   const [target, setTarget] = useState<string>('');
   const [reason, setReason] = useState('');
   const [touched, setTouched] = useState(false);
@@ -31,14 +33,14 @@ export function StatusOverrideDialog({ isOpen, employee, onClose, onDone }: Prop
   const mutation = useMutation({
     mutationFn: () => hrApi.employees.updateStatus(employee.id, target as EmployeeStatus, undefined, normalizeReason(reason)),
     onSuccess: () => {
-      show('Status changed by Super Admin override. The reason was recorded.');
+      show(t('notify.employees.statusOverridden'));
       setTarget('');
       setReason('');
       setTouched(false);
       onDone();
       onClose();
     },
-    onError: (error) => show(friendlyErrorMessage(error, 'Could not change the status.'), 'error'),
+    onError: (error) => show(friendlyErrorMessage(error, t('notify.employees.statusChangeFailed')), 'error'),
   });
 
   const reasonError = touched ? overrideReasonError(reason) : null;
@@ -47,12 +49,12 @@ export function StatusOverrideDialog({ isOpen, employee, onClose, onDone }: Prop
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Override employee status (Super Admin)"
+      title={t('confirm.employees.overrideTitle')}
       size="md"
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>
-            Cancel
+            {t('action.cancel')}
           </Button>
           <Button
             size="sm"
@@ -61,29 +63,33 @@ export function StatusOverrideDialog({ isOpen, employee, onClose, onDone }: Prop
             disabled={!canSubmitOverride(employee.status, target, reason)}
             onClick={() => mutation.mutate()}
           >
-            Override status
+            {t('action.overrideStatus')}
           </Button>
         </>
       }
     >
       <div className="space-y-4">
         <p className="rounded-sm border border-border bg-warning-soft p-3 text-sm text-ink">
-          Normally an employee can only move one step along the lifecycle. This skips those rules. Your name, the time, the old and
-          new status and your reason are recorded in the status history and the audit log.
+          {t('warning.employees.overrideIntro')}
         </p>
-        <FormField label="Change from" htmlFor="override-from">
-          <input id="override-from" className={inputClasses} value={employee.status} disabled readOnly />
+        <FormField label={t('option.changeFrom')} htmlFor="override-from">
+          <input id="override-from" className={inputClasses} value={tValue('status', employee.status) ?? employee.status} disabled readOnly />
         </FormField>
-        <FormField label="Change to" htmlFor="override-to">
+        <FormField label={t('option.changeTo')} htmlFor="override-to">
           <Select
             id="override-to"
             value={target}
             onChange={(e) => setTarget(e.target.value)}
-            placeholder="Choose a status"
-            options={overrideTargets(employee.status).map((status) => ({ value: status, label: status[0].toUpperCase() + status.slice(1) }))}
+            placeholder={t('option.chooseStatus')}
+            options={overrideTargets(employee.status).map((status) => ({ value: status, label: tValue('status', status) ?? status[0].toUpperCase() + status.slice(1) }))}
           />
         </FormField>
-        <FormField label="Reason (required)" htmlFor="override-reason" error={reasonError ?? undefined} hint={`${normalizeReason(reason).length}/${OVERRIDE_MAX_LENGTH}, at least 10 characters.`}>
+        <FormField
+          label={t('option.reasonRequired')}
+          htmlFor="override-reason"
+          error={reasonError ?? undefined}
+          hint={t('validation.employees.reasonCounter', { count: normalizeReason(reason).length, max: OVERRIDE_MAX_LENGTH })}
+        >
           <textarea
             id="override-reason"
             rows={3}

@@ -1,13 +1,16 @@
 import { useState } from 'react';
 
+import { useI18n } from '@/i18n/useI18n';
+import type { MessageKey } from '@/i18n/messages';
+
 export type DateRangePreset = 'today' | 'this_week' | 'this_month' | 'previous_month' | 'custom';
 
-const PRESET_OPTIONS: { value: DateRangePreset; label: string }[] = [
-  { value: 'today', label: 'Today' },
-  { value: 'this_week', label: 'This Week' },
-  { value: 'this_month', label: 'This Month' },
-  { value: 'previous_month', label: 'Previous Month' },
-  { value: 'custom', label: 'Custom' },
+const PRESET_OPTIONS: { value: DateRangePreset; labelKey: MessageKey }[] = [
+  { value: 'today', labelKey: 'option.common.preset.today' },
+  { value: 'this_week', labelKey: 'option.common.preset.thisWeek' },
+  { value: 'this_month', labelKey: 'option.common.preset.thisMonth' },
+  { value: 'previous_month', labelKey: 'option.common.preset.previousMonth' },
+  { value: 'custom', labelKey: 'option.common.preset.custom' },
 ];
 
 /**
@@ -55,6 +58,7 @@ function computeRange(preset: DateRangePreset): { from: string; to: string } | n
 
 /** Shared date-range + preset state for HR report filter bars. Custom keeps whatever from/to the user typed. */
 export function useDateRangePreset() {
+  const { t } = useI18n();
   const [preset, setPresetState] = useState<DateRangePreset>('custom');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -78,5 +82,5 @@ export function useDateRangePreset() {
     setTo(value);
   }
 
-  return { preset, setPreset, from, to, setFrom: setCustomFrom, setTo: setCustomTo, options: PRESET_OPTIONS };
+  return { preset, setPreset, from, to, setFrom: setCustomFrom, setTo: setCustomTo, options: PRESET_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) })) };
 }

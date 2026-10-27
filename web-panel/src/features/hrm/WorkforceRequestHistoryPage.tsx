@@ -11,6 +11,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatDate } from '@/utils/formatters';
 import type { WorkforceRequest, WorkforceRequestStatus } from '@/types/employee';
+import { useI18n } from '@/i18n/useI18n';
 
 const STATUS_OPTIONS: { value: WorkforceRequestStatus; label: string }[] = [
   { value: 'open', label: 'Open' },
@@ -28,6 +29,7 @@ const STATUS_TONE: Record<WorkforceRequestStatus, 'neutral' | 'warning' | 'succe
 
 /** docs/HRM_MARKETING_SRS.md HR Phase 6: full request history (not just open cards, unlike WorkforceRequestsPage.tsx). */
 export function WorkforceRequestHistoryPage() {
+  const { t, tValue } = useI18n();
   const [clientCompanyId, setClientCompanyId] = useState('');
   const [status, setStatus] = useState<WorkforceRequestStatus | ''>('');
   const [page, setPage] = useState(1);
@@ -49,7 +51,7 @@ export function WorkforceRequestHistoryPage() {
   const columns = useMemo<ColumnDef<WorkforceRequest, unknown>[]>(
     () => [
       {
-        header: 'Location',
+        header: t('option.label.location'),
         id: 'location',
         cell: ({ row }) => (
           <span className="text-ink">
@@ -58,36 +60,36 @@ export function WorkforceRequestHistoryPage() {
         ),
       },
       {
-        header: 'Requested',
+        header: t('option.pipeline.requested'),
         accessorKey: 'requested_date',
         cell: ({ row }) => <span className="text-ink-muted">{formatDate(row.original.requested_date)}</span>,
       },
       {
-        header: 'Needed / Matched',
+        header: t('option.pipeline.neededMatched'),
         id: 'progress',
         cell: ({ row }) => (
           <span className="text-ink">
             {row.original.matched_count} / {row.original.quantity_needed}
             {row.original.quantity_needed - row.original.matched_count > 0 && (
-              <span className="ml-1 text-xs text-ink-muted">({row.original.quantity_needed - row.original.matched_count} unmatched)</span>
+              <span className="ml-1 text-xs text-ink-muted">{t('option.pipeline.unmatchedCount', { count: row.original.quantity_needed - row.original.matched_count })}</span>
             )}
           </span>
         ),
       },
       {
-        header: 'Status',
+        header: t('option.label.status'),
         accessorKey: 'status',
-        cell: ({ row }) => <StatusBadge status={row.original.status} label={STATUS_OPTIONS.find((o) => o.value === row.original.status)?.label ?? row.original.status} tone={STATUS_TONE[row.original.status]} />,
+        cell: ({ row }) => <StatusBadge status={row.original.status} label={tValue('status.pipeline.workforce', row.original.status) ?? STATUS_OPTIONS.find((o) => o.value === row.original.status)?.label ?? row.original.status} tone={STATUS_TONE[row.original.status]} />,
       },
     ],
-    [],
+    [t, tValue],
   );
 
   return (
     <div>
       <PageHeader
-        title="Workforce Request History"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Reports', to: '/hr/reports' }, { label: 'Workforce Request History' }]}
+        title={t('nav.workforceRequestHistory')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.reports'), to: '/hr/reports' }, { label: t('nav.workforceRequestHistory') }]}
       />
 
       <Card>
@@ -98,7 +100,7 @@ export function WorkforceRequestHistoryPage() {
               setClientCompanyId(e.target.value);
               setPage(1);
             }}
-            placeholder="All companies"
+            placeholder={t('option.pipeline.allCompanies')}
             options={(companies ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
             className="w-48"
           />
@@ -108,8 +110,8 @@ export function WorkforceRequestHistoryPage() {
               setStatus(e.target.value as WorkforceRequestStatus | '');
               setPage(1);
             }}
-            placeholder="All statuses"
-            options={STATUS_OPTIONS}
+            placeholder={t('option.pipeline.allStatuses')}
+            options={STATUS_OPTIONS.map((o) => ({ value: o.value, label: tValue('status.pipeline.workforce', o.value) ?? o.label }))}
             className="w-44"
           />
         </div>
@@ -120,8 +122,8 @@ export function WorkforceRequestHistoryPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          emptyTitle="No workforce requests"
-          emptyDescription="Requests appear here once created."
+          emptyTitle={t('option.pipeline.noWorkforceRequests')}
+          emptyDescription={t('option.pipeline.requestsEmptyDescription')}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

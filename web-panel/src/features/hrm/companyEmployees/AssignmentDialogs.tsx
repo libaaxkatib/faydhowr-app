@@ -9,15 +9,17 @@ import { Button } from '@/components/ui/Button';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
+import { useI18n } from '@/i18n/useI18n';
+import type { MessageKey, Translate } from '@/i18n/messages';
 import { formatDate } from '@/utils/formatters';
 import { EMPTY_SUCCESSOR, effectiveStart, needsSuccessor, toSuccessorPayload, validateSuccessor, type SuccessorDraft } from '@/utils/successor';
 import { SuccessorPicker } from '@/features/hrm/companyEmployees/SuccessorPicker';
 import { additionalCompanyQuestion, friendlyErrorMessage } from '@/utils/hrHelpers';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
-  ASSIGNMENT_TYPE_LABELS,
   ASSIGNMENT_TYPE_OPTIONS,
   assignmentShiftEdit,
+  assignmentTypeLabel,
   dayBefore,
   isCorrectionReasonRequired,
   isTemporaryWorker,
@@ -49,13 +51,14 @@ function ErrorBanner({ message }: { message: string | null }) {
 function useActionState(companyId: number) {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [serverFields, setServerFields] = useState<Record<string, string[]>>({});
   const [needsCorrection, setNeedsCorrection] = useState(false);
 
   const failed = (error: unknown) => {
     if (isCorrectionReasonRequired(error)) setNeedsCorrection(true);
-    setServerMessage(friendlyErrorMessage(error, 'Something went wrong. Nothing was changed.'));
+    setServerMessage(friendlyErrorMessage(error, t('notify.company.somethingWentWrongNothingChanged')));
     setServerFields(error instanceof ApiClientError && error.isValidation ? (error.fieldErrors ?? {}) : {});
   };
   const succeeded = (message: string, close: () => void) => {
@@ -78,65 +81,75 @@ function useActionState(companyId: number) {
 function PositionSelect({ id, value, onChange, error }: { id: string; value: number | ''; onChange: (value: number | '') => void; error?: string }) {
   const { data: positions } = useQuery({ queryKey: ['positions'], queryFn: hrApi.positions.list });
   const [creating, setCreating] = useState(false);
+  const { t } = useI18n();
 
   return (
-    <FormField label="Position" htmlFor={id} required error={error}>
+    <FormField label={t('confirm.company.fieldPosition')} htmlFor={id} required error={error}>
       <Select
         id={id}
         value={value === '' ? '' : String(value)}
         onChange={(event) => onChange(event.target.value === '' ? '' : Number(event.target.value))}
-        placeholder="Choose a position…"
+        placeholder={t('option.company.choosePosition')}
         options={(positions ?? []).map((p) => ({ value: String(p.id), label: p.name }))}
       />
       <button type="button" onClick={() => setCreating(true)} className="mt-1 text-xs font-semibold text-primary hover:underline">
-        + Create Position
+        {t('action.company.createPosition')}
       </button>
       <CreatePositionDialog isOpen={creating} onClose={() => setCreating(false)} onCreated={(position) => onChange(position.id)} />
     </FormField>
   );
 }
 
-function TypeSelect({ id, value, onChange, error, hint, options = ASSIGNMENT_TYPE_OPTIONS }: { id: string; value: AssignmentTypeValue | ''; onChange: (value: AssignmentTypeValue | '') => void; error?: string; hint?: string; options?: { value: string; label: string }[] }) {
+function TypeSelect({ id, value, onChange, error, hint, options = ASSIGNMENT_TYPE_OPTIONS }: { id: string; value: AssignmentTypeValue | ''; onChange: (value: AssignmentTypeValue | '') => void; error?: string; hint?: string; options?: { value: string; label: string; labelKey: MessageKey }[] }) {
+  const { t } = useI18n();
+
   return (
-    <FormField label="Type" htmlFor={id} required error={error} hint={hint ?? 'Permanent holds the position; Replacement covers for someone else. It is never assumed.'}>
-      <Select id={id} value={value} onChange={(event) => onChange(event.target.value as AssignmentTypeValue | '')} placeholder="Choose Permanent or Replacement…" options={options} />
+    <FormField label={t('confirm.company.fieldType')} htmlFor={id} required error={error} hint={hint ?? t('confirm.company.typeHint')}>
+      <Select id={id} value={value} onChange={(event) => onChange(event.target.value as AssignmentTypeValue | '')} placeholder={t('option.company.choosePermanentOrReplacement')} options={options.map((option) => ({ value: option.value, label: t(option.labelKey) }))} />
     </FormField>
   );
 }
 
-const PERMANENT_ONLY = [{ value: 'permanent', label: 'Permanent' }];
+const PERMANENT_ONLY: { value: string; label: string; labelKey: MessageKey }[] = [{ value: 'permanent', label: 'Permanent', labelKey: 'option.assignmentType.permanent' }];
 
 /** Day or night shift of the assignment. Optional and information only: it never changes salary, dates, type or company. */
 function ShiftSelect({ id, value, onChange, hint }: { id: string; value: ShiftValue | ''; onChange: (value: ShiftValue | '') => void; hint?: string }) {
+  const { t } = useI18n();
+
   return (
-    <FormField label="Shift" htmlFor={id} hint={hint ?? 'Day or night. Optional - leave it empty if it is not known.'}>
-      <Select id={id} value={value} onChange={(event) => onChange(event.target.value as ShiftValue | '')} placeholder="Not recorded" options={SHIFT_OPTIONS} />
+    <FormField label={t('confirm.company.fieldShift')} htmlFor={id} hint={hint ?? t('confirm.company.shiftHint')}>
+      <Select id={id} value={value} onChange={(event) => onChange(event.target.value as ShiftValue | '')} placeholder={t('option.company.shiftNotRecorded')} options={SHIFT_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))} />
     </FormField>
   );
 }
 
-const money = (amount: number | string, currency: string) => `${Number(amount).toFixed(2)} ${currency} / month`;
+function useMoney() {
+  const { t } = useI18n();
+
+  return (amount: number | string, currency: string) => t('confirm.company.moneyPerMonth', { amount: Number(amount).toFixed(2), currency });
+}
 
 /**
  * Shown only after the server said this change reaches an approved or finalized payroll month. Only a Super Admin can record such a
  * change, and only with a reason; the closed month itself is never edited.
  */
 function CorrectionReasonField({ visible, value, onChange, error }: { visible: boolean; value: string; onChange: (value: string) => void; error?: string }) {
+  const { t } = useI18n();
   if (!visible) return null;
   return (
     <div className="mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-3" data-testid="correction-reason">
       <p className="mb-2 text-xs text-warning">
-        This change reaches payroll that is already approved or finalized. Only a Super Admin can record it, as a correction with a reason. The closed month stays exactly as it was; if someone was overpaid, the amount is deducted from their later salaries until it is repaid.
+        {t('warning.company.correctionNotice')}
       </p>
-      <FormField label="Correction reason" htmlFor="correction-reason" required error={error} hint="At least 5 characters. It is kept in the audit history.">
+      <FormField label={t('confirm.company.correctionReasonLabel')} htmlFor="correction-reason" required error={error} hint={t('confirm.company.correctionReasonHint')}>
         <input id="correction-reason" className={inputClasses} value={value} onChange={(event) => onChange(event.target.value)} />
       </FormField>
     </div>
   );
 }
 
-function correctionError(state: { needsCorrection: boolean }, reason: string): string | undefined {
-  return state.needsCorrection && reason.trim().length < 5 ? 'Enter the correction reason (at least 5 characters).' : undefined;
+function correctionError(state: { needsCorrection: boolean }, reason: string, t: Translate): string | undefined {
+  return state.needsCorrection && reason.trim().length < 5 ? t('validation.company.correctionReasonRequired') : undefined;
 }
 
 function SalaryFields({
@@ -154,12 +167,14 @@ function SalaryFields({
   onCurrency: (value: string) => void;
   errors: { salary_amount?: string; salary_currency?: string };
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="grid grid-cols-[1fr_120px] gap-3">
-      <FormField label="Monthly salary" htmlFor={`${idPrefix}-salary`} required error={errors.salary_amount}>
+      <FormField label={t('confirm.company.monthlySalary')} htmlFor={`${idPrefix}-salary`} required error={errors.salary_amount}>
         <input id={`${idPrefix}-salary`} type="number" min="0" step="0.01" className={inputClasses} value={amount} onChange={(event) => onAmount(event.target.value)} />
       </FormField>
-      <FormField label="Currency" htmlFor={`${idPrefix}-currency`} required error={errors.salary_currency}>
+      <FormField label={t('confirm.company.currency')} htmlFor={`${idPrefix}-currency`} required error={errors.salary_currency}>
         <input id={`${idPrefix}-currency`} maxLength={3} className={`${inputClasses} uppercase`} value={currency} onChange={(event) => onCurrency(event.target.value.toUpperCase())} />
       </FormField>
     </div>
@@ -183,6 +198,7 @@ function Summary({ rows }: { rows: [string, ReactNode][] }) {
 
 export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }: { isOpen: boolean; onClose: () => void; companyId: number; companyName: string }) {
   const state = useActionState(companyId);
+  const { t } = useI18n();
   const [picked, setPicked] = useState<CompanyEmployeeCandidate | null>(null);
   const [positionId, setPositionId] = useState<number | ''>('');
   const [shift, setShift] = useState<ShiftValue | ''>('');
@@ -227,7 +243,7 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
         ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}),
         ...(confirmAdditional ? { confirm_additional_company: true } : {}),
       }),
-    onSuccess: () => state.succeeded('Employee added to the company.', onClose),
+    onSuccess: () => state.succeeded(t('notify.company.employeeAdded'), onClose),
     // The server asks for an explicit yes before a person who already works for another company is given a second one.
     onError: (error) => {
       const asked = additionalCompanyQuestion(error);
@@ -239,7 +255,7 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
   const submit = (event: FormEvent) => {
     event.preventDefault();
     state.reset();
-    const found: Record<string, string | undefined> = { ...validateAssignForm({ employee_id: picked?.id ?? '', assignment_type: 'permanent', position_id: positionId, start_date: startDate, salary_amount: amount, salary_currency: currency }), correction_reason: correctionError(state, correctionReason) };
+    const found: Record<string, string | undefined> = { ...validateAssignForm({ employee_id: picked?.id ?? '', assignment_type: 'permanent', position_id: positionId, start_date: startDate, salary_amount: amount, salary_currency: currency }), correction_reason: correctionError(state, correctionReason, t) };
     if (found.correction_reason === undefined) delete found.correction_reason;
     setErrors(found);
     if (Object.keys(found).length === 0) mutation.mutate(false);
@@ -250,9 +266,9 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
     <>
     <ConfirmDialog
       isOpen={question !== null}
-      title="Assign to an additional company?"
+      title={t('confirm.company.additionalCompanyTitle')}
       description={question ?? ''}
-      confirmLabel="Yes, assign to both"
+      confirmLabel={t('action.assignBoth')}
       isLoading={mutation.isPending}
       onCancel={() => setQuestion(null)}
       onConfirm={() => {
@@ -263,28 +279,28 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Add employee to ${companyName}`}
+      title={t('confirm.company.addEmployeeTitle', { company: companyName })}
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>Cancel</Button>
-          <Button size="sm" onClick={submit} isLoading={mutation.isPending}>Add employee</Button>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>{t('action.cancel')}</Button>
+          <Button size="sm" onClick={submit} isLoading={mutation.isPending}>{t('action.addEmployee')}</Button>
         </>
       }
     >
       <form onSubmit={submit} noValidate>
         <ErrorBanner message={state.serverMessage} />
-        <EmployeePicker companyId={companyId} inputId="assign-picker" label="Registered employee" value={picked} onChange={setPicked} error={err('employee_id')} />
+        <EmployeePicker companyId={companyId} inputId="assign-picker" label={t('confirm.company.registeredEmployee')} value={picked} onChange={setPicked} error={err('employee_id')} />
         <PositionSelect id="assign-position" value={positionId} onChange={setPositionId} error={err('position_id')} />
         <ShiftSelect id="assign-shift" value={shift} onChange={setShift} />
-        <FormField label="Start date" htmlFor="assign-start" required error={err('start_date')}>
+        <FormField label={t('confirm.company.startDate')} htmlFor="assign-start" required error={err('start_date')}>
           <input id="assign-start" type="date" className={inputClasses} value={startDate} onChange={(event) => setStartDate(event.target.value)} />
         </FormField>
         <SalaryFields idPrefix="assign" amount={amount} currency={currency} onAmount={setAmount} onCurrency={setCurrency} errors={{ salary_amount: err('salary_amount'), salary_currency: err('salary_currency') }} />
-        <FormField label="Note" htmlFor="assign-notes">
+        <FormField label={t('confirm.company.note')} htmlFor="assign-notes">
           <input id="assign-notes" className={inputClasses} value={notes} onChange={(event) => setNotes(event.target.value)} />
         </FormField>
         <CorrectionReasonField visible={state.needsCorrection} value={correctionReason} onChange={setCorrectionReason} error={err('correction_reason')} />
-        <p className="text-xs text-ink-muted">This places an existing employee at the company as a Permanent employee. Their HR registration is not changed and no second record is created. To put someone in the place of an existing employee, use Replace on that employee.</p>
+        <p className="text-xs text-ink-muted">{t('warning.company.addEmployeeNote')}</p>
       </form>
     </Modal>
     </>
@@ -295,6 +311,8 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
 
 export function EditAssignmentDialog({ row, onClose, companyId }: { row: CompanyEmployeeRow | null; onClose: () => void; companyId: number }) {
   const state = useActionState(companyId);
+  const { t } = useI18n();
+  const money = useMoney();
   const [positionId, setPositionId] = useState<number | ''>('');
   const [shift, setShift] = useState<ShiftValue | ''>('');
   const [type, setType] = useState<AssignmentTypeValue | ''>('');
@@ -342,7 +360,7 @@ export function EditAssignmentDialog({ row, onClose, companyId }: { row: Company
         ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}),
       });
     },
-    onSuccess: () => state.succeeded('Assignment updated.', onClose),
+    onSuccess: () => state.succeeded(t('notify.company.assignmentUpdated'), onClose),
     onError: state.failed,
   });
 
@@ -350,11 +368,11 @@ export function EditAssignmentDialog({ row, onClose, companyId }: { row: Company
     event.preventDefault();
     state.reset();
     const found: Record<string, string | undefined> = {};
-    if (startDate === '') found.start_date = 'Enter the start date.';
-    if (salaryChanged && (Number(amount) <= 0 || Number.isNaN(Number(amount)))) found.salary_amount = 'Enter a salary greater than zero.';
-    if (salaryChanged && !/^[A-Za-z]{3}$/.test(currency)) found.salary_currency = 'Use a 3-letter currency code.';
-    if (salaryChanged && effectiveFrom < (row?.start_date ?? '')) found.salary_effective_from = 'A salary cannot take effect before the assignment starts.';
-    const needed = correctionError(state, correctionReason);
+    if (startDate === '') found.start_date = t('validation.company.enterStartDate');
+    if (salaryChanged && (Number(amount) <= 0 || Number.isNaN(Number(amount)))) found.salary_amount = t('validation.company.salaryAmount');
+    if (salaryChanged && !/^[A-Za-z]{3}$/.test(currency)) found.salary_currency = t('validation.company.currencyCode');
+    if (salaryChanged && effectiveFrom < (row?.start_date ?? '')) found.salary_effective_from = t('validation.company.salaryBeforeAssignment');
+    const needed = correctionError(state, correctionReason, t);
     if (needed) found.correction_reason = needed;
     setErrors(found);
     if (Object.keys(found).length === 0) mutation.mutate();
@@ -365,42 +383,42 @@ export function EditAssignmentDialog({ row, onClose, companyId }: { row: Company
     <Modal
       isOpen={row !== null}
       onClose={onClose}
-      title={row ? `Edit assignment — ${row.full_name}` : 'Edit assignment'}
+      title={row ? t('confirm.company.editAssignmentTitle', { name: row.full_name ?? '' }) : t('confirm.company.editAssignmentFallbackTitle')}
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>Cancel</Button>
-          <Button size="sm" onClick={submit} isLoading={mutation.isPending}>Save changes</Button>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>{t('action.cancel')}</Button>
+          <Button size="sm" onClick={submit} isLoading={mutation.isPending}>{t('action.company.saveChanges')}</Button>
         </>
       }
     >
       <form onSubmit={submit} noValidate>
         <ErrorBanner message={state.serverMessage} />
-        <p className="mb-4 text-xs text-ink-muted">These are the details of this company assignment only. The employee's own HR record (name, phone, status) is edited from the HR employee page.</p>
+        <p className="mb-4 text-xs text-ink-muted">{t('confirm.company.editAssignmentIntro')}</p>
         <PositionSelect id="edit-position" value={positionId} onChange={setPositionId} error={err('position_id')} />
-        <ShiftSelect id="edit-shift" value={shift} onChange={setShift} hint="Changing the shift does not change the salary, the dates or the company." />
-        <TypeSelect id="edit-type" value={type} onChange={setType} error={err('assignment_type')} options={isReplacement ? ASSIGNMENT_TYPE_OPTIONS : PERMANENT_ONLY} hint={isReplacement ? "Changing a Replacement to Permanent makes the position theirs; a Permanent holder cannot be 'returned from'." : 'An assignment becomes a Replacement only through Replace Employee.'} />
-        <FormField label="Start date" htmlFor="edit-start" required error={err('start_date')}>
+        <ShiftSelect id="edit-shift" value={shift} onChange={setShift} hint={t('confirm.company.shiftEditHint')} />
+        <TypeSelect id="edit-type" value={type} onChange={setType} error={err('assignment_type')} options={isReplacement ? ASSIGNMENT_TYPE_OPTIONS : PERMANENT_ONLY} hint={isReplacement ? t('confirm.company.typeEditHintReplacement') : t('confirm.company.typeEditHintPermanent')} />
+        <FormField label={t('confirm.company.startDate')} htmlFor="edit-start" required error={err('start_date')}>
           <input id="edit-start" type="date" className={inputClasses} value={startDate} onChange={(event) => setStartDate(event.target.value)} />
         </FormField>
         {warning && <div role="note" className="-mt-2 mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs text-warning">{warning}</div>}
         {isReplacement ? (
           <p className="mb-4 rounded-md border border-border bg-surface-muted px-3.5 py-2.5 text-xs text-ink-muted" data-testid="inherited-salary">
-            Salary: {row ? money(row.salary.amount, row.salary.currency) : ''}. A Replacement has no salary of its own; it uses the monthly salary of the Permanent employee whose position it holds{row?.replaces ? ` (${row.replaces.full_name})` : ''}, so it cannot be edited here. When that Permanent salary changes, the new salary applies to the Replacement for the whole month of the change.
+            {t('warning.company.inheritedSalaryEdit', { money: row ? money(row.salary.amount, row.salary.currency) : '', replaces: row?.replaces ? ` (${row.replaces.full_name})` : '' })}
           </p>
         ) : (
           <SalaryFields idPrefix="edit" amount={amount} currency={currency} onAmount={setAmount} onCurrency={setCurrency} errors={{ salary_amount: err('salary_amount'), salary_currency: err('salary_currency') }} />
         )}
         {salaryChanged && (
           <>
-            <FormField label="New salary applies from" htmlFor="edit-effective" required error={err('salary_effective_from')} hint="The old salary stays in the history and keeps applying before this date. If a Replacement holds this position, the new salary applies to the Replacement for the whole month of the change. Approved or finalized payroll months are only changed by a Super Admin correction.">
+            <FormField label={t('confirm.company.newSalaryFrom')} htmlFor="edit-effective" required error={err('salary_effective_from')} hint={t('confirm.company.newSalaryFromHint')}>
               <input id="edit-effective" type="date" className={inputClasses} value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} />
             </FormField>
-            <FormField label="Reason for the salary change" htmlFor="edit-reason">
+            <FormField label={t('confirm.company.salaryChangeReason')} htmlFor="edit-reason">
               <input id="edit-reason" className={inputClasses} value={reason} onChange={(event) => setReason(event.target.value)} />
             </FormField>
           </>
         )}
-        <FormField label="Add a note" htmlFor="edit-notes">
+        <FormField label={t('confirm.company.addNote')} htmlFor="edit-notes">
           <input id="edit-notes" className={inputClasses} value={notes} onChange={(event) => setNotes(event.target.value)} />
         </FormField>
         <CorrectionReasonField visible={state.needsCorrection} value={correctionReason} onChange={setCorrectionReason} error={err('correction_reason')} />
@@ -413,6 +431,8 @@ export function EditAssignmentDialog({ row, onClose, companyId }: { row: Company
 
 export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: { row: CompanyEmployeeRow | null; onClose: () => void; companyId: number; companyName: string }) {
   const state = useActionState(companyId);
+  const { t } = useI18n();
+  const money = useMoney();
   const [step, setStep] = useState<'form' | 'review'>('form');
   const [picked, setPicked] = useState<CompanyEmployeeCandidate | null>(null);
   const [replacementDate, setReplacementDate] = useState(today());
@@ -466,7 +486,7 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
         reason: reason.trim() || null,
         ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}),
       }),
-    onSuccess: () => state.succeeded('Employee replaced. Both assignments are kept in the history.', onClose),
+    onSuccess: () => state.succeeded(t('notify.company.employeeReplaced'), onClose),
     onError: (error) => {
       state.failed(error);
       setStep('form');
@@ -481,8 +501,8 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
       row?.start_date ?? '',
       row?.employee_id ?? 0,
     ) as Record<string, string | undefined>;
-    if (type === 'replacement' && isTemporaryWorker(picked) && !acknowledgeTemporary) found.replacement_employee_id = 'This person is a Temporary worker. Confirm below that you really want a Replacement, or choose Permanent / correct the registration.';
-    const needed = correctionError(state, correctionReason);
+    if (type === 'replacement' && isTemporaryWorker(picked) && !acknowledgeTemporary) found.replacement_employee_id = t('validation.company.temporaryAcknowledge');
+    const needed = correctionError(state, correctionReason, t);
     if (needed) found.correction_reason = needed;
     setErrors(found);
     if (Object.keys(found).length === 0) setStep('review');
@@ -494,17 +514,17 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
     <Modal
       isOpen={row !== null}
       onClose={onClose}
-      title={row ? `Replace ${row.full_name}` : 'Replace employee'}
+      title={row ? t('confirm.company.replaceTitle', { name: row.full_name ?? '' }) : t('confirm.company.replaceFallbackTitle')}
       footer={
         step === 'form' ? (
           <>
-            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" onClick={review}>Review</Button>
+            <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
+            <Button size="sm" onClick={review}>{t('action.reviewReplacement')}</Button>
           </>
         ) : (
           <>
-            <Button variant="outline" size="sm" onClick={() => setStep('form')} disabled={mutation.isPending}>Back</Button>
-            <Button size="sm" onClick={() => mutation.mutate()} isLoading={mutation.isPending}>Confirm replacement</Button>
+            <Button variant="outline" size="sm" onClick={() => setStep('form')} disabled={mutation.isPending}>{t('action.back')}</Button>
+            <Button size="sm" onClick={() => mutation.mutate()} isLoading={mutation.isPending}>{t('action.confirmReplacement')}</Button>
           </>
         )
       }
@@ -513,35 +533,35 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
       {step === 'form' && row && (
         <form onSubmit={review} noValidate>
           <p className="mb-4 text-xs text-ink-muted">
-            {row.full_name} ({row.employee_number}) at {companyName}, {row.position_name ?? 'no position'}, since {formatDate(row.start_date)}. Their assignment and pay history are kept.
+            {t('confirm.company.replaceIntro', { name: row.full_name ?? '', number: row.employee_number ?? '', company: companyName, position: row.position_name ?? t('option.company.noPosition'), date: formatDate(row.start_date) })}
           </p>
-          <EmployeePicker companyId={companyId} inputId="replace-picker" label="Replacement employee" value={picked} onChange={setPicked} error={err('replacement_employee_id')} excludeIds={[row.employee_id]} />
-          <FormField label="Replacement date (first day of the replacement)" htmlFor="replace-date" required error={err('replacement_date')}>
+          <EmployeePicker companyId={companyId} inputId="replace-picker" label={t('confirm.company.replacementEmployee')} value={picked} onChange={setPicked} error={err('replacement_employee_id')} excludeIds={[row.employee_id]} />
+          <FormField label={t('confirm.company.replacementDate')} htmlFor="replace-date" required error={err('replacement_date')}>
             <input id="replace-date" type="date" className={inputClasses} value={replacementDate} onChange={(event) => setReplacementDate(event.target.value)} />
           </FormField>
-          <FormField label="Last day of the original employee" htmlFor="replace-last" error={err('original_last_day')} hint="Leave empty to use the day before the replacement date. A gap between the two is allowed; an overlap is not.">
+          <FormField label={t('confirm.company.originalLastDay')} htmlFor="replace-last" error={err('original_last_day')} hint={t('confirm.company.originalLastDayHint')}>
             <input id="replace-last" type="date" className={inputClasses} value={lastDay} placeholder={effectiveLastDay} onChange={(event) => setLastDay(event.target.value)} />
           </FormField>
-          <TypeSelect id="replace-type" value={type} onChange={setType} error={err('assignment_type')} hint="Is the replacement meant to be Permanent, or a Replacement who may later be returned from? Choose explicitly." />
+          <TypeSelect id="replace-type" value={type} onChange={setType} error={err('assignment_type')} hint={t('confirm.company.replaceTypeHint')} />
           {type === 'replacement' && isTemporaryWorker(picked) && (
             <div role="alert" className="-mt-2 mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs text-warning" data-testid="temporary-warning">
-              <p className="mb-1.5">{picked?.full_name} is registered as a Temporary worker. Temporary cover is recorded as Temporary cover (paid per verified day), not as a Replacement who takes over the position. Registering them as a Replacement is probably a mistake. Nothing is converted for you. If you go on, your confirmation is recorded in the audit history, but NO payroll line is calculated for these days and payroll for the month cannot be calculated until the employee type (or this record) is corrected.</p>
+              <p className="mb-1.5">{t('warning.company.temporaryAsReplacement', { name: picked?.full_name ?? '' })}</p>
               <label className="flex items-center gap-2">
                 <input type="checkbox" id="replace-ack-temporary" checked={acknowledgeTemporary} onChange={(event) => setAcknowledgeTemporary(event.target.checked)} />
-                I have checked, and I want a Replacement for this person anyway
+                {t('confirm.company.temporaryAcknowledge')}
               </label>
             </div>
           )}
           <PositionSelect id="replace-position" value={positionId} onChange={setPositionId} error={err('position_id')} />
-          <ShiftSelect id="replace-shift" value={shift} onChange={setShift} hint="Empty = the replacement takes over the shift of this position." />
+          <ShiftSelect id="replace-shift" value={shift} onChange={setShift} hint={t('confirm.company.shiftReplaceHint')} />
           {type === 'replacement' ? (
             <p className="mb-4 rounded-md border border-border bg-surface-muted px-3.5 py-2.5 text-xs text-ink-muted" data-testid="inherited-salary">
-              Salary: {money(row.salary.amount, row.salary.currency)}, the monthly salary of {row.full_name}. A Replacement has no salary of its own; it is paid from {row.full_name}'s salary for the calendar days it covers. If that salary changes, the new salary applies to the Replacement for the whole month of the change, not from the day it changed.
+              {t('warning.company.inheritedSalaryReplace', { money: money(row.salary.amount, row.salary.currency), name: row.full_name ?? '' })}
             </p>
           ) : (
             <SalaryFields idPrefix="replace" amount={amount} currency={currency} onAmount={setAmount} onCurrency={setCurrency} errors={{ salary_amount: err('salary_amount'), salary_currency: err('salary_currency') }} />
           )}
-          <FormField label="Reason (optional)" htmlFor="replace-reason">
+          <FormField label={t('confirm.company.reasonOptional')} htmlFor="replace-reason">
             <input id="replace-reason" className={inputClasses} value={reason} onChange={(event) => setReason(event.target.value)} />
           </FormField>
           <CorrectionReasonField visible={state.needsCorrection} value={correctionReason} onChange={setCorrectionReason} error={err('correction_reason')} />
@@ -549,20 +569,20 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
       )}
       {step === 'review' && row && picked && (
         <div>
-          <p className="mb-3 text-sm text-ink">Please check these changes before saving:</p>
+          <p className="mb-3 text-sm text-ink">{t('confirm.company.checkChanges')}</p>
           <Summary
             rows={[
-              ['Company', companyName],
-              ['Position', positionName],
-              ['Original employee', `${row.full_name} (${row.employee_number})`],
-              ['Original last day', formatDate(effectiveLastDay)],
-              ['Replacement employee', `${picked.full_name} (${picked.employee_number})`],
-              ['Replacement starts', formatDate(replacementDate)],
-              ['Replacement is', type === '' ? '—' : ASSIGNMENT_TYPE_LABELS[type]],
-              ['Salary', type === 'replacement' ? `${money(row.salary.amount, row.salary.currency)} (inherited from ${row.full_name})` : money(amount, currency)],
+              [t('confirm.company.summaryCompany'), companyName],
+              [t('confirm.company.summaryPosition'), positionName],
+              [t('confirm.company.summaryOriginalEmployee'), `${row.full_name} (${row.employee_number})`],
+              [t('confirm.company.summaryOriginalLastDay'), formatDate(effectiveLastDay)],
+              [t('confirm.company.summaryReplacementEmployee'), `${picked.full_name} (${picked.employee_number})`],
+              [t('confirm.company.summaryReplacementStarts'), formatDate(replacementDate)],
+              [t('confirm.company.summaryReplacementIs'), type === '' ? '—' : assignmentTypeLabel(type)],
+              [t('confirm.company.summarySalary'), type === 'replacement' ? t('confirm.company.salaryInheritedFrom', { money: money(row.salary.amount, row.salary.currency), name: row.full_name ?? '' }) : money(amount, currency)],
             ]}
           />
-          <p className="text-xs text-ink-muted">The original employee stays an active HR employee. Both assignments stay in the history and no payroll record is changed.</p>
+          <p className="text-xs text-ink-muted">{t('confirm.company.replaceFooterNote')}</p>
         </div>
       )}
     </Modal>
@@ -573,6 +593,8 @@ export function ReplaceEmployeeDialog({ row, onClose, companyId, companyName }: 
 
 export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: { row: CompanyEmployeeRow | null; onClose: () => void; companyId: number; companyName: string }) {
   const state = useActionState(companyId);
+  const { t } = useI18n();
+  const money = useMoney();
   const [returnDate, setReturnDate] = useState(today());
   const [shift, setShift] = useState<ShiftValue | ''>('');
   const [notes, setNotes] = useState('');
@@ -617,7 +639,7 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
         ...(shift !== '' ? { shift } : {}),
         ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}),
       }),
-    onSuccess: () => state.succeeded('Original employee returned. All assignments are kept in the history.', onClose),
+    onSuccess: () => state.succeeded(t('notify.company.employeeReturned'), onClose),
     onError: (e) => {
       state.failed(e);
       setStep('form');
@@ -628,7 +650,7 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
     event.preventDefault();
     state.reset();
     const found: ReturnFormErrors & { correction_reason?: string } = validateReturnForm(returnDate, row?.start_date ?? '', { amount, currency, confirmed: salaryConfirmed });
-    const needed = correctionError(state, correctionReason);
+    const needed = correctionError(state, correctionReason, t);
     if (needed) found.correction_reason = needed;
     setErrors(found);
     if (Object.keys(found).length === 0) setStep('review');
@@ -638,17 +660,17 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
     <Modal
       isOpen={row !== null}
       onClose={onClose}
-      title="Return original employee"
+      title={t('action.returnOriginal')}
       footer={
         step === 'form' ? (
           <>
-            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" onClick={review}>Review</Button>
+            <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
+            <Button size="sm" onClick={review}>{t('action.review')}</Button>
           </>
         ) : (
           <>
-            <Button variant="outline" size="sm" onClick={() => setStep('form')} disabled={mutation.isPending}>Back</Button>
-            <Button size="sm" onClick={() => mutation.mutate()} isLoading={mutation.isPending}>Confirm return</Button>
+            <Button variant="outline" size="sm" onClick={() => setStep('form')} disabled={mutation.isPending}>{t('action.back')}</Button>
+            <Button size="sm" onClick={() => mutation.mutate()} isLoading={mutation.isPending}>{t('action.confirmReturn')}</Button>
           </>
         )
       }
@@ -658,43 +680,43 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
         <>
           <Summary
             rows={[
-              ['Current replacement', `${row.full_name} (${row.employee_number}), since ${formatDate(row.start_date)}`],
-              ['Original employee', original ? `${original.employee_name} (${original.employee_number})` : 'Loading…'],
+              [t('confirm.company.currentReplacement'), t('confirm.company.currentReplacementValue', { name: row.full_name ?? '', number: row.employee_number ?? '', date: formatDate(row.start_date) })],
+              [t('confirm.company.summaryOriginalEmployee'), original ? `${original.employee_name} (${original.employee_number})` : 'Loading…'],
             ]}
           />
           {step === 'form' && (
             <form onSubmit={review} noValidate>
-              <FormField label="Return date (first day back)" htmlFor="return-date" required error={errors.return_date ?? state.serverFields.return_date?.[0]}>
+              <FormField label={t('confirm.company.returnDate')} htmlFor="return-date" required error={errors.return_date ?? state.serverFields.return_date?.[0]}>
                 <input id="return-date" type="date" className={inputClasses} value={returnDate} onChange={(event) => setReturnDate(event.target.value)} />
               </FormField>
               <SalaryFields idPrefix="return" amount={amount} currency={currency} onAmount={(v) => { setAmount(v); setSalaryConfirmed(false); }} onCurrency={(v) => { setCurrency(v); setSalaryConfirmed(false); }} errors={{ salary_amount: errors.salary_amount ?? state.serverFields.salary_amount?.[0], salary_currency: errors.salary_currency ?? state.serverFields.salary_currency?.[0] }} />
-              <p className="-mt-2 mb-3 text-xs text-ink-muted" data-testid="previous-salary">Previous salary: {row.replaces ? money(row.replaces.salary.amount, row.replaces.salary.currency) : 'not known'}. It is only a proposal: change it if the salary is different now.</p>
+              <p className="-mt-2 mb-3 text-xs text-ink-muted" data-testid="previous-salary">{t('confirm.company.previousSalary', { salary: row.replaces ? money(row.replaces.salary.amount, row.replaces.salary.currency) : t('option.company.notKnown') })}</p>
               <div className="mb-4">
                 <label className="flex items-center gap-2 text-sm text-ink">
                   <input type="checkbox" id="return-salary-confirmed" checked={salaryConfirmed} onChange={(event) => setSalaryConfirmed(event.target.checked)} />
-                  I checked this salary for the new Permanent assignment
+                  {t('confirm.company.returnSalaryChecked')}
                 </label>
                 {errors.salary_confirmed && <p role="alert" className="mt-1 text-xs text-danger">{errors.salary_confirmed}</p>}
               </div>
-              <ShiftSelect id="return-shift" value={shift} onChange={setShift} hint="Empty = the returning employee gets the shift of the position as it is run now." />
-              <FormField label="Note (optional)" htmlFor="return-notes">
+              <ShiftSelect id="return-shift" value={shift} onChange={setShift} hint={t('confirm.company.shiftReturnHint')} />
+              <FormField label={t('confirm.company.noteOptional')} htmlFor="return-notes">
                 <input id="return-notes" className={inputClasses} value={notes} onChange={(event) => setNotes(event.target.value)} />
               </FormField>
               <CorrectionReasonField visible={state.needsCorrection} value={correctionReason} onChange={setCorrectionReason} error={errors.correction_reason} />
-              <p className="text-xs text-ink-muted">The original employee gets a NEW Permanent assignment with their original position and the salary you confirm above. The Replacement's assignment ends the day before the return date and everything is kept in the history.</p>
+              <p className="text-xs text-ink-muted">{t('confirm.company.returnFooterNote')}</p>
             </form>
           )}
           {step === 'review' && (
             <div>
-              <p className="mb-3 text-sm text-ink">After you confirm at {companyName}:</p>
+              <p className="mb-3 text-sm text-ink">{t('confirm.company.afterConfirm', { company: companyName })}</p>
               <Summary
                 rows={[
-                  [`${row.full_name}'s assignment`, `ends ${formatDate(dayBefore(returnDate))}`],
-                  [original ? `${original.employee_name}` : 'Original employee', `starts again ${formatDate(returnDate)} as Permanent`],
-                  ['Confirmed salary', money(amount, currency)],
+                  [t('confirm.company.assignmentOfName', { name: row.full_name ?? '' }), t('confirm.company.endsOn', { date: formatDate(dayBefore(returnDate)) })],
+                  [original ? `${original.employee_name}` : t('confirm.company.summaryOriginalEmployee'), t('confirm.company.startsAgainAsPermanent', { date: formatDate(returnDate) })],
+                  [t('confirm.company.confirmedSalary'), money(amount, currency)],
                 ]}
               />
-              <p className="text-xs text-ink-muted">Nothing is deleted: the replacement's assignment, pay, attendance and history all stay.</p>
+              <p className="text-xs text-ink-muted">{t('confirm.company.returnNothingDeleted')}</p>
             </div>
           )}
         </>
@@ -712,6 +734,7 @@ function dayAfter(date: string): string {
 
 export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { row: CompanyEmployeeRow | null; onClose: () => void; companyId: number; companyName: string }) {
   const state = useActionState(companyId);
+  const { t } = useI18n();
   const [endDate, setEndDate] = useState(today());
   const [reason, setReason] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
@@ -736,7 +759,7 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
 
   const mutation = useMutation({
     mutationFn: () => companyEmployeesApi.stop(companyId, row!.assignment_id, { end_date: endDate, reason: reason.trim(), ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}), ...(askSuccessor ? { successor: toSuccessorPayload(successor, endDate) ?? undefined } : {}) }),
-    onSuccess: () => state.succeeded("Assignment stopped. The employee's HR status was not changed.", onClose),
+    onSuccess: () => state.succeeded(t('notify.company.assignmentStopped'), onClose),
     onError: (e) => {
       state.failed(e);
       setConfirming(false);
@@ -747,7 +770,7 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
     event.preventDefault();
     state.reset();
     const found: { end_date?: string; reason?: string; correction_reason?: string; successor?: string } = validateStopForm(endDate, reason, row?.start_date ?? '');
-    const needed = correctionError(state, correctionReason);
+    const needed = correctionError(state, correctionReason, t);
     if (needed) found.correction_reason = needed;
     if (askSuccessor) {
       const missing = validateSuccessor(successor, endDate);
@@ -761,17 +784,17 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
     <Modal
       isOpen={row !== null}
       onClose={onClose}
-      title={row ? `Stop ${row.full_name}` : 'Stop employee'}
+      title={row ? t('confirm.company.stopTitle', { name: row.full_name ?? '' }) : t('confirm.company.stopFallbackTitle')}
       footer={
         confirming ? (
           <>
-            <Button variant="outline" size="sm" onClick={() => setConfirming(false)} disabled={mutation.isPending}>Back</Button>
-            <Button size="sm" onClick={() => mutation.mutate()} isLoading={mutation.isPending}>Yes, stop this assignment</Button>
+            <Button variant="outline" size="sm" onClick={() => setConfirming(false)} disabled={mutation.isPending}>{t('action.back')}</Button>
+            <Button size="sm" onClick={() => mutation.mutate()} isLoading={mutation.isPending}>{t('action.stopYes')}</Button>
           </>
         ) : (
           <>
-            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" onClick={submit}>Continue</Button>
+            <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
+            <Button size="sm" onClick={submit}>{t('action.continue')}</Button>
           </>
         )
       }
@@ -780,12 +803,12 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
       {row && !confirming && (
         <form onSubmit={submit} noValidate>
           <p className="mb-4 text-xs text-ink-muted">
-            This ends only {row.full_name}'s assignment at {companyName}. It does not end their employment or change their HR status — to end employment altogether, use Separation on the employee's HR record. History and payroll are kept, and the position can be given to another registered employee.
+            {t('confirm.company.stopIntro', { name: row.full_name ?? '', company: companyName })}
           </p>
-          <FormField label="Last day at this company" htmlFor="stop-date" required error={errors.end_date ?? state.serverFields.end_date?.[0]}>
+          <FormField label={t('confirm.company.stopLastDay')} htmlFor="stop-date" required error={errors.end_date ?? state.serverFields.end_date?.[0]}>
             <input id="stop-date" type="date" className={inputClasses} value={endDate} onChange={(event) => setEndDate(event.target.value)} />
           </FormField>
-          <FormField label="Reason" htmlFor="stop-reason" required error={errors.reason ?? state.serverFields.reason?.[0]}>
+          <FormField label={t('confirm.company.reason')} htmlFor="stop-reason" required error={errors.reason ?? state.serverFields.reason?.[0]}>
             <input id="stop-reason" className={inputClasses} value={reason} onChange={(event) => setReason(event.target.value)} />
           </FormField>
           {askSuccessor && <SuccessorPicker assignmentId={row.assignment_id} lastDay={endDate} value={successor} onChange={setSuccessor} error={errors.successor ?? state.serverFields.successor?.[0]} idPrefix="stop-successor" />}
@@ -793,7 +816,7 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
         </form>
       )}
       {row && confirming && (
-        <Summary rows={[['Employee', `${row.full_name} (${row.employee_number})`], ['Company', companyName], ['Last day', formatDate(endDate)], ['Reason', reason.trim()], ...(askSuccessor ? [['Replacement', successor.type === 'temporary' ? `A Temporary employee who covered the position (shown as Permanent at once; Permanent assignment and the same salary from ${formatDate(effectiveStart(endDate, successor))})` : `A person from the HR Waiting List (appointed; assigned from ${formatDate(effectiveStart(endDate, successor))})`] as [string, string]] : []), ['HR employment status', 'not changed']]} />
+        <Summary rows={[[t('confirm.company.stopSummaryEmployee'), `${row.full_name} (${row.employee_number})`], [t('confirm.company.summaryCompany'), companyName], [t('confirm.company.stopSummaryLastDay'), formatDate(endDate)], [t('confirm.company.reason'), reason.trim()], ...(askSuccessor ? [[t('confirm.company.stopSummaryReplacement'), successor.type === 'temporary' ? t('confirm.company.stopSummaryTemporaryTakes', { date: formatDate(effectiveStart(endDate, successor)) }) : t('confirm.company.stopSummaryWaitingTakes', { date: formatDate(effectiveStart(endDate, successor)) })] as [string, string]] : []), [t('confirm.company.stopSummaryHrStatus'), t('confirm.company.stopSummaryNotChanged')]]} />
       )}
     </Modal>
   );

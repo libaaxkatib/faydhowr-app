@@ -15,6 +15,10 @@ import { Pagination } from '@/components/ui/Pagination';
 import { Select } from '@/components/ui/Select';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/useToast';
+import type { MessageKey } from '@/i18n/messages';
+import { Msg } from '@/i18n/Msg';
+import { getActiveLanguage } from '@/i18n/active';
+import { useI18n } from '@/i18n/useI18n';
 import { formatDateTime } from '@/utils/formatters';
 import {
   ACTIVATION_PATH_TEXT,
@@ -33,40 +37,49 @@ import {
 } from '@/utils/hrImports';
 import type { ImportBatch, ImportRow, ImportRowStatus, ImportType } from '@/types/hrImport';
 
-const FILTERS: { value: ImportRowStatus | ''; label: string }[] = [
-  { value: '', label: 'All rows' },
-  { value: 'valid', label: 'Ready' },
-  { value: 'review', label: 'Needs review' },
-  { value: 'duplicate', label: 'Already exist' },
-  { value: 'invalid', label: 'Invalid' },
-  { value: 'imported', label: 'Imported' },
-  { value: 'skipped', label: 'Skipped' },
-  { value: 'failed', label: 'Failed' },
+const FILTERS: { value: ImportRowStatus | ''; labelKey: MessageKey }[] = [
+  { value: '', labelKey: 'option.importRow.all' },
+  { value: 'valid', labelKey: 'option.importRow.valid' },
+  { value: 'review', labelKey: 'option.importRow.review' },
+  { value: 'duplicate', labelKey: 'option.importRow.duplicate' },
+  { value: 'invalid', labelKey: 'option.importRow.invalid' },
+  { value: 'imported', labelKey: 'option.importRow.imported' },
+  { value: 'skipped', labelKey: 'option.importRow.skipped' },
+  { value: 'failed', labelKey: 'option.importRow.failed' },
 ];
 
-function errorText(error: unknown): string {
+type Translate = ReturnType<typeof useI18n>['t'];
+
+/** The import type's name in Somali; in English the server's own `type_label` is shown, as before. */
+function batchTypeLabel(batch: Pick<ImportBatch, 'type' | 'type_label'>): string {
+  if (getActiveLanguage() !== 'so') return batch.type_label;
+  return IMPORT_TYPES.find((info) => info.value === batch.type)?.label ?? batch.type_label;
+}
+
+function errorText(error: unknown, fallback: string): string {
   if (error instanceof ApiClientError) return describeImportError(error.code, error.message);
-  return error instanceof Error ? error.message : 'Something went wrong.';
+  return error instanceof Error ? error.message : fallback;
 }
 
 /** The few sheet values worth showing in the preview (the rest stays in the sheet). */
-function rowDetails(row: ImportRow): string {
+function rowDetails(row: ImportRow, t: Translate): string {
   const d = row.details ?? {};
   const report = (row.meta?.report ?? null) as Record<string, string> | null;
 
   if (report) {
     const path = ACTIVATION_PATH_TEXT[report.proposed_path] ?? report.proposed_path;
-    return [report.employee_number, report.current_status && `${report.current_status} → active`, path].filter(Boolean).join(' · ');
+    return [report.employee_number, report.current_status && t('option.imports.detailStatusToActive', { status: report.current_status }), path].filter(Boolean).join(' · ');
   }
 
   const name = (d.full_name ?? d.name) as string | undefined;
   const parts = [name, d.phone as string | undefined, d.category as string | undefined, d.gender as string | undefined].filter(Boolean);
   const candidates = (row.meta?.employee_numbers ?? null) as string[] | null;
-  const suffix = candidates && candidates.length > 0 ? ` (candidates: ${candidates.join(', ')})` : '';
+  const suffix = candidates && candidates.length > 0 ? ` ${t('option.imports.detailCandidates', { list: candidates.join(', ') })}` : '';
   return parts.length > 0 ? parts.join(' · ') + suffix : suffix.trim();
 }
 
 export function ExcelImportsPage() {
+  const { t } = useI18n();
   const { show } = useToast();
   const queryClient = useQueryClient();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -81,7 +94,7 @@ export function ExcelImportsPage() {
 
   const uploadMutation = useMutation({
     mutationFn: () => {
-      if (!file) throw new Error('Choose a file first.');
+      if (!file) throw new Error(t('notify.imports.chooseFileFirst'));
       const problem = checkImportFile(file);
       if (problem) throw new Error(problem);
       return hrImportsApi.upload(type, file);
@@ -91,39 +104,39 @@ export function ExcelImportsPage() {
       if (fileInput.current) fileInput.current.value = '';
       setSelectedId(batch.id);
       queryClient.invalidateQueries({ queryKey: ['hr-imports'] });
-      show('File checked. Review the preview below; nothing has been imported yet.');
+      show(t('notify.imports.fileChecked'));
     },
     onError: (error) => {
       if (error instanceof ApiClientError && error.code === 'DUPLICATE_IMPORT') {
         const existing = (error.fieldErrors as unknown as { existing_batch_id?: number } | undefined)?.existing_batch_id;
         if (existing) setSelectedId(existing);
       }
-      show(errorText(error), 'error');
+      show(errorText(error, t('notify.imports.somethingWrong')), 'error');
     },
   });
 
   const historyColumns: ColumnDef<ImportBatch, unknown>[] = [
     { header: '#', accessorKey: 'id' },
-    { header: 'Type', accessorKey: 'type_label' },
+    { header: t('option.label.type'), accessorKey: 'type_label', cell: ({ row }) => batchTypeLabel(row.original) },
     {
-      header: 'Status',
+      header: t('option.label.status'),
       cell: ({ row }) => <StatusBadge status={row.original.status} label={BATCH_STATUS[row.original.status].label} tone={BATCH_STATUS[row.original.status].tone} />,
     },
     {
-      header: 'Rows',
+      header: t('option.imports.colRows'),
       cell: ({ row }) => {
         const c = row.original.counts;
-        return `${c.total} (${c.imported} imported)`;
+        return t('option.imports.historyRows', { total: c.total, imported: c.imported });
       },
     },
-    { header: 'Uploaded by', cell: ({ row }) => row.original.created_by ?? '—' },
-    { header: 'When', cell: ({ row }) => formatDateTime(row.original.created_at) },
+    { header: t('option.imports.colUploadedBy'), cell: ({ row }) => row.original.created_by ?? '—' },
+    { header: t('option.imports.colWhen'), cell: ({ row }) => formatDateTime(row.original.created_at) },
     {
       header: '',
       id: 'open',
       cell: ({ row }) => (
         <Button size="sm" variant="outline" onClick={() => setSelectedId(row.original.id)}>
-          Open
+          {t('action.open')}
         </Button>
       ),
     },
@@ -131,28 +144,27 @@ export function ExcelImportsPage() {
 
   return (
     <div>
-      <PageHeader title="Excel Imports" breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Excel Imports' }]} />
+      <PageHeader title={t('nav.excelImports')} breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.excelImports') }]} />
 
       <Card className="mb-4">
         <CardHeader>
-          <h3 className="font-display text-sm font-bold text-ink">1. Upload a workbook</h3>
+          <h3 className="font-display text-sm font-bold text-ink">{t('option.imports.uploadHeading')}</h3>
         </CardHeader>
         <CardBody className="space-y-4">
           <p className="text-sm text-ink-muted">
-            Only a Super Admin or an HR Manager with the Import HR Data permission can import. Uploading only <strong>checks</strong> the file and shows a preview. Nothing is
-            added or changed until you confirm, existing records are never updated, and the file itself is not kept.
+            <Msg id="warning.imports.uploadIntro" values={{ checks: <strong>{t('warning.imports.uploadIntroChecks')}</strong> }} />
           </p>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="What are you importing?" htmlFor="import-type">
+            <FormField label={t('option.imports.whatImporting')} htmlFor="import-type">
               <Select
                 id="import-type"
                 value={type}
                 onChange={(e) => setType(e.target.value as ImportType)}
-                options={IMPORT_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+                options={IMPORT_TYPES.map((info) => ({ value: info.value, label: info.label }))}
               />
             </FormField>
-            <FormField label="Excel (.xlsx) or CSV file" htmlFor="import-file" hint="Up to 5 MB and 2,000 rows.">
+            <FormField label={t('option.imports.fileLabel')} htmlFor="import-file" hint={t('warning.imports.fileHint')}>
               <input
                 id="import-file"
                 ref={fileInput}
@@ -167,25 +179,22 @@ export function ExcelImportsPage() {
           <div className="rounded-sm border border-border bg-surface-alt p-3 text-sm">
             <p className="text-ink">{typeInfo.summary}</p>
             <p className="mt-2 text-xs text-ink-muted">
-              <strong>Required columns (first row):</strong> {typeInfo.required.join(', ')}
+              <strong>{t('option.imports.requiredColumns')}</strong> {typeInfo.required.join(', ')}
             </p>
             {typeInfo.optional.length > 0 && (
               <p className="mt-1 text-xs text-ink-muted">
-                <strong>Optional:</strong> {typeInfo.optional.join(', ')}
+                <strong>{t('option.imports.optionalColumns')}</strong> {typeInfo.optional.join(', ')}
               </p>
             )}
             {type === 'employee_registrations' && (
-              <p className="mt-1 text-xs text-ink-muted">
-                An optional payment/account number is saved in its own field and is never shown in the preview. It is never used to match
-                anyone: the registration phone is the only phone used for matching.
-              </p>
+              <p className="mt-1 text-xs text-ink-muted">{t('warning.imports.registrationPaymentNote')}</p>
             )}
           </div>
 
           <div className="flex items-center gap-3">
             <Button isLoading={uploadMutation.isPending} disabled={!file} onClick={() => uploadMutation.mutate()}>
               <Icon name="file-text" size={15} />
-              Check file and show preview
+              {t('action.checkFile')}
             </Button>
             {file && <span className="text-xs text-ink-muted">{file.name}</span>}
           </div>
@@ -196,7 +205,7 @@ export function ExcelImportsPage() {
 
       <Card className="mt-4">
         <CardHeader>
-          <h3 className="font-display text-sm font-bold text-ink">Import history</h3>
+          <h3 className="font-display text-sm font-bold text-ink">{t('option.imports.historyHeading')}</h3>
         </CardHeader>
         <CardBody className="p-0">
           <DataTable
@@ -205,8 +214,8 @@ export function ExcelImportsPage() {
             isLoading={history.isLoading}
             error={history.error}
             onRetry={() => history.refetch()}
-            emptyTitle="No imports yet"
-            emptyDescription="Uploaded workbooks and their results are listed here."
+            emptyTitle={t('option.imports.historyEmptyTitle')}
+            emptyDescription={t('option.imports.historyEmptyBody')}
           />
           {history.data && <Pagination meta={history.data.meta} onPageChange={setHistoryPage} />}
         </CardBody>
@@ -226,6 +235,7 @@ function Tile({ label, value, tone = 'neutral' }: { label: string; value: number
 }
 
 function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
+  const { t, tCount } = useI18n();
   const { show } = useToast();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<ImportRowStatus | ''>('');
@@ -261,7 +271,7 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
           const batch = await hrImportsApi.process(id);
           queryClient.setQueryData(['hr-import', id], batch);
           if (batch.status === 'completed') {
-            show(`Import finished: ${batch.counts.imported} imported, ${batch.counts.skipped} skipped, ${batch.counts.failed} failed.`);
+            show(t('notify.imports.finished', { imported: batch.counts.imported, skipped: batch.counts.skipped, failed: batch.counts.failed }));
             break;
           }
         } catch (error) {
@@ -274,27 +284,27 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
         }
       }
     } catch (error) {
-      show(errorText(error), 'error');
+      show(errorText(error, t('notify.imports.somethingWrong')), 'error');
     } finally {
       running.current = false;
       setIsRunning(false);
       refreshAll();
     }
-  }, [id, queryClient, refreshAll, show]);
+  }, [id, queryClient, refreshAll, show, t]);
 
   const cancelMutation = useMutation({
     mutationFn: () => hrImportsApi.cancel(id),
     onSuccess: () => {
       setCancelOpen(false);
-      show('Import cancelled and its details deleted.');
+      show(t('notify.imports.cancelled'));
       refreshAll();
     },
-    onError: (error) => show(errorText(error), 'error'),
+    onError: (error) => show(errorText(error, t('notify.imports.somethingWrong')), 'error'),
   });
 
   const reportMutation = useMutation({
     mutationFn: () => hrImportsApi.downloadReport(id, filter),
-    onError: (error) => show(errorText(error), 'error'),
+    onError: (error) => show(errorText(error, t('notify.imports.somethingWrong')), 'error'),
   });
 
   const batch = batchQuery.data;
@@ -302,7 +312,7 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
   if (batchQuery.isLoading || !batch) {
     return (
       <Card className="mb-4">
-        <CardBody>{batchQuery.error ? <p className="text-sm text-danger">{errorText(batchQuery.error)}</p> : <p className="text-sm text-ink-muted">Loading…</p>}</CardBody>
+        <CardBody>{batchQuery.error ? <p className="text-sm text-danger">{errorText(batchQuery.error, t('notify.imports.somethingWrong'))}</p> : <p className="text-sm text-ink-muted">{t('option.label.loading')}</p>}</CardBody>
       </Card>
     );
   }
@@ -313,13 +323,13 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
   const progress = progressPercent(batch);
 
   const columns: ColumnDef<ImportRow, unknown>[] = [
-    { header: 'Row', accessorKey: 'row_number' },
+    { header: t('option.imports.colRow'), accessorKey: 'row_number' },
     {
-      header: 'Result',
+      header: t('option.imports.colResult'),
       cell: ({ row }) => <StatusBadge status={row.original.status} label={ROW_STATUS[row.original.status].label} tone={ROW_STATUS[row.original.status].tone} />,
     },
-    { header: 'What it means', cell: ({ row }) => <span title={row.original.message ?? ''}>{rowCodeText(row.original.code) || row.original.message}</span> },
-    { header: 'Details', cell: ({ row }) => <span className="text-xs text-ink-muted">{batch.details_deleted ? 'Deleted' : rowDetails(row.original)}</span> },
+    { header: t('option.imports.colMeaning'), cell: ({ row }) => <span title={row.original.message ?? ''}>{rowCodeText(row.original.code) || row.original.message}</span> },
+    { header: t('option.imports.colDetails'), cell: ({ row }) => <span className="text-xs text-ink-muted">{batch.details_deleted ? t('option.imports.detailsDeleted') : rowDetails(row.original, t)}</span> },
   ];
 
   return (
@@ -328,33 +338,34 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-display text-base font-bold text-ink">
-              Import #{batch.id} · {batch.type_label}
+              {t('option.imports.batchTitle', { id: batch.id, type: batchTypeLabel(batch) })}
             </h3>
             <StatusBadge status={batch.status} label={BATCH_STATUS[batch.status].label} tone={BATCH_STATUS[batch.status].tone} />
           </div>
           <p className="mt-0.5 text-xs text-ink-muted">
-            Uploaded {formatDateTime(batch.created_at)} by {batch.created_by ?? '—'}
-            {batch.confirmed_at ? ` · confirmed ${formatDateTime(batch.confirmed_at)}` : ''}
+            {batch.confirmed_at
+              ? t('option.imports.batchUploadedConfirmed', { when: formatDateTime(batch.created_at), name: batch.created_by ?? '—', confirmed: formatDateTime(batch.confirmed_at) })
+              : t('option.imports.batchUploaded', { when: formatDateTime(batch.created_at), name: batch.created_by ?? '—' })}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" isLoading={reportMutation.isPending} onClick={() => reportMutation.mutate()}>
             <Icon name="file-text" size={14} />
-            Download report (CSV)
+            {t('action.imports.downloadReport')}
           </Button>
           {canCancel(batch) && (
             <Button size="sm" variant="outline" disabled={isRunning} onClick={() => setCancelOpen(true)}>
-              Cancel import
+              {t('action.cancelImport')}
             </Button>
           )}
           {canConfirm(batch) && (
             <Button size="sm" isLoading={isRunning} onClick={() => setConfirmOpen(true)}>
               <Icon name="check" size={14} />
-              Import {c.valid} ready row{c.valid === 1 ? '' : 's'}
+              {tCount('action.importRows', c.valid)}
             </Button>
           )}
           <Button size="sm" variant="ghost" onClick={onClose}>
-            Close
+            {t('action.close')}
           </Button>
         </div>
       </CardHeader>
@@ -362,30 +373,29 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
       <CardBody className="space-y-4">
         {stage === 'preview' && (
           <div className="rounded-sm border border-border bg-secondary-soft p-3 text-sm text-ink">
-            <strong>Preview only.</strong> This checks the approved employee plan and shows how each person would become Active. It
-            never activates anyone and cannot be confirmed. Activating real employees needs its own separate approval.
+            <strong>{t('warning.imports.previewOnlyTitle')}</strong> {t('warning.imports.previewOnlyBody')}
           </div>
         )}
 
         {batch.unrecognised_headers && batch.unrecognised_headers.length > 0 && (
           <p className="text-xs text-ink-muted">
-            Columns that are not imported: {batch.unrecognised_headers.join(', ')}.
+            {t('option.imports.columnsNotImported', { list: batch.unrecognised_headers.join(', ') })}
           </p>
         )}
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-          <Tile label="Rows in the file" value={c.total} />
-          <Tile label="Ready" value={c.valid} tone="success" />
-          <Tile label="Needs review" value={c.review} tone="warning" />
-          <Tile label="Already exist / repeated" value={c.duplicate} />
-          <Tile label="Invalid" value={c.invalid} tone="danger" />
+          <Tile label={t('option.imports.tileTotal')} value={c.total} />
+          <Tile label={t('option.importRow.valid')} value={c.valid} tone="success" />
+          <Tile label={t('option.importRow.review')} value={c.review} tone="warning" />
+          <Tile label={t('option.imports.tileDuplicate')} value={c.duplicate} />
+          <Tile label={t('option.importRow.invalid')} value={c.invalid} tone="danger" />
         </div>
 
         {(stage === 'importing' || stage === 'finished') && (
           <div>
             <div className="mb-1 flex justify-between text-xs text-ink-muted">
               <span>
-                {c.imported} imported · {c.skipped} skipped · {c.failed} failed
+                {t('option.imports.progressCounts', { imported: c.imported, skipped: c.skipped, failed: c.failed })}
               </span>
               <span>{progress}%</span>
             </div>
@@ -394,9 +404,9 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
             </div>
             {stage === 'importing' && !isRunning && (
               <div className="mt-2 flex items-center gap-2 text-xs text-ink-muted">
-                <span>The import stopped before it finished.</span>
+                <span>{t('warning.imports.stopped')}</span>
                 <Button size="sm" variant="outline" onClick={() => void runImport()}>
-                  Continue importing
+                  {t('action.continueImport')}
                 </Button>
               </div>
             )}
@@ -406,7 +416,7 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
         {batch.activation_ready !== undefined && (
           <div className="grid gap-2 md:grid-cols-2">
             <div className="rounded-sm border border-border p-3 text-sm">
-              <p className="font-medium text-success">Activation-ready: {batch.activation_ready}</p>
+              <p className="font-medium text-success">{t('option.imports.activationReady', { n: batch.activation_ready })}</p>
               <ul className="mt-1 space-y-0.5 text-ink-muted">
                 {Object.entries(batch.activation_ready_by_path ?? {}).map(([path, count]) => (
                   <li key={path}>
@@ -416,15 +426,13 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
               </ul>
             </div>
             <div className="rounded-sm border border-border p-3 text-sm">
-              <p className="font-medium text-warning">Genuine conflicts (excluded until corrected): {batch.activation_excluded_total ?? 0}</p>
+              <p className="font-medium text-warning">{t('option.imports.genuineConflicts', { n: batch.activation_excluded_total ?? 0 })}</p>
               <p className="mt-1 text-xs text-ink-muted">
-                An employee whose number or name does not match the plan, whose status changed, or whose pay data is missing. Nothing was
-                matched, created or changed. Download the report for the reason on each row.
+                {t('warning.imports.genuineConflictsBody')}
               </p>
               {(batch.activation_lookalikes_noted ?? 0) > 0 && (
                 <p className="mt-2 text-xs text-ink-muted">
-                  {batch.activation_lookalikes_noted} ready employee(s) have a look-alike record (same name or a different phone). They are
-                  included because their employee number and name match the plan; nothing is merged, archived or changed.
+                  {t('warning.imports.lookalikes', { n: batch.activation_lookalikes_noted ?? 0 })}
                 </p>
               )}
             </div>
@@ -433,7 +441,7 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
 
         {batch.activation_paths && (
           <div className="rounded-sm border border-border p-3 text-sm">
-            <p className="mb-1 font-medium text-ink">How the employees would become Active (all rows checked)</p>
+            <p className="mb-1 font-medium text-ink">{t('option.imports.howBecomeActive')}</p>
             <ul className="space-y-0.5 text-ink-muted">
               {Object.entries(batch.activation_paths).map(([path, count]) => (
                 <li key={path}>
@@ -443,18 +451,14 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
             </ul>
             {batch.activation_warnings && Object.keys(batch.activation_warnings).length > 0 && (
               <p className="mt-2 text-xs text-warning">
-                Warnings: {Object.entries(batch.activation_warnings).map(([w, n]) => `${n} × ${w.replace(/_/g, ' ').toLowerCase()}`).join(', ')}
+                {t('option.imports.warningsList', { list: Object.entries(batch.activation_warnings).map(([w, n]) => `${n} × ${w.replace(/_/g, ' ').toLowerCase()}`).join(', ') })}
               </p>
             )}
           </div>
         )}
 
         <p className="text-xs text-ink-muted">
-          {batch.details_deleted
-            ? 'The personal details for this import have been deleted. Only the counts and result codes remain.'
-            : days !== null
-              ? `Personal details in this preview (names, phone numbers) are deleted automatically in ${days} day${days === 1 ? '' : 's'}.`
-              : ''}
+          {batch.details_deleted ? t('warning.imports.detailsDeleted') : days !== null ? tCount('warning.imports.deletedIn', days) : ''}
         </p>
 
         <div className="flex flex-wrap items-center gap-1">
@@ -468,7 +472,7 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
               }}
               className={`rounded-full border px-3 py-1 text-xs font-medium ${filter === f.value ? 'border-primary bg-primary text-white' : 'border-border text-ink-muted hover:bg-surface-alt'}`}
             >
-              {f.label}
+              {t(f.labelKey)}
             </button>
           ))}
         </div>
@@ -479,16 +483,16 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
           isLoading={rowsQuery.isLoading}
           error={rowsQuery.error}
           onRetry={() => rowsQuery.refetch()}
-          emptyTitle="No rows in this view"
+          emptyTitle={t('option.imports.rowsEmpty')}
         />
         {rowsQuery.data && <Pagination meta={rowsQuery.data.meta} onPageChange={setPage} />}
       </CardBody>
 
       <ConfirmDialog
         isOpen={confirmOpen}
-        title="Import the ready rows?"
-        description={`${c.valid} ready row${c.valid === 1 ? '' : 's'} will be imported. ${c.review + c.duplicate + c.invalid} other row${c.review + c.duplicate + c.invalid === 1 ? '' : 's'} will not be imported. Records that already exist are skipped and never changed. This cannot be undone from this screen.`}
-        confirmLabel="Yes, import"
+        title={t('confirm.imports.importTitle')}
+        description={`${tCount('confirm.imports.willImport', c.valid)} ${tCount('confirm.imports.willNotImport', c.review + c.duplicate + c.invalid)} ${t('confirm.imports.existingSkippedFinal')}`}
+        confirmLabel={t('action.importYes')}
         isLoading={isRunning}
         onConfirm={() => {
           setConfirmOpen(false);
@@ -498,9 +502,9 @@ function BatchPanel({ id, onClose }: { id: number; onClose: () => void }) {
       />
       <ConfirmDialog
         isOpen={cancelOpen}
-        title="Cancel this import?"
-        description="The preview and the personal details in it will be deleted now. Nothing has been imported. You can upload the file again later."
-        confirmLabel="Cancel import"
+        title={t('confirm.imports.cancelTitle')}
+        description={t('confirm.imports.cancelBody')}
+        confirmLabel={t('action.cancelImport')}
         tone="danger"
         isLoading={cancelMutation.isPending}
         onConfirm={() => cancelMutation.mutate()}

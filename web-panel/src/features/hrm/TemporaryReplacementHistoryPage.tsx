@@ -13,8 +13,10 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useDateRangePreset } from '@/hooks/useDateRangePreset';
 import { formatDate } from '@/utils/formatters';
 import type { TemporaryReplacement } from '@/types/employee';
+import { useI18n } from '@/i18n/useI18n';
 
 export function TemporaryReplacementHistoryPage() {
+  const { t, tValue } = useI18n();
   const { preset, setPreset, from, to, setFrom, setTo, options: presetOptions } = useDateRangePreset();
   const [clientCompanyId, setClientCompanyId] = useState('');
   const [page, setPage] = useState(1);
@@ -37,7 +39,7 @@ export function TemporaryReplacementHistoryPage() {
   const columns = useMemo<ColumnDef<TemporaryReplacement, unknown>[]>(
     () => [
       {
-        header: 'Location',
+        header: t('option.label.location'),
         id: 'location',
         cell: ({ row }) => (
           <span className="text-ink">
@@ -46,26 +48,26 @@ export function TemporaryReplacementHistoryPage() {
         ),
       },
       {
-        header: 'Replaced',
+        header: t('option.pipeline.replaced'),
         accessorKey: 'replaced_employee_name',
         cell: ({ row }) => <span className="text-ink">{row.original.replaced_employee_name ?? '—'}</span>,
       },
       {
-        header: 'Replacement',
+        header: t('option.label.replacement'),
         accessorKey: 'replacement_employee_name',
         cell: ({ row }) => <span className="text-ink">{row.original.replacement_employee_name ?? '—'}</span>,
       },
       {
-        header: 'Period',
+        header: t('option.label.period'),
         id: 'period',
         cell: ({ row }) => (
           <span className="text-ink-muted">
-            {formatDate(row.original.start_date)} – {row.original.end_date ? formatDate(row.original.end_date) : 'Ongoing'}
+            {formatDate(row.original.start_date)} – {row.original.end_date ? formatDate(row.original.end_date) : t('option.pipeline.ongoing')}
           </span>
         ),
       },
       {
-        header: 'Total Paid',
+        header: t('option.pipeline.totalPaid'),
         accessorKey: 'total_paid',
         cell: ({ row }) => (
           <span className="text-ink">
@@ -74,21 +76,25 @@ export function TemporaryReplacementHistoryPage() {
         ),
       },
       {
-        header: 'Status',
+        header: t('option.label.status'),
         accessorKey: 'status',
         cell: ({ row }) => (
-          <StatusBadge status={row.original.status} label={row.original.status === 'active' ? 'Active' : 'Ended'} tone={row.original.status === 'active' ? 'warning' : 'neutral'} />
+          <StatusBadge
+            status={row.original.status}
+            label={tValue('status.pipeline.replacement', row.original.status) ?? (row.original.status === 'active' ? 'Active' : 'Ended')}
+            tone={row.original.status === 'active' ? 'warning' : 'neutral'}
+          />
         ),
       },
     ],
-    [],
+    [t, tValue],
   );
 
   return (
     <div>
       <PageHeader
-        title="Temporary Replacement History"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Reports', to: '/hr/reports' }, { label: 'Temporary Replacement History' }]}
+        title={t('nav.temporaryReplacementHistory')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.reports'), to: '/hr/reports' }, { label: t('nav.temporaryReplacementHistory') }]}
       />
 
       <Card className="mb-4">
@@ -137,7 +143,7 @@ export function TemporaryReplacementHistoryPage() {
               setClientCompanyId(e.target.value);
               setPage(1);
             }}
-            placeholder="All companies"
+            placeholder={t('option.pipeline.allCompanies')}
             options={(companies ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
             className="w-48"
           />
@@ -149,8 +155,8 @@ export function TemporaryReplacementHistoryPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          emptyTitle="No temporary replacements"
-          emptyDescription="Replacements appear here once recorded."
+          emptyTitle={t('option.pipeline.noTemporaryReplacements')}
+          emptyDescription={t('option.pipeline.replacementsEmptyDescription')}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

@@ -12,8 +12,9 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { useI18n } from '@/i18n/useI18n';
 import { formatDate } from '@/utils/formatters';
-import { drillLink, dueStateTone, percent } from '@/utils/facility';
+import { COMPLAINT_STATUS_LABELS, drillLink, dueStateTone, percent } from '@/utils/facility';
 import type { FacilityComplaintType, FacilityDueListRow, FacilityReport } from '@/types/facility';
 
 function Tile({ label, value, hint, to }: { label: string; value: string | number; hint?: string; to?: string }) {
@@ -44,6 +45,8 @@ function BarRow({ label, value, max, tone = 'bg-primary', suffix }: { label: str
 }
 
 function DueList({ title, rows, tone }: { title: string; rows: FacilityDueListRow[]; tone: 'danger' | 'warning' }) {
+  const { t } = useI18n();
+
   return (
     <Card>
       <CardHeader>
@@ -52,15 +55,15 @@ function DueList({ title, rows, tone }: { title: string; rows: FacilityDueListRo
       </CardHeader>
       <CardBody>
         {rows.length === 0 ? (
-          <p className="text-sm text-ink-muted">None.</p>
+          <p className="text-sm text-ink-muted">{t('option.facility.none')}</p>
         ) : (
           <ul className="divide-y divide-border">
             {rows.map((row) => (
               <li key={row.client_company_id} className="flex items-center justify-between gap-2 py-2 text-sm">
                 <Link to={`/hr/facility-inspections?company=${row.client_company_id}`} className="font-medium text-primary hover:underline">{row.company}</Link>
                 <span className="text-xs text-ink-muted">
-                  {row.last_inspected_on ? `Last ${formatDate(row.last_inspected_on)}` : 'Never inspected'}
-                  {row.next_due_on ? ` · due ${formatDate(row.next_due_on)}` : ''}
+                  {row.last_inspected_on ? t('option.facility.lastDate', { date: formatDate(row.last_inspected_on) }) : t('option.facility.state.never_inspected')}
+                  {row.next_due_on ? ` · ${t('option.facility.dueDate', { date: formatDate(row.next_due_on) })}` : ''}
                 </span>
               </li>
             ))}
@@ -72,27 +75,28 @@ function DueList({ title, rows, tone }: { title: string; rows: FacilityDueListRo
 }
 
 function Trend({ report }: { report: FacilityReport }) {
+  const { t } = useI18n();
   const max = Math.max(1, ...report.trends.flatMap((m) => [m.inspections, m.complaints_reported, m.complaints_resolved]));
 
   return (
     <div>
       <div className="mb-3 flex flex-wrap gap-4 text-xs text-ink-muted">
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-primary" /> Inspections</span>
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-danger" /> Complaints reported</span>
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-success" /> Complaints resolved</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-primary" /> {t('option.facility.inspections')}</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-danger" /> {t('option.facility.legendReported')}</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-success" /> {t('option.facility.legendResolved')}</span>
       </div>
       <div className="flex items-end gap-3 overflow-x-auto pb-1">
         {report.trends.map((month) => (
           <div key={month.month} className="flex min-w-[3.5rem] flex-col items-center gap-1">
             <div className="flex h-32 items-end gap-1">
               {[
-                { v: month.inspections, c: 'bg-primary', l: 'inspections' },
-                { v: month.complaints_reported, c: 'bg-danger', l: 'complaints reported' },
-                { v: month.complaints_resolved, c: 'bg-success', l: 'complaints resolved' },
+                { v: month.inspections, c: 'bg-primary', l: 'inspections', aria: t('option.facility.barInspectionsAria', { month: month.month, n: month.inspections }) },
+                { v: month.complaints_reported, c: 'bg-danger', l: 'complaints reported', aria: t('option.facility.barReportedAria', { month: month.month, n: month.complaints_reported }) },
+                { v: month.complaints_resolved, c: 'bg-success', l: 'complaints resolved', aria: t('option.facility.barResolvedAria', { month: month.month, n: month.complaints_resolved }) },
               ].map((bar) => (
                 <div key={bar.l} className="flex flex-col items-center justify-end gap-0.5">
                   <span className="text-[10px] font-semibold text-ink">{bar.v}</span>
-                  <div className={`w-3.5 rounded-t-sm ${bar.c}`} style={{ height: `${Math.max(bar.v > 0 ? 3 : 0, Math.round((bar.v / max) * 100))}px` }} role="img" aria-label={`${month.month} ${bar.l}: ${bar.v}`} />
+                  <div className={`w-3.5 rounded-t-sm ${bar.c}`} style={{ height: `${Math.max(bar.v > 0 ? 3 : 0, Math.round((bar.v / max) * 100))}px` }} role="img" aria-label={bar.aria} />
                 </div>
               ))}
             </div>
@@ -109,6 +113,7 @@ function Trend({ report }: { report: FacilityReport }) {
  * filters and links down to the records behind it. Nothing is estimated - "not recorded" is its own number.
  */
 export function FacilityReportPage() {
+  const { t, tValue } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const company = /^\d+$/.test(searchParams.get('company') ?? '') ? (searchParams.get('company') ?? '') : '';
   const type = (['staff', 'customer'].includes(searchParams.get('type') ?? '') ? searchParams.get('type') : '') as FacilityComplaintType | '';
@@ -145,107 +150,107 @@ export function FacilityReportPage() {
 
   return (
     <div>
-      <PageHeader title="Facility Report" breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Reports', to: '/hr/reports' }, { label: 'Facility Report' }]} />
+      <PageHeader title={t('nav.facilityReport')} breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.reports'), to: '/hr/reports' }, { label: t('nav.facilityReport') }]} />
 
       <Card className="mb-4">
         <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-          <Select value={company} onChange={(e) => setParam('company', e.target.value)} placeholder="All companies" aria-label="Company" className="w-52" options={(companies ?? []).map((c) => ({ value: String(c.id), label: c.name }))} />
-          <Select value={type} onChange={(e) => setParam('type', e.target.value)} placeholder="All complaint types" aria-label="Complaint type" className="w-48" options={[{ value: 'staff', label: 'Staff complaints' }, { value: 'customer', label: 'Customer complaints' }]} />
+          <Select value={company} onChange={(e) => setParam('company', e.target.value)} placeholder={t('option.facility.allCompanies')} aria-label={t('option.label.company')} className="w-52" options={(companies ?? []).map((c) => ({ value: String(c.id), label: c.name }))} />
+          <Select value={type} onChange={(e) => setParam('type', e.target.value)} placeholder={t('option.facility.allComplaintTypes')} aria-label={t('option.facility.complaintTypeAria')} className="w-48" options={[{ value: 'staff', label: t('option.facility.typeStaffPlural') }, { value: 'customer', label: t('option.facility.typeCustomerPlural') }]} />
           <label className="flex items-center gap-1.5 text-xs text-ink-muted">
-            From <input type="date" value={from} onChange={(e) => setParam('from', e.target.value)} className={`${inputClasses} w-36`} />
+            {t('option.label.from')} <input type="date" value={from} onChange={(e) => setParam('from', e.target.value)} className={`${inputClasses} w-36`} />
           </label>
           <label className="flex items-center gap-1.5 text-xs text-ink-muted">
-            To <input type="date" value={to} onChange={(e) => setParam('to', e.target.value)} className={`${inputClasses} w-36`} />
+            {t('option.label.to')} <input type="date" value={to} onChange={(e) => setParam('to', e.target.value)} className={`${inputClasses} w-36`} />
           </label>
           {(company || type || from || to) && (
-            <button type="button" onClick={() => setSearchParams({}, { replace: true })} className="text-xs font-semibold text-primary hover:underline">Clear filters</button>
+            <button type="button" onClick={() => setSearchParams({}, { replace: true })} className="text-xs font-semibold text-primary hover:underline">{t('action.facility.clearFilters')}</button>
           )}
-          {data && <span className="ml-auto text-xs text-ink-faint">{formatDate(data.period.from)} to {formatDate(data.period.to)} ({data.period.days} days; default is the last 6 months)</span>}
+          {data && <span className="ml-auto text-xs text-ink-faint">{t('option.facility.reportPeriod', { from: formatDate(data.period.from), to: formatDate(data.period.to), days: data.period.days })}</span>}
         </div>
       </Card>
 
-      {isLoading && <LoadingState label="Loading report…" />}
+      {isLoading && <LoadingState label={t('option.facility.loadingReport')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
 
       {data && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Tile label="Inspections done" value={data.inspections.count} hint={`${data.inspections.companies_inspected} of ${data.inspections.companies_in_scope} companies`} to={inspectionsLink()} />
-            <Tile label="Overdue / due now" value={data.inspections.overdue + data.inspections.due} hint={`${data.inspections.due_soon} due soon`} to={drillLink('/hr/facility-inspections', { state: 'overdue' })} />
-            <Tile label="Never inspected" value={data.inspections.never_inspected} to={drillLink('/hr/facility-inspections', { state: 'never_inspected' })} />
-            <Tile label="Unsatisfactory findings" value={data.items.unsatisfactory_total} hint={`${data.items.uniform_issues} uniform issues`} />
-            <Tile label="Complaints" value={data.complaints.total} hint={`${data.complaints.by_type.staff.total} staff · ${data.complaints.by_type.customer.total} customer`} to={complaintsLink()} />
-            <Tile label="Not resolved yet" value={data.complaints.unresolved} hint={`${data.complaints.answered} answered, awaiting resolution`} to={complaintsLink({ status: 'unresolved' })} />
-            <Tile label="Avg. days to respond" value={data.complaints.average_days_to_response ?? '-'} hint={data.complaints.average_days_to_response === null ? 'No responses recorded' : undefined} />
-            <Tile label="Avg. days to resolve" value={data.complaints.average_days_to_resolution ?? '-'} hint={data.complaints.average_days_to_resolution === null ? 'No resolved complaints' : undefined} />
+            <Tile label={t('option.facility.tileInspectionsDone')} value={data.inspections.count} hint={t('option.facility.tileCompaniesOf', { done: data.inspections.companies_inspected, total: data.inspections.companies_in_scope })} to={inspectionsLink()} />
+            <Tile label={t('option.facility.tileOverdueDue')} value={data.inspections.overdue + data.inspections.due} hint={t('option.facility.tileDueSoon', { n: data.inspections.due_soon })} to={drillLink('/hr/facility-inspections', { state: 'overdue' })} />
+            <Tile label={t('option.facility.state.never_inspected')} value={data.inspections.never_inspected} to={drillLink('/hr/facility-inspections', { state: 'never_inspected' })} />
+            <Tile label={t('option.facility.tileUnsatisfactory')} value={data.items.unsatisfactory_total} hint={t('option.facility.tileUniformIssues', { n: data.items.uniform_issues })} />
+            <Tile label={t('nav.complaints')} value={data.complaints.total} hint={t('option.facility.tileStaffCustomer', { staff: data.complaints.by_type.staff.total, customer: data.complaints.by_type.customer.total })} to={complaintsLink()} />
+            <Tile label={t('option.facility.status.unresolved')} value={data.complaints.unresolved} hint={t('option.facility.tileAnsweredAwaiting', { n: data.complaints.answered })} to={complaintsLink({ status: 'unresolved' })} />
+            <Tile label={t('option.facility.tileAvgRespond')} value={data.complaints.average_days_to_response ?? '-'} hint={data.complaints.average_days_to_response === null ? t('option.facility.tileNoResponses') : undefined} />
+            <Tile label={t('option.facility.tileAvgResolve')} value={data.complaints.average_days_to_resolution ?? '-'} hint={data.complaints.average_days_to_resolution === null ? t('option.facility.tileNoResolved') : undefined} />
           </div>
 
           <Card>
-            <CardHeader><h3 className="font-display text-sm font-bold text-ink">Inspections and complaints by month</h3></CardHeader>
-            <CardBody>{data.trends.length === 0 ? <EmptyState title="No months in this period" /> : <Trend report={data} />}</CardBody>
+            <CardHeader><h3 className="font-display text-sm font-bold text-ink">{t('option.facility.chartByMonth')}</h3></CardHeader>
+            <CardBody>{data.trends.length === 0 ? <EmptyState title={t('option.facility.noMonths')} /> : <Trend report={data} />}</CardBody>
           </Card>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
-              <CardHeader><h3 className="font-display text-sm font-bold text-ink">Unsatisfactory findings by item</h3></CardHeader>
+              <CardHeader><h3 className="font-display text-sm font-bold text-ink">{t('option.facility.chartByItem')}</h3></CardHeader>
               <CardBody>
                 {data.items.unsatisfactory_total === 0 ? (
-                  <p className="text-sm text-ink-muted">No unsatisfactory items in this period.</p>
+                  <p className="text-sm text-ink-muted">{t('option.facility.noUnsatisfactoryItems')}</p>
                 ) : (
-                  data.items.by_item.map((item) => <BarRow key={item.item_key} label={item.label} value={item.unsatisfactory} max={maxItem} tone="bg-danger" suffix={item.checked > 0 ? ` / ${item.checked}` : ''} />)
+                  data.items.by_item.map((item) => <BarRow key={item.item_key} label={tValue('option.facility.item', item.item_key) ?? item.label} value={item.unsatisfactory} max={maxItem} tone="bg-danger" suffix={item.checked > 0 ? ` / ${item.checked}` : ''} />)
                 )}
-                <p className="mt-2 text-xs text-ink-faint">Each bar shows unsatisfactory / times the item was checked.</p>
+                <p className="mt-2 text-xs text-ink-faint">{t('warning.facility.barExplain')}</p>
               </CardBody>
             </Card>
 
             <Card>
-              <CardHeader><h3 className="font-display text-sm font-bold text-ink">Complaints by status</h3></CardHeader>
+              <CardHeader><h3 className="font-display text-sm font-bold text-ink">{t('option.facility.chartByStatus')}</h3></CardHeader>
               <CardBody>
                 {(['open', 'in_progress', 'answered', 'resolved'] as const).map((s) => (
                   <BarRow
                     key={s}
-                    label={{ open: 'New / open', in_progress: 'In progress', answered: 'Answered', resolved: 'Resolved' }[s]}
+                    label={COMPLAINT_STATUS_LABELS[s]}
                     value={data.complaints.by_status[s]}
                     max={Math.max(1, data.complaints.total)}
                     tone={{ open: 'bg-danger', in_progress: 'bg-warning', answered: 'bg-secondary', resolved: 'bg-success' }[s]}
                   />
                 ))}
-                <p className="mt-2 text-xs text-ink-faint">"Answered" means a reply was given; it is not counted as resolved.</p>
+                <p className="mt-2 text-xs text-ink-faint">{t('warning.facility.answeredNotCounted')}</p>
               </CardBody>
             </Card>
 
             <Card>
-              <CardHeader><h3 className="font-display text-sm font-bold text-ink">Documented satisfaction</h3></CardHeader>
+              <CardHeader><h3 className="font-display text-sm font-bold text-ink">{t('option.facility.chartSatisfaction')}</h3></CardHeader>
               <CardBody>
-                <BarRow label="Satisfied (documented)" value={sat?.satisfied ?? 0} max={Math.max(1, satTotal)} tone="bg-success" />
-                <BarRow label="Not satisfied (documented)" value={sat?.not_satisfied ?? 0} max={Math.max(1, satTotal)} tone="bg-danger" />
-                <BarRow label="Not recorded" value={sat?.not_recorded ?? 0} max={Math.max(1, satTotal)} tone="bg-ink-faint" />
+                <BarRow label={t('option.facility.satisfaction.satisfied')} value={sat?.satisfied ?? 0} max={Math.max(1, satTotal)} tone="bg-success" />
+                <BarRow label={t('option.facility.satisfaction.not_satisfied')} value={sat?.not_satisfied ?? 0} max={Math.max(1, satTotal)} tone="bg-danger" />
+                <BarRow label={t('option.facility.satisfaction.not_recorded')} value={sat?.not_recorded ?? 0} max={Math.max(1, satTotal)} tone="bg-ink-faint" />
                 <p className="mt-2 text-xs text-ink-faint">
-                  Of {satTotal} complaint(s), {percent((sat?.satisfied ?? 0) + (sat?.not_satisfied ?? 0), satTotal)} have explicit feedback on record. "Not recorded" is neither good nor bad.
+                  {t('warning.facility.satisfactionShare', { total: satTotal, percent: percent((sat?.satisfied ?? 0) + (sat?.not_satisfied ?? 0), satTotal) })}
                 </p>
               </CardBody>
             </Card>
 
             <Card>
-              <CardHeader><h3 className="font-display text-sm font-bold text-ink">Complaints by type</h3></CardHeader>
+              <CardHeader><h3 className="font-display text-sm font-bold text-ink">{t('option.facility.chartByType')}</h3></CardHeader>
               <CardBody>
-                <BarRow label="Staff complaints" value={data.complaints.by_type.staff.total} max={Math.max(1, data.complaints.total)} tone="bg-primary" />
-                <BarRow label="Customer complaints" value={data.complaints.by_type.customer.total} max={Math.max(1, data.complaints.total)} tone="bg-secondary" />
-                <p className="mt-2 text-xs text-ink-faint">Not resolved: {data.complaints.by_type.staff.unresolved} staff, {data.complaints.by_type.customer.unresolved} customer.</p>
+                <BarRow label={t('option.facility.typeStaffPlural')} value={data.complaints.by_type.staff.total} max={Math.max(1, data.complaints.total)} tone="bg-primary" />
+                <BarRow label={t('option.facility.typeCustomerPlural')} value={data.complaints.by_type.customer.total} max={Math.max(1, data.complaints.total)} tone="bg-secondary" />
+                <p className="mt-2 text-xs text-ink-faint">{t('option.facility.notResolvedByType', { staff: data.complaints.by_type.staff.unresolved, customer: data.complaints.by_type.customer.unresolved })}</p>
               </CardBody>
             </Card>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <DueList title="Overdue" rows={data.schedule_status.overdue} tone="danger" />
-            <DueList title="Never inspected" rows={data.schedule_status.never_inspected} tone="warning" />
+            <DueList title={t('option.facility.state.overdue')} rows={data.schedule_status.overdue} tone="danger" />
+            <DueList title={t('option.facility.state.never_inspected')} rows={data.schedule_status.never_inspected} tone="warning" />
           </div>
 
           {data.infrequent.length > 0 && (
             <Card>
               <CardHeader>
-                <h3 className="font-display text-sm font-bold text-ink">Inspected less often than their own schedule</h3>
-                <button type="button" className="text-xs font-semibold text-primary hover:underline" onClick={() => setShowInfrequent((v) => !v)}>{showInfrequent ? 'Hide' : 'Show'}</button>
+                <h3 className="font-display text-sm font-bold text-ink">{t('option.facility.infrequentTitle')}</h3>
+                <button type="button" className="text-xs font-semibold text-primary hover:underline" onClick={() => setShowInfrequent((v) => !v)}>{showInfrequent ? t('action.facility.hide') : t('action.facility.show')}</button>
               </CardHeader>
               {showInfrequent && (
                 <CardBody>
@@ -253,31 +258,31 @@ export function FacilityReportPage() {
                     {data.infrequent.map((row) => (
                       <li key={row.client_company_id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                         <Link to={`/hr/facility-inspections?company=${row.client_company_id}`} className="font-medium text-primary hover:underline">{row.company}</Link>
-                        <span className="text-xs text-ink-muted">Every {row.frequency_days} days · expected {row.expected_inspections}, done {row.actual_inspections}{row.last_inspected_on ? ` · last ${formatDate(row.last_inspected_on)}` : ''}</span>
+                        <span className="text-xs text-ink-muted">{t('option.facility.infrequentLine', { days: row.frequency_days, expected: row.expected_inspections, done: row.actual_inspections })}{row.last_inspected_on ? ` · ${t('option.facility.lastDateLower', { date: formatDate(row.last_inspected_on) })}` : ''}</span>
                       </li>
                     ))}
                   </ul>
-                  <p className="mt-2 text-xs text-ink-faint">Only companies with a frequency set can be judged; the others are not guessed.</p>
+                  <p className="mt-2 text-xs text-ink-faint">{t('warning.facility.infrequentNote')}</p>
                 </CardBody>
               )}
             </Card>
           )}
 
           <Card>
-            <CardHeader><h3 className="font-display text-sm font-bold text-ink">By company</h3></CardHeader>
+            <CardHeader><h3 className="font-display text-sm font-bold text-ink">{t('option.facility.byCompany')}</h3></CardHeader>
             {data.by_company.length === 0 ? (
-              <EmptyState icon="bar-chart" title="No inspections or complaints in this period" />
+              <EmptyState icon="bar-chart" title={t('option.facility.noActivity')} />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="border-b border-border text-xs uppercase tracking-wide text-ink-muted">
                     <tr>
-                      <th className="px-4 py-2.5 font-semibold">Company / Guri</th>
-                      <th className="px-4 py-2.5 font-semibold">Inspections</th>
-                      <th className="px-4 py-2.5 font-semibold">Complaints</th>
-                      <th className="px-4 py-2.5 font-semibold">Not resolved</th>
-                      <th className="px-4 py-2.5 font-semibold">Satisfied / not</th>
-                      <th className="px-4 py-2.5 font-semibold">Schedule</th>
+                      <th className="px-4 py-2.5 font-semibold">{t('option.label.companyGuri')}</th>
+                      <th className="px-4 py-2.5 font-semibold">{t('option.facility.inspections')}</th>
+                      <th className="px-4 py-2.5 font-semibold">{t('nav.complaints')}</th>
+                      <th className="px-4 py-2.5 font-semibold">{t('option.facility.notResolvedHeader')}</th>
+                      <th className="px-4 py-2.5 font-semibold">{t('option.facility.satisfiedOrNot')}</th>
+                      <th className="px-4 py-2.5 font-semibold">{t('option.facility.scheduleHeader')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -293,7 +298,7 @@ export function FacilityReportPage() {
                         <td className="px-4 py-2.5 text-ink">{row.unresolved_complaints}</td>
                         <td className="px-4 py-2.5 text-ink">{row.satisfied} / {row.not_satisfied}</td>
                         <td className="px-4 py-2.5">
-                          <StatusBadge status={row.state} tone={dueStateTone(row.state)} label={{ overdue: 'Overdue', due: 'Due', due_soon: 'Due soon', never_inspected: 'Never inspected', ok: 'Up to date', no_schedule: 'No frequency set' }[row.state]} />
+                          <StatusBadge status={row.state} tone={dueStateTone(row.state)} label={tValue('option.facility.state', row.state) ?? { overdue: 'Overdue', due: 'Due', due_soon: 'Due soon', never_inspected: 'Never inspected', ok: 'Up to date', no_schedule: 'No frequency set' }[row.state]} />
                         </td>
                       </tr>
                     ))}

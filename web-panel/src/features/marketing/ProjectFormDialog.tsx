@@ -8,6 +8,8 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
+import { useI18n } from '@/i18n/useI18n';
+import type { MessageKey } from '@/i18n/messages';
 import type { MarketingRecord, ResponsiblePartyType } from '@/types/marketing';
 
 interface ProjectFormDialogProps {
@@ -17,11 +19,11 @@ interface ProjectFormDialogProps {
   record?: MarketingRecord;
 }
 
-const PARTY_OPTIONS: { value: ResponsiblePartyType; label: string }[] = [
-  { value: 'company', label: 'Construction Company' },
-  { value: 'engineer', label: 'Engineer' },
-  { value: 'owner', label: 'Owner / Individual' },
-  { value: 'other', label: 'Other Responsible Person' },
+const PARTY_OPTIONS: { value: ResponsiblePartyType; label: string; labelKey: MessageKey }[] = [
+  { value: 'company', label: 'Construction Company', labelKey: 'option.marketing.party.company' },
+  { value: 'engineer', label: 'Engineer', labelKey: 'option.marketing.party.engineer' },
+  { value: 'owner', label: 'Owner / Individual', labelKey: 'option.marketing.party.owner' },
+  { value: 'other', label: 'Other Responsible Person', labelKey: 'option.marketing.party.other' },
 ];
 
 const emptyForm = {
@@ -48,6 +50,7 @@ const emptyForm = {
 export function ProjectFormDialog({ isOpen, onClose, mode, record }: ProjectFormDialogProps) {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   const [form, setForm] = useState(emptyForm);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
@@ -105,14 +108,14 @@ export function ProjectFormDialog({ isOpen, onClose, mode, record }: ProjectForm
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['marketing-records'] });
       if (record) queryClient.invalidateQueries({ queryKey: ['marketing-record', record.id] });
-      show(mode === 'create' ? 'PROJECT registered.' : 'PROJECT updated.');
+      show(mode === 'create' ? t('notify.marketing.recordRegistered', { type: 'PROJECT' }) : t('notify.marketing.recordUpdated', { type: 'PROJECT' }));
       onClose();
     },
     onError: (error) => {
       if (error instanceof ApiClientError && error.isValidation) {
         setFieldErrors(error.fieldErrors ?? {});
       } else {
-        show(error instanceof Error ? error.message : 'Something went wrong.', 'error');
+        show(error instanceof Error ? error.message : t('notify.marketing.somethingWentWrong'), 'error');
       }
     },
   });
@@ -126,93 +129,93 @@ export function ProjectFormDialog({ isOpen, onClose, mode, record }: ProjectForm
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={mode === 'create' ? 'New PROJECT' : 'Edit PROJECT'}
+      title={mode === 'create' ? t('action.marketing.newRecord', { type: 'PROJECT' }) : t('confirm.marketing.editRecord', { type: 'PROJECT' })}
       size="lg"
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>Cancel</Button>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>{t('action.cancel')}</Button>
           <Button size="sm" onClick={handleSubmit} isLoading={mutation.isPending}>
-            {mode === 'create' ? 'Register PROJECT' : 'Save Changes'}
+            {mode === 'create' ? t('action.marketing.registerRecord', { type: 'PROJECT' }) : t('action.saveChanges')}
           </Button>
         </>
       }
     >
       <form onSubmit={handleSubmit}>
-        <FormField label="Responsible party type" htmlFor="responsible_party_type" required error={fieldErrors.responsible_party_type?.[0]}>
+        <FormField label={t('option.marketing.responsiblePartyType')} htmlFor="responsible_party_type" required error={fieldErrors.responsible_party_type?.[0]}>
           <Select
             id="responsible_party_type"
             value={form.responsible_party_type}
             onChange={(e) => setForm({ ...form, responsible_party_type: e.target.value as ResponsiblePartyType })}
-            options={PARTY_OPTIONS}
+            options={PARTY_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
           />
         </FormField>
 
         {form.responsible_party_type === 'company' && (
-          <FormField label="Company name" htmlFor="company_name" required hint="Required only when responsible party is a company." error={fieldErrors.company_name?.[0]}>
+          <FormField label={t('option.marketing.companyName')} htmlFor="company_name" required hint={t('warning.marketing.companyNameHint')} error={fieldErrors.company_name?.[0]}>
             <input id="company_name" className={inputClasses} value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })} />
           </FormField>
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Engineer / responsible person" htmlFor="responsible_person_name" error={fieldErrors.responsible_person_name?.[0]}>
+          <FormField label={t('option.marketing.engineerResponsible')} htmlFor="responsible_person_name" error={fieldErrors.responsible_person_name?.[0]}>
             <input id="responsible_person_name" className={inputClasses} value={form.responsible_person_name} onChange={(e) => setForm({ ...form, responsible_person_name: e.target.value })} />
           </FormField>
-          <FormField label="Phone" htmlFor="phone" error={fieldErrors.phone?.[0]}>
+          <FormField label={t('option.label.phone')} htmlFor="phone" error={fieldErrors.phone?.[0]}>
             <input id="phone" className={inputClasses} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </FormField>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Location" htmlFor="location" error={fieldErrors.location?.[0]}>
+          <FormField label={t('option.label.location')} htmlFor="location" error={fieldErrors.location?.[0]}>
             <input id="location" className={inputClasses} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
           </FormField>
-          <FormField label="Project / building type" htmlFor="project_type" error={fieldErrors.project_type?.[0]}>
-            <input id="project_type" placeholder="e.g. Residential G+3" className={inputClasses} value={form.project_type} onChange={(e) => setForm({ ...form, project_type: e.target.value })} />
+          <FormField label={t('option.marketing.projectBuildingType')} htmlFor="project_type" error={fieldErrors.project_type?.[0]}>
+            <input id="project_type" placeholder={t('option.marketing.projectTypeExample')} className={inputClasses} value={form.project_type} onChange={(e) => setForm({ ...form, project_type: e.target.value })} />
           </FormField>
         </div>
 
-        <FormField label="Project size" htmlFor="project_size" error={fieldErrors.project_size?.[0]}>
+        <FormField label={t('option.marketing.projectSize')} htmlFor="project_size" error={fieldErrors.project_size?.[0]}>
           <input id="project_size" className={inputClasses} value={form.project_size} onChange={(e) => setForm({ ...form, project_size: e.target.value })} />
         </FormField>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Construction completion date" htmlFor="construction_completion_date" error={fieldErrors.construction_completion_date?.[0]}>
+          <FormField label={t('option.marketing.constructionCompletionDate')} htmlFor="construction_completion_date" error={fieldErrors.construction_completion_date?.[0]}>
             <input id="construction_completion_date" type="date" className={inputClasses} value={form.construction_completion_date} onChange={(e) => setForm({ ...form, construction_completion_date: e.target.value })} />
           </FormField>
-          <FormField label="Fayadhowr work date" htmlFor="fayadhowr_work_date" error={fieldErrors.fayadhowr_work_date?.[0]}>
+          <FormField label={t('option.marketing.fayadhowrWorkDate')} htmlFor="fayadhowr_work_date" error={fieldErrors.fayadhowr_work_date?.[0]}>
             <input id="fayadhowr_work_date" type="date" className={inputClasses} value={form.fayadhowr_work_date} onChange={(e) => setForm({ ...form, fayadhowr_work_date: e.target.value })} />
           </FormField>
         </div>
 
         {mode === 'create' && (
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Assigned team" htmlFor="assigned_team_id">
+            <FormField label={t('option.marketing.assignedTeam')} htmlFor="assigned_team_id">
               <Select
                 id="assigned_team_id"
                 value={form.assigned_team_id}
                 onChange={(e) => setForm({ ...form, assigned_team_id: e.target.value })}
-                placeholder="Unassigned"
-                options={(teams ?? []).map((t) => ({ value: String(t.id), label: t.name }))}
+                placeholder={t('option.employees.unassigned')}
+                options={(teams ?? []).map((team) => ({ value: String(team.id), label: team.name }))}
               />
             </FormField>
-            <FormField label="Marketing employee" htmlFor="assigned_admin_id">
+            <FormField label={t('option.marketing.marketingEmployee')} htmlFor="assigned_admin_id">
               <Select
                 id="assigned_admin_id"
                 value={form.assigned_admin_id}
                 onChange={(e) => setForm({ ...form, assigned_admin_id: e.target.value })}
-                placeholder="Unassigned"
+                placeholder={t('option.employees.unassigned')}
                 options={(employees ?? []).map((e) => ({ value: String(e.id), label: e.full_name }))}
               />
             </FormField>
           </div>
         )}
 
-        <FormField label="Description" htmlFor="description" error={fieldErrors.description?.[0]}>
+        <FormField label={t('option.label.description')} htmlFor="description" error={fieldErrors.description?.[0]}>
           <textarea id="description" rows={3} className={inputClasses + ' h-auto py-2'} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </FormField>
 
         {mode === 'edit' && (
-          <FormField label="Feedback" htmlFor="feedback" error={fieldErrors.feedback?.[0]}>
+          <FormField label={t('option.marketing.feedback')} htmlFor="feedback" error={fieldErrors.feedback?.[0]}>
             <textarea id="feedback" rows={3} className={inputClasses + ' h-auto py-2'} value={form.feedback} onChange={(e) => setForm({ ...form, feedback: e.target.value })} />
           </FormField>
         )}

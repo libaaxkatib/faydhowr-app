@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Modal, ModalCancelButton } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/useToast';
+import { Msg } from '@/i18n/Msg';
+import { useI18n } from '@/i18n/useI18n';
 import { duplicateMatchesFromError, errorCodeOf, friendlyErrorMessage } from '@/utils/hrHelpers';
 import { restoreFailureKind, restoreIsReady, restoreLanding, restorePayload } from '@/utils/employeeRestore';
 import type { DuplicateEmployeeMatch, Employee } from '@/types/employee';
@@ -25,6 +27,7 @@ interface Props {
  */
 export function RestoreEmployeeDialog({ isOpen, employee, onClose, onDone }: Props) {
   const { show } = useToast();
+  const { t, tValue } = useI18n();
   const [note, setNote] = useState('');
   const [matches, setMatches] = useState<DuplicateEmployeeMatch[]>([]);
   const [confirmed, setConfirmed] = useState(false);
@@ -45,7 +48,7 @@ export function RestoreEmployeeDialog({ isOpen, employee, onClose, onDone }: Pro
   const mutation = useMutation({
     mutationFn: () => hrApi.employees.restore(employee.id, restorePayload(note, needsConfirmation ? { confirmed, reason: duplicateReason } : null)),
     onSuccess: () => {
-      show(`${employee.full_name} was restored.`);
+      show(t('notify.employees.restored', { name: employee.full_name }));
       onDone();
       onClose();
     },
@@ -56,12 +59,12 @@ export function RestoreEmployeeDialog({ isOpen, employee, onClose, onDone }: Pro
         return;
       }
       if (kind === 'not_archived') {
-        show('This employee is already restored.', 'error');
+        show(t('notify.employees.alreadyRestored'), 'error');
         onDone();
         onClose();
         return;
       }
-      show(friendlyErrorMessage(error, 'Could not restore this employee.'), 'error');
+      show(friendlyErrorMessage(error, t('notify.employees.restoreFailed')), 'error');
     },
   });
 
@@ -69,51 +72,53 @@ export function RestoreEmployeeDialog({ isOpen, employee, onClose, onDone }: Pro
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Restore employee"
+      title={t('action.restoreEmployee')}
       size="sm"
       footer={
         <>
           <ModalCancelButton disabled={mutation.isPending} />
           <Button size="sm" isLoading={mutation.isPending} disabled={!restoreIsReady(needsConfirmation, confirmed, duplicateReason)} onClick={() => mutation.mutate()}>
-            Restore
+            {t('action.restore')}
           </Button>
         </>
       }
     >
       <p className="text-sm text-ink">
-        Restore <strong>{employee.full_name}</strong> ({employee.employee_number}) to the working lists?
+        <Msg id="confirm.employees.restoreBody" values={{ name: <strong>{employee.full_name}</strong>, number: employee.employee_number }} />
       </p>
       <p className="mt-2 text-sm text-ink-muted">
-        They keep their current status (<strong>{employee.status}</strong>) and will appear in <strong>{landing.label}</strong>. Their assignments, documents and
-        history are not changed, and nobody else is affected. The restore is recorded in the audit log.
+        <Msg
+          id="warning.employees.restoreEffect"
+          values={{ status: <strong>{tValue('status', employee.status) ?? employee.status}</strong>, landing: <strong>{landing.label}</strong> }}
+        />
       </p>
 
       <div className="mt-4">
-        <FormField label="Note (optional)" htmlFor="restore-note" hint="Kept in the audit log.">
+        <FormField label={t('option.employees.noteOptional')} htmlFor="restore-note" hint={t('warning.employees.keptInAuditLog')}>
           <textarea id="restore-note" rows={2} maxLength={500} className={inputClasses + ' h-auto py-2'} value={note} onChange={(e) => setNote(e.target.value)} />
         </FormField>
       </div>
 
       {needsConfirmation && (
         <div className="mt-2 rounded-sm border border-danger/40 bg-danger-soft px-3 py-3 text-sm" role="alert">
-          <p className="font-semibold text-danger">A current employee already uses this phone number.</p>
+          <p className="font-semibold text-danger">{t('warning.employees.restorePhoneInUse')}</p>
           <ul className="mt-1.5 space-y-1">
             {matches.map((match) => (
               <li key={match.id} className="text-ink">
-                {match.full_name} ({match.employee_number}, {match.status}){' '}
+                {match.full_name} ({match.employee_number}, {tValue('status', match.status) ?? match.status}){' '}
                 <Link to={`/hr/employees/${match.id}`} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
-                  Open profile
+                  {t('action.employees.openProfile')}
                 </Link>
               </li>
             ))}
           </ul>
           <label className="mt-3 flex items-center gap-2 text-sm text-ink">
             <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
-            This is a different person
+            {t('option.employees.differentPerson')}
           </label>
           {confirmed && (
             <div className="mt-3">
-              <FormField label="Why is this a different person?" htmlFor="restore-duplicate-reason" required hint="At least 10 characters. Kept in the audit log.">
+              <FormField label={t('option.employees.whyDifferentPerson')} htmlFor="restore-duplicate-reason" required hint={t('warning.employees.differentPersonReasonHint')}>
                 <textarea
                   id="restore-duplicate-reason"
                   rows={2}

@@ -7,6 +7,8 @@
 // Temporary Replacements). The backend counts these cards show are asserted equal to the filtered lists in
 // HrDashboardCardDestinationsTest.php.
 
+import { tNow } from '../i18n/active.ts';
+
 export const EMPLOYEE_STATUS_VALUES = ['applicant', 'recruitment', 'practical', 'waiting', 'approved', 'active', 'inactive'] as const;
 export type EmployeeStatusValue = (typeof EMPLOYEE_STATUS_VALUES)[number];
 
@@ -92,7 +94,7 @@ export function categoryTileTo(categoryId: number): string {
  * never mistaken for each other. Every other category keeps its own name.
  */
 export function categoryTileLabel(name: string): string {
-  return name.trim().toLowerCase() === 'office staff' ? 'Office Staff (Category)' : name;
+  return name.trim().toLowerCase() === 'office staff' ? tNow('option.hr.officeStaffCategory') : name;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;

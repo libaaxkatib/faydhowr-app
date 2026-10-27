@@ -11,13 +11,15 @@ import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useDateRangePreset } from '@/hooks/useDateRangePreset';
+import { useI18n } from '@/i18n/useI18n';
+import type { MessageKey } from '@/i18n/messages';
 import { formatDate } from '@/utils/formatters';
 import type { FinancialLedgerRow } from '@/types/employee';
 
-const TYPE_OPTIONS: { value: 'payment' | 'penalty' | 'advance'; label: string }[] = [
-  { value: 'payment', label: 'Payments' },
-  { value: 'penalty', label: 'Penalties' },
-  { value: 'advance', label: 'Advances' },
+const TYPE_OPTIONS: { value: 'payment' | 'penalty' | 'advance'; labelKey: MessageKey }[] = [
+  { value: 'payment', labelKey: 'option.payroll.ledgerPayments' },
+  { value: 'penalty', labelKey: 'option.payroll.penalties' },
+  { value: 'advance', labelKey: 'option.payroll.advances' },
 ];
 
 const TYPE_TONE: Record<string, 'success' | 'danger' | 'warning'> = {
@@ -32,6 +34,7 @@ const TYPE_TONE: Record<string, 'success' | 'danger' | 'warning'> = {
  * the three real tables (tagged by `type`) - nothing is merged server-side.
  */
 export function FinancialLedgerPage() {
+  const { t } = useI18n();
   const { preset, setPreset, from, to, setFrom, setTo, options: presetOptions } = useDateRangePreset();
   const [departmentId, setDepartmentId] = useState('');
   const [type, setType] = useState<'payment' | 'penalty' | 'advance' | ''>('');
@@ -53,17 +56,19 @@ export function FinancialLedgerPage() {
     placeholderData: (previous) => previous,
   });
 
+  const typeOptions = useMemo(() => TYPE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) })), [t]);
+
   const columns = useMemo<ColumnDef<FinancialLedgerRow, unknown>[]>(
     () => [
       {
-        header: 'Type',
+        header: t('option.label.type'),
         accessorKey: 'type',
         cell: ({ row }) => (
-          <StatusBadge status={row.original.type} label={TYPE_OPTIONS.find((o) => o.value === row.original.type)?.label ?? row.original.type} tone={TYPE_TONE[row.original.type]} />
+          <StatusBadge status={row.original.type} label={typeOptions.find((o) => o.value === row.original.type)?.label ?? row.original.type} tone={TYPE_TONE[row.original.type]} />
         ),
       },
       {
-        header: 'Employee',
+        header: t('option.label.employee'),
         id: 'employee',
         cell: ({ row }) => (
           <div className="min-w-0">
@@ -73,12 +78,12 @@ export function FinancialLedgerPage() {
         ),
       },
       {
-        header: 'Date',
+        header: t('option.label.date'),
         accessorKey: 'date',
         cell: ({ row }) => <span className="text-ink-muted">{formatDate(row.original.date)}</span>,
       },
       {
-        header: 'Amount',
+        header: t('option.label.amount'),
         accessorKey: 'amount',
         cell: ({ row }) => (
           <span className="font-semibold text-ink">
@@ -87,19 +92,19 @@ export function FinancialLedgerPage() {
         ),
       },
       {
-        header: 'Reason / Notes',
+        header: t('option.payroll.ledgerReasonNotes'),
         id: 'reason',
         cell: ({ row }) => <span className="text-ink-muted">{row.original.reason ?? row.original.notes ?? '—'}</span>,
       },
     ],
-    [],
+    [t, typeOptions],
   );
 
   return (
     <div>
       <PageHeader
-        title="Financial Ledger"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Reports', to: '/hr/reports' }, { label: 'Financial Ledger' }]}
+        title={t('nav.financialLedger')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.reports'), to: '/hr/reports' }, { label: t('nav.financialLedger') }]}
       />
 
       <Card className="mb-4">
@@ -148,7 +153,7 @@ export function FinancialLedgerPage() {
               setDepartmentId(e.target.value);
               setPage(1);
             }}
-            placeholder="All departments"
+            placeholder={t('option.employees.allDepartments')}
             options={(departments ?? []).map((d) => ({ value: String(d.id), label: d.name }))}
             className="w-44"
           />
@@ -158,8 +163,8 @@ export function FinancialLedgerPage() {
               setType(e.target.value as 'payment' | 'penalty' | 'advance' | '');
               setPage(1);
             }}
-            placeholder="All types"
-            options={TYPE_OPTIONS}
+            placeholder={t('option.facility.allTypes')}
+            options={typeOptions}
             className="w-40"
           />
         </div>
@@ -170,8 +175,8 @@ export function FinancialLedgerPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          emptyTitle="No financial records"
-          emptyDescription="Payments, penalties, and advances appear here once recorded."
+          emptyTitle={t('option.payroll.ledgerEmptyTitle')}
+          emptyDescription={t('option.payroll.ledgerEmptyBody')}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

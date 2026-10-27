@@ -10,13 +10,15 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/useToast';
 import { useAuth } from '@/features/auth/useAuth';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
+import { useI18n } from '@/i18n/useI18n';
+import type { MessageKey } from '@/i18n/messages';
 import { formatCents } from '@/utils/companyEmployees';
 import { formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
-import { CORRECTION_STATUS_LABEL, canManageDebt, canPayUnderpayment, canVoidPayment, canWriteOff, newIdempotencyKey, settlementToday, validateSettlementAmount, validateSettlementDate, validateWriteOffReason } from '@/utils/payrollCorrections';
+import { canManageDebt, correctionStatusLabel, canPayUnderpayment, canVoidPayment, canWriteOff, newIdempotencyKey, settlementToday, validateSettlementAmount, validateSettlementDate, validateWriteOffReason } from '@/utils/payrollCorrections';
 import type { PayrollCorrection, PayrollCorrectionTransaction } from '@/types/payroll';
 
-const KIND_LABEL: Record<PayrollCorrection['kind'], string> = { overpayment: 'Overpaid', underpayment: 'Underpaid' };
+const KIND_LABEL: Record<PayrollCorrection['kind'], MessageKey> = { overpayment: 'option.payroll.kindOverpayment', underpayment: 'option.payroll.kindUnderpayment' };
 const TONE: Record<PayrollCorrection['status'], 'warning' | 'success' | 'info'> = { open: 'warning', recovered: 'success', written_off: 'info', settled: 'success' };
 
 /**
@@ -27,6 +29,7 @@ const TONE: Record<PayrollCorrection['status'], 'warning' | 'success' | 'info'> 
  * The server enforces every rule again; the buttons only mirror it.
  */
 export function PayrollCorrectionsPanel() {
+  const { t } = useI18n();
   const { admin } = useAuth();
   const { hasPermission } = useEffectivePermissions();
   const { data, isLoading, error } = useQuery({ queryKey: ['payroll-corrections'], queryFn: hrApi.payrollRuns.corrections });
@@ -42,78 +45,78 @@ export function PayrollCorrectionsPanel() {
   return (
     <Card className="mt-4" data-testid="payroll-corrections">
       <CardHeader>
-        <h3 className="font-display text-sm font-bold text-ink">Corrections of closed payroll, overpayment recovery and underpayments</h3>
+        <h3 className="font-display text-sm font-bold text-ink">{t('option.payroll.correctionsTitle')}</h3>
       </CardHeader>
       <CardBody>
         <dl className="mb-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-8">
-          <div><dt className="text-xs text-ink-muted">Overpaid in closed months</dt><dd className="font-medium">{money(data.totals.overpaid_cents)}</dd></div>
-          <div><dt className="text-xs text-ink-muted">Recovered so far</dt><dd className="font-medium">{money(data.totals.recovered_cents)}</dd></div>
-          <div><dt className="text-xs text-ink-muted">Written off</dt><dd className="font-medium">{money(data.totals.written_off_cents)}</dd></div>
-          <div><dt className="text-xs text-ink-muted">Debt still owed</dt><dd className="font-medium">{money(data.totals.outstanding_cents)}</dd></div>
-          <div><dt className="text-xs text-ink-muted">Underpaid in closed months</dt><dd className="font-medium">{money(data.totals.underpaid_cents)}</dd></div>
-          <div><dt className="text-xs text-ink-muted">Underpayments paid</dt><dd className="font-medium">{money(data.totals.underpayments_paid_cents)}</dd></div>
-          <div><dt className="text-xs text-ink-muted">Still to pay to employees</dt><dd className="font-medium">{money(data.totals.underpayments_outstanding_cents)}</dd></div>
-          <div><dt className="text-xs text-ink-muted">Payroll payments voided</dt><dd className="font-medium">{money(data.totals.payroll_payments_voided_cents ?? 0)}</dd></div>
+          <div><dt className="text-xs text-ink-muted">{t('option.payroll.totalOverpaid')}</dt><dd className="font-medium">{money(data.totals.overpaid_cents)}</dd></div>
+          <div><dt className="text-xs text-ink-muted">{t('option.payroll.totalRecovered')}</dt><dd className="font-medium">{money(data.totals.recovered_cents)}</dd></div>
+          <div><dt className="text-xs text-ink-muted">{t('status.payroll.correction.written_off')}</dt><dd className="font-medium">{money(data.totals.written_off_cents)}</dd></div>
+          <div><dt className="text-xs text-ink-muted">{t('option.payroll.totalDebtOwed')}</dt><dd className="font-medium">{money(data.totals.outstanding_cents)}</dd></div>
+          <div><dt className="text-xs text-ink-muted">{t('option.payroll.totalUnderpaid')}</dt><dd className="font-medium">{money(data.totals.underpaid_cents)}</dd></div>
+          <div><dt className="text-xs text-ink-muted">{t('option.payroll.totalUnderpaymentsPaid')}</dt><dd className="font-medium">{money(data.totals.underpayments_paid_cents)}</dd></div>
+          <div><dt className="text-xs text-ink-muted">{t('option.payroll.totalStillToPay')}</dt><dd className="font-medium">{money(data.totals.underpayments_outstanding_cents)}</dd></div>
+          <div><dt className="text-xs text-ink-muted">{t('option.payroll.paymentsVoided')}</dt><dd className="font-medium">{money(data.totals.payroll_payments_voided_cents ?? 0)}</dd></div>
         </dl>
         <p className="mb-3 text-xs text-ink-muted">
-          The closed month is never changed. An overpayment is taken from the employee's later salaries (never more than that month's pay, and from the final salary when they leave); what is left stays a debt that a Super Admin or an HR Manager manages here. A Super Admin can write off what cannot be recovered (with a reason; the debt and its history stay). An underpayment is owed to the employee and is paid only by a Super Admin, as a separate recorded payment, which only a Super Admin can void (a linked reversal is added; nothing is deleted).
+          {t('warning.payroll.correctionsExplain')}
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="text-xs text-ink-muted">
               <tr>
-                <th className="py-1.5 pr-3 font-medium">Employee</th>
-                <th className="py-1.5 pr-3 font-medium">Month</th>
-                <th className="py-1.5 pr-3 font-medium">Recorded</th>
-                <th className="py-1.5 pr-3 font-medium">Should have been</th>
-                <th className="py-1.5 pr-3 font-medium">Difference</th>
-                <th className="py-1.5 pr-3 font-medium">Settled so far</th>
-                <th className="py-1.5 pr-3 font-medium">Still open</th>
-                <th className="py-1.5 pr-3 font-medium">Status</th>
-                <th className="py-1.5 pr-3 font-medium">Reason and who</th>
-                <th className="py-1.5 font-medium">Action</th>
+                <th className="py-1.5 pr-3 font-medium">{t('option.label.employee')}</th>
+                <th className="py-1.5 pr-3 font-medium">{t('option.label.month')}</th>
+                <th className="py-1.5 pr-3 font-medium">{t('option.payroll.colRecorded')}</th>
+                <th className="py-1.5 pr-3 font-medium">{t('option.payroll.colShouldHaveBeen')}</th>
+                <th className="py-1.5 pr-3 font-medium">{t('option.payroll.colDifference')}</th>
+                <th className="py-1.5 pr-3 font-medium">{t('option.payroll.colSettled')}</th>
+                <th className="py-1.5 pr-3 font-medium">{t('status.payroll.correction.open')}</th>
+                <th className="py-1.5 pr-3 font-medium">{t('option.label.status')}</th>
+                <th className="py-1.5 pr-3 font-medium">{t('option.payroll.colReasonWho')}</th>
+                <th className="py-1.5 font-medium">{t('option.payroll.colAction')}</th>
               </tr>
             </thead>
             <tbody>
               {data.corrections.map((c) => (
                 <tr key={c.id} className="border-t border-border align-top">
-                  <td className="py-2 pr-3">{c.employee_name} <span className="text-xs text-ink-muted">({c.employee_number})</span>{c.needs_follow_up && <span className="mt-1 block text-xs text-warning">No longer paid by payroll: follow up the debt here</span>}</td>
+                  <td className="py-2 pr-3">{c.employee_name} <span className="text-xs text-ink-muted">({c.employee_number})</span>{c.needs_follow_up && <span className="mt-1 block text-xs text-warning">{t('warning.payroll.followUpDebt')}</span>}</td>
                   <td className="py-2 pr-3">{c.period}</td>
                   <td className="py-2 pr-3">{money(c.recorded_net_cents)}</td>
                   <td className="py-2 pr-3">{money(c.corrected_net_cents)}</td>
-                  <td className="py-2 pr-3">{KIND_LABEL[c.kind]} {money(Math.abs(c.difference_cents))}</td>
+                  <td className="py-2 pr-3">{t(KIND_LABEL[c.kind])} {money(Math.abs(c.difference_cents))}</td>
                   <td className="py-2 pr-3">
-                    {c.kind === 'overpayment' ? `${money(c.recovered_cents)} payroll + ${money(c.repaid_cents)} repaid + ${money(c.written_off_cents)} written off` : money(c.paid_cents)}
+                    {c.kind === 'overpayment' ? t('option.payroll.settledBreakdown', { payroll: money(c.recovered_cents), repaid: money(c.repaid_cents), writtenOff: money(c.written_off_cents) }) : money(c.paid_cents)}
                     {c.recoveries.length > 0 && (
-                      <span className="block text-xs text-ink-muted">{c.recoveries.map((r) => `${r.period}: ${money(r.amount_cents)}${r.status === 'scheduled' ? ' (draft)' : ''}`).join('; ')}</span>
+                      <span className="block text-xs text-ink-muted">{c.recoveries.map((r) => (r.status === 'scheduled' ? t('option.payroll.recoveryDraft', { period: r.period, amount: money(r.amount_cents) }) : `${r.period}: ${money(r.amount_cents)}`)).join('; ')}</span>
                     )}
-                    {c.transactions.map((t) => (
-                      <span key={t.id} className="block text-xs text-ink-muted">
-                        {t.transaction_date ? formatDate(t.transaction_date) : ''}: {TX_LABEL[t.type]} {money(t.amount_cents)}
-                        {t.recorded_by ? ` by ${t.recorded_by}` : ''}{t.note ? ` — ${t.note}` : ''}{t.reason ? ` — reason: ${t.reason}` : ''}
-                        {t.balance_before_cents !== null && t.balance_after_cents !== null ? ` (balance ${money(t.balance_before_cents)} → ${money(t.balance_after_cents)})` : ''}
-                        {t.voided ? ` (voided${t.void_reason ? `: ${t.void_reason}` : ''})` : (
+                    {c.transactions.map((tx) => (
+                      <span key={tx.id} className="block text-xs text-ink-muted">
+                        {tx.transaction_date ? formatDate(tx.transaction_date) : ''}: {t(TX_LABEL[tx.type])} {money(tx.amount_cents)}
+                        {tx.recorded_by ? ` ${t('option.payroll.txBy', { name: tx.recorded_by })}` : ''}{tx.note ? ` — ${tx.note}` : ''}{tx.reason ? ` — ${t('option.payroll.txReason', { reason: tx.reason })}` : ''}
+                        {tx.balance_before_cents !== null && tx.balance_after_cents !== null ? ` ${t('option.payroll.txBalance', { from: money(tx.balance_before_cents), to: money(tx.balance_after_cents) })}` : ''}
+                        {tx.voided ? ` ${tx.void_reason ? t('option.payroll.txVoidedReason', { reason: tx.void_reason }) : t('option.payroll.txVoided')}` : (
                           mayManage && (
-                            (t.type === 'debt_repayment' && canManageDebt(admin?.role)) || (t.type === 'underpayment_payment' && canVoidPayment(admin?.role))
+                            (tx.type === 'debt_repayment' && canManageDebt(admin?.role)) || (tx.type === 'underpayment_payment' && canVoidPayment(admin?.role))
                           ) && (
-                            <button type="button" className="ml-2 underline" onClick={() => setVoiding({ correction: c, transaction: t })}>void</button>
+                            <button type="button" className="ml-2 underline" onClick={() => setVoiding({ correction: c, transaction: tx })}>{t('action.payroll.voidLink')}</button>
                           )
                         )}
                       </span>
                     ))}
                   </td>
                   <td className="py-2 pr-3">{money(c.outstanding_cents)}</td>
-                  <td className="py-2 pr-3"><StatusBadge status={c.status} label={CORRECTION_STATUS_LABEL[c.status] ?? c.status} tone={TONE[c.status]} /></td>
+                  <td className="py-2 pr-3"><StatusBadge status={c.status} label={correctionStatusLabel(c.status)} tone={TONE[c.status]} /></td>
                   <td className="py-2 pr-3 text-xs text-ink-muted">{c.reason}<br />{c.corrected_by ?? '—'}{c.corrected_at ? `, ${formatDate(c.corrected_at)}` : ''}</td>
                   <td className="py-2">
                     <div className="flex flex-col gap-1">
                       {mayDo(c) && (
                         <Button size="sm" variant="outline" onClick={() => setDialog({ correction: c, mode: 'settle' })}>
-                          {c.kind === 'underpayment' ? 'Record payment' : 'Record repayment'}
+                          {c.kind === 'underpayment' ? t('action.payroll.recordPayment') : t('action.payroll.recordRepayment')}
                         </Button>
                       )}
                       {mayManage && c.kind === 'overpayment' && c.available_to_settle_cents > 0 && canWriteOff(admin?.role) && (
-                        <Button size="sm" variant="outline" onClick={() => setDialog({ correction: c, mode: 'write_off' })}>Write off</Button>
+                        <Button size="sm" variant="outline" onClick={() => setDialog({ correction: c, mode: 'write_off' })}>{t('action.payroll.writeOff')}</Button>
                       )}
                     </div>
                   </td>
@@ -124,16 +127,16 @@ export function PayrollCorrectionsPanel() {
         </div>
         {(data.payroll_payment_voids?.length ?? 0) > 0 && (
           <div className="mt-5" data-testid="payroll-payment-voids">
-            <h4 className="mb-2 text-sm font-semibold text-ink">Payroll payments voided</h4>
-            <p className="mb-2 text-xs text-ink-muted">A payment marked paid was cancelled by a Super Admin or an HR Manager. The original payment stays in the payment ledger; a linked reversal of the same amount was added, and the payroll line can be paid again.</p>
+            <h4 className="mb-2 text-sm font-semibold text-ink">{t('option.payroll.paymentsVoided')}</h4>
+            <p className="mb-2 text-xs text-ink-muted">{t('warning.payroll.voidsExplain')}</p>
             <table className="w-full text-left text-sm">
               <thead className="text-xs text-ink-muted">
                 <tr>
-                  <th className="py-1.5 pr-3 font-medium">Employee</th>
-                  <th className="py-1.5 pr-3 font-medium">Month</th>
-                  <th className="py-1.5 pr-3 font-medium">Amount voided</th>
-                  <th className="py-1.5 pr-3 font-medium">Payments (original → reversal)</th>
-                  <th className="py-1.5 font-medium">Reason and who</th>
+                  <th className="py-1.5 pr-3 font-medium">{t('option.label.employee')}</th>
+                  <th className="py-1.5 pr-3 font-medium">{t('option.label.month')}</th>
+                  <th className="py-1.5 pr-3 font-medium">{t('option.payroll.colAmountVoided')}</th>
+                  <th className="py-1.5 pr-3 font-medium">{t('option.payroll.colPaymentsOriginalReversal')}</th>
+                  <th className="py-1.5 font-medium">{t('option.payroll.colReasonWho')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -162,14 +165,15 @@ function useRefresh() {
   return () => queryClient.invalidateQueries({ queryKey: ['payroll-corrections'] });
 }
 
-const TX_LABEL: Record<PayrollCorrectionTransaction['type'], string> = {
-  underpayment_payment: 'paid',
-  underpayment_payment_reversal: 'payment reversed',
-  debt_repayment: 'repaid',
-  debt_write_off: 'written off',
+const TX_LABEL: Record<PayrollCorrectionTransaction['type'], MessageKey> = {
+  underpayment_payment: 'option.payroll.txPaid',
+  underpayment_payment_reversal: 'option.payroll.txReversed',
+  debt_repayment: 'option.payroll.txRepaid',
+  debt_write_off: 'option.payroll.txWrittenOff',
 };
 
 function SettlementDialog({ correction, mode, onClose }: { correction: PayrollCorrection; mode: 'settle' | 'write_off'; onClose: () => void }) {
+  const { t } = useI18n();
   const refresh = useRefresh();
   const { show } = useToast();
   const isWriteOff = mode === 'write_off';
@@ -185,8 +189,8 @@ function SettlementDialog({ correction, mode, onClose }: { correction: PayrollCo
 
   const mutation = useMutation({
     mutationFn: () => hrApi.payrollRuns.recordCorrectionTransaction(correction.id, { type: isWriteOff ? 'debt_write_off' : isPayment ? 'underpayment_payment' : 'debt_repayment', amount: Number(amount), transaction_date: date, note: note.trim() || null, ...(isWriteOff ? { reason: reason.trim() } : {}), idempotency_key: key }),
-    onSuccess: () => { refresh(); show(isWriteOff ? 'Debt written off.' : isPayment ? 'Payment recorded.' : 'Repayment recorded.'); onClose(); },
-    onError: (e) => setServerError(friendlyErrorMessage(e, 'Nothing was recorded.')),
+    onSuccess: () => { refresh(); show(isWriteOff ? t('notify.payroll.debtWrittenOff') : isPayment ? t('notify.payroll.paymentRecorded') : t('notify.payroll.repaymentRecorded')); onClose(); },
+    onError: (e) => setServerError(friendlyErrorMessage(e, t('notify.payroll.nothingRecorded'))),
   });
 
   const ready = amount !== '' && validateSettlementAmount(amount, correction.available_to_settle_cents) === null && validateSettlementDate(date) === null && (!isWriteOff || validateWriteOffReason(reason) === null);
@@ -195,35 +199,40 @@ function SettlementDialog({ correction, mode, onClose }: { correction: PayrollCo
     <Modal
       isOpen
       onClose={onClose}
-      title={isWriteOff ? 'Write off part of the debt' : isPayment ? 'Record payment of an underpayment' : 'Record a repayment of the debt'}
+      title={isWriteOff ? t('confirm.payroll.writeOffTitle') : isPayment ? t('confirm.payroll.settlePaymentTitle') : t('confirm.payroll.settleRepaymentTitle')}
       size="sm"
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>Cancel</Button>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>{t('action.cancel')}</Button>
           <Button size="sm" isLoading={mutation.isPending} disabled={!ready} onClick={() => { setServerError(null); mutation.mutate(); }}>
-            {isWriteOff ? 'Write off' : isPayment ? 'Record payment' : 'Record repayment'}
+            {isWriteOff ? t('action.payroll.writeOff') : isPayment ? t('action.payroll.recordPayment') : t('action.payroll.recordRepayment')}
           </Button>
         </>
       }
     >
       {serverError && <div role="alert" className="mb-4 rounded-md border border-danger/30 bg-danger-soft px-3.5 py-2.5 text-sm text-danger">{serverError}</div>}
       <p className="mb-3 text-sm text-ink-muted">
-        {correction.employee_name} ({correction.employee_number}), {correction.period}: {isPayment ? 'owed to the employee' : 'still owed by the employee'} {money(correction.outstanding_cents)}
-        {correction.kind === 'overpayment' && correction.scheduled_cents > 0 ? `, of which ${money(correction.scheduled_cents)} is already scheduled in a draft payroll` : ''}.
-        {isWriteOff ? ' A write-off forgives this part of the debt. The debt record and its history are kept, the write-off is audited with your reason, and it cannot be undone silently.' : isPayment ? ' This records a payment you have made; it is kept as its own transaction and in the payment ledger. The closed payroll month is not changed.' : ' This records money the employee gave back outside payroll; it is kept as its own transaction.'}
+        {t(isPayment ? 'confirm.payroll.settleOwedToEmployee' : 'confirm.payroll.settleOwedByEmployee', {
+          name: correction.employee_name ?? '',
+          number: correction.employee_number ?? '',
+          period: correction.period,
+          amount: money(correction.outstanding_cents),
+        })}
+        {correction.kind === 'overpayment' && correction.scheduled_cents > 0 ? t('confirm.payroll.settleScheduled', { amount: money(correction.scheduled_cents) }) : ''}.
+        {` ${t(isWriteOff ? 'confirm.payroll.writeOffTail' : isPayment ? 'confirm.payroll.paymentTail' : 'confirm.payroll.repaymentTail')}`}
       </p>
-      <FormField label="Amount (USD)" htmlFor="settle-amount" required error={problem ?? undefined} hint={`At most ${money(correction.available_to_settle_cents)}.`}>
+      <FormField label={t('option.payroll.amountUsd')} htmlFor="settle-amount" required error={problem ?? undefined} hint={t('validation.payroll.amountAtMost', { amount: money(correction.available_to_settle_cents) })}>
         <input id="settle-amount" type="number" step="0.01" min="0" className={inputClasses} value={amount} onChange={(e) => setAmount(e.target.value)} />
       </FormField>
-      <FormField label="Date" htmlFor="settle-date" required error={validateSettlementDate(date) ?? undefined} hint="Dates follow the Mogadishu calendar.">
+      <FormField label={t('option.payroll.date')} htmlFor="settle-date" required error={validateSettlementDate(date) ?? undefined} hint={t('option.payroll.datesMogadishu')}>
         <input id="settle-date" type="date" max={settlementToday()} className={inputClasses} value={date} onChange={(e) => setDate(e.target.value)} />
       </FormField>
       {isWriteOff && (
-        <FormField label="Reason for the write-off" htmlFor="settle-reason" required error={reason !== '' ? validateWriteOffReason(reason) ?? undefined : undefined} hint="Required, at least 5 characters. Kept in the audit history.">
+        <FormField label={t('option.payroll.writeOffReason')} htmlFor="settle-reason" required error={reason !== '' ? validateWriteOffReason(reason) ?? undefined : undefined} hint={t('validation.payroll.writeOffReasonHint')}>
           <input id="settle-reason" maxLength={500} className={inputClasses} value={reason} onChange={(e) => setReason(e.target.value)} />
         </FormField>
       )}
-      <FormField label="Note (optional)" htmlFor="settle-note">
+      <FormField label={t('option.payroll.noteOptional')} htmlFor="settle-note">
         <input id="settle-note" maxLength={500} className={inputClasses} value={note} onChange={(e) => setNote(e.target.value)} />
       </FormField>
     </Modal>
@@ -231,36 +240,38 @@ function SettlementDialog({ correction, mode, onClose }: { correction: PayrollCo
 }
 
 function VoidDialog({ correction, transaction, onClose }: { correction: PayrollCorrection; transaction: PayrollCorrectionTransaction; onClose: () => void }) {
+  const { t } = useI18n();
   const refresh = useRefresh();
   const { show } = useToast();
   const [reason, setReason] = useState('');
   const [serverError, setServerError] = useState<string | null>(null);
   const mutation = useMutation({
     mutationFn: () => hrApi.payrollRuns.voidCorrectionTransaction(correction.id, transaction.id, reason.trim()),
-    onSuccess: () => { refresh(); show(transaction.type === 'underpayment_payment' ? 'Payment voided: a linked reversal was recorded.' : 'Repayment voided. The debt is restored.'); onClose(); },
-    onError: (e) => setServerError(friendlyErrorMessage(e, 'Nothing was changed.')),
+    onSuccess: () => { refresh(); show(transaction.type === 'underpayment_payment' ? t('notify.payroll.correctionPaymentVoided') : t('notify.payroll.repaymentVoided')); onClose(); },
+    onError: (e) => setServerError(friendlyErrorMessage(e, t('notify.payroll.nothingChanged'))),
   });
 
   return (
     <Modal
       isOpen
       onClose={onClose}
-      title={transaction.type === 'underpayment_payment' ? 'Void a payment to the employee' : 'Void a repayment'}
+      title={transaction.type === 'underpayment_payment' ? t('confirm.payroll.voidPaymentToEmployeeTitle') : t('confirm.payroll.voidRepaymentTitle')}
       size="sm"
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>Cancel</Button>
-          <Button size="sm" isLoading={mutation.isPending} disabled={reason.trim().length < 5} onClick={() => { setServerError(null); mutation.mutate(); }}>{transaction.type === 'underpayment_payment' ? 'Void payment' : 'Void repayment'}</Button>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>{t('action.cancel')}</Button>
+          <Button size="sm" isLoading={mutation.isPending} disabled={reason.trim().length < 5} onClick={() => { setServerError(null); mutation.mutate(); }}>{transaction.type === 'underpayment_payment' ? t('action.voidPayment') : t('action.payroll.voidRepayment')}</Button>
         </>
       }
     >
       {serverError && <div role="alert" className="mb-4 rounded-md border border-danger/30 bg-danger-soft px-3.5 py-2.5 text-sm text-danger">{serverError}</div>}
       <p className="mb-3 text-sm text-ink-muted">
-        {transaction.type === 'underpayment_payment'
-          ? `Voiding keeps the payment and adds a linked reversal of ${formatCents(transaction.amount_cents, correction.currency)} to the payment ledger; the amount is owed to ${correction.employee_name} again. Nothing is deleted.`
-          : `Voiding keeps the repayment in the history and puts ${formatCents(transaction.amount_cents, correction.currency)} back on the debt of ${correction.employee_name}.`}
+        {t(transaction.type === 'underpayment_payment' ? 'confirm.payroll.voidPaymentToEmployeeBody' : 'confirm.payroll.voidRepaymentBody', {
+          amount: formatCents(transaction.amount_cents, correction.currency),
+          name: correction.employee_name ?? '',
+        })}
       </p>
-      <FormField label="Reason" htmlFor="void-reason" required hint="At least 5 characters. Kept in the audit history.">
+      <FormField label={t('option.payroll.reason')} htmlFor="void-reason" required hint={t('validation.payroll.reasonHint5')}>
         <input id="void-reason" maxLength={500} className={inputClasses} value={reason} onChange={(e) => setReason(e.target.value)} />
       </FormField>
     </Modal>

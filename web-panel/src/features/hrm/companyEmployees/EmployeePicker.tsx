@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { companyEmployeesApi } from '@/api/companyEmployees';
 import { inputClasses } from '@/components/ui/FormField';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useI18n } from '@/i18n/useI18n';
 import type { CompanyEmployeeCandidate } from '@/types/companyEmployees';
 
 interface EmployeePickerProps {
@@ -24,6 +25,7 @@ interface EmployeePickerProps {
  * person is not in the list, their HR record has to be registered first.
  */
 export function EmployeePicker({ companyId, value, onChange, label, error, excludeIds = [], inputId }: EmployeePickerProps) {
+  const { t, tValue } = useI18n();
   const [term, setTerm] = useState('');
   const debounced = useDebouncedValue(term.trim(), 300);
   const enabled = debounced.length >= 2;
@@ -45,13 +47,13 @@ export function EmployeePicker({ companyId, value, onChange, label, error, exclu
           <div>
             <p className="text-sm font-semibold text-ink">{value.full_name}</p>
             <p className="text-xs text-ink-muted">
-              {value.employee_number} · Employee ID {value.id} · {value.status}
+              {value.employee_number} · {t('option.label.employeeId')} {value.id} · {tValue('status', value.status) ?? value.status}
               {value.phone ? ` · ${value.phone}` : ''}
             </p>
-            {value.current_companies.length > 0 && <p className="text-xs text-ink-faint">Currently at: {value.current_companies.join(', ')}</p>}
+            {value.current_companies.length > 0 && <p className="text-xs text-ink-faint">{t('option.company.currentlyAt')} {value.current_companies.join(', ')}</p>}
           </div>
           <button type="button" className="text-xs font-semibold text-primary hover:underline" onClick={() => onChange(null)}>
-            Change
+            {t('action.company.changePicked')}
           </button>
         </div>
         {error && <p className="mt-1 text-xs text-danger">{error}</p>}
@@ -71,20 +73,20 @@ export function EmployeePicker({ companyId, value, onChange, label, error, exclu
         className={inputClasses}
         value={term}
         onChange={(event) => setTerm(event.target.value)}
-        placeholder="Employee number, Employee ID, name or phone…"
+        placeholder={t('option.company.pickerPlaceholder')}
         autoComplete="off"
         aria-describedby={`${inputId}-hint`}
       />
       <p id={`${inputId}-hint`} className="mt-1 text-xs text-ink-faint">
-        Only employees already registered in HR can be chosen. If someone is missing, register them in HR first.
+        {t('confirm.company.pickerHint')}
       </p>
       {error && <p className="mt-1 text-xs text-danger">{error}</p>}
-      {loadError && <p className="mt-1 text-xs text-danger">Could not search the employee register. Try again.</p>}
+      {loadError && <p className="mt-1 text-xs text-danger">{t('notify.company.couldNotSearchEmployees')}</p>}
       {enabled && (
-        <div className="mt-2 max-h-64 overflow-y-auto rounded-md border border-border" role="listbox" aria-label="Matching employees">
-          {isFetching && results.length === 0 && <p className="px-3.5 py-3 text-xs text-ink-muted">Searching…</p>}
+        <div className="mt-2 max-h-64 overflow-y-auto rounded-md border border-border" role="listbox" aria-label={t('option.company.matchingEmployees')}>
+          {isFetching && results.length === 0 && <p className="px-3.5 py-3 text-xs text-ink-muted">{t('option.label.searching')}</p>}
           {!isFetching && results.length === 0 && (
-            <p className="px-3.5 py-3 text-xs text-ink-muted">No registered employee matches. Create the HR record first, then come back.</p>
+            <p className="px-3.5 py-3 text-xs text-ink-muted">{t('confirm.company.pickerNoMatch')}</p>
           )}
           {results.map((candidate) => (
             <button
@@ -98,12 +100,12 @@ export function EmployeePicker({ companyId, value, onChange, label, error, exclu
             >
               <span className="block text-sm font-medium text-ink">{candidate.full_name}</span>
               <span className="block text-xs text-ink-muted">
-                {candidate.employee_number} · Employee ID {candidate.id} · {candidate.status}
+                {candidate.employee_number} · {t('option.label.employeeId')} {candidate.id} · {tValue('status', candidate.status) ?? candidate.status}
                 {candidate.phone ? ` · ${candidate.phone}` : ''}
                 {candidate.category ? ` · ${candidate.category}` : ''}
               </span>
-              {candidate.current_companies.length > 0 && <span className="block text-xs text-ink-faint">Currently at: {candidate.current_companies.join(', ')}</span>}
-              {!candidate.eligible && <span className="block text-xs font-medium text-warning">Cannot be chosen: {candidate.ineligible_reason}</span>}
+              {candidate.current_companies.length > 0 && <span className="block text-xs text-ink-faint">{t('option.company.currentlyAt')} {candidate.current_companies.join(', ')}</span>}
+              {!candidate.eligible && <span className="block text-xs font-medium text-warning">{t('confirm.company.pickerCannotChoose', { reason: candidate.ineligible_reason ?? '' })}</span>}
             </button>
           ))}
         </div>

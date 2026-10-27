@@ -6,36 +6,38 @@ import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { useI18n } from '@/i18n/useI18n';
 import { formatNumber } from '@/utils/formatters';
 
 export function MarketingDashboardPage() {
+  const { t } = useI18n();
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['marketing-dashboard'], queryFn: marketingApi.dashboard });
 
   return (
     <div>
-      <PageHeader title="Marketing Dashboard" breadcrumb={[{ label: 'Marketing', to: '/marketing' }, { label: 'Dashboard' }]} />
+      <PageHeader title={t('nav.marketing.dashboardTitle')} breadcrumb={[{ label: t('nav.marketing.marketing'), to: '/marketing' }, { label: 'Dashboard' }]} />
 
-      {isLoading && <LoadingState label="Loading marketing dashboard…" />}
+      {isLoading && <LoadingState label={t('option.marketing.loadingDashboard')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
 
       {data && (
         <>
-          <div className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">Today</div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">{t('option.marketing.today')}</div>
           <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard label="Today's Follow-ups" value={data.todays_follow_ups} icon="calendar" color="bg-primary" />
-            <KpiCard label="New Leads Today" value={data.new_leads_today} icon="plus" color="bg-secondary" />
-            <KpiCard label="Overdue Follow-ups" value={data.overdue_follow_ups} icon="alert-triangle" color="bg-danger" />
-            <KpiCard label="In Quotation" value={data.quotation} icon="file-text" color="bg-warning" />
+            <KpiCard label={t('option.marketing.todaysFollowUps')} value={data.todays_follow_ups} icon="calendar" color="bg-primary" />
+            <KpiCard label={t('option.marketing.newLeadsToday')} value={data.new_leads_today} icon="plus" color="bg-secondary" />
+            <KpiCard label={t('option.marketing.overdueFollowUps')} value={data.overdue_follow_ups} icon="alert-triangle" color="bg-danger" />
+            <KpiCard label={t('option.marketing.inQuotation')} value={data.quotation} icon="file-text" color="bg-warning" />
           </div>
 
-          <div className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">Overview</div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">{t('option.marketing.sectionOverview')}</div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <KpiCard label="Total Records" value={data.total_records} icon="megaphone" color="bg-primary" />
+            <KpiCard label={t('option.marketing.totalRecords')} value={data.total_records} icon="megaphone" color="bg-primary" />
             <KpiCard label="XARUN" value={data.total_xarun} icon="megaphone" color="bg-secondary" />
             <KpiCard label="PROJECT" value={data.total_project} icon="briefcase" color="bg-purple-500" />
-            <KpiCard label="Pending" value={data.pending} icon="calendar" color="bg-warning" />
-            <KpiCard label="Done" value={data.done} icon="check" color="bg-success" />
-            <KpiCard label="Cancelled" value={data.cancelled} icon="x" color="bg-danger" />
+            <KpiCard label={t('status.marketing.record.pending')} value={data.pending} icon="calendar" color="bg-warning" />
+            <KpiCard label={t('status.marketing.record.done')} value={data.done} icon="check" color="bg-success" />
+            <KpiCard label={t('status.marketing.record.cancelled')} value={data.cancelled} icon="x" color="bg-danger" />
           </div>
         </>
       )}

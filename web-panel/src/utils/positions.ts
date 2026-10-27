@@ -5,6 +5,8 @@
 // A position never has a salary: nothing here knows about money, so choosing or creating a position can never fill in or
 // change a salary field.
 
+import { tNow } from '../i18n/active.ts';
+
 /** Tidy a typed name: no leading/trailing spaces and no doubled spaces, exactly as the server stores it. */
 export function normalisePositionName(name: string): string {
   return name.replace(/\s+/g, ' ').trim();
@@ -30,8 +32,8 @@ export function findPositionByName<T extends NamedPosition>(positions: readonly 
 /** Why this name cannot be created right now, or null when it can. */
 export function positionNameError(name: string): string | null {
   const tidy = normalisePositionName(name);
-  if (tidy === '') return 'Enter the position name.';
-  if (tidy.length > 150) return 'The position name is too long (150 characters at most).';
+  if (tidy === '') return tNow('validation.company.enterPositionName');
+  if (tidy.length > 150) return tNow('validation.company.positionNameTooLong');
 
   return null;
 }

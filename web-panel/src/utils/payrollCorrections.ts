@@ -1,3 +1,5 @@
+import { tNow, tValueNow } from '../i18n/active.ts';
+
 /**
  * Pure helpers of the corrections ledger. The server is the authority on who may do what; these only decide which buttons to offer.
  */
@@ -27,7 +29,7 @@ export function canVoidPayrollPayment(role: string | null | undefined): boolean 
 
 /** A write-off needs a real reason (the server requires at least 5 characters too). */
 export function validateWriteOffReason(reason: string): string | null {
-  return reason.trim().length >= 5 ? null : 'Give the reason for writing this debt off (at least 5 characters).';
+  return reason.trim().length >= 5 ? null : tNow('validation.payroll.writeOffReasonMissing');
 }
 
 /** A Super Admin or an HR Manager manages the debt of an employee (record a repayment, void a mistaken one). */
@@ -45,8 +47,8 @@ export function newIdempotencyKey(): string {
 /** Validates the amount typed for a payment/repayment against what is still open (both in cents). Returns an error message or null. */
 export function validateSettlementAmount(amount: string, availableCents: number): string | null {
   const value = Number(amount);
-  if (amount.trim() === '' || Number.isNaN(value) || value <= 0) return 'Enter an amount greater than zero.';
-  if (Math.round(value * 100) > availableCents) return `The amount is more than what is still open (${(availableCents / 100).toFixed(2)}).`;
+  if (amount.trim() === '' || Number.isNaN(value) || value <= 0) return tNow('validation.payroll.amountPositive');
+  if (Math.round(value * 100) > availableCents) return tNow('validation.payroll.amountTooMuch', { amount: (availableCents / 100).toFixed(2) });
   return null;
 }
 
@@ -68,6 +70,10 @@ export function settlementToday(now: Date = new Date()): string {
 
 /** A settlement date is a plain calendar day (YYYY-MM-DD), never later than today in Mogadishu. Returns an error message or null. */
 export function validateSettlementDate(date: string, now: Date = new Date()): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return 'Choose the date.';
-  return date > settlementToday(now) ? 'The date cannot be later than today.' : null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return tNow('validation.payroll.chooseDate');
+  return date > settlementToday(now) ? tNow('validation.payroll.dateFuture') : null;
+}
+
+export function correctionStatusLabel(status: string): string {
+  return tValueNow('status.payroll.correction', status) ?? CORRECTION_STATUS_LABEL[status] ?? status;
 }

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Icon, type IconName } from '@/components/ui/Icon';
+import { useI18n } from '@/i18n/useI18n';
 
 /** Full-page variant of EmptyState, used for route-level 403/404s rather than an in-card empty state. */
 export function PageState({
@@ -13,6 +14,8 @@ export function PageState({
   description: string;
   backTo?: string;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center gap-3 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-surface-alt text-ink-faint">
@@ -21,7 +24,7 @@ export function PageState({
       <h1 className="font-display text-xl font-bold text-ink">{title}</h1>
       <p className="max-w-sm text-sm text-ink-muted">{description}</p>
       <Link to={backTo} className="mt-2 text-sm font-semibold text-primary hover:underline">
-        Back to Dashboard
+        {t('action.common.backToDashboard')}
       </Link>
     </div>
   );

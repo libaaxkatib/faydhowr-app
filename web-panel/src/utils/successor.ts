@@ -3,6 +3,7 @@
  * it refuses a removal without a valid choice. These only decide what the form asks for and build the request payload.
  */
 
+import { tNow } from '../i18n/active.ts';
 import type { SuccessorPayload, SuccessorType } from '../types/employee.ts';
 
 export interface SuccessorDraft {
@@ -43,20 +44,20 @@ export function effectiveStart(lastDay: string, draft: SuccessorDraft): string {
  */
 export function validateSuccessor(draft: SuccessorDraft, lastDay?: string): string | null {
   if (draft.type === '' || draft.employeeId === null) {
-    return 'Choose who takes over this Permanent position: a Temporary employee who has been covering it, or a person from the HR Waiting List.';
+    return tNow('validation.hr.successorChoose');
   }
 
   if (draft.effectiveDate !== '') {
-    if (!ISO_DATE.test(draft.effectiveDate)) return 'Enter the effective date of the replacement as a valid date.';
+    if (!ISO_DATE.test(draft.effectiveDate)) return tNow('validation.hr.successorDateInvalid');
     if (lastDay !== undefined && ISO_DATE.test(lastDay) && draft.effectiveDate <= lastDay) {
-      return `The effective date (${draft.effectiveDate}) must be after the last paid day (${lastDay}). Both days are included, so one day cannot be paid to two people.`;
+      return tNow('validation.hr.successorDateAfterLastDay', { date: draft.effectiveDate, lastDay });
     }
   }
 
   if (draft.type === 'waiting_list') {
     const amount = Number(draft.salaryAmount);
-    if (draft.salaryAmount.trim() === '' || !Number.isFinite(amount) || amount <= 0) return 'Enter the salary agreed for the person from the Waiting List.';
-    if (!/^[A-Za-z]{3}$/.test(draft.salaryCurrency.trim())) return 'Enter the salary currency (for example USD).';
+    if (draft.salaryAmount.trim() === '' || !Number.isFinite(amount) || amount <= 0) return tNow('validation.hr.successorSalary');
+    if (!/^[A-Za-z]{3}$/.test(draft.salaryCurrency.trim())) return tNow('validation.hr.successorCurrency');
   }
 
   return null;

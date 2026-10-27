@@ -1,0 +1,45 @@
+// HR navigation: the sidebar items and the page titles / breadcrumbs / dashboard cards that carry the same names.
+// Dashboard (HR-NAV-002) stays English on purpose, so it has no entry here. Facility Report (HR-NAV-038) was never on the owner's review list;
+// its Somali was written for this implementation (proposed) when the owner delegated the remaining HR text.
+
+import { approved, defineMessages, message } from '../catalog.ts';
+
+export const nav = defineMessages({
+  'nav.hrGroup': approved('HR-NAV-001', 'Human Resources', 'Maamulka shaqaalaha', 'owner-term', 'Owner wording; its review is still open.'),
+  'nav.registration': approved('HR-NAV-003', 'Employee Registration', 'Diiwaangelinta Shaqaalaha'),
+  'nav.employees': approved('HR-NAV-004', 'Employees', 'Shaqaalaha'),
+  'nav.damiinNeeded': approved('HR-NAV-005', 'Damiin Needed', 'Damiin Loo Baahan Yahay'),
+  'nav.contractPending': approved('HR-NAV-006', 'Contract Pending', 'Hishiiska Shaqaalaha', 'owner-term', 'Owner wording; its review is still open.'),
+  'nav.uniformPending': approved('HR-NAV-007', 'Uniform Pending', 'Uniformka laga sugayo', 'owner-term', 'Owner wording; its review is still open.'),
+  'nav.needTraining': approved('HR-NAV-008', 'Need Training', 'Ubaahan Tababar', 'owner-term', 'Owner wording; its review is still open.'),
+  'nav.needPractical': approved('HR-NAV-009', 'Need Practical', 'Ubaahan Baraatiko', 'owner-term', 'Owner wording; its review is still open.'),
+  'nav.practicalRepeat': approved('HR-NAV-010', 'Practical Repeat', 'KU celis Baraatiko', 'owner-term', 'Owner wording; its review is still open.'),
+  'nav.rejected': approved('HR-NAV-011', 'Rejected', 'Dadka la kansalay', 'owner-term', 'Owner wording; its review is still open.'),
+  'nav.rejectedHistorical': approved('HR-NAV-012', 'Rejected (Historical)', 'Dadka mar hore la kansala', 'owner-term', 'Owner wording; its review is still open.'),
+  'nav.waiting': approved('HR-NAV-013', 'Waiting', 'Shaqa sugayaal', 'owner-term', 'Owner wording; the shared phrase for Waiting and Waiting List is still undecided.'),
+  'nav.workforceRequests': approved('HR-NAV-014', 'Workforce Requests', 'Codsiyada Shaqaalaha'),
+  'nav.trainingBatches': approved('HR-NAV-015', 'Training Batches', 'Kooxaha Tababarka isla qadanayo', 'owner-term', 'Owner wording; its review is still open.'),
+  'nav.practicalBatches': approved('HR-NAV-016', 'Practical Batches', 'kooxaha Baraatikada isla qaadanayo', 'owner-term', 'Owner wording; its review is still open.'),
+  'nav.temporaryReplacements': approved('HR-NAV-017', 'Temporary Replacements', 'Beddelaad Ku-meel-gaar ah'),
+  'nav.formerEmployees': approved('HR-NAV-018', 'Former Employees', 'Shaqaalah hore u shaqeyn jiray', 'owner-term', 'Owner wording; its review is still open.'),
+  'nav.supervisorPool': approved('HR-NAV-019', 'Supervisor Pool', 'Kooxda Kormeerayaasha'),
+  'nav.officeStaff': approved('HR-NAV-020', 'Office Staff', 'Shaqaalaha Xafiiska'),
+  'nav.attendance': approved('HR-NAV-021', 'Attendance', 'Xaadirinta'),
+  'nav.departments': approved('HR-NAV-022', 'Departments', 'Waaxaha'),
+  'nav.positions': approved('HR-NAV-023', 'Positions', 'Jagooyinka'),
+  'nav.categories': approved('HR-NAV-024', 'Categories', 'Qaybaha Shaqaalaha'),
+  'nav.companiesWorkplaces': approved('HR-NAV-025', 'Companies & Workplaces', 'Shirkadaha & Goobaha Shaqada'),
+  'nav.facilityInspections': approved('HR-NAV-026', 'Facility Inspections', 'Kormeerka Xarumaha'),
+  'nav.complaints': approved('HR-NAV-027', 'Complaints', 'Cabashooyin'),
+  'nav.payroll': approved('HR-NAV-028', 'Payroll', 'Mushaharka'),
+  'nav.excelImports': approved('HR-NAV-029', 'Excel Imports', 'Soo Dejinta Excel'),
+  'nav.reports': approved('HR-NAV-030', 'Reports', 'Warbixinno'),
+  'nav.waitingAnalytics': approved('HR-NAV-031', 'Waiting Analytics', 'Falanqaynta Sugitaanka'),
+  'nav.workforceRequestHistory': approved('HR-NAV-032', 'Workforce Request History', 'Taariikhda Codsiyada Shaqaalaha'),
+  'nav.temporaryReplacementHistory': approved('HR-NAV-033', 'Temporary Replacement History', 'Taariikhda Beddelaadaha Ku-meel-gaarka'),
+  'nav.leaveReport': approved('HR-NAV-034', 'Leave Report', 'Warbixinta Fasaxa'),
+  'nav.performanceReport': approved('HR-NAV-035', 'Performance Report', 'Warbixinta Waxqabadka'),
+  'nav.financialLedger': approved('HR-NAV-036', 'Financial Ledger', 'Diiwaanka Maaliyadeed'),
+  'nav.payrollRollup': approved('HR-NAV-037', 'Payroll Rollup', 'Isku-soo-koobka Mushaharka'),
+  'nav.facilityReport': message('Facility Report', 'Warbixinta Xarumaha'),
+});

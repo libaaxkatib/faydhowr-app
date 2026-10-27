@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { useToast } from '@/components/ui/useToast';
+import { useI18n } from '@/i18n/useI18n';
 import { ApiClientError } from '@/api/client';
 
 interface ChangePasswordDialogProps {
@@ -20,6 +21,7 @@ interface ChangePasswordDialogProps {
  */
 export function ChangePasswordDialog({ isOpen, onClose }: ChangePasswordDialogProps) {
   const { show } = useToast();
+  const { t } = useI18n();
   const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -42,7 +44,7 @@ export function ChangePasswordDialog({ isOpen, onClose }: ChangePasswordDialogPr
         password_confirmation: confirm,
       }),
     onSuccess: () => {
-      show('Password changed. Your other devices have been signed out.');
+      show(t('notify.shell.passwordChanged'));
       onClose();
     },
     onError: (error) => {
@@ -51,7 +53,7 @@ export function ChangePasswordDialog({ isOpen, onClose }: ChangePasswordDialogPr
       } else if (error instanceof ApiClientError && error.isValidation) {
         setFieldErrors(error.fieldErrors ?? {});
       } else {
-        show(error instanceof Error ? error.message : 'Could not change password.', 'error');
+        show(error instanceof Error ? error.message : t('notify.shell.passwordChangeFailed'), 'error');
       }
     },
   });
@@ -65,21 +67,21 @@ export function ChangePasswordDialog({ isOpen, onClose }: ChangePasswordDialogPr
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Change password"
+      title={t('action.shell.changePassword')}
       size="sm"
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>
-            Cancel
+            {t('action.cancel')}
           </Button>
           <Button size="sm" onClick={handleSubmit} isLoading={mutation.isPending}>
-            Change Password
+            {t('action.shell.changePasswordSubmit')}
           </Button>
         </>
       }
     >
       <form onSubmit={handleSubmit}>
-        <FormField label="Current password" htmlFor="current-password" required error={fieldErrors.current_password?.[0]}>
+        <FormField label={t('option.shell.currentPassword')} htmlFor="current-password" required error={fieldErrors.current_password?.[0]}>
           <input
             id="current-password"
             type="password"
@@ -89,7 +91,7 @@ export function ChangePasswordDialog({ isOpen, onClose }: ChangePasswordDialogPr
             onChange={(event) => setCurrentPassword(event.target.value)}
           />
         </FormField>
-        <FormField label="New password" htmlFor="new-password" required hint="Minimum 8 characters." error={fieldErrors.password?.[0]}>
+        <FormField label={t('option.shell.newPassword')} htmlFor="new-password" required hint={t('option.shell.minEightChars')} error={fieldErrors.password?.[0]}>
           <input
             id="new-password"
             type="password"
@@ -101,7 +103,7 @@ export function ChangePasswordDialog({ isOpen, onClose }: ChangePasswordDialogPr
           />
         </FormField>
         <FormField
-          label="Confirm new password"
+          label={t('option.shell.confirmNewPassword')}
           htmlFor="new-password-confirm"
           required
           error={fieldErrors.password_confirmation?.[0]}

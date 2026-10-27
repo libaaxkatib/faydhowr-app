@@ -14,6 +14,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { formatDate, formatDurationSince, initialsOf } from '@/utils/formatters';
 import type { Employee } from '@/types/employee';
+import { useI18n } from '@/i18n/useI18n';
 
 /**
  * Dedicated Waiting page (docs/HRM_MARKETING_SRS.md HR Phase 2) - unlike every
@@ -23,6 +24,7 @@ import type { Employee } from '@/types/employee';
  */
 export function WaitingQueuePage() {
   const navigate = useNavigate();
+  const { t, tValue } = useI18n();
   const url = useUrlFilters();
   const search = url.get('q');
   const page = url.page;
@@ -39,7 +41,7 @@ export function WaitingQueuePage() {
   const columns = useMemo<ColumnDef<Employee, unknown>[]>(
     () => [
       {
-        header: 'Employee',
+        header: t('option.label.employee'),
         accessorKey: 'full_name',
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
@@ -54,47 +56,47 @@ export function WaitingQueuePage() {
         ),
       },
       {
-        header: 'Category',
+        header: t('option.label.category'),
         accessorKey: 'employee_category_name',
         cell: ({ row }) => <span className="text-ink">{row.original.employee_category_name ?? '—'}</span>,
       },
       {
-        header: 'Gender',
+        header: t('option.label.gender'),
         accessorKey: 'gender',
-        cell: ({ row }) => <span className="capitalize text-ink">{row.original.gender ?? '—'}</span>,
+        cell: ({ row }) => <span className="capitalize text-ink">{row.original.gender ? tValue('option.gender', row.original.gender) ?? row.original.gender : '—'}</span>,
       },
       {
-        header: 'Residential Location',
+        header: t('option.pipeline.residentialLocation'),
         accessorKey: 'location',
         cell: ({ row }) => <span className="text-ink">{row.original.location ?? '—'}</span>,
       },
       {
-        header: 'Waiting Duration',
+        header: t('option.pipeline.waitingDuration'),
         accessorKey: 'waiting_since',
         cell: ({ row }) => <span className="text-ink">{formatDurationSince(row.original.waiting_since)}</span>,
       },
       {
-        header: 'Matched',
+        header: t('option.pipeline.matchedHeader'),
         id: 'matched',
         cell: ({ row }) =>
           (row.original.workforce_request_matches_count ?? 0) > 0 ? (
-            <StatusBadge status="matched" label={`Matched (${row.original.workforce_request_matches_count})`} tone="success" />
+            <StatusBadge status="matched" label={t('status.pipeline.matched', { count: row.original.workforce_request_matches_count ?? 0 })} tone="success" />
           ) : (
-            <span className="text-xs italic text-ink-faint">Not yet matched</span>
+            <span className="text-xs italic text-ink-faint">{t('status.pipeline.notYetMatched')}</span>
           ),
       },
       {
-        header: 'Applied',
+        header: t('option.pipeline.applied'),
         accessorKey: 'application_date',
         cell: ({ row }) => <span className="text-ink-muted">{formatDate(row.original.application_date)}</span>,
       },
     ],
-    [],
+    [t, tValue],
   );
 
   return (
     <div>
-      <PageHeader title="Waiting" breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Waiting' }]} />
+      <PageHeader title={t('nav.waiting')} breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.waiting') }]} />
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
@@ -104,7 +106,7 @@ export function WaitingQueuePage() {
               setSearch(value);
               setPage(1);
             }}
-            placeholder="Search by name, phone, or employee number…"
+            placeholder={t('option.pipeline.searchWaiting')}
             className="w-full max-w-xs"
           />
         </div>
@@ -120,8 +122,8 @@ export function WaitingQueuePage() {
               state: { fromPath: `${window.location.pathname}${window.location.search}`, fromLabel: 'Waiting' },
             })
           }
-          emptyTitle="No one is waiting"
-          emptyDescription="Employees appear here once Practical is Approved."
+          emptyTitle={t('option.pipeline.noOneWaiting')}
+          emptyDescription={t('option.pipeline.waitingEmptyDescription')}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

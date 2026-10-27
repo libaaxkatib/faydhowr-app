@@ -1,5 +1,7 @@
 import type { PageMeta } from '@/types/api';
 import { Icon } from '@/components/ui/Icon';
+import { Msg } from '@/i18n/Msg';
+import { useI18n } from '@/i18n/useI18n';
 
 interface PaginationProps {
   meta: PageMeta;
@@ -7,6 +9,7 @@ interface PaginationProps {
 }
 
 export function Pagination({ meta, onPageChange }: PaginationProps) {
+  const { t } = useI18n();
   const { current_page, last_page, total, per_page } = meta;
   const from = total === 0 ? 0 : (current_page - 1) * per_page + 1;
   const to = Math.min(current_page * per_page, total);
@@ -14,8 +17,14 @@ export function Pagination({ meta, onPageChange }: PaginationProps) {
   return (
     <div className="flex items-center justify-between border-t border-border px-5 py-3">
       <p className="text-xs text-ink-muted">
-        Showing <span className="font-medium text-ink">{from}</span>–<span className="font-medium text-ink">{to}</span> of{' '}
-        <span className="font-medium text-ink">{total}</span>
+        <Msg
+          id="warning.common.showingRange"
+          values={{
+            from: <span className="font-medium text-ink">{from}</span>,
+            to: <span className="font-medium text-ink">{to}</span>,
+            total: <span className="font-medium text-ink">{total}</span>,
+          }}
+        />
       </p>
       <div className="flex items-center gap-1">
         <button
@@ -27,7 +36,7 @@ export function Pagination({ meta, onPageChange }: PaginationProps) {
           <Icon name="chevron-left" size={14} />
         </button>
         <span className="px-3 text-xs font-medium text-ink">
-          Page {current_page} of {Math.max(last_page, 1)}
+          {t('warning.common.pageOf', { page: current_page, pages: Math.max(last_page, 1) })}
         </span>
         <button
           type="button"

@@ -8,6 +8,7 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Modal, ModalCancelButton } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
+import { useI18n } from '@/i18n/useI18n';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import { tidyName, validateNewName } from '@/utils/quickCreate';
 import type { EmployeeCategory, Position } from '@/types/employee';
@@ -33,6 +34,7 @@ function ErrorBox({ message }: { message: string | null }) {
 export function CreatePositionDialog({ isOpen, onClose, onCreated }: { isOpen: boolean; onClose: () => void; onCreated: (position: Position) => void }) {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   const [name, setName] = useState('');
   const [departmentId, setDepartmentId] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -52,11 +54,11 @@ export function CreatePositionDialog({ isOpen, onClose, onCreated }: { isOpen: b
     mutationFn: () => hrApi.positions.create({ name: tidyName(name), department_id: departmentId ? Number(departmentId) : null }),
     onSuccess: async (position) => {
       await queryClient.invalidateQueries({ queryKey: ['positions'] });
-      show(`Position "${position.name}" created.`);
+      show(t('notify.employees.positionCreated', { name: position.name }));
       onCreated(position);
       onClose();
     },
-    onError: (err) => setError(nameError(err, 'Could not create the position.')),
+    onError: (err) => setError(nameError(err, t('notify.employees.positionCreateFailed'))),
   });
 
   const submit = () => {
@@ -70,17 +72,17 @@ export function CreatePositionDialog({ isOpen, onClose, onCreated }: { isOpen: b
       confirmDiscard
       isOpen={isOpen}
       onClose={onClose}
-      title="Create position"
+      title={t('action.employees.createPosition')}
       size="sm"
       footer={
         <>
           <ModalCancelButton disabled={create.isPending} />
-          <Button size="sm" isLoading={create.isPending} onClick={submit}>Create position</Button>
+          <Button size="sm" isLoading={create.isPending} onClick={submit}>{t('action.employees.createPosition')}</Button>
         </>
       }
     >
       <ErrorBox message={error} />
-      <FormField label="Position name" htmlFor="quick-position-name" required>
+      <FormField label={t('option.employees.positionName')} htmlFor="quick-position-name" required>
         <input
           id="quick-position-name"
           className={inputClasses}
@@ -95,8 +97,8 @@ export function CreatePositionDialog({ isOpen, onClose, onCreated }: { isOpen: b
           autoFocus
         />
       </FormField>
-      <FormField label="Department (optional)" htmlFor="quick-position-department">
-        <Select id="quick-position-department" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)} placeholder="No department" options={(departments ?? []).map((d) => ({ value: String(d.id), label: d.name }))} />
+      <FormField label={t('option.employees.departmentOptional')} htmlFor="quick-position-department">
+        <Select id="quick-position-department" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)} placeholder={t('option.employees.noDepartment')} options={(departments ?? []).map((d) => ({ value: String(d.id), label: d.name }))} />
       </FormField>
     </Modal>
   );
@@ -106,6 +108,7 @@ export function CreatePositionDialog({ isOpen, onClose, onCreated }: { isOpen: b
 export function CreateCategoryDialog({ isOpen, onClose, onCreated }: { isOpen: boolean; onClose: () => void; onCreated: (category: EmployeeCategory) => void }) {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -124,11 +127,11 @@ export function CreateCategoryDialog({ isOpen, onClose, onCreated }: { isOpen: b
     mutationFn: () => hrApi.employeeCategories.create({ name: tidyName(name), description: description.trim() === '' ? null : description.trim() }),
     onSuccess: async (category) => {
       await queryClient.invalidateQueries({ queryKey: ['employee-categories'] });
-      show(`Category "${category.name}" created.`);
+      show(t('notify.employees.categoryCreated', { name: category.name }));
       onCreated(category);
       onClose();
     },
-    onError: (err) => setError(nameError(err, 'Could not create the category.')),
+    onError: (err) => setError(nameError(err, t('notify.employees.categoryCreateFailed'))),
   });
 
   const submit = () => {
@@ -142,17 +145,17 @@ export function CreateCategoryDialog({ isOpen, onClose, onCreated }: { isOpen: b
       confirmDiscard
       isOpen={isOpen}
       onClose={onClose}
-      title="Create category"
+      title={t('action.employees.createCategory')}
       size="sm"
       footer={
         <>
           <ModalCancelButton disabled={create.isPending} />
-          <Button size="sm" isLoading={create.isPending} onClick={submit}>Create category</Button>
+          <Button size="sm" isLoading={create.isPending} onClick={submit}>{t('action.employees.createCategory')}</Button>
         </>
       }
     >
       <ErrorBox message={error} />
-      <FormField label="Category name" htmlFor="quick-category-name" required>
+      <FormField label={t('option.employees.categoryName')} htmlFor="quick-category-name" required>
         <input
           id="quick-category-name"
           className={inputClasses}
@@ -167,7 +170,7 @@ export function CreateCategoryDialog({ isOpen, onClose, onCreated }: { isOpen: b
           autoFocus
         />
       </FormField>
-      <FormField label="Description (optional)" htmlFor="quick-category-description">
+      <FormField label={t('option.employees.descriptionOptional')} htmlFor="quick-category-description">
         <input id="quick-category-description" className={inputClasses} value={description} onChange={(event) => setDescription(event.target.value)} />
       </FormField>
     </Modal>

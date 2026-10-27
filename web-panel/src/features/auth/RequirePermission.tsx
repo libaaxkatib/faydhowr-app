@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { PageState } from '@/components/ui/PageState';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
+import { useI18n } from '@/i18n/useI18n';
 
 /**
  * Route-level permission guard, sitting inside `ProtectedRoute` (which only
@@ -17,6 +18,7 @@ import { useEffectivePermissions } from '@/hooks/usePermissions';
  */
 export function RequirePermission({ permission, children }: { permission: string; children: ReactNode }) {
   const { hasPermission, isLoading } = useEffectivePermissions();
+  const { t } = useI18n();
 
   // Permissions haven't resolved yet - render nothing rather than flashing
   // the access-denied page before the real effective-permission set loads.
@@ -26,8 +28,8 @@ export function RequirePermission({ permission, children }: { permission: string
     return (
       <PageState
         icon="shield"
-        title="Access restricted"
-        description="Your account doesn't have permission to view this page. Ask an administrator if you believe this is a mistake."
+        title={t('warning.shell.accessRestricted')}
+        description={t('warning.common.noAccessText')}
       />
     );
   }

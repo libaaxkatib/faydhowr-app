@@ -4,10 +4,13 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/features/auth/useAuth';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/Button';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
+import { useI18n } from '@/i18n/useI18n';
 import { ApiClientError } from '@/api/client';
 
 export function LoginPage() {
   const { login, isLoggingIn, status } = useAuth();
+  const { t } = useI18n();
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,17 +34,20 @@ export function LoginPage() {
           setError(err.message);
         }
       } else {
-        setError('Something went wrong. Please try again.');
+        setError(t('notify.shell.somethingWrongTryAgain'));
       }
     }
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-muted px-4">
+      <div className="fixed right-4 top-4 z-10">
+        <LanguageSwitcher />
+      </div>
       <div className="w-full max-w-[400px]">
         <div className="mb-8 flex flex-col items-center gap-3">
           <Logo className="h-10 w-auto" />
-          <p className="text-sm text-ink-muted">Sign in to the Web Panel</p>
+          <p className="text-sm text-ink-muted">{t('option.shell.signInTitle')}</p>
         </div>
 
         <form
@@ -50,7 +56,7 @@ export function LoginPage() {
         >
           <div className="mb-4">
             <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-ink">
-              Email
+              {t('option.shell.email')}
             </label>
             <input
               id="email"
@@ -66,7 +72,7 @@ export function LoginPage() {
 
           <div className="mb-5">
             <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-ink">
-              Password
+              {t('option.shell.password')}
             </label>
             <input
               id="password"
@@ -87,12 +93,12 @@ export function LoginPage() {
           )}
 
           <Button type="submit" className="w-full" isLoading={isLoggingIn}>
-            Sign in
+            {t('action.shell.signIn')}
           </Button>
         </form>
 
         <p className="mt-6 text-center text-xs text-ink-faint">
-          Fayadhowr Web Panel — internal use only
+          {t('option.shell.internalOnly')}
         </p>
       </div>
     </div>

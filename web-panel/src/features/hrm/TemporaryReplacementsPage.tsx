@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { returnState } from '@/utils/urlFilters';
 import { overrideWarning, paymentDiffers } from '@/utils/temporaryPayment';
-import { canCheckConflict, conflictFromError, conflictHeading, type CoverConflict } from '@/utils/coverConflict';
+import { canCheckConflict, conflictFromError, conflictHeading, conflictMessage, type CoverConflict } from '@/utils/coverConflict';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -26,6 +26,8 @@ import { formatCurrency, formatDate } from '@/utils/formatters';
 import { parseReplacementStatus } from '@/utils/hrDashboardLinks';
 import { assignmentLabel, describeDailyRate, expandDateRange, friendlyErrorMessage, localMonth, localToday } from '@/utils/hrHelpers';
 import type { EmploymentType, TemporaryReplacement, TemporaryReplacementWorkday, TemporaryReplacementWorkdayStatus } from '@/types/employee';
+import { Msg } from '@/i18n/Msg';
+import { useI18n } from '@/i18n/useI18n';
 
 /**
  * docs/HRM_MARKETING_SRS.md HR Phase 3: one dedicated entry point for
@@ -39,6 +41,7 @@ export function TemporaryReplacementsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t, tValue } = useI18n();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [payingFor, setPayingFor] = useState<TemporaryReplacement | null>(null);
   const [ending, setEnding] = useState<TemporaryReplacement | null>(null);
@@ -49,15 +52,16 @@ export function TemporaryReplacementsPage() {
   // The HR dashboard's Active Replacements card links here with ?status=active.
   const statusFilter = parseReplacementStatus(searchParams);
   const visibleReplacements = data && statusFilter ? data.filter((replacement) => replacement.status === statusFilter) : data;
+  const statusFilterWord = statusFilter ? tValue('status.pipeline.replacement', statusFilter)?.toLowerCase() ?? statusFilter : '';
 
   const endMutation = useMutation({
     mutationFn: ({ id, endDate }: { id: number; endDate: string }) => hrApi.temporaryReplacements.end(id, { end_date: endDate }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['temporary-replacements'] });
-      show('Coverage ended.');
+      show(t('notify.pipeline.coverageEnded'));
       setEnding(null);
     },
-    onError: (err) => show(friendlyErrorMessage(err, 'Could not end coverage.'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.couldNotEndCoverage')), 'error'),
   });
 
   const paymentMutation = useMutation({
@@ -66,44 +70,48 @@ export function TemporaryReplacementsPage() {
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['temporary-replacements'] });
       // A different amount is permitted, never blocked: it is recorded as typed and the difference is said plainly.
-      show(saved.payment_check?.differs ? `Payment recorded as entered (${saved.payment_check.entered_amount}); the calculated amount was ${saved.payment_check.calculated_amount}.` : 'Payment recorded.');
+      show(saved.payment_check?.differs ? t('notify.pipeline.paymentRecordedAsEntered', { entered: saved.payment_check.entered_amount, calculated: saved.payment_check.calculated_amount ?? '' }) : t('notify.pipeline.paymentRecorded'));
       setPayingFor(null);
     },
-    onError: (err) => show(friendlyErrorMessage(err, 'Could not record payment.'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.couldNotRecordPayment')), 'error'),
   });
 
   return (
     <div>
       <PageHeader
-        title="Temporary Replacements"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Temporary Replacements' }]}
+        title={t('nav.temporaryReplacements')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.temporaryReplacements') }]}
         actions={
           <PermissionGate module="hr">
             <Button onClick={() => setIsCreateOpen(true)}>
               <Icon name="plus" size={15} />
-              New Temporary Replacement
+              {t('action.newTemporaryReplacement')}
             </Button>
           </PermissionGate>
         }
       />
 
-      {isLoading && <LoadingState label="Loading temporary replacements…" />}
+      {isLoading && <LoadingState label={t('option.pipeline.loadingTemporaryReplacements')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
-      {data && data.length === 0 && <EmptyState icon="refresh" title="No temporary replacements yet" />}
+      {data && data.length === 0 && <EmptyState icon="refresh" title={t('option.pipeline.noTemporaryReplacementsYet')} />}
 
       {data && data.length > 0 && statusFilter && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-ink-muted">
           <span>
-            Showing {statusFilter} replacements only ({visibleReplacements?.length ?? 0} of {data.length}).
+            {t('warning.pipeline.replacementsFilterNotice', {
+              status: statusFilterWord,
+              shown: visibleReplacements?.length ?? 0,
+              total: data.length,
+            })}
           </span>
           <button type="button" onClick={() => setSearchParams({}, { replace: true })} className="font-medium text-primary hover:underline">
-            Show all replacements
+            {t('action.pipeline.showAllReplacements')}
           </button>
         </div>
       )}
 
       {data && data.length > 0 && visibleReplacements && visibleReplacements.length === 0 && (
-        <EmptyState icon="refresh" title={`No ${statusFilter} temporary replacements`} />
+        <EmptyState icon="refresh" title={t('option.pipeline.noStatusTemporaryReplacements', { status: statusFilterWord })} />
       )}
 
       {visibleReplacements && visibleReplacements.length > 0 && (
@@ -113,17 +121,21 @@ export function TemporaryReplacementsPage() {
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div>
                   <h3 className="font-display text-base font-bold text-ink">
-                    Covering {replacement.replaced_employee_name ?? 'Unknown'}
+                    {t('option.pipeline.coveringName', { name: replacement.replaced_employee_name ?? t('option.pipeline.unknown') })}
                   </h3>
                   <p className="text-xs text-ink-muted">
-                    {[replacement.client_company_name, replacement.work_location_name].filter(Boolean).join(' · ') || 'Workplace not set yet'}
+                    {[replacement.client_company_name, replacement.work_location_name].filter(Boolean).join(' · ') || t('option.workplaceNotSet')}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <StatusBadge status={replacement.status} tone={replacement.status === 'active' ? 'warning' : 'neutral'} />
+                  <StatusBadge
+                    status={replacement.status}
+                    label={tValue('status.pipeline.replacement', replacement.status)}
+                    tone={replacement.status === 'active' ? 'warning' : 'neutral'}
+                  />
                   <StatusBadge
                     status={replacement.approved ? 'approved' : 'awaiting-approval'}
-                    label={replacement.approved ? 'Cost approved' : 'Cost not approved yet'}
+                    label={replacement.approved ? t('status.pipeline.costApproved') : t('status.pipeline.costNotApproved')}
                     tone={replacement.approved ? 'success' : 'neutral'}
                   />
                 </div>
@@ -134,16 +146,16 @@ export function TemporaryReplacementsPage() {
                 onClick={() => navigate(`/hr/employees/${replacement.replacement_employee_id}`, { state: returnState(window.location.pathname, window.location.search, 'Temporary Replacements') })}
                 className="mb-2 flex w-full items-center justify-between rounded-sm border border-border px-2.5 py-1.5 text-left text-sm hover:bg-surface-alt"
               >
-                <span className="text-ink">Temporary employee: {replacement.replacement_employee_name}</span>
+                <span className="text-ink">{t('option.pipeline.temporaryEmployeeName', { name: replacement.replacement_employee_name ?? '' })}</span>
               </button>
 
               <p className="mb-3 text-xs text-ink-faint">
-                {formatDate(replacement.start_date)} → {replacement.end_date ? formatDate(replacement.end_date) : 'Ongoing'}
+                {formatDate(replacement.start_date)} → {replacement.end_date ? formatDate(replacement.end_date) : t('option.pipeline.ongoing')}
               </p>
 
               {replacement.reason && <p className="mb-3 text-xs italic text-ink-faint">{replacement.reason}</p>}
 
-              <p className="mb-1.5 text-xs font-medium text-ink-faint">Payments (total {replacement.total_paid})</p>
+              <p className="mb-1.5 text-xs font-medium text-ink-faint">{t('option.pipeline.paymentsTotal', { total: replacement.total_paid })}</p>
               {replacement.payments.length > 0 ? (
                 <div className="mb-3 space-y-1.5">
                   {replacement.payments.map((payment) => (
@@ -154,21 +166,21 @@ export function TemporaryReplacementsPage() {
                   ))}
                 </div>
               ) : (
-                <p className="mb-3 text-xs italic text-ink-faint">No payments recorded yet.</p>
+                <p className="mb-3 text-xs italic text-ink-faint">{t('option.pipeline.noPaymentsYet')}</p>
               )}
 
               <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
                 <Button size="sm" variant="outline" onClick={() => setWorkdaysForId(replacement.id)}>
                   <Icon name="calendar" size={14} />
-                  Workdays &amp; cost
+                  {t('action.pipeline.workdaysAndCost')}
                 </Button>
                 <PermissionGate module="hr">
                   <Button size="sm" variant="outline" onClick={() => setPayingFor(replacement)}>
-                    Record Payment
+                    {t('action.recordPayment')}
                   </Button>
                   {replacement.status === 'active' && (
                     <Button size="sm" variant="ghost" onClick={() => setEnding(replacement)}>
-                      End Coverage
+                      {t('action.endCoverage')}
                     </Button>
                   )}
                 </PermissionGate>
@@ -229,6 +241,7 @@ function EmployeePicker({
   excludeId?: string;
   placeholder: string;
 }) {
+  const { t } = useI18n();
   const [search, setSearch] = useState('');
   const [selectedLabel, setSelectedLabel] = useState('');
   const debouncedSearch = useDebouncedValue(search, 350);
@@ -254,8 +267,8 @@ function EmployeePicker({
         className={inputClasses}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Type a name or employee number to search"
-        aria-label="Search employees"
+        placeholder={t('option.pipeline.searchEmployeesPlaceholder')}
+        aria-label={t('option.pipeline.searchEmployees')}
       />
       <Select
         id={id}
@@ -264,7 +277,15 @@ function EmployeePicker({
           onChange(e.target.value);
           setSelectedLabel(options.find((option) => option.value === e.target.value)?.label ?? '');
         }}
-        placeholder={isFetching ? 'Searching…' : options.length === 0 ? `No ${employmentType} employees found` : placeholder}
+        placeholder={
+          isFetching
+            ? t('option.label.searching')
+            : options.length === 0
+              ? employmentType === 'permanent'
+                ? t('option.pipeline.noPermanentEmployeesFound')
+                : t('option.pipeline.noTemporaryEmployeesFound')
+              : placeholder
+        }
         options={options}
       />
     </div>
@@ -273,6 +294,7 @@ function EmployeePicker({
 
 function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolean; onClose: () => void; onCreated: () => void }) {
   const { show } = useToast();
+  const { t } = useI18n();
 
   const [coveredEmployeeId, setCoveredEmployeeId] = useState('');
   const [workAssignmentId, setWorkAssignmentId] = useState('');
@@ -315,7 +337,7 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
         reason: reason || undefined,
       }),
     onSuccess: () => {
-      show('Temporary replacement recorded.');
+      show(t('notify.pipeline.replacementRecorded'));
       setCoveredEmployeeId('');
       setWorkAssignmentId('');
       setReplacementEmployeeId('');
@@ -326,7 +348,7 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
     onError: (err) => {
       const refusal = conflictFromError(err);
       if (refusal) setRefused({ key: fieldsKey, conflict: refusal });
-      else show(friendlyErrorMessage(err, 'Could not create temporary replacement.'), 'error');
+      else show(friendlyErrorMessage(err, t('notify.pipeline.couldNotCreateReplacement')), 'error');
     },
   });
 
@@ -341,27 +363,24 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
     <Modal
       isOpen
       onClose={onClose}
-      title="New Temporary Replacement"
+      title={t('action.newTemporaryReplacement')}
       size="sm"
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
           <Button
             size="sm"
             isLoading={createMutation.isPending}
             disabled={!workAssignmentId || !replacementEmployeeId || !startDate || conflict !== null}
             onClick={() => createMutation.mutate()}
           >
-            Create
+            {t('action.create')}
           </Button>
         </>
       }
     >
-      <p className="mb-4 rounded-sm bg-surface-alt px-3 py-2 text-xs text-ink-muted">
-        A Temporary employee covers a Permanent employee&apos;s assignment. You do not enter a daily rate: the cost is worked out from the
-        covered employee&apos;s salary divided by the days in the month, and only for days you verify.
-      </p>
-      <FormField label="Permanent employee to cover" htmlFor="tr-covered" required>
+      <p className="mb-4 rounded-sm bg-surface-alt px-3 py-2 text-xs text-ink-muted">{t('warning.pipeline.createReplacementNotice')}</p>
+      <FormField label={t('option.pipeline.coveredEmployee')} htmlFor="tr-covered" required>
         <EmployeePicker
           id="tr-covered"
           employmentType="permanent"
@@ -371,46 +390,44 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
             setWorkAssignmentId('');
           }}
           excludeId={replacementEmployeeId}
-          placeholder="Select an active Permanent employee…"
+          placeholder={t('option.pipeline.selectPermanent')}
         />
       </FormField>
-      <FormField label="Assignment being covered" htmlFor="tr-assignment" required>
+      <FormField label={t('option.pipeline.assignmentCovered')} htmlFor="tr-assignment" required>
         <Select
           id="tr-assignment"
           value={workAssignmentId}
           onChange={(e) => setWorkAssignmentId(e.target.value)}
-          placeholder={coveredEmployeeId ? 'Select an active assignment…' : 'Select an employee first'}
+          placeholder={coveredEmployeeId ? t('option.pipeline.selectAssignment') : t('option.pipeline.selectEmployeeFirst')}
           options={assignmentOptions}
         />
       </FormField>
-      <FormField label="Temporary employee doing the cover" htmlFor="tr-replacement" required>
+      <FormField label={t('option.pipeline.temporaryDoingCover')} htmlFor="tr-replacement" required>
         <EmployeePicker
           id="tr-replacement"
           employmentType="temporary"
           value={replacementEmployeeId}
           onChange={setReplacementEmployeeId}
           excludeId={coveredEmployeeId}
-          placeholder="Select an active Temporary employee…"
+          placeholder={t('option.pipeline.selectTemporary')}
         />
       </FormField>
       <div className="grid grid-cols-2 gap-3">
-        <FormField label="Start date" htmlFor="tr-start" required>
+        <FormField label={t('option.pipeline.startDate')} htmlFor="tr-start" required>
           <input id="tr-start" type="date" className={inputClasses} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
         </FormField>
-        <FormField label="End date (optional)" htmlFor="tr-end">
+        <FormField label={t('option.pipeline.endDateOptional')} htmlFor="tr-end">
           <input id="tr-end" type="date" min={startDate} className={inputClasses} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </FormField>
       </div>
-      <FormField label="Reason" htmlFor="tr-reason">
+      <FormField label={t('option.pipeline.reason')} htmlFor="tr-reason">
         <textarea id="tr-reason" rows={2} className={inputClasses + ' h-auto py-2'} value={reason} onChange={(e) => setReason(e.target.value)} />
       </FormField>
       {conflict && (
         <div role="alert" data-testid="cover-conflict" className="rounded-sm bg-danger-soft px-3 py-2 text-xs text-ink">
           <p className="font-semibold text-danger">{conflictHeading(conflict.code)}</p>
-          <p className="mt-1" lang={conflict.code === 'TEMPORARY_EMPLOYEE_HAS_OVERLAPPING_ASSIGNMENT' ? 'so' : 'en'}>
-            {conflict.message}
-          </p>
-          <p className="mt-1 text-ink-muted">Nothing is cancelled or changed for you. Fix the dates, the shifts or the earlier record first.</p>
+          <p className="mt-1">{conflictMessage(conflict)}</p>
+          <p className="mt-1 text-ink-muted">{t('warning.pipeline.conflictNothingChanged')}</p>
         </div>
       )}
     </Modal>
@@ -431,6 +448,7 @@ const WORKDAY_STATUS: Record<TemporaryReplacementWorkdayStatus, { label: string;
 function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplacement; onClose: () => void }) {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t, tValue } = useI18n();
   const { hasPermission } = useEffectivePermissions();
   const canViewPayroll = hasPermission('hr.payroll.view');
   const canApprove = hasPermission('hr.payroll.approve');
@@ -467,20 +485,20 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
       hrApi.temporaryReplacements.workdays.record(replacement.id, { dates, verify, notes: notes || null }),
     onSuccess: (_result, verify) => {
       refreshLedger();
-      show(verify ? `${dates.length} day(s) recorded and verified.` : `${dates.length} day(s) recorded. They are charged only after they are verified.`);
+      show(verify ? t('notify.pipeline.daysRecordedVerified', { count: dates.length }) : t('notify.pipeline.daysRecorded', { count: dates.length }));
       setDates([]);
       setNotes('');
     },
-    onError: (err) => show(friendlyErrorMessage(err, 'Could not record the days. Nothing was saved.'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.couldNotRecordDays')), 'error'),
   });
 
   const verifyMutation = useMutation({
     mutationFn: (workdayId: number) => hrApi.temporaryReplacements.workdays.verify(replacement.id, workdayId),
     onSuccess: () => {
       refreshLedger();
-      show('Day verified.');
+      show(t('notify.pipeline.dayVerified'));
     },
-    onError: (err) => show(friendlyErrorMessage(err, 'Could not verify the day.'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.couldNotVerifyDay')), 'error'),
   });
 
   const voidMutation = useMutation({
@@ -489,9 +507,9 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
     onSuccess: () => {
       refreshLedger();
       setVoiding(null);
-      show('Day voided. It will not be charged.');
+      show(t('notify.pipeline.dayVoided'));
     },
-    onError: (err) => show(friendlyErrorMessage(err, 'Could not void the day.'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.couldNotVoidDay')), 'error'),
   });
 
   const approveMutation = useMutation({
@@ -500,11 +518,11 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
       queryClient.invalidateQueries({ queryKey: ['temporary-replacements'] });
       refreshLedger();
       setIsApproveOpen(false);
-      show('Replacement approved. Its cost will be deducted from the covered employee in payroll.');
+      show(t('notify.pipeline.replacementApproved'));
     },
     onError: (err) => {
       setIsApproveOpen(false);
-      show(friendlyErrorMessage(err, 'Could not approve the replacement.'), 'error');
+      show(friendlyErrorMessage(err, t('notify.pipeline.couldNotApprove')), 'error');
     },
   });
 
@@ -513,37 +531,38 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
   function addRange() {
     const expanded = expandDateRange(rangeFrom, rangeTo || rangeFrom);
     if (expanded.length === 0) {
-      show('Choose a valid start day and, if needed, an end day (up to 62 days).', 'error');
+      show(t('validation.pipeline.invalidDayRange'), 'error');
       return;
     }
     const fresh = expanded.filter((date) => !knownDates.has(date) && !dates.includes(date));
     const skipped = expanded.length - fresh.length;
     setDates([...dates, ...fresh].sort());
-    if (skipped > 0) show(`${skipped} day(s) were skipped because they are already in the list or already recorded.`);
+    if (skipped > 0) show(t('notify.pipeline.daysSkipped', { count: skipped }));
   }
 
   const sortedWorkdays = [...(workdays ?? [])].sort((a, b) => b.work_date.localeCompare(a.work_date) || b.id - a.id);
-  const coveredName = replacement.replaced_employee_name ?? 'the covered employee';
+  const coveredName = replacement.replaced_employee_name ?? t('option.pipeline.coveredEmployeeFallback');
 
   return (
     <>
       <Modal
         isOpen
         onClose={onClose}
-        title={`Workdays - ${replacement.replacement_employee_name ?? 'Temporary employee'}`}
+        title={t('confirm.pipeline.workdaysTitle', { name: replacement.replacement_employee_name ?? t('option.pipeline.temporaryEmployeeFallback') })}
         size="lg"
-        footer={<Button variant="outline" size="sm" onClick={onClose}>Close</Button>}
+        footer={<Button variant="outline" size="sm" onClick={onClose}>{t('action.close')}</Button>}
       >
         <p className="mb-5 rounded-sm bg-surface-alt px-3 py-2 text-xs text-ink-muted">
-          The amount is worked out from the <strong>days the cover actually existed</strong> (first to last day, both included), not from these
-          records. Once the replacement is approved, the month&apos;s cost is deducted once from {coveredName}&apos;s pay. The days below are the
-          attendance record of the cover.
+          <Msg
+            id="warning.pipeline.workdaysNotice"
+            values={{ coverage: <strong>{t('warning.pipeline.coverageDaysStrong')}</strong>, name: coveredName }}
+          />
         </p>
 
-        <h3 className="mb-2 font-display text-sm font-bold text-ink">Days worked</h3>
-        {isLoading && <p className="text-xs text-ink-faint">Loading days…</p>}
-        {error && <p className="text-xs text-danger">{friendlyErrorMessage(error, 'Could not load the days.')}</p>}
-        {workdays && sortedWorkdays.length === 0 && <p className="mb-4 text-xs italic text-ink-faint">No days recorded yet.</p>}
+        <h3 className="mb-2 font-display text-sm font-bold text-ink">{t('option.pipeline.daysWorked')}</h3>
+        {isLoading && <p className="text-xs text-ink-faint">{t('option.pipeline.loadingDays')}</p>}
+        {error && <p className="text-xs text-danger">{friendlyErrorMessage(error, t('notify.pipeline.couldNotLoadDays'))}</p>}
+        {workdays && sortedWorkdays.length === 0 && <p className="mb-4 text-xs italic text-ink-faint">{t('option.pipeline.noDaysYet')}</p>}
         {sortedWorkdays.length > 0 && (
           <div className="mb-5 space-y-1.5">
             {sortedWorkdays.map((day) => (
@@ -551,14 +570,24 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 text-ink">
                     {formatDate(day.work_date)}
-                    <StatusBadge status={day.status} label={WORKDAY_STATUS[day.status].label} tone={WORKDAY_STATUS[day.status].tone} />
+                    <StatusBadge
+                      status={day.status}
+                      label={tValue('status.pipeline.workday', day.status) ?? WORKDAY_STATUS[day.status].label}
+                      tone={WORKDAY_STATUS[day.status].tone}
+                    />
                   </p>
                   <p className="text-xs text-ink-faint">
                     {day.status === 'void'
-                      ? `Voided${day.void_reason ? `: ${day.void_reason}` : ''}`
+                      ? day.void_reason
+                        ? t('status.pipeline.dayVoidedReason', { reason: day.void_reason })
+                        : t('status.pipeline.dayVoided')
                       : day.status === 'verified'
-                        ? `Verified${day.verified_by ? ` by ${day.verified_by}` : ''}`
-                        : `Recorded${day.recorded_by ? ` by ${day.recorded_by}` : ''}`}
+                        ? day.verified_by
+                          ? t('status.pipeline.dayVerifiedBy', { name: day.verified_by })
+                          : t('status.pipeline.dayVerified')
+                        : day.recorded_by
+                          ? t('status.pipeline.dayRecordedBy', { name: day.recorded_by })
+                          : t('status.pipeline.dayRecorded')}
                     {day.notes && ` · ${day.notes}`}
                   </p>
                 </div>
@@ -566,12 +595,12 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
                   <div className="flex items-center gap-1">
                     {day.status === 'recorded' && (
                       <Button size="sm" variant="outline" isLoading={verifyMutation.isPending && verifyMutation.variables === day.id} onClick={() => verifyMutation.mutate(day.id)}>
-                        Verify
+                        {t('action.verifyWorkday')}
                       </Button>
                     )}
                     {day.status !== 'void' && (
                       <Button size="sm" variant="ghost" onClick={() => setVoiding(day)}>
-                        Void
+                        {t('action.void')}
                       </Button>
                     )}
                   </div>
@@ -583,19 +612,19 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
 
         <PermissionGate module="hr">
           <div className="mb-5 rounded-sm border border-border p-3">
-            <h3 className="mb-2 font-display text-sm font-bold text-ink">Add days</h3>
+            <h3 className="mb-2 font-display text-sm font-bold text-ink">{t('option.pipeline.addDays')}</h3>
             <div className="flex flex-wrap items-end gap-2">
               <div>
-                <label htmlFor="wd-from" className="mb-1 block text-xs font-medium text-ink-muted">From</label>
+                <label htmlFor="wd-from" className="mb-1 block text-xs font-medium text-ink-muted">{t('option.pipeline.from')}</label>
                 <input id="wd-from" type="date" min={replacement.start_date} max={latestDate} className={inputClasses} value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
               </div>
               <div>
-                <label htmlFor="wd-to" className="mb-1 block text-xs font-medium text-ink-muted">To (leave empty for one day)</label>
+                <label htmlFor="wd-to" className="mb-1 block text-xs font-medium text-ink-muted">{t('option.pipeline.toOptional')}</label>
                 <input id="wd-to" type="date" min={rangeFrom || replacement.start_date} max={latestDate} className={inputClasses} value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
               </div>
               <Button size="sm" variant="outline" onClick={addRange}>
                 <Icon name="plus" size={14} />
-                Add to list
+                {t('action.pipeline.addToList')}
               </Button>
             </div>
 
@@ -606,7 +635,7 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
                     {formatDate(date)}
                     <button
                       type="button"
-                      aria-label={`Remove ${date}`}
+                      aria-label={t('action.pipeline.removeDate', { date })}
                       onClick={() => setDates(dates.filter((d) => d !== date))}
                       className="text-ink-muted hover:text-danger"
                     >
@@ -618,18 +647,16 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
             )}
 
             <div className="mt-3">
-              <label htmlFor="wd-notes" className="mb-1 block text-xs font-medium text-ink-muted">Note (optional)</label>
+              <label htmlFor="wd-notes" className="mb-1 block text-xs font-medium text-ink-muted">{t('option.pipeline.noteOptional')}</label>
               <input id="wd-notes" className={inputClasses} value={notes} maxLength={500} onChange={(e) => setNotes(e.target.value)} />
             </div>
-            <p className="mt-2 text-xs text-ink-faint">
-              All days in the list are checked together: if one is not allowed, none of them is saved. Days that have not happened yet cannot be recorded.
-            </p>
+            <p className="mt-2 text-xs text-ink-faint">{t('warning.pipeline.daysCheckedTogether')}</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button size="sm" variant="outline" disabled={dates.length === 0} isLoading={recordMutation.isPending && recordMutation.variables === false} onClick={() => recordMutation.mutate(false)}>
-                Record days
+                {t('action.recordDays')}
               </Button>
               <Button size="sm" disabled={dates.length === 0} isLoading={recordMutation.isPending && recordMutation.variables === true} onClick={() => recordMutation.mutate(true)}>
-                Record and verify
+                {t('action.recordAndVerify')}
               </Button>
             </div>
           </div>
@@ -638,49 +665,53 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
         {canViewPayroll && (
           <div className="rounded-sm border border-border p-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-display text-sm font-bold text-ink">Cost for a month</h3>
-              <input type="month" aria-label="Month" className={`${inputClasses} h-8 w-40 text-xs`} value={period} onChange={(e) => setPeriod(e.target.value)} />
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.pipeline.costForMonth')}</h3>
+              <input type="month" aria-label={t('option.label.month')} className={`${inputClasses} h-8 w-40 text-xs`} value={period} onChange={(e) => setPeriod(e.target.value)} />
             </div>
-            {isCostLoading && <p className="text-xs text-ink-faint">Calculating…</p>}
-            {costError && <p className="text-xs text-danger">{friendlyErrorMessage(costError, 'Could not work out the cost.')}</p>}
+            {isCostLoading && <p className="text-xs text-ink-faint">{t('option.pipeline.calculating')}</p>}
+            {costError && <p className="text-xs text-danger">{friendlyErrorMessage(costError, t('notify.pipeline.couldNotWorkOutCost'))}</p>}
             {cost && (
               <dl className="space-y-1.5 text-sm">
                 <div className="flex justify-between">
-                  <dt className="text-ink-muted">Days covered (first to last day, both included)</dt>
+                  <dt className="text-ink-muted">{t('option.pipeline.daysCovered')}</dt>
                   <dd className="text-ink">{cost.covered_days ?? cost.verified_days}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-ink-muted">Daily rate (covered salary ÷ days in the month)</dt>
+                  <dt className="text-ink-muted">{t('option.pipeline.dailyRateLabel')}</dt>
                   <dd className="text-right text-ink">{describeDailyRate(cost.daily_rate)}</dd>
                 </div>
                 <div className="flex justify-between border-t border-border pt-1.5 font-semibold">
-                  <dt className="text-ink">Cost for this month</dt>
+                  <dt className="text-ink">{t('option.pipeline.costForThisMonth')}</dt>
                   <dd className="text-ink">{formatCurrency(Number(cost.amount))}</dd>
                 </div>
                 {cost.charged_dates.length > 0 && (
-                  <p className="text-xs text-ink-faint">Charged days: {cost.charged_dates.map((date) => formatDate(date)).join(', ')}</p>
+                  <p className="text-xs text-ink-faint">{t('option.pipeline.chargedDays', { dates: cost.charged_dates.map((date) => formatDate(date)).join(', ') })}</p>
                 )}
                 {cost.ignored.unverified > 0 && (
-                  <p className="text-xs text-warning">{cost.ignored.unverified} day(s) are not verified yet, so they are not charged.</p>
+                  <p className="text-xs text-warning">{t('warning.pipeline.unverifiedDays', { count: cost.ignored.unverified })}</p>
                 )}
                 {cost.ignored.outside_window_or_month > 0 && (
-                  <p className="text-xs text-ink-faint">{cost.ignored.outside_window_or_month} day(s) fall outside this month or the cover dates and are not counted.</p>
+                  <p className="text-xs text-ink-faint">{t('warning.pipeline.outsideDays', { count: cost.ignored.outside_window_or_month })}</p>
                 )}
                 {cost.ignored.duplicates > 0 && (
-                  <p className="text-xs text-ink-faint">{cost.ignored.duplicates} duplicate day(s) are not counted twice.</p>
+                  <p className="text-xs text-ink-faint">{t('warning.pipeline.duplicateDays', { count: cost.ignored.duplicates })}</p>
                 )}
               </dl>
             )}
 
             <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
               {replacement.approved ? (
-                <StatusBadge status="approved" label={`Approved${replacement.approved_at ? ` on ${formatDate(replacement.approved_at)}` : ''}`} tone="success" />
+                <StatusBadge
+                  status="approved"
+                  label={replacement.approved_at ? t('status.pipeline.approvedOn', { date: formatDate(replacement.approved_at) }) : t('status.pipeline.approved')}
+                  tone="success"
+                />
               ) : (
                 <>
-                  <StatusBadge status="awaiting-approval" label="Not approved yet - nothing is deducted until it is approved" tone="neutral" />
+                  <StatusBadge status="awaiting-approval" label={t('status.pipeline.notApprovedYet')} tone="neutral" />
                   {canApprove && (
                     <Button size="sm" onClick={() => setIsApproveOpen(true)}>
-                      Approve cost
+                      {t('action.approveCost')}
                     </Button>
                   )}
                 </>
@@ -701,9 +732,9 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
 
       <ConfirmDialog
         isOpen={isApproveOpen}
-        title="Approve this replacement?"
-        description={`Once approved, the cost of the days the cover existed is deducted once from ${coveredName}'s pay in the payroll run. Check the cover's start and end dates before you continue.`}
-        confirmLabel="Approve"
+        title={t('confirm.pipeline.approveTitle')}
+        description={t('confirm.pipeline.approveBody', { name: coveredName })}
+        confirmLabel={t('action.approveReplacementCost')}
         isLoading={approveMutation.isPending}
         onConfirm={() => approveMutation.mutate()}
         onCancel={() => setIsApproveOpen(false)}
@@ -723,25 +754,26 @@ function VoidWorkdayModal({
   onConfirm: (reason: string) => void;
   isLoading: boolean;
 }) {
+  const { t } = useI18n();
   const [reason, setReason] = useState('');
 
   return (
     <Modal
       isOpen
       onClose={onClose}
-      title="Void this day"
+      title={t('confirm.pipeline.voidTitle')}
       size="sm"
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
           <Button variant="danger" size="sm" isLoading={isLoading} disabled={reason.trim().length < 5} onClick={() => onConfirm(reason.trim())}>
-            Void day
+            {t('action.voidDay')}
           </Button>
         </>
       }
     >
-      <p className="mb-3 text-sm text-ink-muted">{formatDate(workday.work_date)} will no longer be charged. The day stays in the list for the record.</p>
-      <FormField label="Reason" htmlFor="void-reason" required hint="At least 5 characters.">
+      <p className="mb-3 text-sm text-ink-muted">{t('confirm.pipeline.voidBody', { date: formatDate(workday.work_date) })}</p>
+      <FormField label={t('option.pipeline.reason')} htmlFor="void-reason" required hint={t('validation.pipeline.minFiveCharacters')}>
         <textarea id="void-reason" rows={2} maxLength={500} className={inputClasses + ' h-auto py-2'} value={reason} onChange={(e) => setReason(e.target.value)} />
       </FormField>
     </Modal>
@@ -759,6 +791,7 @@ function RecordPaymentModal({
   onConfirm: (paymentDate: string, amount: number, notes: string, overrideReason: string) => void;
   isLoading: boolean;
 }) {
+  const { t, tValue } = useI18n();
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [amount, setAmount] = useState('');
   const [touched, setTouched] = useState(false);
@@ -785,40 +818,55 @@ function RecordPaymentModal({
     <Modal
       isOpen
       onClose={onClose}
-      title="Record Payment"
+      title={t('action.recordPayment')}
       size="sm"
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" isLoading={isLoading} disabled={amount === ''} onClick={() => onConfirm(paymentDate, Number(amount), notes, differs ? overrideReason.trim() : '')}>{differs ? 'Record as entered' : 'Record'}</Button>
+          <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
+          <Button size="sm" isLoading={isLoading} disabled={amount === ''} onClick={() => onConfirm(paymentDate, Number(amount), notes, differs ? overrideReason.trim() : '')}>{differs ? t('action.recordAsEntered') : t('action.record')}</Button>
         </>
       }
     >
       <p className="mb-3 text-sm text-ink-muted">{replacement.replacement_employee_name}</p>
-      <FormField label="Payment date" htmlFor="pay-date" required>
+      <FormField label={t('option.pipeline.paymentDate')} htmlFor="pay-date" required>
         <input id="pay-date" type="date" className={inputClasses} value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
       </FormField>
       {expected.data && (
         <div className="mb-4 rounded-sm bg-surface-alt px-3 py-2 text-xs text-ink-muted" data-testid="expected-payment">
           <p>
-            Calculated: <strong className="text-ink">{expected.data.balance} {expected.data.currency}</strong> ({expected.data.counted_days} calendar day(s){expected.data.through ? ` up to ${formatDate(expected.data.through)}` : ''}; already paid {expected.data.paid_so_far}).
+            <Msg
+              id={expected.data.through ? 'warning.pipeline.calcSummaryThrough' : 'warning.pipeline.calcSummary'}
+              values={{
+                amount: <strong className="text-ink">{expected.data.balance} {expected.data.currency}</strong>,
+                days: expected.data.counted_days,
+                date: expected.data.through ? formatDate(expected.data.through) : '',
+                paid: expected.data.paid_so_far,
+              }}
+            />
           </p>
-          {expected.data.ended_early && <p>Ended early: planned until {expected.data.planned_end_date ? formatDate(expected.data.planned_end_date) : '—'}, ended {expected.data.actual_end_date ? formatDate(expected.data.actual_end_date) : '—'}. Days after the end are not counted.</p>}
-          {expected.data.warnings.map((w) => <p key={w.code} className="mt-1">{w.message}</p>)}
+          {expected.data.ended_early && (
+            <p>
+              {t('warning.pipeline.endedEarly', {
+                planned: expected.data.planned_end_date ? formatDate(expected.data.planned_end_date) : '—',
+                actual: expected.data.actual_end_date ? formatDate(expected.data.actual_end_date) : '—',
+              })}
+            </p>
+          )}
+          {expected.data.warnings.map((w) => <p key={w.code} className="mt-1">{tValue('warning.expected', w.code) ?? w.message}</p>)}
         </div>
       )}
-      <FormField label="Amount" htmlFor="pay-amount" required hint={balance === null ? undefined : 'Prefilled with the calculated amount. You can change it.'}>
+      <FormField label={t('option.pipeline.amount')} htmlFor="pay-amount" required hint={balance === null ? undefined : t('warning.pipeline.expectedHint')}>
         <input id="pay-amount" type="number" min={0} step="0.01" className={inputClasses} value={amount} onChange={(e) => { setTouched(true); setAmount(e.target.value); }} />
       </FormField>
       {differs && balance !== null && (
         <div className="mb-4 rounded-sm border border-warning px-3 py-2 text-xs text-ink" role="alert" data-testid="override-warning">
           <p>{overrideWarning(balance, amount, expected.data?.currency)}</p>
-          <FormField label="Why is it different? (optional)" htmlFor="pay-override">
+          <FormField label={t('option.pipeline.whyDifferent')} htmlFor="pay-override">
             <input id="pay-override" className={inputClasses} value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} maxLength={500} />
           </FormField>
         </div>
       )}
-      <FormField label="Notes" htmlFor="pay-notes">
+      <FormField label={t('option.pipeline.notes')} htmlFor="pay-notes">
         <textarea id="pay-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </FormField>
     </Modal>
@@ -836,23 +884,24 @@ function EndReplacementModal({
   onConfirm: (endDate: string) => void;
   isLoading: boolean;
 }) {
+  const { t } = useI18n();
   const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
 
   return (
     <Modal
       isOpen
       onClose={onClose}
-      title="End Coverage"
+      title={t('action.endCoverage')}
       size="sm"
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button variant="danger" size="sm" isLoading={isLoading} onClick={() => onConfirm(endDate)}>End Coverage</Button>
+          <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
+          <Button variant="danger" size="sm" isLoading={isLoading} onClick={() => onConfirm(endDate)}>{t('action.endCoverage')}</Button>
         </>
       }
     >
       <p className="mb-3 text-sm text-ink-muted">{replacement.replacement_employee_name}</p>
-      <FormField label="End date" htmlFor="tr-end-date" required>
+      <FormField label={t('option.pipeline.endDate')} htmlFor="tr-end-date" required>
         <input id="tr-end-date" type="date" className={inputClasses} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
       </FormField>
     </Modal>

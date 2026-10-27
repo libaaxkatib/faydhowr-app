@@ -15,6 +15,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/useToast';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
+import { useI18n } from '@/i18n/useI18n';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import { tidyName, validateNewName } from '@/utils/quickCreate';
 import type { EmployeeCategory } from '@/types/employee';
@@ -27,6 +28,7 @@ import type { EmployeeCategory } from '@/types/employee';
 export function CategoriesPage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t, tCount } = useI18n();
   const { hasPermission } = useEffectivePermissions();
   const canManage = hasPermission('hr.manage');
   const [editing, setEditing] = useState<EmployeeCategory | 'new' | null>(null);
@@ -54,10 +56,10 @@ export function CategoriesPage() {
     },
     onSuccess: () => {
       refresh();
-      show(editing === 'new' ? 'Category created.' : 'Category updated.');
+      show(editing === 'new' ? t('notify.company.categoryCreated') : t('notify.company.categoryUpdated'));
       setEditing(null);
     },
-    onError: (err) => setFormError(err instanceof ApiClientError ? (err.fieldErrors?.name?.[0] ?? friendlyErrorMessage(err, 'Could not save the category.')) : friendlyErrorMessage(err, 'Could not save the category.')),
+    onError: (err) => setFormError(err instanceof ApiClientError ? (err.fieldErrors?.name?.[0] ?? friendlyErrorMessage(err, t('notify.company.couldNotSaveCategory'))) : friendlyErrorMessage(err, t('notify.company.couldNotSaveCategory'))),
   });
 
   const submit = () => {
@@ -71,21 +73,21 @@ export function CategoriesPage() {
     mutationFn: ({ category, archived }: { category: EmployeeCategory; archived: boolean }) => (archived ? hrApi.employeeCategories.archive(category.id) : hrApi.employeeCategories.restore(category.id)),
     onSuccess: (_row, { archived }) => {
       refresh();
-      show(archived ? 'Category archived. It stays on the people who have it but cannot be chosen for new ones.' : 'Category restored.');
+      show(archived ? t('notify.company.categoryArchived') : t('notify.company.categoryRestored'));
     },
-    onError: (err) => show(friendlyErrorMessage(err, 'Could not change the category.'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.company.couldNotChangeCategory')), 'error'),
   });
 
   return (
     <div>
       <PageHeader
-        title="Categories"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Categories' }]}
+        title={t('nav.categories')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.categories') }]}
         actions={
           canManage ? (
             <Button onClick={() => open('new')}>
               <Icon name="plus" size={15} />
-              Add Category
+              {t('action.company.addCategory')}
             </Button>
           ) : undefined
         }
@@ -93,13 +95,13 @@ export function CategoriesPage() {
 
       <label className="mb-3 flex items-center gap-2 text-xs text-ink-muted">
         <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
-        Show archived categories
+        {t('option.company.showArchivedCategories')}
       </label>
 
       <Card>
-        {isLoading && <LoadingState label="Loading categories…" />}
+        {isLoading && <LoadingState label={t('option.employees.loadingCategories')} />}
         {error && <ErrorState error={error} onRetry={refetch} />}
-        {data && categories.length === 0 && <EmptyState icon="list" title="No categories" />}
+        {data && categories.length === 0 && <EmptyState icon="list" title={t('option.employees.noCategories')} />}
         {categories.length > 0 && (
           <div className="divide-y divide-border">
             {categories.map((category) => (
@@ -107,24 +109,24 @@ export function CategoriesPage() {
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink">
                     {category.name}
-                    {category.is_system && <StatusBadge status="system" tone="info" label="Used by Office Staff" />}
-                    {category.archived && <StatusBadge status="archived" tone="neutral" label="Archived" />}
+                    {category.is_system && <StatusBadge status="system" tone="info" label={t('status.company.usedByOfficeStaff')} />}
+                    {category.archived && <StatusBadge status="archived" tone="neutral" label={t('status.company.archived')} />}
                   </p>
                   <p className="text-xs text-ink-muted">
                     {category.description ? `${category.description} · ` : ''}
-                    {category.employees_count ?? 0} employee{category.employees_count === 1 ? '' : 's'}
+                    {tCount('option.employees.categoryEmployeeCount', category.employees_count ?? 0)}
                   </p>
                 </div>
                 {canManage && (
                   <div className="flex items-center gap-1.5">
-                    <Button variant="outline" size="sm" onClick={() => open(category)} aria-label={`Edit category ${category.name}`}>
+                    <Button variant="outline" size="sm" onClick={() => open(category)} aria-label={t('action.company.editCategoryNamed', { name: category.name })}>
                       <Icon name="pencil" size={14} />
-                      Edit
+                      {t('action.edit')}
                     </Button>
                     {!category.is_system && (
                       <>
-                        <Button variant="outline" size="sm" isLoading={archive.isPending && archive.variables?.category.id === category.id} onClick={() => archive.mutate({ category, archived: !category.archived })} aria-label={`${category.archived ? 'Restore' : 'Archive'} category ${category.name}`}>
-                          {category.archived ? 'Restore' : 'Archive'}
+                        <Button variant="outline" size="sm" isLoading={archive.isPending && archive.variables?.category.id === category.id} onClick={() => archive.mutate({ category, archived: !category.archived })} aria-label={category.archived ? t('action.company.restoreCategoryNamed', { name: category.name }) : t('action.company.archiveCategoryNamed', { name: category.name })}>
+                          {category.archived ? t('action.company.restoreCategory') : t('action.company.archiveCategory')}
                         </Button>
                       </>
                     )}
@@ -140,20 +142,20 @@ export function CategoriesPage() {
         confirmDiscard
         isOpen={editing !== null}
         onClose={() => setEditing(null)}
-        title={editing === 'new' ? 'Add Category' : 'Edit Category'}
+        title={editing === 'new' ? t('action.company.addCategory') : t('confirm.company.editCategoryTitle')}
         size="sm"
         footer={
           <>
             <ModalCancelButton disabled={save.isPending} />
-            <Button size="sm" isLoading={save.isPending} onClick={submit}>Save</Button>
+            <Button size="sm" isLoading={save.isPending} onClick={submit}>{t('action.save')}</Button>
           </>
         }
       >
         {formError && <div role="alert" className="mb-4 rounded-md border border-danger/30 bg-danger-soft px-3.5 py-2.5 text-sm text-danger">{formError}</div>}
-        <FormField label="Name" htmlFor="cat-name" required hint={editing !== 'new' && editing?.is_system ? 'This category cannot be renamed.' : 'Renaming keeps every employee and request that uses it.'}>
+        <FormField label={t('option.label.name')} htmlFor="cat-name" required hint={editing !== 'new' && editing?.is_system ? t('confirm.company.categorySystemNameHint') : t('confirm.company.categoryRenameHint')}>
           <input id="cat-name" className={inputClasses} value={name} disabled={editing !== 'new' && editing?.is_system === true} onChange={(e) => setName(e.target.value)} />
         </FormField>
-        <FormField label="Description (optional)" htmlFor="cat-description">
+        <FormField label={t('option.employees.descriptionOptional')} htmlFor="cat-description">
           <input id="cat-description" className={inputClasses} value={description} onChange={(e) => setDescription(e.target.value)} />
         </FormField>
       </Modal>

@@ -1,5 +1,6 @@
 import { Card } from '@/components/ui/Card';
 import { Icon, type IconName } from '@/components/ui/Icon';
+import { useI18n } from '@/i18n/useI18n';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
 import type { DashboardWidget } from '@/types/dashboard';
 
@@ -10,6 +11,7 @@ interface KpiCardProps {
 }
 
 export function KpiCard({ widget, icon, iconClassName }: KpiCardProps) {
+  const { tValue } = useI18n();
   const value = widget.unit === 'currency' ? formatCurrency(widget.total) : formatNumber(widget.total);
 
   return (
@@ -19,7 +21,7 @@ export function KpiCard({ widget, icon, iconClassName }: KpiCardProps) {
           <Icon name={icon} size={19} />
         </div>
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium text-ink-muted">{widget.label}</p>
+          <p className="truncate text-xs font-medium text-ink-muted">{tValue('status.shell.widget', widget.label) ?? widget.label}</p>
           <p className="font-display text-xl font-bold text-ink">{value}</p>
         </div>
       </div>

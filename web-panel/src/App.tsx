@@ -51,8 +51,11 @@ import { AuditLogPage } from '@/features/system/AuditLogPage';
 import { ReconciliationListPage } from '@/features/system/ReconciliationListPage';
 import { ReconciliationDetailPage } from '@/features/system/ReconciliationDetailPage';
 import { PageState } from '@/components/ui/PageState';
+import { useI18n } from '@/i18n/useI18n';
 
 export default function App() {
+  const { t } = useI18n();
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -218,8 +221,8 @@ export default function App() {
           element={
             <PageState
               icon="alert-triangle"
-              title="Not built yet"
-              description="This module is on the roadmap but hasn't been implemented in this phase. See the Web Panel Blueprint for the build order."
+              title={t('warning.shell.notBuiltTitle')}
+              description={t('warning.shell.notBuiltText')}
             />
           }
         />

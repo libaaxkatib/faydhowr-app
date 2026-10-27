@@ -15,7 +15,7 @@ test('the company card header may wrap onto a second line on a narrow screen', (
 test('both button rows of the company card wrap instead of overflowing, and keep every action', () => {
   assert.equal((cardHeader.match(/className="flex flex-wrap items-center gap-1"/g) ?? []).length, 2);
   assert.doesNotMatch(cardHeader, /className="flex items-center gap-1"/);
-  for (const label of ['Employees', 'Add Location']) assert.ok(cardHeader.includes(label), `${label} is still offered`);
+  for (const key of ['nav.employees', 'action.company.addLocation']) assert.ok(cardHeader.includes(`t('${key}')`), `${key} is still offered`);
   assert.ok(cardHeader.includes('setCompanyModal({ editing: company })'), 'edit is still offered');
   assert.ok(cardHeader.includes('deleteCompanyMutation.mutate(company.id)'), 'delete is still offered');
   assert.ok(cardHeader.includes('<PermissionGate module="hr">'), 'the HR permission gate is kept');

@@ -8,7 +8,8 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
-import { ASSIGNABLE_ADMIN_ROLES } from '@/types/system';
+import { ASSIGNABLE_ADMIN_ROLES, adminRoleLabel } from '@/types/system';
+import { useI18n } from '@/i18n/useI18n';
 import type { Admin, AdminRole, AdminStatus } from '@/types/admin';
 import type { CreateAdminPayload, UpdateAdminPayload } from '@/types/system';
 
@@ -29,6 +30,7 @@ const emptyForm = {
 };
 
 export function AdminFormDialog({ isOpen, onClose, mode, admin }: AdminFormDialogProps) {
+  const { t, tValue } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const [form, setForm] = useState(emptyForm);
@@ -76,14 +78,14 @@ export function AdminFormDialog({ isOpen, onClose, mode, admin }: AdminFormDialo
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admins'] });
-      show(mode === 'create' ? 'Admin created.' : 'Admin updated.');
+      show(mode === 'create' ? t('notify.system.adminCreated') : t('notify.system.adminUpdated'));
       onClose();
     },
     onError: (error) => {
       if (error instanceof ApiClientError && error.isValidation) {
         setFieldErrors(error.fieldErrors ?? {});
       } else {
-        show(error instanceof Error ? error.message : 'Something went wrong.', 'error');
+        show(error instanceof Error ? error.message : t('notify.employees.somethingWentWrong'), 'error');
       }
     },
   });
@@ -97,20 +99,20 @@ export function AdminFormDialog({ isOpen, onClose, mode, admin }: AdminFormDialo
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={mode === 'create' ? 'Add Admin' : 'Edit Admin'}
+      title={mode === 'create' ? t('action.system.addAdmin') : t('option.system.editAdmin')}
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>
-            Cancel
+            {t('action.cancel')}
           </Button>
           <Button size="sm" onClick={handleSubmit} isLoading={mutation.isPending}>
-            {mode === 'create' ? 'Create Admin' : 'Save Changes'}
+            {mode === 'create' ? t('action.system.createAdmin') : t('action.saveChanges')}
           </Button>
         </>
       }
     >
       <form onSubmit={handleSubmit}>
-        <FormField label="Full name" htmlFor="admin-full-name" required error={fieldErrors.full_name?.[0]}>
+        <FormField label={t('option.label.fullName')} htmlFor="admin-full-name" required error={fieldErrors.full_name?.[0]}>
           <input
             id="admin-full-name"
             required
@@ -121,7 +123,7 @@ export function AdminFormDialog({ isOpen, onClose, mode, admin }: AdminFormDialo
         </FormField>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Email" htmlFor="admin-email" required error={fieldErrors.email?.[0]}>
+          <FormField label={t('option.system.email')} htmlFor="admin-email" required error={fieldErrors.email?.[0]}>
             <input
               id="admin-email"
               type="email"
@@ -131,7 +133,7 @@ export function AdminFormDialog({ isOpen, onClose, mode, admin }: AdminFormDialo
               onChange={(event) => setForm({ ...form, email: event.target.value })}
             />
           </FormField>
-          <FormField label="Phone" htmlFor="admin-phone" required error={fieldErrors.phone?.[0]}>
+          <FormField label={t('option.label.phone')} htmlFor="admin-phone" required error={fieldErrors.phone?.[0]}>
             <input
               id="admin-phone"
               required
@@ -143,7 +145,7 @@ export function AdminFormDialog({ isOpen, onClose, mode, admin }: AdminFormDialo
         </div>
 
         {mode === 'create' && (
-          <FormField label="Temporary password" htmlFor="admin-password" required hint="Minimum 8 characters. The admin should change this after first login." error={fieldErrors.password?.[0]}>
+          <FormField label={t('option.system.temporaryPassword')} htmlFor="admin-password" required hint={t('warning.system.passwordHint')} error={fieldErrors.password?.[0]}>
             <input
               id="admin-password"
               type="password"
@@ -157,25 +159,25 @@ export function AdminFormDialog({ isOpen, onClose, mode, admin }: AdminFormDialo
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Role" htmlFor="admin-role" required error={fieldErrors.role?.[0]}>
+          <FormField label={t('option.system.role')} htmlFor="admin-role" required error={fieldErrors.role?.[0]}>
             <Select
               id="admin-role"
               required
               value={form.role}
               onChange={(event) => setForm({ ...form, role: event.target.value as AdminRole })}
-              placeholder="Select a role"
-              options={ASSIGNABLE_ADMIN_ROLES}
+              placeholder={t('option.system.selectRole')}
+              options={ASSIGNABLE_ADMIN_ROLES.map((role) => ({ value: role.value, label: adminRoleLabel(role.value, tValue) }))}
             />
           </FormField>
-          <FormField label="Status" htmlFor="admin-status" required error={fieldErrors.status?.[0]}>
+          <FormField label={t('option.label.status')} htmlFor="admin-status" required error={fieldErrors.status?.[0]}>
             <Select
               id="admin-status"
               required
               value={form.status}
               onChange={(event) => setForm({ ...form, status: event.target.value as AdminStatus })}
               options={[
-                { value: 'active', label: 'Active' },
-                { value: 'inactive', label: 'Inactive' },
+                { value: 'active', label: t('status.active') },
+                { value: 'inactive', label: t('status.inactive') },
               ]}
             />
           </FormField>

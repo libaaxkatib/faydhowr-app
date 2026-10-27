@@ -4,6 +4,7 @@ import { NavLink } from 'react-router-dom';
 import { Logo } from '@/components/Logo';
 import { Icon } from '@/components/ui/Icon';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
+import { useI18n } from '@/i18n/useI18n';
 import { NAV_GROUPS } from '@/layouts/nav.config';
 import { isGroupVisible, isItemRenderable } from '@/layouts/navVisibility';
 
@@ -15,6 +16,7 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const { hasPermission, isSuperAdmin, isLoading } = useEffectivePermissions();
+  const { t } = useI18n();
 
   return (
     <aside
@@ -56,10 +58,10 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
                   className="flex w-full items-center justify-between px-3 py-2 text-[10.5px] font-bold uppercase tracking-wider text-white/40"
                 >
                   <span className="flex items-center gap-1.5">
-                    {group.label}
+                    {group.labelKey ? t(group.labelKey) : group.label}
                     {group.comingSoon && (
                       <span className="rounded-full bg-secondary/25 px-1.5 py-0.5 text-[9px] font-bold text-secondary-soft normal-case tracking-normal">
-                        Planned
+                        {t('nav.shell.planned')}
                       </span>
                     )}
                   </span>
@@ -72,11 +74,11 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
                       item.comingSoon ? (
                         <div
                           key={`${item.to}:${item.label}`}
-                          title="Backend for this module isn't built yet"
+                          title={t('warning.shell.moduleNotBuilt')}
                           className="flex cursor-not-allowed items-center gap-2.5 rounded-md px-3 py-2 text-[13px] text-white/30"
                         >
                           {item.icon && <Icon name={item.icon} size={15} />}
-                          {item.label}
+                          {item.labelKey ? t(item.labelKey) : item.label}
                         </div>
                       ) : (
                         <NavLink
@@ -93,7 +95,7 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
                           }
                         >
                           {item.icon && <Icon name={item.icon} size={15} />}
-                          {item.label}
+                          {item.labelKey ? t(item.labelKey) : item.label}
                         </NavLink>
                       ),
                     )}
@@ -108,7 +110,7 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
         <Logo className="h-6 w-auto" variant="inverted" />
         <div className="leading-tight">
           <p className="text-xs font-bold text-white">FAYADHOWR</p>
-          <p className="text-[10px] text-white/50">Service with trust</p>
+          <p className="text-[10px] text-white/50">{t('nav.shell.tagline')}</p>
         </div>
       </div>
     </aside>

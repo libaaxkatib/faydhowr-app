@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
+import { useI18n } from '@/i18n/useI18n';
 import { buildAddMemberPayload, emptyTeamMemberForm, MIN_PASSWORD_LENGTH, validateTeamMemberForm, type TeamMemberForm } from '@/utils/teamMemberForm';
 import type { MarketingTeam } from '@/types/marketing';
 
@@ -26,6 +27,7 @@ interface AddTeamMemberDialogProps {
 export function AddTeamMemberDialog({ isOpen, onClose, teams }: AddTeamMemberDialogProps) {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   const [form, setForm] = useState<TeamMemberForm>(emptyTeamMemberForm);
   const [clientErrors, setClientErrors] = useState<Partial<Record<keyof TeamMemberForm, string>>>({});
   const [serverErrors, setServerErrors] = useState<Record<string, string[]>>({});
@@ -47,14 +49,14 @@ export function AddTeamMemberDialog({ isOpen, onClose, teams }: AddTeamMemberDia
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['marketing-employees'] });
       queryClient.invalidateQueries({ queryKey: ['marketing-teams'] });
-      show('Team member added.');
+      show(t('notify.marketing.teamMemberAdded'));
       onClose();
     },
     onError: (error) => {
       if (error instanceof ApiClientError && error.isValidation) {
         setServerErrors(error.fieldErrors ?? {});
       } else {
-        show(error instanceof Error ? error.message : 'Something went wrong.', 'error');
+        show(error instanceof Error ? error.message : t('notify.marketing.somethingWentWrong'), 'error');
       }
     },
   });
@@ -73,39 +75,39 @@ export function AddTeamMemberDialog({ isOpen, onClose, teams }: AddTeamMemberDia
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Add Team Member"
+      title={t('action.marketing.addTeamMember')}
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>Cancel</Button>
-          <Button size="sm" onClick={handleSubmit} isLoading={mutation.isPending}>Add Team Member</Button>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>{t('action.cancel')}</Button>
+          <Button size="sm" onClick={handleSubmit} isLoading={mutation.isPending}>{t('action.marketing.addTeamMember')}</Button>
         </>
       }
     >
       <form onSubmit={handleSubmit} noValidate>
-        <FormField label="Team" htmlFor="member-team" required error={error('team_id')}>
+        <FormField label={t('option.marketing.team')} htmlFor="member-team" required error={error('team_id')}>
           <Select
             id="member-team"
             value={form.team_id === '' ? '' : String(form.team_id)}
             onChange={(event) => setForm({ ...form, team_id: event.target.value === '' ? '' : Number(event.target.value) })}
-            placeholder="Choose a team…"
+            placeholder={t('option.marketing.chooseTeam')}
             options={teams.map((team) => ({ value: String(team.id), label: team.name }))}
           />
         </FormField>
-        <FormField label="Full name" htmlFor="member-full-name" required error={error('full_name')}>
+        <FormField label={t('option.label.fullName')} htmlFor="member-full-name" required error={error('full_name')}>
           <input id="member-full-name" className={inputClasses} value={form.full_name} onChange={(event) => setForm({ ...form, full_name: event.target.value })} />
         </FormField>
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Email" htmlFor="member-email" required error={error('email')}>
+          <FormField label={t('option.marketing.email')} htmlFor="member-email" required error={error('email')}>
             <input id="member-email" type="email" className={inputClasses} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
           </FormField>
-          <FormField label="Phone" htmlFor="member-phone" required error={error('phone')}>
+          <FormField label={t('option.label.phone')} htmlFor="member-phone" required error={error('phone')}>
             <input id="member-phone" className={inputClasses} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
           </FormField>
         </div>
-        <FormField label="Initial password" htmlFor="member-password" required error={error('password')} hint={`At least ${MIN_PASSWORD_LENGTH} characters. Give it to the member privately; they can change it after signing in.`}>
+        <FormField label={t('option.marketing.initialPassword')} htmlFor="member-password" required error={error('password')} hint={t('warning.marketing.passwordHint', { min: MIN_PASSWORD_LENGTH })}>
           <input id="member-password" type="password" autoComplete="new-password" className={inputClasses} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
         </FormField>
-        <p className="text-xs text-ink-muted">The account is created as a Marketing Employee and sees only its own team's work.</p>
+        <p className="text-xs text-ink-muted">{t('warning.marketing.accountCreatedNote')}</p>
       </form>
     </Modal>
   );

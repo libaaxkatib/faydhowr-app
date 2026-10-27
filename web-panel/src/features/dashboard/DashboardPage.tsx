@@ -11,19 +11,22 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { KpiCard } from '@/features/dashboard/KpiCard';
+import { useI18n } from '@/i18n/useI18n';
+import type { MessageKey } from '@/i18n/messages';
 import type { DashboardFilter } from '@/types/dashboard';
 
-const FILTER_OPTIONS: { value: DashboardFilter | ''; label: string }[] = [
-  { value: '', label: 'All time' },
-  { value: 'today', label: 'Today' },
-  { value: 'yesterday', label: 'Yesterday' },
-  { value: 'last_7_days', label: 'Last 7 days' },
-  { value: 'last_30_days', label: 'Last 30 days' },
-  { value: 'this_month', label: 'This month' },
-  { value: 'last_month', label: 'Last month' },
+const FILTER_OPTIONS: { value: DashboardFilter | ''; labelKey: MessageKey }[] = [
+  { value: '', labelKey: 'option.shell.allTime' },
+  { value: 'today', labelKey: 'option.common.preset.today' },
+  { value: 'yesterday', labelKey: 'option.shell.yesterday' },
+  { value: 'last_7_days', labelKey: 'option.shell.last7Days' },
+  { value: 'last_30_days', labelKey: 'option.shell.last30Days' },
+  { value: 'this_month', labelKey: 'option.shell.thisMonthLower' },
+  { value: 'last_month', labelKey: 'option.shell.lastMonthLower' },
 ];
 
 export function DashboardPage() {
+  const { t } = useI18n();
   const [filter, setFilter] = useState<DashboardFilter | ''>('');
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
@@ -35,25 +38,25 @@ export function DashboardPage() {
     <div>
       <PageHeader
         title="Dashboard"
-        breadcrumb={[{ label: 'Home', to: '/dashboard' }, { label: 'Dashboard' }]}
+        breadcrumb={[{ label: t('nav.shell.home'), to: '/dashboard' }, { label: 'Dashboard' }]}
         actions={
           <>
             <Select
               value={filter}
               onChange={(event) => setFilter(event.target.value as DashboardFilter | '')}
-              options={FILTER_OPTIONS.filter((option) => option.value !== '')}
-              placeholder="All time"
+              options={FILTER_OPTIONS.filter((option) => option.value !== '').map((option) => ({ value: option.value, label: t(option.labelKey) }))}
+              placeholder={t('option.shell.allTime')}
               className="w-40"
             />
             <Button variant="outline" size="sm" onClick={() => refetch()} isLoading={isFetching}>
               <Icon name="refresh" size={14} />
-              Refresh
+              {t('action.shell.refresh')}
             </Button>
           </>
         }
       />
 
-      {isLoading && <LoadingState label="Loading dashboard…" />}
+      {isLoading && <LoadingState label={t('option.shell.loadingDashboard')} />}
       {error && !isLoading && <ErrorState error={error} onRetry={refetch} />}
 
       {data && (
@@ -71,26 +74,26 @@ export function DashboardPage() {
           <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2">
               <CardHeader>
-                <h3 className="font-display text-sm font-bold text-ink">Booking &amp; Order Overview</h3>
+                <h3 className="font-display text-sm font-bold text-ink">{t('option.shell.bookingOrderOverview')}</h3>
               </CardHeader>
               <CardBody className="p-0">
                 <EmptyState
                   icon="bar-chart"
-                  title="Trend chart not available yet"
-                  description="The dashboard API returns point-in-time totals only — no time-series endpoint exists yet to plot bookings vs. orders over the selected period."
+                  title={t('warning.shell.trendTitle')}
+                  description={t('warning.shell.trendText')}
                 />
               </CardBody>
             </Card>
 
             <Card>
               <CardHeader>
-                <h3 className="font-display text-sm font-bold text-ink">Recent Activities</h3>
+                <h3 className="font-display text-sm font-bold text-ink">{t('option.shell.recentActivities')}</h3>
               </CardHeader>
               <CardBody className="p-0">
                 <EmptyState
                   icon="inbox"
-                  title="No activity feed yet"
-                  description="No admin-facing activity-feed endpoint exists on the dashboard yet."
+                  title={t('warning.shell.activityTitle')}
+                  description={t('warning.shell.activityText')}
                 />
               </CardBody>
             </Card>
@@ -99,26 +102,26 @@ export function DashboardPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2">
               <CardHeader>
-                <h3 className="font-display text-sm font-bold text-ink">Latest Orders</h3>
+                <h3 className="font-display text-sm font-bold text-ink">{t('option.shell.latestOrders')}</h3>
               </CardHeader>
               <CardBody className="p-0">
                 <EmptyState
                   icon="cart"
-                  title="Use the Orders module"
-                  description="A dedicated 'latest orders' widget isn't part of the dashboard API — see the Orders module in Mobile App Management for the full, real order list."
+                  title={t('warning.shell.ordersTitle')}
+                  description={t('warning.shell.ordersText')}
                 />
               </CardBody>
             </Card>
 
             <Card>
               <CardHeader>
-                <h3 className="font-display text-sm font-bold text-ink">Sales Overview</h3>
+                <h3 className="font-display text-sm font-bold text-ink">{t('option.shell.salesOverview')}</h3>
               </CardHeader>
               <CardBody className="p-0">
                 <EmptyState
                   icon="bar-chart"
-                  title="No revenue breakdown yet"
-                  description="The dashboard reports one total revenue figure — a services/products/bookings split isn't exposed by the API yet."
+                  title={t('warning.shell.revenueTitle')}
+                  description={t('warning.shell.revenueText')}
                 />
               </CardBody>
             </Card>

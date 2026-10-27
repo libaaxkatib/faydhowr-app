@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Icon } from '@/components/ui/Icon';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { useAuth } from '@/features/auth/useAuth';
 import { ChangePasswordDialog } from '@/features/auth/ChangePasswordDialog';
+import { useI18n } from '@/i18n/useI18n';
 import { initialsOf } from '@/utils/formatters';
 
 interface HeaderProps {
@@ -12,6 +14,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const { admin, logout } = useAuth();
+  const { t, tValue } = useI18n();
   const navigate = useNavigate();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -33,7 +36,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           </span>
           <input
             type="text"
-            placeholder="Search anything…"
+            placeholder={t('option.common.searchAnything')}
             className="h-10 w-full rounded-sm border border-border bg-surface-muted pl-9 pr-14 text-sm text-ink outline-none transition focus:border-primary focus:bg-surface focus:ring-2 focus:ring-primary/20"
           />
           <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-border bg-surface px-1.5 py-0.5 text-[10px] font-medium text-ink-faint">
@@ -43,16 +46,17 @@ export function Header({ onMenuClick }: HeaderProps) {
       </div>
 
       <div className="ml-auto flex items-center gap-1">
+        <LanguageSwitcher className="mr-1" />
         <button
           type="button"
-          title="Notifications — not yet wired to a backend endpoint"
+          title={t('warning.common.notificationsNotWired')}
           className="relative flex h-9 w-9 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt"
         >
           <Icon name="bell" size={17} />
         </button>
         <button
           type="button"
-          title="Messages — not yet wired to a backend endpoint"
+          title={t('warning.common.messagesNotWired')}
           className="relative flex h-9 w-9 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt"
         >
           <Icon name="mail" size={17} />
@@ -76,7 +80,7 @@ export function Header({ onMenuClick }: HeaderProps) {
             </div>
             <div className="hidden text-left leading-tight sm:block">
               <p className="text-xs font-semibold text-ink">{admin?.full_name}</p>
-              <p className="text-[11px] capitalize text-ink-muted">{admin?.role.replace('_', ' ')}</p>
+              <p className="text-[11px] capitalize text-ink-muted">{admin ? (tValue('status.shell.role', admin.role) ?? admin.role.replace('_', ' ')) : undefined}</p>
             </div>
             <Icon name="chevron-down" size={13} className="text-ink-faint" />
           </button>
@@ -85,7 +89,7 @@ export function Header({ onMenuClick }: HeaderProps) {
             <>
               <button
                 type="button"
-                aria-label="Close menu"
+                aria-label={t('action.closeMenu')}
                 className="fixed inset-0 z-10 cursor-default"
                 onClick={() => setIsProfileOpen(false)}
               />
@@ -110,7 +114,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                   className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm text-ink hover:bg-surface-alt"
                 >
                   <Icon name="shield" size={15} />
-                  Change password
+                  {t('action.shell.changePassword')}
                 </button>
                 <button
                   type="button"
@@ -118,7 +122,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                   className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm text-danger hover:bg-danger-soft"
                 >
                   <Icon name="log-out" size={15} />
-                  Sign out
+                  {t('action.shell.signOut')}
                 </button>
               </div>
             </>

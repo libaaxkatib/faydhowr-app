@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
-import { TYPE_CHANGE_BLOCKED_CODE, TYPE_CHANGE_BLOCKED_SOMALI, isBlockedTypeChange, typeChangeBlockFromError } from './employmentTypeChange.ts';
+import { TYPE_CHANGE_BLOCKED_CODE, isBlockedTypeChange, isTypeChangeBlockedError } from './employmentTypeChange.ts';
+import { translateKey } from '../i18n/messages/index.ts';
 
 test('only Permanent to Temporary with an active assignment is blocked', () => {
   assert.equal(isBlockedTypeChange('permanent', 'temporary', 1), true);
@@ -12,14 +14,22 @@ test('only Permanent to Temporary with an active assignment is blocked', () => {
   assert.equal(isBlockedTypeChange('temporary', 'permanent', 3), false);
 });
 
-test('the Somali warning is the approved text', () => {
-  assert.match(TYPE_CHANGE_BLOCKED_SOMALI, /^Shaqaalahaan wuxuu leeyahay assignment Permanent ah oo weli firfircoon\./);
-  assert.match(TYPE_CHANGE_BLOCKED_SOMALI, /Nidaamku si toos ah uma beddelayo shaqada hore\.$/);
+test('the owner-approved Somali warning is the catalogue text, word for word, and has an English equivalent', () => {
+  const somali = translateKey('so', 'warning.employees.typeChangeBlocked');
+  assert.match(somali, /^Shaqaalahaan wuxuu leeyahay assignment Permanent ah oo weli firfircoon\./);
+  assert.match(somali, /Nidaamku si toos ah uma beddelayo shaqada hore\.$/);
+  const english = translateKey('en', 'warning.employees.typeChangeBlocked');
+  assert.match(english, /^This employee has a Permanent assignment that is still active\./);
+  assert.notEqual(english, somali);
 });
 
-test('a refusal from the server is recognised by its code and keeps the server wording', () => {
-  assert.equal(typeChangeBlockFromError({ code: TYPE_CHANGE_BLOCKED_CODE, message: 'Shaqaalahaan ...' }), 'Shaqaalahaan ...');
-  assert.equal(typeChangeBlockFromError({ code: TYPE_CHANGE_BLOCKED_CODE }), TYPE_CHANGE_BLOCKED_SOMALI);
-  assert.equal(typeChangeBlockFromError({ code: 'VALIDATION_ERROR', message: 'x' }), null);
-  assert.equal(typeChangeBlockFromError(null), null);
+test('the Somali warning is identical in the catalogue and in the backend', () => {
+  const backend = readFileSync(new URL('../../../backend/app/Support/Hr/EmploymentTypeChange.php', import.meta.url), 'utf8');
+  assert.ok(backend.includes(translateKey('so', 'warning.employees.typeChangeBlocked')), 'EmploymentTypeChange::MESSAGE must equal the approved Somali text');
+});
+
+test('a refusal from the server is recognised by its code', () => {
+  assert.equal(isTypeChangeBlockedError({ code: TYPE_CHANGE_BLOCKED_CODE, message: 'x' }), true);
+  assert.equal(isTypeChangeBlockedError({ code: 'VALIDATION_ERROR', message: 'x' }), false);
+  assert.equal(isTypeChangeBlockedError(null), false);
 });

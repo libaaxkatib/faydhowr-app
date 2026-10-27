@@ -3,15 +3,17 @@ import { Navigate, useLocation } from 'react-router-dom';
 
 import { useAuth } from '@/features/auth/useAuth';
 import { LoadingState } from '@/components/ui/LoadingState';
+import { useI18n } from '@/i18n/useI18n';
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { status } = useAuth();
   const location = useLocation();
+  const { t } = useI18n();
 
   if (status === 'checking') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface-muted">
-        <LoadingState label="Checking your session…" />
+        <LoadingState label={t('option.shell.checkingSession')} />
       </div>
     );
   }

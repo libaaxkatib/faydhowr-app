@@ -3,6 +3,9 @@
 // Restoring changes only the archive mark: the person returns with the status and pipeline stage they already have, so the screen can say
 // exactly where they will reappear. The server decides everything; this only words the dialog and shapes the request.
 
+import { tNow } from '../i18n/active.ts';
+import type { MessageKey } from '../i18n/messages/index.ts';
+
 export interface RestoreTarget {
   status: string;
   pipeline_stage: string | null;
@@ -13,25 +16,27 @@ export interface RestoreLanding {
   path: string;
 }
 
-const STAGE_LANDING: Readonly<Record<string, RestoreLanding>> = {
-  damiin_needed: { label: 'Damiin Needed', path: '/hr/pipeline/damiin' },
-  contract_pending: { label: 'Contract Pending', path: '/hr/pipeline/contracts' },
-  uniform_pending: { label: 'Uniform Pending', path: '/hr/pipeline/uniform' },
-  need_training: { label: 'Need Training', path: '/hr/pipeline/training' },
-  need_practical: { label: 'Need Practical', path: '/hr/pipeline/practical' },
-  practical_repeat: { label: 'Practical Repeat', path: '/hr/pipeline/practical-repeat' },
-  rejected: { label: 'Rejected', path: '/hr/pipeline/rejected' },
+const STAGE_LANDING: Readonly<Record<string, { labelKey: MessageKey; path: string }>> = {
+  damiin_needed: { labelKey: 'nav.damiinNeeded', path: '/hr/pipeline/damiin' },
+  contract_pending: { labelKey: 'nav.contractPending', path: '/hr/pipeline/contracts' },
+  uniform_pending: { labelKey: 'nav.uniformPending', path: '/hr/pipeline/uniform' },
+  need_training: { labelKey: 'nav.needTraining', path: '/hr/pipeline/training' },
+  need_practical: { labelKey: 'nav.needPractical', path: '/hr/pipeline/practical' },
+  practical_repeat: { labelKey: 'nav.practicalRepeat', path: '/hr/pipeline/practical-repeat' },
+  rejected: { labelKey: 'nav.rejected', path: '/hr/pipeline/rejected' },
 };
 
 /** The list a restored person appears in: the one that matches the status (and stage) they already have. Everyone is also in Employees. */
 export function restoreLanding(target: RestoreTarget): RestoreLanding {
-  if (target.status === 'waiting') return { label: 'Waiting', path: '/hr/waiting' };
-  if (target.status === 'inactive') return { label: 'Former Employees', path: '/hr/former-employees' };
+  if (target.status === 'waiting') return { label: tNow('nav.waiting'), path: '/hr/waiting' };
+  if (target.status === 'inactive') return { label: tNow('nav.formerEmployees'), path: '/hr/former-employees' };
   if (target.status === 'applicant' && target.pipeline_stage !== null && STAGE_LANDING[target.pipeline_stage] !== undefined) {
-    return STAGE_LANDING[target.pipeline_stage];
+    const stage = STAGE_LANDING[target.pipeline_stage];
+
+    return { label: tNow(stage.labelKey), path: stage.path };
   }
 
-  return { label: 'Employees', path: '/hr/employees' };
+  return { label: tNow('nav.employees'), path: '/hr/employees' };
 }
 
 export type RestoreFailure = 'not_archived' | 'duplicate_phone' | 'other';

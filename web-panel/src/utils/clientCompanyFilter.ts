@@ -4,12 +4,14 @@
 // The filter reads the record's own `category` field ('company' | 'guri'); it never guesses from the name.
 // Counts come from the same list the page renders, so the number on a button always equals the rows it shows.
 
+import type { MessageKey } from '../i18n/messages/index.ts';
+
 export type CompanyCategoryFilter = 'all' | 'company' | 'guri';
 
-export const CATEGORY_FILTERS: { value: CompanyCategoryFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'company', label: 'Company' },
-  { value: 'guri', label: 'Guri' },
+export const CATEGORY_FILTERS: { value: CompanyCategoryFilter; label: string; labelKey: MessageKey }[] = [
+  { value: 'all', label: 'All', labelKey: 'option.company.filterAll' },
+  { value: 'company', label: 'Company', labelKey: 'option.companyCategory.company' },
+  { value: 'guri', label: 'Guri', labelKey: 'option.company.filterGuri' },
 ];
 
 interface HasCategory {

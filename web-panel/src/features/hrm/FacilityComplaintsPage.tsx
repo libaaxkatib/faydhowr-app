@@ -19,28 +19,30 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/useToast';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatDate, formatDateTime } from '@/utils/formatters';
+import type { MessageKey } from '@/i18n/messages';
+import { useI18n } from '@/i18n/useI18n';
 import { pageFromParam, withParam } from '@/utils/urlFilters';
 import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import { COMPLAINT_STATUS_LABELS, COMPLAINT_TRANSITIONS, complaintStatusTone, dateParam, satisfactionText } from '@/utils/facility';
 import type { FacilityComplaintRow, FacilityComplaintStatus, FacilityComplaintType, FacilitySatisfaction } from '@/types/facility';
 
-const TYPE_OPTIONS: { value: FacilityComplaintType; label: string }[] = [
-  { value: 'staff', label: 'Staff complaint' },
-  { value: 'customer', label: 'Customer complaint' },
+const TYPE_OPTIONS: { value: FacilityComplaintType; labelKey: MessageKey }[] = [
+  { value: 'staff', labelKey: 'option.facility.type.staff' },
+  { value: 'customer', labelKey: 'option.facility.type.customer' },
 ];
 
-const STATUS_OPTIONS = [
-  { value: 'unresolved', label: 'Not resolved yet' },
-  { value: 'open', label: 'New / open' },
-  { value: 'in_progress', label: 'In progress' },
-  { value: 'answered', label: 'Answered' },
-  { value: 'resolved', label: 'Resolved' },
+const STATUS_OPTIONS: { value: string; labelKey: MessageKey }[] = [
+  { value: 'unresolved', labelKey: 'option.facility.status.unresolved' },
+  { value: 'open', labelKey: 'option.facility.status.open' },
+  { value: 'in_progress', labelKey: 'option.facility.status.in_progress' },
+  { value: 'answered', labelKey: 'option.facility.status.answered' },
+  { value: 'resolved', labelKey: 'option.facility.status.resolved' },
 ];
 
-const SATISFACTION_OPTIONS = [
-  { value: 'satisfied', label: 'Satisfied (documented)' },
-  { value: 'not_satisfied', label: 'Not satisfied (documented)' },
-  { value: 'not_recorded', label: 'Not recorded' },
+const SATISFACTION_OPTIONS: { value: string; labelKey: MessageKey }[] = [
+  { value: 'satisfied', labelKey: 'option.facility.satisfaction.satisfied' },
+  { value: 'not_satisfied', labelKey: 'option.facility.satisfaction.not_satisfied' },
+  { value: 'not_recorded', labelKey: 'option.facility.satisfaction.not_recorded' },
 ];
 
 /**
@@ -48,6 +50,7 @@ const SATISFACTION_OPTIONS = [
  * reply was given and is NOT the same as "Resolved". Satisfaction is shown only when someone recorded explicit feedback with its evidence.
  */
 export function FacilityComplaintsPage() {
+  const { t, tValue } = useI18n();
   const { hasPermission } = useEffectivePermissions();
   const canManage = hasPermission('hr.inspections.manage');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -78,17 +81,17 @@ export function FacilityComplaintsPage() {
   return (
     <div>
       <PageHeader
-        title="Complaints"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Companies & Workplaces', to: '/hr/companies' }, { label: 'Complaints' }]}
+        title={t('nav.complaints')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.companiesWorkplaces'), to: '/hr/companies' }, { label: t('nav.complaints') }]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Link to="/hr/facility-inspections" className="inline-flex h-10 items-center gap-1.5 rounded-sm border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-alt">
-              Facility Inspections
+              {t('nav.facilityInspections')}
             </Link>
             {canManage && (
               <Button onClick={() => setCreating(true)}>
                 <Icon name="plus" size={15} />
-                Register complaint
+                {t('action.facility.registerComplaint')}
               </Button>
             )}
           </div>
@@ -100,39 +103,39 @@ export function FacilityComplaintsPage() {
           <Select
             value={company}
             onChange={(e) => setParam('company', e.target.value)}
-            placeholder="All companies"
-            aria-label="Company"
+            placeholder={t('option.facility.allCompanies')}
+            aria-label={t('option.label.company')}
             className="w-52"
             options={(companies ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
           />
-          <Select value={type} onChange={(e) => setParam('type', e.target.value)} placeholder="All types" aria-label="Type" className="w-44" options={TYPE_OPTIONS} />
-          <Select value={status} onChange={(e) => setParam('status', e.target.value)} placeholder="Any status" aria-label="Status" className="w-44" options={STATUS_OPTIONS} />
-          <Select value={satisfaction} onChange={(e) => setParam('satisfaction', e.target.value)} placeholder="Any satisfaction" aria-label="Satisfaction" className="w-48" options={SATISFACTION_OPTIONS} />
+          <Select value={type} onChange={(e) => setParam('type', e.target.value)} placeholder={t('option.facility.allTypes')} aria-label={t('option.label.type')} className="w-44" options={TYPE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))} />
+          <Select value={status} onChange={(e) => setParam('status', e.target.value)} placeholder={t('option.facility.anyStatus')} aria-label={t('option.label.status')} className="w-44" options={STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))} />
+          <Select value={satisfaction} onChange={(e) => setParam('satisfaction', e.target.value)} placeholder={t('option.facility.anySatisfaction')} aria-label={t('option.facility.satisfactionLabel')} className="w-48" options={SATISFACTION_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))} />
           {(from || to) && (
-            <span className="rounded-full bg-surface-alt px-3 py-1 text-xs text-ink-muted" data-testid="period-filter">Reported {from ? formatDate(from) : 'from the start'} to {to ? formatDate(to) : 'today'}</span>
+            <span className="rounded-full bg-surface-alt px-3 py-1 text-xs text-ink-muted" data-testid="period-filter">{t('option.facility.reportedPeriod', { from: from ? formatDate(from) : t('option.facility.fromTheStart'), to: to ? formatDate(to) : t('option.facility.todayWord') })}</span>
           )}
           {filtered && (
             <button type="button" onClick={() => setSearchParams({}, { replace: true })} className="text-xs font-semibold text-primary hover:underline">
-              Clear filters
+              {t('action.facility.clearFilters')}
             </button>
           )}
         </div>
 
-        {list.isLoading && <LoadingState label="Loading complaints…" />}
+        {list.isLoading && <LoadingState label={t('option.facility.loadingComplaints')} />}
         {list.error && <ErrorState error={list.error} onRetry={list.refetch} />}
-        {list.data && list.data.data.length === 0 && <EmptyState icon="alert-triangle" title={filtered ? 'No complaints match these filters' : 'No complaints registered yet'} />}
+        {list.data && list.data.data.length === 0 && <EmptyState icon="alert-triangle" title={filtered ? t('option.facility.noComplaintsMatch') : t('option.facility.noComplaintsYet')} />}
         {list.data && list.data.data.length > 0 && (
           <div className="divide-y divide-border">
             {list.data.data.map((complaint) => (
               <button key={complaint.id} type="button" onClick={() => setOpenId(complaint.id)} className="flex w-full flex-wrap items-center justify-between gap-2 px-5 py-3 text-left hover:bg-surface-alt">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-ink">
-                    {complaint.company} <span className="font-normal text-ink-muted">· {complaint.type_label} · {formatDate(complaint.reported_on)}</span>
+                    {complaint.company} <span className="font-normal text-ink-muted">· {tValue('option.facility.type', complaint.type) ?? complaint.type_label} · {formatDate(complaint.reported_on)}</span>
                   </p>
                   <p className="truncate text-xs text-ink-muted">{complaint.details}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <StatusBadge status={complaint.status} label={complaint.status_label} tone={complaintStatusTone(complaint.status)} />
+                  <StatusBadge status={complaint.status} label={tValue('option.facility.status', complaint.status) ?? complaint.status_label} tone={complaintStatusTone(complaint.status)} />
                   <span className="text-xs text-ink-muted">{satisfactionText(complaint.satisfaction)}</span>
                 </div>
               </button>
@@ -159,6 +162,7 @@ function Banner({ message }: { message: string | null }) {
 }
 
 function RegisterComplaintModal({ initialCompanyId, onClose }: { initialCompanyId: string; onClose: () => void }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const [companyId, setCompanyId] = useState(initialCompanyId);
@@ -186,13 +190,13 @@ function RegisterComplaintModal({ initialCompanyId, onClose }: { initialCompanyI
   const dirty = [details, reporter, responsible, response, respondedOn, reporterEmployee, reporterRole, reporterPhone, correctiveAction, followUpOn].some((v) => v !== '') || type !== '' || companyId !== initialCompanyId;
 
   const problems: string[] = [];
-  if (companyId === '') problems.push('Choose the company.');
-  if (type === '') problems.push('Choose whether this is a staff or a customer complaint.');
-  if (type === 'staff' && reporterEmployee === '') problems.push('Choose the employee who made the staff complaint.');
-  if (type === 'customer' && reporter.trim() === '') problems.push('Enter the name of the customer who complained.');
-  if (details.trim().length < 5) problems.push('Describe the complaint (at least 5 characters).');
-  if (followUpOn !== '' && followUpOn < reportedOn) problems.push('The follow-up date cannot be before the complaint date.');
-  if (respondedOn !== '' && respondedOn < reportedOn) problems.push('The response date cannot be before the complaint date.');
+  if (companyId === '') problems.push(t('validation.hr.complaintChooseCompany'));
+  if (type === '') problems.push(t('validation.hr.complaintChooseType'));
+  if (type === 'staff' && reporterEmployee === '') problems.push(t('validation.hr.complaintChooseStaff'));
+  if (type === 'customer' && reporter.trim() === '') problems.push(t('validation.facility.complainantCustomer'));
+  if (details.trim().length < 5) problems.push(t('validation.facility.complaintDetails'));
+  if (followUpOn !== '' && followUpOn < reportedOn) problems.push(t('validation.facility.followUpBeforeComplaint'));
+  if (respondedOn !== '' && respondedOn < reportedOn) problems.push(t('validation.facility.responseBeforeComplaint'));
 
   const save = useMutation({
     mutationFn: () =>
@@ -214,73 +218,73 @@ function RegisterComplaintModal({ initialCompanyId, onClose }: { initialCompanyI
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['facility-complaints'] });
       queryClient.invalidateQueries({ queryKey: ['facility-report'] });
-      show('Complaint registered.');
+      show(t('notify.facility.complaintRegistered'));
       onClose();
     },
-    onError: (err) => setError(friendlyErrorMessage(err, 'Could not register the complaint.')),
+    onError: (err) => setError(friendlyErrorMessage(err, t('notify.facility.complaintFailed'))),
   });
 
   return (
     <Modal
       isOpen
       onClose={onClose}
-      title="Register complaint"
+      title={t('action.facility.registerComplaint')}
       confirmDiscard
       dirty={dirty}
       footer={
         <>
           <ModalCancelButton disabled={save.isPending} />
-          <Button size="sm" isLoading={save.isPending} disabled={problems.length > 0} onClick={() => { setError(null); save.mutate(); }}>Register</Button>
+          <Button size="sm" isLoading={save.isPending} disabled={problems.length > 0} onClick={() => { setError(null); save.mutate(); }}>{t('action.facility.register')}</Button>
         </>
       }
     >
       <Banner message={error} />
-      <FormField label="Company / Guri" htmlFor="cmp-company" required>
-        <Select id="cmp-company" value={companyId} onChange={(e) => setCompanyId(e.target.value)} placeholder="Choose…" options={(companies ?? []).map((c) => ({ value: String(c.id), label: c.name }))} />
+      <FormField label={t('option.label.companyGuri')} htmlFor="cmp-company" required>
+        <Select id="cmp-company" value={companyId} onChange={(e) => setCompanyId(e.target.value)} placeholder={t('option.facility.choose')} options={(companies ?? []).map((c) => ({ value: String(c.id), label: c.name }))} />
       </FormField>
-      <FormField label="Type" htmlFor="cmp-type" required hint="A new complaint always starts as New / open.">
-        <Select id="cmp-type" value={type} onChange={(e) => setType(e.target.value as FacilityComplaintType | '')} placeholder="Choose…" options={TYPE_OPTIONS} />
+      <FormField label={t('option.label.type')} htmlFor="cmp-type" required hint={t('warning.facility.newComplaintStartsOpen')}>
+        <Select id="cmp-type" value={type} onChange={(e) => setType(e.target.value as FacilityComplaintType | '')} placeholder={t('option.facility.choose')} options={TYPE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))} />
       </FormField>
       {type === 'staff' && (
-        <FormField label="Employee who complained" htmlFor="cmp-employee" required hint={companyId === '' ? 'Choose the company first.' : 'Only people who work for the chosen company are listed.'}>
-          <Select id="cmp-employee" value={reporterEmployee} disabled={companyId === ''} onChange={(e) => setReporterEmployee(e.target.value)} placeholder="Choose the employee…" options={(staffOptions ?? []).map((e) => ({ value: String(e.id), label: `${e.full_name} (${e.employee_number})` }))} />
+        <FormField label={t('option.facility.employeeWhoComplained')} htmlFor="cmp-employee" required hint={companyId === '' ? t('warning.facility.chooseCompanyFirst') : t('warning.facility.onlyCompanyPeople')}>
+          <Select id="cmp-employee" value={reporterEmployee} disabled={companyId === ''} onChange={(e) => setReporterEmployee(e.target.value)} placeholder={t('option.facility.chooseEmployee')} options={(staffOptions ?? []).map((e) => ({ value: String(e.id), label: `${e.full_name} (${e.employee_number})` }))} />
         </FormField>
       )}
       {type === 'customer' && (
         <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-3">
-          <FormField label="Customer name" htmlFor="cmp-reporter" required>
+          <FormField label={t('option.facility.customerName')} htmlFor="cmp-reporter" required>
             <input id="cmp-reporter" className={inputClasses} value={reporter} onChange={(e) => setReporter(e.target.value)} />
           </FormField>
-          <FormField label="Role (optional)" htmlFor="cmp-role">
+          <FormField label={t('option.facility.roleOptional')} htmlFor="cmp-role">
             <input id="cmp-role" className={inputClasses} value={reporterRole} onChange={(e) => setReporterRole(e.target.value)} />
           </FormField>
-          <FormField label="Phone (optional)" htmlFor="cmp-phone">
+          <FormField label={t('option.facility.phoneOptional')} htmlFor="cmp-phone">
             <input id="cmp-phone" className={inputClasses} value={reporterPhone} onChange={(e) => setReporterPhone(e.target.value)} />
           </FormField>
         </div>
       )}
-      <FormField label="Complaint" htmlFor="cmp-details" required>
+      <FormField label={t('option.facility.complaint')} htmlFor="cmp-details" required>
         <textarea id="cmp-details" rows={3} className={`${inputClasses} h-auto py-2`} value={details} onChange={(e) => setDetails(e.target.value)} />
       </FormField>
       <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2">
-        <FormField label="Date reported" htmlFor="cmp-date" required>
+        <FormField label={t('option.facility.dateReported')} htmlFor="cmp-date" required>
           <input id="cmp-date" type="date" max={localToday()} className={inputClasses} value={reportedOn} onChange={(e) => setReportedOn(e.target.value)} />
         </FormField>
-        <FormField label="Responsible person" htmlFor="cmp-responsible">
+        <FormField label={t('option.facility.responsiblePerson')} htmlFor="cmp-responsible">
           <input id="cmp-responsible" className={inputClasses} value={responsible} onChange={(e) => setResponsible(e.target.value)} />
         </FormField>
-        <FormField label="Response given on" htmlFor="cmp-responded">
+        <FormField label={t('option.facility.responseGivenOn')} htmlFor="cmp-responded">
           <input id="cmp-responded" type="date" max={localToday()} className={inputClasses} value={respondedOn} onChange={(e) => setRespondedOn(e.target.value)} />
         </FormField>
       </div>
-      <FormField label="Response (if already given)" htmlFor="cmp-response">
+      <FormField label={t('option.facility.responseIfGiven')} htmlFor="cmp-response">
         <textarea id="cmp-response" rows={2} className={`${inputClasses} h-auto py-2`} value={response} onChange={(e) => setResponse(e.target.value)} />
       </FormField>
       <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2">
-        <FormField label="Corrective action (optional)" htmlFor="cmp-action">
+        <FormField label={t('option.facility.correctiveActionOptional')} htmlFor="cmp-action">
           <input id="cmp-action" className={inputClasses} value={correctiveAction} onChange={(e) => setCorrectiveAction(e.target.value)} />
         </FormField>
-        <FormField label="Follow-up date (optional)" htmlFor="cmp-followup">
+        <FormField label={t('option.facility.followUpDateOptional')} htmlFor="cmp-followup">
           <input id="cmp-followup" type="date" className={inputClasses} value={followUpOn} onChange={(e) => setFollowUpOn(e.target.value)} />
         </FormField>
       </div>
@@ -289,6 +293,7 @@ function RegisterComplaintModal({ initialCompanyId, onClose }: { initialCompanyI
 }
 
 function ComplaintDetailModal({ id, canManage, onClose }: { id: number; canManage: boolean; onClose: () => void }) {
+  const { t, tValue } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const { data, isLoading, error: loadError } = useQuery({ queryKey: ['facility-complaint', id], queryFn: () => facilityApi.complaints.get(id) });
@@ -306,14 +311,14 @@ function ComplaintDetailModal({ id, canManage, onClose }: { id: number; canManag
     queryClient.invalidateQueries({ queryKey: ['facility-complaints'] });
     queryClient.invalidateQueries({ queryKey: ['facility-report'] });
   };
-  const failed = (err: unknown) => setError(friendlyErrorMessage(err, 'Could not save. Nothing was changed.'));
+  const failed = (err: unknown) => setError(friendlyErrorMessage(err, t('notify.facility.saveFailed')));
 
   const transition = useMutation({
     mutationFn: (status: FacilityComplaintStatus) => facilityApi.complaints.transition(id, { status, note: note.trim() === '' ? null : note.trim(), resolved_on: status === 'resolved' ? localToday() : null }),
     onSuccess: (_row, status) => {
       refresh();
       setNote('');
-      show(`Status changed to ${COMPLAINT_STATUS_LABELS[status]}.`);
+      show(t('notify.facility.statusChanged', { status: COMPLAINT_STATUS_LABELS[status] }));
     },
     onError: failed,
   });
@@ -322,7 +327,7 @@ function ComplaintDetailModal({ id, canManage, onClose }: { id: number; canManag
     onSuccess: () => {
       refresh();
       setResponse(null);
-      show('Response saved.');
+      show(t('notify.facility.responseSaved'));
     },
     onError: failed,
   });
@@ -331,7 +336,7 @@ function ComplaintDetailModal({ id, canManage, onClose }: { id: number; canManag
     onSuccess: () => {
       refresh();
       setEvidence('');
-      show('Feedback recorded.');
+      show(t('notify.facility.feedbackRecorded'));
     },
     onError: failed,
   });
@@ -339,7 +344,7 @@ function ComplaintDetailModal({ id, canManage, onClose }: { id: number; canManag
     mutationFn: () => facilityApi.complaints.void(id, (voidReason ?? '').trim()),
     onSuccess: () => {
       refresh();
-      show('Complaint voided. It is kept on record but no longer counted.');
+      show(t('notify.facility.complaintVoided'));
       onClose();
     },
     onError: failed,
@@ -349,48 +354,48 @@ function ComplaintDetailModal({ id, canManage, onClose }: { id: number; canManag
   const next = complaint ? COMPLAINT_TRANSITIONS[complaint.status] : [];
 
   return (
-    <Modal isOpen onClose={onClose} title={complaint ? `${complaint.type_label} - ${complaint.company ?? ''}` : 'Complaint'} size="lg">
-      {isLoading && <LoadingState label="Loading complaint…" />}
+    <Modal isOpen onClose={onClose} title={complaint ? `${tValue('option.facility.type', complaint.type) ?? complaint.type_label} - ${complaint.company ?? ''}` : t('option.facility.complaint')} size="lg">
+      {isLoading && <LoadingState label={t('option.facility.loadingComplaint')} />}
       {loadError && <ErrorState error={loadError} />}
       {complaint && (
         <div className="space-y-5 text-sm">
           <Banner message={error} />
           {complaint.voided && (
-            <div className="rounded-md border border-border bg-surface-alt px-3.5 py-2.5 text-ink-muted">Voided{complaint.void_reason ? `: ${complaint.void_reason}` : ''}. Kept on record, not counted.</div>
+            <div className="rounded-md border border-border bg-surface-alt px-3.5 py-2.5 text-ink-muted">{t('warning.facility.complaintVoided', { reason: complaint.void_reason ? `: ${complaint.void_reason}` : '' })}</div>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={complaint.status} label={complaint.status_label} tone={complaintStatusTone(complaint.status)} />
-            <span className="text-ink-muted">Reported {formatDate(complaint.reported_on)}</span>
-            {complaint.reporter_name && <span className="text-ink-muted">by {complaint.reporter_name}</span>}
-            {complaint.responsible_person && <span className="text-ink-muted">· Responsible: {complaint.responsible_person}</span>}
+            <StatusBadge status={complaint.status} label={tValue('option.facility.status', complaint.status) ?? complaint.status_label} tone={complaintStatusTone(complaint.status)} />
+            <span className="text-ink-muted">{t('option.facility.reportedOn', { date: formatDate(complaint.reported_on) })}</span>
+            {complaint.reporter_name && <span className="text-ink-muted">{t('option.facility.reportedBy', { name: complaint.reporter_name })}</span>}
+            {complaint.responsible_person && <span className="text-ink-muted">· {t('option.facility.responsibleName', { name: complaint.responsible_person })}</span>}
             {complaint.type === 'customer' && (complaint.reporter_type || complaint.reporter_phone) && <span className="text-ink-muted">· {[complaint.reporter_type, complaint.reporter_phone].filter(Boolean).join(', ')}</span>}
-            {complaint.type === 'staff' && complaint.reporter_employee && <span className="text-ink-muted">· Employee: {complaint.reporter_employee}</span>}
+            {complaint.type === 'staff' && complaint.reporter_employee && <span className="text-ink-muted">· {t('option.facility.employeeName', { name: complaint.reporter_employee })}</span>}
           </div>
           <p className="whitespace-pre-wrap text-ink">{complaint.details}</p>
 
           <section>
-            <h3 className="mb-1.5 font-display text-sm font-bold text-ink">Response</h3>
+            <h3 className="mb-1.5 font-display text-sm font-bold text-ink">{t('option.facility.response')}</h3>
             {response === null ? (
               <>
-                <p className="whitespace-pre-wrap text-ink-muted">{complaint.response ?? 'No response recorded yet.'}</p>
-                {complaint.responded_on && <p className="text-xs text-ink-faint">Responded {formatDate(complaint.responded_on)}</p>}
-                <p className="mt-1 text-ink-muted">Corrective action: {complaint.corrective_action ?? 'not recorded'}{complaint.follow_up_on ? ` · follow up ${formatDate(complaint.follow_up_on)}` : ''}</p>
-                {complaint.facility_inspection_id !== null && <p className="text-xs text-ink-faint">Recorded during facility inspection #{complaint.facility_inspection_id}.</p>}
+                <p className="whitespace-pre-wrap text-ink-muted">{complaint.response ?? t('option.facility.noResponseYet')}</p>
+                {complaint.responded_on && <p className="text-xs text-ink-faint">{t('option.facility.respondedOn', { date: formatDate(complaint.responded_on) })}</p>}
+                <p className="mt-1 text-ink-muted">{t('option.facility.correctiveActionIs', { action: complaint.corrective_action ?? t('option.facility.notRecordedLower') })}{complaint.follow_up_on ? ` · ${t('option.facility.followUpLower', { date: formatDate(complaint.follow_up_on) })}` : ''}</p>
+                {complaint.facility_inspection_id !== null && <p className="text-xs text-ink-faint">{t('option.facility.recordedDuringInspection', { id: complaint.facility_inspection_id })}</p>}
                 {canManage && !complaint.voided && (
                   <button type="button" onClick={() => { setResponse(complaint.response ?? ''); setRespondedOn(complaint.responded_on ?? localToday()); setAction(complaint.corrective_action ?? ''); setFollowUp(complaint.follow_up_on ?? ''); }} className="mt-1 text-xs font-semibold text-primary hover:underline">
-                    {complaint.response ? 'Edit response and action' : 'Write response and action'}
+                    {complaint.response ? t('action.facility.editResponse') : t('action.facility.writeResponse')}
                   </button>
                 )}
               </>
             ) : (
               <div>
-                <textarea aria-label="Response" rows={3} className={`${inputClasses} h-auto py-2`} value={response} onChange={(e) => setResponse(e.target.value)} />
-                <input aria-label="Corrective action" className={`${inputClasses} mt-2`} placeholder="Corrective action" value={action} onChange={(e) => setAction(e.target.value)} />
+                <textarea aria-label={t('option.facility.response')} rows={3} className={`${inputClasses} h-auto py-2`} value={response} onChange={(e) => setResponse(e.target.value)} />
+                <input aria-label={t('option.label.correctiveAction')} className={`${inputClasses} mt-2`} placeholder={t('option.label.correctiveAction')} value={action} onChange={(e) => setAction(e.target.value)} />
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <input aria-label="Follow-up date" type="date" className={`${inputClasses} w-40`} value={followUp} onChange={(e) => setFollowUp(e.target.value)} />
-                  <input aria-label="Response date" type="date" max={localToday()} className={`${inputClasses} w-40`} value={respondedOn} onChange={(e) => setRespondedOn(e.target.value)} />
-                  <Button size="sm" isLoading={saveResponse.isPending} onClick={() => saveResponse.mutate()}>Save response</Button>
-                  <Button size="sm" variant="outline" onClick={() => setResponse(null)}>Cancel</Button>
+                  <input aria-label={t('option.label.followUpDate')} type="date" className={`${inputClasses} w-40`} value={followUp} onChange={(e) => setFollowUp(e.target.value)} />
+                  <input aria-label={t('option.facility.responseDate')} type="date" max={localToday()} className={`${inputClasses} w-40`} value={respondedOn} onChange={(e) => setRespondedOn(e.target.value)} />
+                  <Button size="sm" isLoading={saveResponse.isPending} onClick={() => saveResponse.mutate()}>{t('action.facility.saveResponse')}</Button>
+                  <Button size="sm" variant="outline" onClick={() => setResponse(null)}>{t('action.cancel')}</Button>
                 </div>
               </div>
             )}
@@ -398,13 +403,13 @@ function ComplaintDetailModal({ id, canManage, onClose }: { id: number; canManag
 
           {canManage && !complaint.voided && (
             <section>
-              <h3 className="mb-1.5 font-display text-sm font-bold text-ink">Change status</h3>
-              <p className="mb-2 text-xs text-ink-muted">"Answered" means a reply was given. The complaint is only closed when it is marked "Resolved".</p>
-              <input aria-label="Note for this change" className={`${inputClasses} mb-2`} placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+              <h3 className="mb-1.5 font-display text-sm font-bold text-ink">{t('option.facility.changeStatus')}</h3>
+              <p className="mb-2 text-xs text-ink-muted">{t('warning.facility.answeredMeans')}</p>
+              <input aria-label={t('option.facility.noteForChange')} className={`${inputClasses} mb-2`} placeholder={t('option.label.noteOptional')} value={note} onChange={(e) => setNote(e.target.value)} />
               <div className="flex flex-wrap gap-2">
                 {next.map((status) => (
                   <Button key={status} variant="outline" size="sm" isLoading={transition.isPending && transition.variables === status} onClick={() => { setError(null); transition.mutate(status); }}>
-                    {status === 'open' && complaint.status === 'resolved' ? 'Re-open' : `Mark ${COMPLAINT_STATUS_LABELS[status]}`}
+                    {status === 'open' && complaint.status === 'resolved' ? t('action.facility.reopenComplaint') : t('action.facility.markStatus', { status: COMPLAINT_STATUS_LABELS[status] })}
                   </Button>
                 ))}
               </div>
@@ -412,21 +417,21 @@ function ComplaintDetailModal({ id, canManage, onClose }: { id: number; canManag
           )}
 
           <section>
-            <h3 className="mb-1.5 font-display text-sm font-bold text-ink">Satisfaction</h3>
+            <h3 className="mb-1.5 font-display text-sm font-bold text-ink">{t('option.facility.satisfactionLabel')}</h3>
             <p className="text-ink">
-              {complaint.satisfaction_label}
-              {complaint.satisfaction_recorded_on && <span className="text-ink-muted"> · recorded {formatDate(complaint.satisfaction_recorded_on)}</span>}
+              {tValue('option.facility.satisfaction', complaint.satisfaction ?? 'not_recorded') ?? complaint.satisfaction_label}
+              {complaint.satisfaction_recorded_on && <span className="text-ink-muted"> · {t('option.facility.recordedOn', { date: formatDate(complaint.satisfaction_recorded_on) })}</span>}
             </p>
-            {complaint.satisfaction_evidence && <p className="text-xs text-ink-muted">Evidence: {complaint.satisfaction_evidence}</p>}
-            {complaint.satisfaction === null && <p className="text-xs text-ink-faint">Nothing is assumed: this stays "Not recorded" until someone writes down the feedback that was actually given.</p>}
+            {complaint.satisfaction_evidence && <p className="text-xs text-ink-muted">{t('option.facility.evidenceIs', { evidence: complaint.satisfaction_evidence })}</p>}
+            {complaint.satisfaction === null && <p className="text-xs text-ink-faint">{t('warning.facility.nothingAssumed')}</p>}
             {canManage && !complaint.voided && (
               <div className="mt-2 space-y-2">
-                <input aria-label="Evidence of the feedback" className={inputClasses} placeholder="What was said, by whom and when (at least 10 characters)" value={evidence} onChange={(e) => setEvidence(e.target.value)} />
+                <input aria-label={t('option.facility.evidenceOfFeedback')} className={inputClasses} placeholder={t('option.facility.evidencePlaceholder')} value={evidence} onChange={(e) => setEvidence(e.target.value)} />
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" disabled={evidence.trim().length < 10} isLoading={saveSatisfaction.isPending} onClick={() => { setError(null); saveSatisfaction.mutate('satisfied'); }}>Record: satisfied</Button>
-                  <Button size="sm" variant="outline" disabled={evidence.trim().length < 10} isLoading={saveSatisfaction.isPending} onClick={() => { setError(null); saveSatisfaction.mutate('not_satisfied'); }}>Record: not satisfied</Button>
+                  <Button size="sm" variant="outline" disabled={evidence.trim().length < 10} isLoading={saveSatisfaction.isPending} onClick={() => { setError(null); saveSatisfaction.mutate('satisfied'); }}>{t('action.facility.recordSatisfied')}</Button>
+                  <Button size="sm" variant="outline" disabled={evidence.trim().length < 10} isLoading={saveSatisfaction.isPending} onClick={() => { setError(null); saveSatisfaction.mutate('not_satisfied'); }}>{t('action.facility.recordNotSatisfied')}</Button>
                   {complaint.satisfaction !== null && (
-                    <Button size="sm" variant="ghost" disabled={evidence.trim().length < 10} onClick={() => { setError(null); saveSatisfaction.mutate(null); }}>Clear (recorded by mistake)</Button>
+                    <Button size="sm" variant="ghost" disabled={evidence.trim().length < 10} onClick={() => { setError(null); saveSatisfaction.mutate(null); }}>{t('action.facility.clearFeedback')}</Button>
                   )}
                 </div>
               </div>
@@ -434,13 +439,13 @@ function ComplaintDetailModal({ id, canManage, onClose }: { id: number; canManag
           </section>
 
           <section>
-            <h3 className="mb-1.5 font-display text-sm font-bold text-ink">History</h3>
+            <h3 className="mb-1.5 font-display text-sm font-bold text-ink">{t('action.history')}</h3>
             <ol className="space-y-1.5">
               {(complaint.events ?? []).map((event) => (
                 <li key={event.id} className="text-xs text-ink-muted">
                   <span className="text-ink">{event.event.replace(/_/g, ' ')}</span>
                   {event.to_status ? ` → ${COMPLAINT_STATUS_LABELS[event.to_status as FacilityComplaintStatus] ?? event.to_status}` : ''}
-                  {event.note ? ` · ${event.note}` : ''} · {event.by ?? 'system'} · {formatDateTime(event.at)}
+                  {event.note ? ` · ${event.note}` : ''} · {event.by ?? t('option.company.bySystem')} · {formatDateTime(event.at)}
                 </li>
               ))}
             </ol>
@@ -449,12 +454,12 @@ function ComplaintDetailModal({ id, canManage, onClose }: { id: number; canManag
           {canManage && !complaint.voided && (
             <section className="border-t border-border pt-3">
               {voidReason === null ? (
-                <button type="button" onClick={() => setVoidReason('')} className="text-xs font-semibold text-danger hover:underline">Void this complaint (registered by mistake)</button>
+                <button type="button" onClick={() => setVoidReason('')} className="text-xs font-semibold text-danger hover:underline">{t('action.facility.voidComplaint')}</button>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
-                  <input aria-label="Reason for voiding" className={`${inputClasses} flex-1`} placeholder="Why is it being voided? (at least 5 characters)" value={voidReason} onChange={(e) => setVoidReason(e.target.value)} />
-                  <Button size="sm" variant="danger" disabled={voidReason.trim().length < 5} isLoading={voidIt.isPending} onClick={() => voidIt.mutate()}>Void</Button>
-                  <Button size="sm" variant="outline" onClick={() => setVoidReason(null)}>Cancel</Button>
+                  <input aria-label={t('option.facility.reasonForVoiding')} className={`${inputClasses} flex-1`} placeholder={t('confirm.facility.voidComplaintReason')} value={voidReason} onChange={(e) => setVoidReason(e.target.value)} />
+                  <Button size="sm" variant="danger" disabled={voidReason.trim().length < 5} isLoading={voidIt.isPending} onClick={() => voidIt.mutate()}>{t('action.void')}</Button>
+                  <Button size="sm" variant="outline" onClick={() => setVoidReason(null)}>{t('action.cancel')}</Button>
                 </div>
               )}
             </section>

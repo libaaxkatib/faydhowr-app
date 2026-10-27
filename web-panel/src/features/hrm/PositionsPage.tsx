@@ -16,12 +16,14 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
+import { useI18n } from '@/i18n/useI18n';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import type { Position } from '@/types/employee';
 
 export function PositionsPage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<Position | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Position | null>(null);
@@ -53,23 +55,23 @@ export function PositionsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['positions'] });
-      show(editing ? 'Position updated.' : 'Position created.');
+      show(editing ? t('notify.company.positionUpdated') : t('notify.company.positionCreated'));
       setIsOpen(false);
     },
     // Show the real reason (for example "A position with this name already exists.") instead of a generic message.
-    onError: (err) => show(err instanceof ApiClientError ? (err.fieldErrors?.name?.[0] ?? err.message) : err instanceof Error ? err.message : 'Something went wrong.', 'error'),
+    onError: (err) => show(err instanceof ApiClientError ? (err.fieldErrors?.name?.[0] ?? err.message) : err instanceof Error ? err.message : t('notify.company.somethingWentWrong'), 'error'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => hrApi.positions.remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['positions'] });
-      show('Position deleted.');
+      show(t('notify.company.positionDeleted'));
       setPendingDelete(null);
       setDeleteError(null);
     },
     // A refusal ("still used by 2 employees …") stays visible in the dialog instead of flashing past as a toast.
-    onError: (err) => setDeleteError(friendlyErrorMessage(err, 'Could not delete the position. Please try again.')),
+    onError: (err) => setDeleteError(friendlyErrorMessage(err, t('notify.company.couldNotDeletePosition'))),
   });
 
   const closeDeleteDialog = () => {
@@ -80,36 +82,36 @@ export function PositionsPage() {
   return (
     <div>
       <PageHeader
-        title="Positions"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Positions' }]}
+        title={t('nav.positions')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.positions') }]}
         actions={
           <PermissionGate module="hr">
             <Button onClick={openCreate}>
               <Icon name="plus" size={15} />
-              Add Position
+              {t('action.company.addPosition')}
             </Button>
           </PermissionGate>
         }
       />
 
       <Card>
-        {isLoading && <LoadingState label="Loading positions…" />}
+        {isLoading && <LoadingState label={t('option.employees.loadingPositions')} />}
         {error && <ErrorState error={error} onRetry={refetch} />}
-        {data && data.length === 0 && <EmptyState icon="shield" title="No positions yet" />}
+        {data && data.length === 0 && <EmptyState icon="shield" title={t('option.employees.noPositionsYet')} />}
         {data && data.length > 0 && (
           <div className="divide-y divide-border">
             {data.map((position) => (
               <div key={position.id} className="flex items-center justify-between px-5 py-3.5">
                 <div>
                   <p className="text-sm font-medium text-ink">{position.name}</p>
-                  <p className="text-xs text-ink-muted">{position.department_name ?? 'No department'}</p>
+                  <p className="text-xs text-ink-muted">{position.department_name ?? t('option.employees.noDepartment')}</p>
                 </div>
                 <PermissionGate module="hr">
                   <div className="flex items-center gap-1">
                     <button type="button" onClick={() => openEdit(position)} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary">
                       <Icon name="pencil" size={14} />
                     </button>
-                    <button type="button" aria-label={`Delete position ${position.name}`} onClick={() => { setDeleteError(null); setPendingDelete(position); }} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger">
+                    <button type="button" aria-label={t('action.company.deletePositionNamed', { name: position.name })} onClick={() => { setDeleteError(null); setPendingDelete(position); }} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger">
                       <Icon name="trash" size={14} />
                     </button>
                   </div>
@@ -124,24 +126,24 @@ export function PositionsPage() {
         confirmDiscard
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
-        title={editing ? 'Edit Position' : 'Add Position'}
+        title={editing ? t('confirm.company.editPositionTitle') : t('action.company.addPosition')}
         size="sm"
         footer={
           <>
             <ModalCancelButton />
-            <Button size="sm" isLoading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>Save</Button>
+            <Button size="sm" isLoading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>{t('action.save')}</Button>
           </>
         }
       >
-        <FormField label="Name" htmlFor="pos-name" required>
+        <FormField label={t('option.label.name')} htmlFor="pos-name" required>
           <input id="pos-name" className={inputClasses} value={name} onChange={(e) => setName(e.target.value)} />
         </FormField>
-        <FormField label="Department" htmlFor="pos-department">
+        <FormField label={t('option.label.department')} htmlFor="pos-department">
           <Select
             id="pos-department"
             value={departmentId}
             onChange={(e) => setDepartmentId(e.target.value)}
-            placeholder="Not set"
+            placeholder={t('option.employees.notSet')}
             options={(departments ?? []).map((d) => ({ value: String(d.id), label: d.name }))}
           />
         </FormField>
@@ -149,9 +151,9 @@ export function PositionsPage() {
 
       <ConfirmDialog
         isOpen={pendingDelete !== null}
-        title="Delete position?"
-        description={`Delete "${pendingDelete?.name ?? ''}"? This cannot be undone. A position that employees, work assignments or workforce requests still use cannot be deleted.`}
-        confirmLabel="Delete position"
+        title={t('confirm.company.deletePositionTitle')}
+        description={t('confirm.company.deletePositionBody', { name: pendingDelete?.name ?? '' })}
+        confirmLabel={t('confirm.company.deletePositionButton')}
         tone="danger"
         isLoading={deleteMutation.isPending}
         errorMessage={deleteError}

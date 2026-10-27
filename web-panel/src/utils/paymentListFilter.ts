@@ -1,8 +1,10 @@
 /**
  * Pure helpers of the monthly payment list download (owner decision 2026-10-27): HR chooses All, ONE Company or ONE Guri before downloading. The
  * choices are the Companies and Guryo that really exist (GET reports/monthly-payment-list/filters); nothing is hard-coded and the server validates the
- * record again. These helpers only decide what the form offers and what it sends.
+ * record again. These helpers only decide what the form offers and what it sends. Visible wording comes from the language catalogue.
  */
+
+import { tNow } from '../i18n/active.ts';
 
 export type PaymentListScope = 'all' | 'company' | 'guri';
 
@@ -17,11 +19,28 @@ export interface PaymentListFilterOptions {
   guryo: PaymentListOption[];
 }
 
-export const SCOPE_LABELS: Record<PaymentListScope, string> = {
-  all: 'All companies and guryo',
-  company: 'One company',
-  guri: 'One guri',
-};
+export const PAYMENT_LIST_SCOPES: readonly PaymentListScope[] = ['all', 'company', 'guri'];
+
+export function scopeLabel(scope: PaymentListScope): string {
+  switch (scope) {
+    case 'all':
+      return tNow('option.payroll.scopeAll');
+    case 'company':
+      return tNow('option.payroll.scopeCompany');
+    case 'guri':
+      return tNow('option.payroll.scopeGuri');
+  }
+}
+
+/** The label above the second selector. */
+export function recordFieldLabel(scope: PaymentListScope): string {
+  return scope === 'guri' ? tNow('option.payroll.fieldGuri') : tNow('option.payroll.fieldCompany');
+}
+
+/** The first entry of the second selector. */
+export function chooseRecordLabel(scope: PaymentListScope): string {
+  return scope === 'guri' ? tNow('option.payroll.chooseGuri') : tNow('option.payroll.chooseCompany');
+}
 
 /** The records the second selector lists for a scope (none for All). */
 export function optionsFor(scope: PaymentListScope, options: PaymentListFilterOptions | undefined): PaymentListOption[] {
@@ -35,7 +54,7 @@ export function emptyOptionsMessage(scope: PaymentListScope, options: PaymentLis
   if (scope === 'all' || !options) return null;
   if (optionsFor(scope, options).length > 0) return null;
 
-  return scope === 'company' ? 'No company exists yet, so there is nothing to choose.' : 'No guri exists yet, so there is nothing to choose.';
+  return scope === 'company' ? tNow('warning.payroll.noCompanyExists') : tNow('warning.payroll.noGuriExists');
 }
 
 /** A download is possible for All, or when one record of the chosen kind is selected. */
@@ -56,9 +75,9 @@ export function selectedOption(scope: PaymentListScope, selectedId: string, opti
 }
 
 export function buttonLabel(scope: PaymentListScope, selected: PaymentListOption | null): string {
-  if (scope === 'all' || selected === null) return 'Download payment list (Excel)';
+  if (scope === 'all' || selected === null) return tNow('action.payroll.downloadList');
 
-  return `Download ${scope === 'guri' ? 'guri' : 'company'} list: ${selected.name} (Excel)`;
+  return scope === 'guri' ? tNow('action.payroll.downloadGuriListNamed', { name: selected.name }) : tNow('action.payroll.downloadCompanyListNamed', { name: selected.name });
 }
 
 export function fileName(period: string, selected: PaymentListOption | null): string {

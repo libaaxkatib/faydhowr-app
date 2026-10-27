@@ -11,6 +11,17 @@
       rel="stylesheet"
     />
     <title>Fayadhowr Web Panel</title>
+    <script>
+      /* Sets <html lang> before the page is painted: Somali when it is the saved choice, English otherwise (also when nothing is saved or the value is
+         unreadable). Same rule as src/i18n/language.ts (a unit test runs this exact script and compares the two). */
+      (function () {
+        var lang = 'en';
+        try {
+          if (window.localStorage.getItem('fayadhowr.ui.language') === 'so') lang = 'so';
+        } catch (e) {}
+        document.documentElement.setAttribute('lang', lang);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

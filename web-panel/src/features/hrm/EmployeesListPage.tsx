@@ -15,30 +15,47 @@ import { Pagination } from '@/components/ui/Pagination';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { inputClasses } from '@/components/ui/FormField';
+import type { MessageKey } from '@/i18n/messages';
+import { Msg } from '@/i18n/Msg';
+import { useI18n } from '@/i18n/useI18n';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { OfficeCapacityCard } from '@/features/hrm/OfficeCapacityCard';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatDate, initialsOf } from '@/utils/formatters';
-import { OFFICE_LABEL } from '@/utils/hrHelpers';
+import { officeLabel } from '@/utils/hrHelpers';
 import { parseEmployeeListUrl } from '@/utils/hrDashboardLinks';
 import { activeFilterCount, activeMoreFilterCount, ALL_FILTER_KEYS, parseExtraEmployeeFilters } from '@/utils/employeeListFilters';
 import type { Employee, EmployeePipelineStage, EmployeeStatus } from '@/types/employee';
 
-const STATUS_OPTIONS: { value: EmployeeStatus; label: string }[] = [
-  { value: 'applicant', label: 'Applicant' },
-  { value: 'recruitment', label: 'Recruitment' },
-  { value: 'practical', label: 'Practical' },
-  { value: 'waiting', label: 'Waiting' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
+const STATUS_OPTIONS: { value: EmployeeStatus; labelKey: MessageKey }[] = [
+  { value: 'applicant', labelKey: 'status.applicant' },
+  { value: 'recruitment', labelKey: 'status.recruitment' },
+  { value: 'practical', labelKey: 'status.practical' },
+  { value: 'waiting', labelKey: 'status.waiting' },
+  { value: 'approved', labelKey: 'status.approved' },
+  { value: 'active', labelKey: 'status.active' },
+  { value: 'inactive', labelKey: 'status.inactive' },
 ];
 
-const BOOLEAN_FILTER_OPTIONS = [
-  { value: 'true', label: 'Yes' },
-  { value: 'false', label: 'No' },
+const BOOLEAN_FILTER_OPTIONS: { value: string; labelKey: MessageKey }[] = [
+  { value: 'true', labelKey: 'option.yes' },
+  { value: 'false', labelKey: 'option.no' },
 ];
+
+const NAV_TITLE_KEYS: Record<string, MessageKey> = {
+  Employees: 'nav.employees',
+  'Damiin Needed': 'nav.damiinNeeded',
+  'Contract Pending': 'nav.contractPending',
+  'Uniform Pending': 'nav.uniformPending',
+  'Need Training': 'nav.needTraining',
+  'Need Practical': 'nav.needPractical',
+  'Practical Repeat': 'nav.practicalRepeat',
+  Rejected: 'nav.rejected',
+  'Rejected (Historical)': 'nav.rejectedHistorical',
+  'Supervisor Pool': 'nav.supervisorPool',
+  'Office Staff': 'nav.officeStaff',
+};
 
 const PIPELINE_STAGE_LABELS: Record<string, string> = {
   damiin_needed: 'Damiin Needed',
@@ -93,6 +110,7 @@ export function EmployeesListPage({
   breadcrumbLabel = 'Employees',
 }: EmployeesListPageProps) {
   const navigate = useNavigate();
+  const { t, tValue } = useI18n();
   const { hasPermission } = useEffectivePermissions();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -234,10 +252,13 @@ export function EmployeesListPage({
     [navigate, breadcrumbLabel],
   );
 
+  const booleanFilterOptions = BOOLEAN_FILTER_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }));
+  const navTitle = (label: string) => (NAV_TITLE_KEYS[label] ? t(NAV_TITLE_KEYS[label]) : label);
+
   const columns = useMemo<ColumnDef<Employee, unknown>[]>(
     () => [
       {
-        header: 'Employee',
+        header: t('option.label.employee'),
         accessorKey: 'full_name',
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
@@ -248,15 +269,15 @@ export function EmployeesListPage({
               <p className="truncate font-medium text-ink">{row.original.full_name}</p>
               <p className="truncate text-xs text-ink-muted">
                 {row.original.employee_number}
-                {row.original.gender && <span> · {row.original.gender[0].toUpperCase() + row.original.gender.slice(1)}</span>}
-                {row.original.employment_type === 'temporary' && <span className="ml-1.5 font-semibold text-warning">· Temporary</span>}
+                {row.original.gender && <span> · {tValue('option.gender', row.original.gender) ?? row.original.gender[0].toUpperCase() + row.original.gender.slice(1)}</span>}
+                {row.original.employment_type === 'temporary' && <span className="ml-1.5 font-semibold text-warning">· {tValue('option.employmentType', 'temporary') ?? 'Temporary'}</span>}
               </p>
             </div>
           </div>
         ),
       },
       {
-        header: 'Category',
+        header: t('option.label.category'),
         accessorKey: 'employee_category_name',
         cell: ({ row }) => (
           <span className="text-ink">
@@ -266,37 +287,37 @@ export function EmployeesListPage({
         ),
       },
       {
-        header: 'Department',
+        header: t('option.label.department'),
         accessorKey: 'department_name',
         cell: ({ row }) => <span className="text-ink">{row.original.department_name ?? '—'}</span>,
       },
       {
-        header: 'Phone',
+        header: t('option.label.phone'),
         accessorKey: 'phone',
         cell: ({ row }) => <span className="text-ink">{row.original.phone ?? '—'}</span>,
       },
       {
-        header: 'Workplace',
+        header: t('option.label.workplace'),
         id: 'workplace',
         cell: ({ row }) => {
           const assignments = row.original.active_work_assignments ?? [];
           if (assignments.length === 0) {
-            return <span className="italic text-ink-faint">Unassigned</span>;
+            return <span className="italic text-ink-faint">{t('option.employees.unassigned')}</span>;
           }
-          const labels = assignments.map((a) => (a.location_type === 'office' ? OFFICE_LABEL : (a.client_company_name ?? a.work_location_name ?? 'Company not recorded')));
+          const labels = assignments.map((a) => (a.location_type === 'office' ? officeLabel() : (a.client_company_name ?? a.work_location_name ?? t('option.employees.companyNotRecorded'))));
           return <span className="text-ink">{labels.join(', ')}</span>;
         },
       },
       {
-        header: 'Status',
+        header: t('option.label.status'),
         accessorKey: 'status',
         cell: ({ row }) => (
           <div className="flex flex-wrap items-center gap-1.5">
-            <StatusBadge status={row.original.status} />
+            <StatusBadge status={row.original.status} label={tValue('status', row.original.status)} />
             {row.original.pipeline_stage && row.original.status !== 'active' && (
               <StatusBadge
                 status={row.original.pipeline_stage}
-                label={PIPELINE_STAGE_LABELS[row.original.pipeline_stage]}
+                label={tValue('status.stage', row.original.pipeline_stage) ?? PIPELINE_STAGE_LABELS[row.original.pipeline_stage]}
                 tone={row.original.pipeline_stage === 'rejected' ? 'danger' : 'warning'}
               />
             )}
@@ -304,13 +325,13 @@ export function EmployeesListPage({
         ),
       },
       {
-        header: 'Profile',
+        header: t('option.label.profile'),
         id: 'profile_complete',
         cell: ({ row }) =>
           row.original.profile_complete ? (
-            <StatusBadge status="complete" tone="success" label="Complete" />
+            <StatusBadge status="complete" tone="success" label={t('status.employeeDetail.complete')} />
           ) : (
-            <StatusBadge status="incomplete" tone="warning" label="Incomplete" />
+            <StatusBadge status="incomplete" tone="warning" label={t('status.employeeDetail.incomplete')} />
           ),
       },
       {
@@ -318,13 +339,13 @@ export function EmployeesListPage({
         id: 'guarantor_needed',
         cell: ({ row }) =>
           row.original.guarantor_needed ? (
-            <StatusBadge status="needed" tone="danger" label="Needed" />
+            <StatusBadge status="needed" tone="danger" label={t('status.employeeDetail.needed')} />
           ) : (
-            <StatusBadge status="not-needed" tone="neutral" label="Not needed" />
+            <StatusBadge status="not-needed" tone="neutral" label={t('status.employees.notNeeded')} />
           ),
       },
       {
-        header: 'Applied',
+        header: t('option.employees.applied'),
         accessorKey: 'application_date',
         cell: ({ row }) => <span className="text-ink-muted">{formatDate(row.original.application_date)}</span>,
       },
@@ -345,27 +366,27 @@ export function EmployeesListPage({
         ),
       },
     ],
-    [goToEmployee],
+    [goToEmployee, t, tValue],
   );
 
   return (
     <div>
       <PageHeader
-        title={title}
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: breadcrumbLabel }]}
+        title={navTitle(title)}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: navTitle(breadcrumbLabel) }]}
         actions={
           !isLockedNavView ? (
             <PermissionGate module="hr">
               <Button onClick={() => setIsCreateOpen(true)}>
                 <Icon name="plus" size={15} />
-                Register Employee
+                {t('action.registerEmployee')}
               </Button>
             </PermissionGate>
           ) : filterOfficeOnly && hasPermission('hr.manage') ? (
             // The dedicated Office Staff workflow: add an existing employee, or register a new one straight into Office Staff.
             <Button onClick={() => navigate('/hr/office-staff/new')}>
               <Icon name="plus" size={15} />
-              Add Office Staff
+              {t('action.employees.addOfficeStaff')}
             </Button>
           ) : undefined
         }
@@ -375,29 +396,26 @@ export function EmployeesListPage({
 
       {filterHistoricalRejected && (
         <div className="mb-4 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-ink-muted">
-          These employees were migrated as already cancelled/rejected from historical Excel records (CANCELED sheet / RED
-          REGISTRATION rows). This list is separate from the live recruitment workflow's own <strong>Rejected</strong> queue and
-          never affects it.
+          <Msg id="warning.employees.historicalRejectedBanner" values={{ rejected: <strong>{t('nav.rejected')}</strong> }} />
         </div>
       )}
 
       {archived && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-ink-muted">
           <span>
-            Showing <strong>archived</strong> employees: people removed from the working lists. You can open them and correct their details; their status,
-            company assignment and history are not changed from here.
+            <Msg id="warning.employees.archivedBanner" values={{ archived: <strong>{t('status.employees.archived')}</strong> }} />
           </span>
           <button type="button" onClick={() => setParam('archived', '')} className="font-medium text-primary hover:underline">
-            Show current employees
+            {t('action.employees.showCurrent')}
           </button>
         </div>
       )}
 
       {clientCompanyOnly && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-ink-muted">
-          <span>Showing only employees with an active assignment to a client company.</span>
+          <span>{t('warning.employees.clientCompanyOnlyBanner')}</span>
           <button type="button" onClick={() => setUrlFilter('client_company_only', '')} className="font-medium text-primary hover:underline">
-            Show all employees
+            {t('action.employees.showAll')}
           </button>
         </div>
       )}
@@ -407,7 +425,7 @@ export function EmployeesListPage({
           <SearchInput
             value={search}
             onChange={(value) => setParam('q', value)}
-            placeholder="Search by name, phone, or employee number…"
+            placeholder={t('option.employees.searchEmployees')}
             className="w-full max-w-xs"
           />
           {!isLockedNavView && (
@@ -415,41 +433,41 @@ export function EmployeesListPage({
               <Select
                 value={archived ? 'true' : ''}
                 onChange={(event) => setParam('archived', event.target.value)}
-                options={[{ value: 'true', label: 'Archived employees' }]}
-                placeholder="Current employees"
+                options={[{ value: 'true', label: t('option.employees.archivedEmployees') }]}
+                placeholder={t('option.employees.currentEmployees')}
                 className="w-44"
-                aria-label="Which employees to list"
+                aria-label={t('option.employees.whichEmployeesToList')}
               />
               <Select
                 value={status}
                 onChange={(event) => setUrlFilter('status', event.target.value)}
-                options={STATUS_OPTIONS}
-                placeholder="All statuses"
+                options={STATUS_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
+                placeholder={t('option.employees.allStatuses')}
                 className="w-36"
               />
               <Select
                 value={employeeCategoryId}
                 onChange={(event) => setUrlFilter('employee_category_id', event.target.value)}
-                options={(categories ?? []).map((c) => ({ value: String(c.id), label: c.archived ? `${c.name} (archived)` : c.name }))}
-                placeholder="All categories"
+                options={(categories ?? []).map((c) => ({ value: String(c.id), label: c.archived ? t('option.employees.categoryArchived', { name: c.name }) : c.name }))}
+                placeholder={t('option.employees.allCategories')}
                 className="w-40"
               />
               <Select
                 value={departmentId}
                 onChange={(event) => setParam('department_id', event.target.value)}
                 options={(departments ?? []).map((d) => ({ value: String(d.id), label: d.name }))}
-                placeholder="All departments"
+                placeholder={t('option.employees.allDepartments')}
                 className="w-40"
               />
               <Button variant="outline" size="sm" aria-expanded={showMore} onClick={() => setMoreOpen((open) => !open)}>
                 <Icon name={showMore ? 'chevron-down' : 'chevron-right'} size={14} />
-                More filters{moreCount > 0 ? ` (${moreCount})` : ''}
+                {t('action.employees.moreFilters')}{moreCount > 0 ? ` (${moreCount})` : ''}
               </Button>
             </>
           )}
           {filterCount > 0 && (
             <button type="button" onClick={clearFilters} className="text-xs font-semibold text-primary hover:underline">
-              Clear {filterCount === 1 ? 'filter' : `${filterCount} filters`}
+              {filterCount === 1 ? t('action.employees.clearFilter') : t('action.employees.clearFilters', { count: filterCount })}
             </button>
           )}
         </div>
@@ -459,23 +477,23 @@ export function EmployeesListPage({
             <input
               value={location}
               onChange={(event) => setParam('location', event.target.value)}
-              placeholder="Location…"
-              aria-label="Location"
+              placeholder={t('option.employees.locationPlaceholder')}
+              aria-label={t('option.label.location')}
               className={`${inputClasses} w-36`}
             />
-            <Select value={profileComplete} onChange={(event) => setParam('profile_complete', event.target.value)} options={BOOLEAN_FILTER_OPTIONS} placeholder="Profile: any" className="w-36" />
-            <Select value={guarantorNeeded} onChange={(event) => setParam('guarantor_needed', event.target.value)} options={BOOLEAN_FILTER_OPTIONS} placeholder="Damiin: any" className="w-36" />
-            <Select value={isSupervisorFilter} onChange={(event) => setParam('is_supervisor', event.target.value)} options={BOOLEAN_FILTER_OPTIONS} placeholder="Supervisor: any" className="w-40" />
+            <Select value={profileComplete} onChange={(event) => setParam('profile_complete', event.target.value)} options={booleanFilterOptions} placeholder={t('option.employees.profileAny')} className="w-36" />
+            <Select value={guarantorNeeded} onChange={(event) => setParam('guarantor_needed', event.target.value)} options={booleanFilterOptions} placeholder={t('option.employees.damiinAny')} className="w-36" />
+            <Select value={isSupervisorFilter} onChange={(event) => setParam('is_supervisor', event.target.value)} options={booleanFilterOptions} placeholder={t('option.employees.supervisorAny')} className="w-40" />
             <label className="flex items-center gap-1.5 text-xs text-ink-muted">
-              Applied
+              {t('option.employees.applied')}
               <input type="date" value={applicationDateFrom} onChange={(event) => setUrlFilter('application_date_from', event.target.value)} className={`${inputClasses} w-36`} />
-              to
+              {t('option.employees.dateTo')}
               <input type="date" value={applicationDateTo} onChange={(event) => setUrlFilter('application_date_to', event.target.value)} className={`${inputClasses} w-36`} />
             </label>
             <label className="flex items-center gap-1.5 text-xs text-ink-muted">
-              Joined
+              {t('option.employees.joined')}
               <input type="date" value={joiningDateFrom} onChange={(event) => setParam('joining_date_from', event.target.value)} className={`${inputClasses} w-36`} />
-              to
+              {t('option.employees.dateTo')}
               <input type="date" value={joiningDateTo} onChange={(event) => setParam('joining_date_to', event.target.value)} className={`${inputClasses} w-36`} />
             </label>
           </div>
@@ -488,8 +506,8 @@ export function EmployeesListPage({
           error={error}
           onRetry={refetch}
           onRowClick={(employee) => goToEmployee(employee.id)}
-          emptyTitle="No employees found"
-          emptyDescription="Try adjusting your search or filters."
+          emptyTitle={t('option.employees.noEmployeesFound')}
+          emptyDescription={t('option.employees.noEmployeesFoundHint')}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

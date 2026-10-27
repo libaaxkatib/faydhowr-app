@@ -2,6 +2,8 @@
 // (facility.test.ts). They mirror the server's rules so the form can say what is missing before the request is sent; the server re-checks
 // everything.
 
+import { getActiveLanguage, tNow, tNowCount } from '../i18n/active.ts';
+import { SOMALI_MONTHS, SOMALI_MONTHS_SHORT } from '../i18n/dates.ts';
 import type {
   DeepCleaningInput,
   FacilityDeepCleaningDetail,
@@ -68,9 +70,9 @@ export function validateItems(items: readonly ItemFormState[]): Record<string, s
   const problems: Record<string, string> = {};
 
   for (const item of items) {
-    if (item.choice === 'unanswered') problems[item.key] = 'Answer this item: satisfactory, unsatisfactory or not applicable.';
-    else if (item.choice === 'unsatisfactory' && item.issue.trim() === '') problems[item.key] = 'Describe the issue found.';
-    else if (item.choice === 'unsatisfactory' && item.action.trim() === '') problems[item.key] = 'Write the corrective action.';
+    if (item.choice === 'unanswered') problems[item.key] = tNow('validation.facility.answerItem');
+    else if (item.choice === 'unsatisfactory' && item.issue.trim() === '') problems[item.key] = tNow('validation.facility.describeIssue');
+    else if (item.choice === 'unsatisfactory' && item.action.trim() === '') problems[item.key] = tNow('validation.facility.correctiveAction');
   }
 
   return problems;
@@ -93,8 +95,8 @@ export function validateUniformIssues(rows: readonly UniformIssueFormState[]): R
   const problems: Record<number, string> = {};
 
   rows.forEach((row, index) => {
-    if (row.employeeId === '') problems[index] = 'Choose the employee.';
-    else if (row.issue.trim() === '') problems[index] = 'Describe the uniform issue.';
+    if (row.employeeId === '') problems[index] = tNow('validation.facility.chooseEmployee');
+    else if (row.issue.trim() === '') problems[index] = tNow('validation.facility.uniformIssue');
   });
 
   return problems;
@@ -132,13 +134,13 @@ export function dueStateTone(state: FacilityDueState): Tone {
 
 /** Plain wording of how far away the next inspection is ("3 days overdue", "due in 5 days", "due today"). */
 export function dueText(state: FacilityDueState, daysUntilDue: number | null): string {
-  if (state === 'never_inspected') return 'No inspection recorded yet';
-  if (state === 'no_schedule') return 'No frequency set';
+  if (state === 'never_inspected') return tNow('status.facility.neverRecorded');
+  if (state === 'no_schedule') return tNow('option.facility.state.no_schedule');
   if (daysUntilDue === null) return '-';
-  if (daysUntilDue < 0) return `${-daysUntilDue} day${daysUntilDue === -1 ? '' : 's'} overdue`;
-  if (daysUntilDue === 0) return 'Due today';
+  if (daysUntilDue < 0) return tNowCount('status.facility.daysOverdue', -daysUntilDue);
+  if (daysUntilDue === 0) return tNow('status.facility.dueToday');
 
-  return `Due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}`;
+  return tNowCount('status.facility.dueIn', daysUntilDue);
 }
 
 /** Status changes the server allows from each status (mirrors FacilityComplaintStatus::nextAllowed). Answered is NOT resolved. */
@@ -150,10 +152,18 @@ export const COMPLAINT_TRANSITIONS: Record<FacilityComplaintStatus, FacilityComp
 };
 
 export const COMPLAINT_STATUS_LABELS: Record<FacilityComplaintStatus, string> = {
-  open: 'New / open',
-  in_progress: 'In progress',
-  answered: 'Answered',
-  resolved: 'Resolved',
+  get open() {
+    return tNow('option.facility.status.open');
+  },
+  get in_progress() {
+    return tNow('option.facility.status.in_progress');
+  },
+  get answered() {
+    return tNow('option.facility.status.answered');
+  },
+  get resolved() {
+    return tNow('option.facility.status.resolved');
+  },
 };
 
 export function complaintStatusTone(status: FacilityComplaintStatus): Tone {
@@ -171,10 +181,10 @@ export function complaintStatusTone(status: FacilityComplaintStatus): Tone {
 
 /** Satisfaction exists only as explicit documented feedback; anything else reads "Not recorded", never positive or negative. */
 export function satisfactionText(satisfaction: 'satisfied' | 'not_satisfied' | null): string {
-  if (satisfaction === 'satisfied') return 'Satisfied (documented)';
-  if (satisfaction === 'not_satisfied') return 'Not satisfied (documented)';
+  if (satisfaction === 'satisfied') return tNow('option.facility.satisfaction.satisfied');
+  if (satisfaction === 'not_satisfied') return tNow('option.facility.satisfaction.not_satisfied');
 
-  return 'Not recorded';
+  return tNow('option.facility.satisfaction.not_recorded');
 }
 
 /** A share as a whole-number percentage, or "-" when there is nothing to divide by (never 0% of nothing). */
@@ -238,17 +248,16 @@ export type ComplaintProblems = Record<string, string>;
 
 /** Problems of one section, keyed "answer" or "<row>.<field>". Mirrors the server's rules so the inspector sees them before saving. */
 export function validateComplaintSection(section: ComplaintSection, type: FacilityComplaintType): ComplaintProblems {
-  const noun = type === 'staff' ? 'staff' : 'customer';
   const problems: ComplaintProblems = {};
 
   if (section.answer === 'unanswered') {
-    problems.answer = `Say whether there was a ${noun} complaint.`;
+    problems.answer = tNow(type === 'staff' ? 'validation.facility.staffAnswer' : 'validation.facility.customerAnswer');
 
     return problems;
   }
   if (section.answer === 'none') return problems;
   if (section.rows.length === 0) {
-    problems.answer = `Add the ${noun} complaint, or choose "No ${noun} complaint".`;
+    problems.answer = tNow(type === 'staff' ? 'validation.facility.staffAdd' : 'validation.facility.customerAdd');
 
     return problems;
   }
@@ -259,17 +268,17 @@ export function validateComplaintSection(section: ComplaintSection, type: Facili
     };
     const filled = (value: string) => value.trim() !== '';
 
-    if (type === 'staff' && row.employeeId === '') set('employeeId', 'Choose the employee who made the complaint.');
-    if (type === 'customer' && !filled(row.reporterName)) set('reporterName', 'Enter the name of the customer who complained.');
-    if (row.details.trim().length < 5) set('details', 'Describe the complaint (at least 5 characters).');
-    if (!filled(row.responsiblePerson)) set('responsiblePerson', 'Enter the person or team responsible.');
-    if ((row.status === 'answered' || row.status === 'resolved') && !filled(row.response)) set('response', 'A complaint that is answered or resolved needs the response that was given.');
-    if ((row.status === 'answered' || row.status === 'resolved') && !filled(row.correctiveAction)) set('correctiveAction', 'Write the corrective action taken or agreed.');
-    if (row.status === 'resolved' && row.statusNote.trim().length < 5) set('statusNote', 'Say how the complaint was resolved (at least a few words).');
-    if (filled(row.respondedOn) && filled(row.reportedOn) && row.respondedOn < row.reportedOn) set('respondedOn', 'The response date cannot be before the complaint date.');
-    if (filled(row.followUpOn) && filled(row.reportedOn) && row.followUpOn < row.reportedOn) set('followUpOn', 'The follow-up date cannot be before the complaint date.');
-    if (row.satisfaction !== '' && row.satisfactionEvidence.trim().length < 10) set('satisfactionEvidence', 'Describe the documented feedback (who said it, how and when) - at least 10 characters.');
-    if (row.satisfaction === '' && filled(row.satisfactionEvidence)) set('satisfaction', 'Choose what the feedback was, or clear the evidence text.');
+    if (type === 'staff' && row.employeeId === '') set('employeeId', tNow('validation.facility.complainantEmployee'));
+    if (type === 'customer' && !filled(row.reporterName)) set('reporterName', tNow('validation.facility.complainantCustomer'));
+    if (row.details.trim().length < 5) set('details', tNow('validation.facility.complaintDetails'));
+    if (!filled(row.responsiblePerson)) set('responsiblePerson', tNow('validation.facility.responsible'));
+    if ((row.status === 'answered' || row.status === 'resolved') && !filled(row.response)) set('response', tNow('validation.facility.needsResponse'));
+    if ((row.status === 'answered' || row.status === 'resolved') && !filled(row.correctiveAction)) set('correctiveAction', tNow('validation.facility.needsCorrectiveAction'));
+    if (row.status === 'resolved' && row.statusNote.trim().length < 5) set('statusNote', tNow('validation.facility.needsResolution'));
+    if (filled(row.respondedOn) && filled(row.reportedOn) && row.respondedOn < row.reportedOn) set('respondedOn', tNow('validation.facility.responseBeforeComplaint'));
+    if (filled(row.followUpOn) && filled(row.reportedOn) && row.followUpOn < row.reportedOn) set('followUpOn', tNow('validation.facility.followUpBeforeComplaint'));
+    if (row.satisfaction !== '' && row.satisfactionEvidence.trim().length < 10) set('satisfactionEvidence', tNow('validation.facility.feedbackEvidence'));
+    if (row.satisfaction === '' && filled(row.satisfactionEvidence)) set('satisfaction', tNow('validation.facility.feedbackChoice'));
   });
 
   return problems;
@@ -309,10 +318,10 @@ export function complaintsRequest(staff: ComplaintSection, customer: ComplaintSe
 
 /** How an inspection's recorded answer reads in lists: older inspections have no answer and say so instead of "no complaint". */
 export function complaintAnswerText(reported: boolean | null, count: number, noun: 'staff' | 'customer'): string {
-  if (reported === null) return `${noun === 'staff' ? 'Staff' : 'Customer'} complaints: not recorded`;
-  if (!reported) return `No ${noun} complaint`;
+  if (reported === null) return tNow(noun === 'staff' ? 'status.facility.staffComplaintsNotRecorded' : 'status.facility.customerComplaintsNotRecorded');
+  if (!reported) return tNow(noun === 'staff' ? 'option.facility.noStaffComplaint' : 'option.facility.noCustomerComplaint');
 
-  return `${count} ${noun} complaint${count === 1 ? '' : 's'}`;
+  return tNowCount(noun === 'staff' ? 'status.facility.staffComplaints' : 'status.facility.customerComplaints', count);
 }
 
 /** The saved checklist as the form's state, so an inspection can be opened for correction exactly as it was recorded. */
@@ -400,14 +409,14 @@ export function validateDeepCleaning(form: DeepCleaningFormState, saved: Facilit
   const problems: string[] = [];
 
   if (form.choice === 'completed') {
-    if (form.completedOn === '') problems.push('Deep Cleaning: enter the date it was completed.');
-    else if (form.completedOn > today) problems.push('Deep Cleaning: the completion date cannot be in the future.');
+    if (form.completedOn === '') problems.push(tNow('validation.hr.dcEnterDate'));
+    else if (form.completedOn > today) problems.push(tNow('validation.hr.dcDateFuture'));
   }
   if (changesSaved(form, saved) && form.changeReason.trim().length < DEEP_CLEANING_REASON_MIN) {
     problems.push(
       form.choice === 'none'
-        ? 'Deep Cleaning: say why the recorded completion is being withdrawn (at least 5 characters).'
-        : 'Deep Cleaning: say why the recorded completion is being changed (at least 5 characters).',
+        ? tNow('validation.hr.dcReasonWithdraw')
+        : tNow('validation.hr.dcReasonChange'),
     );
   }
 
@@ -445,20 +454,23 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
 export function monthLabel(month: string): string {
   const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
 
-  return match ? `${MONTH_NAMES[Number(match[2]) - 1]} ${match[1]}` : month;
+  if (!match) return month;
+  const names = getActiveLanguage() === 'so' ? SOMALI_MONTHS : MONTH_NAMES;
+
+  return `${names[Number(match[2]) - 1]} ${match[1]}`;
 }
 
 /** The sentence under a facility's status: how long it has gone without a recorded Deep Cleaning. Words, not colour, carry the meaning. */
 export function deepCleaningGapText(row: Pick<FacilityDeepCleaningRow, 'state' | 'months_without'>): string {
   switch (row.state) {
     case 'completed':
-      return 'Done this month';
+      return tNow('status.hr.dcGapDone');
     case 'not_completed':
-      return 'Not done yet this month';
+      return tNow('status.hr.dcGapNotYet');
     case 'overdue_multiple':
-      return `No Deep Cleaning for ${row.months_without} months in a row`;
+      return tNow('status.hr.dcGapMonthsInARow', { n: row.months_without });
     default:
-      return 'Never recorded';
+      return tNow('status.hr.dcNeverRecorded');
   }
 }
 
@@ -466,7 +478,9 @@ export function deepCleaningGapText(row: Pick<FacilityDeepCleaningRow, 'state' |
 export function shortMonth(month: string): string {
   const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
 
-  return match ? MONTH_NAMES[Number(match[2]) - 1].slice(0, 3) : month;
+  if (!match) return month;
+
+  return getActiveLanguage() === 'so' ? SOMALI_MONTHS_SHORT[Number(match[2]) - 1] : MONTH_NAMES[Number(match[2]) - 1].slice(0, 3);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -503,6 +517,7 @@ export function formatCalendarDate(value: string | null | undefined): string {
   if (!value) return '—';
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
   if (!match) return value;
+  if (getActiveLanguage() === 'so') return `${Number(match[3])} ${SOMALI_MONTHS_SHORT[Number(match[2]) - 1]} ${match[1]}`;
 
   return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))));
 }

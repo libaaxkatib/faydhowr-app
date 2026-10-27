@@ -24,6 +24,9 @@ import { useAuth } from '@/features/auth/useAuth';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
+import { Msg } from '@/i18n/Msg';
+import type { MessageKey } from '@/i18n/messages';
+import { useI18n } from '@/i18n/useI18n';
 import { isDirty } from '@/utils/unsavedChanges';
 import { pageFromParam, withParam } from '@/utils/urlFilters';
 import {
@@ -57,20 +60,20 @@ import {
 } from '@/utils/facility';
 import type { FacilityDueState, FacilityInspectionDetail, FacilityStatusRow } from '@/types/facility';
 
-const STATE_FILTERS: { value: FacilityDueState | ''; label: string }[] = [
-  { value: '', label: 'All' },
-  { value: 'overdue', label: 'Overdue' },
-  { value: 'due', label: 'Due' },
-  { value: 'due_soon', label: 'Due soon' },
-  { value: 'never_inspected', label: 'Never inspected' },
-  { value: 'no_schedule', label: 'No frequency set' },
-  { value: 'ok', label: 'Up to date' },
+const STATE_FILTERS: { value: FacilityDueState | ''; labelKey: MessageKey }[] = [
+  { value: '', labelKey: 'option.facility.stateAll' },
+  { value: 'overdue', labelKey: 'option.facility.state.overdue' },
+  { value: 'due', labelKey: 'option.facility.state.due' },
+  { value: 'due_soon', labelKey: 'option.facility.state.due_soon' },
+  { value: 'never_inspected', labelKey: 'option.facility.state.never_inspected' },
+  { value: 'no_schedule', labelKey: 'option.facility.state.no_schedule' },
+  { value: 'ok', labelKey: 'option.facility.state.ok' },
 ];
 
-const CHOICES: { value: ItemChoice; label: string }[] = [
-  { value: 'satisfactory', label: 'Clean / satisfactory' },
-  { value: 'unsatisfactory', label: 'Dirty / unsatisfactory' },
-  { value: 'not_applicable', label: 'Not applicable' },
+const CHOICES: { value: ItemChoice; labelKey: MessageKey }[] = [
+  { value: 'satisfactory', labelKey: 'option.facility.choice.satisfactory' },
+  { value: 'unsatisfactory', labelKey: 'option.facility.choice.unsatisfactory' },
+  { value: 'not_applicable', labelKey: 'option.facility.choice.notApplicable' },
 ];
 
 /**
@@ -78,6 +81,7 @@ const CHOICES: { value: ItemChoice; label: string }[] = [
  * own frequency when this page opens - nothing is sent automatically), the history of inspections, and the form that records a new one.
  */
 export function FacilityInspectionsPage() {
+  const { t, tCount, tValue } = useI18n();
   const { hasPermission } = useEffectivePermissions();
   const canManage = hasPermission('hr.inspections.manage');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -112,37 +116,41 @@ export function FacilityInspectionsPage() {
   const setSearch = (value: string) => setParam('q', value);
   const setPage = (next: number) => setParam('page', next <= 1 ? '' : String(next));
 
+  const reminderEnglish = 'Due and overdue states are calculated when this list is opened. No automatic reminder is sent.';
+  const reminders = status.data?.meta.reminders;
+  const reminderText = reminders === undefined || reminders === reminderEnglish ? t('warning.facility.dueReminder') : reminders;
+
   const companyName = useMemo(() => allStatus.data?.rows.find((row) => row.client_company_id === companyParam)?.company, [allStatus.data, companyParam]);
 
   return (
     <div>
       <PageHeader
-        title="Facility Inspections"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Companies & Workplaces', to: '/hr/companies' }, { label: 'Facility Inspections' }]}
+        title={t('nav.facilityInspections')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.companiesWorkplaces'), to: '/hr/companies' }, { label: t('nav.facilityInspections') }]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Link to="/hr/facility-complaints" className="inline-flex h-10 items-center gap-1.5 rounded-sm border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-alt">
-              Complaints
+              {t('nav.complaints')}
             </Link>
             {hasPermission('hr.reports.view') && (
               <Link to="/hr/reports/facility" className="inline-flex h-10 items-center gap-1.5 rounded-sm border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-alt">
                 <Icon name="bar-chart" size={15} />
-                Facility report
+                {t('action.facility.report')}
               </Link>
             )}
             {canManage && (
               <Button onClick={() => setRecording({ companyId: companyParam ?? null })}>
                 <Icon name="plus" size={15} />
-                Record inspection
+                {t('action.facility.recordInspection')}
               </Button>
             )}
           </div>
         }
       />
 
-      <p className="mb-3 text-xs text-ink-muted">{status.data?.meta.reminders ?? 'Due and overdue states are calculated when this list is opened. No automatic reminder is sent.'}</p>
+      <p className="mb-3 text-xs text-ink-muted">{reminderText}</p>
 
-      <div role="group" aria-label="Filter by inspection state" className="mb-4 flex flex-wrap items-center gap-2">
+      <div role="group" aria-label={t('option.facility.filterByState')} className="mb-4 flex flex-wrap items-center gap-2">
         {STATE_FILTERS.map((option) => {
           const isActive = stateFilter === option.value;
           const count = counts === undefined ? undefined : option.value === '' ? counts.total : counts[option.value];
@@ -157,34 +165,34 @@ export function FacilityInspectionsPage() {
                 isActive ? 'border-primary bg-primary text-white' : 'border-border bg-surface text-ink-muted hover:border-primary/40 hover:text-primary'
               }`}
             >
-              {option.label} {count !== undefined && <span className={isActive ? 'text-white/80' : 'text-ink-faint'}>({count})</span>}
+              {t(option.labelKey)} {count !== undefined && <span className={isActive ? 'text-white/80' : 'text-ink-faint'}>({count})</span>}
             </button>
           );
         })}
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search company…"
-          aria-label="Search company"
+          placeholder={t('option.facility.searchCompany')}
+          aria-label={t('option.facility.searchCompanyAria')}
           className={`${inputClasses} ml-auto w-52`}
         />
       </div>
 
       <Card className="mb-6">
-        {status.isLoading && <LoadingState label="Loading inspection status…" />}
+        {status.isLoading && <LoadingState label={t('option.facility.loadingStatus')} />}
         {status.error && <ErrorState error={status.error} onRetry={status.refetch} />}
-        {status.data && status.data.rows.length === 0 && <EmptyState icon="eye" title="No companies match" description="Change the filter or the search." />}
+        {status.data && status.data.rows.length === 0 && <EmptyState icon="eye" title={t('option.facility.noCompaniesMatch')} description={t('option.facility.changeFilterOrSearch')} />}
         {status.data && status.data.rows.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border text-xs uppercase tracking-wide text-ink-muted">
                 <tr>
-                  <th className="px-4 py-2.5 font-semibold">Company / Guri</th>
-                  <th className="px-4 py-2.5 font-semibold">Frequency</th>
-                  <th className="px-4 py-2.5 font-semibold">Last inspected</th>
-                  <th className="px-4 py-2.5 font-semibold">Next due</th>
-                  <th className="px-4 py-2.5 font-semibold">Inspections</th>
-                  <th className="px-4 py-2.5 font-semibold">State</th>
+                  <th className="px-4 py-2.5 font-semibold">{t('option.label.companyGuri')}</th>
+                  <th className="px-4 py-2.5 font-semibold">{t('action.facility.frequency')}</th>
+                  <th className="px-4 py-2.5 font-semibold">{t('option.facility.lastInspected')}</th>
+                  <th className="px-4 py-2.5 font-semibold">{t('option.facility.nextDue')}</th>
+                  <th className="px-4 py-2.5 font-semibold">{t('option.facility.inspections')}</th>
+                  <th className="px-4 py-2.5 font-semibold">{t('option.facility.stateHeader')}</th>
                   <th className="px-4 py-2.5" />
                 </tr>
               </thead>
@@ -193,25 +201,25 @@ export function FacilityInspectionsPage() {
                   <tr key={row.client_company_id}>
                     <td className="px-4 py-2.5 font-medium text-ink">
                       {row.company}
-                      {row.category === 'guri' && <span className="ml-1.5 text-xs font-normal text-ink-faint">Guri</span>}
+                      {row.category === 'guri' && <span className="ml-1.5 text-xs font-normal text-ink-faint">{t('option.company.filterGuri')}</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-ink">{row.frequency_days ? `Every ${row.frequency_days} days` : <span className="text-ink-faint">Not set</span>}</td>
-                    <td className="px-4 py-2.5 text-ink">{row.last_inspected_on ? formatDate(row.last_inspected_on) : <span className="text-ink-faint">Never</span>}</td>
+                    <td className="px-4 py-2.5 text-ink">{row.frequency_days ? t('option.facility.everyDays', { n: row.frequency_days }) : <span className="text-ink-faint">{t('option.label.notSet')}</span>}</td>
+                    <td className="px-4 py-2.5 text-ink">{row.last_inspected_on ? formatDate(row.last_inspected_on) : <span className="text-ink-faint">{t('option.facility.never')}</span>}</td>
                     <td className="px-4 py-2.5 text-ink">
                       {row.next_due_on ? formatDate(row.next_due_on) : '—'}
                       <span className="block text-xs text-ink-muted">{dueText(row.state, row.days_until_due)}</span>
                     </td>
                     <td className="px-4 py-2.5 text-ink">{row.inspection_count}</td>
                     <td className="px-4 py-2.5">
-                      <StatusBadge status={row.state} label={row.state_label} tone={dueStateTone(row.state)} />
+                      <StatusBadge status={row.state} label={tValue('option.facility.state', row.state) ?? row.state_label} tone={dueStateTone(row.state)} />
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-1.5">
-                        <Button variant="outline" size="sm" onClick={() => setParam('company', String(row.client_company_id))}>History</Button>
+                        <Button variant="outline" size="sm" onClick={() => setParam('company', String(row.client_company_id))}>{t('action.history')}</Button>
                         {canManage && (
                           <>
-                            <Button variant="outline" size="sm" onClick={() => setScheduling(row)}>Frequency</Button>
-                            <Button size="sm" onClick={() => setRecording({ companyId: row.client_company_id })}>Inspect</Button>
+                            <Button variant="outline" size="sm" onClick={() => setScheduling(row)}>{t('action.facility.frequency')}</Button>
+                            <Button size="sm" onClick={() => setRecording({ companyId: row.client_company_id })}>{t('action.facility.inspect')}</Button>
                           </>
                         )}
                       </div>
@@ -227,18 +235,18 @@ export function FacilityInspectionsPage() {
       <DeepCleaningOverview canManage={canManage} onRecord={(companyId) => setRecording({ companyId })} />
 
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-base font-bold text-ink">Inspection history{companyName ? ` - ${companyName}` : ''}</h2>
-        {(from || to) && <span className="rounded-full bg-surface-alt px-3 py-1 text-xs text-ink-muted" data-testid="period-filter">Inspected {from ? formatDate(from) : 'from the start'} to {to ? formatDate(to) : 'today'}</span>}
+        <h2 className="font-display text-base font-bold text-ink">{t('option.facility.inspectionHistory')}{companyName ? ` - ${companyName}` : ''}</h2>
+        {(from || to) && <span className="rounded-full bg-surface-alt px-3 py-1 text-xs text-ink-muted" data-testid="period-filter">{t('option.facility.inspectedPeriod', { from: from ? formatDate(from) : t('option.facility.fromTheStart'), to: to ? formatDate(to) : t('option.facility.todayWord') })}</span>}
         {companyParam !== undefined && (
           <button type="button" onClick={() => setParam('company', '')} className="text-xs font-semibold text-primary hover:underline">
-            Show all companies
+            {t('action.facility.showAllCompanies')}
           </button>
         )}
       </div>
       <Card>
-        {history.isLoading && <LoadingState label="Loading inspections…" />}
+        {history.isLoading && <LoadingState label={t('option.facility.loadingInspections')} />}
         {history.error && <ErrorState error={history.error} onRetry={history.refetch} />}
-        {history.data && history.data.data.length === 0 && <EmptyState icon="eye" title="No inspections recorded yet" />}
+        {history.data && history.data.data.length === 0 && <EmptyState icon="eye" title={t('option.facility.noInspectionsYet')} />}
         {history.data && history.data.data.length > 0 && (
           <div className="divide-y divide-border">
             {history.data.data.map((inspection) => (
@@ -247,18 +255,18 @@ export function FacilityInspectionsPage() {
                   <p className="text-sm font-medium text-ink">
                     {inspection.company} <span className="font-normal text-ink-muted">· {formatDate(inspection.inspected_on)}</span>
                   </p>
-                  <p className="text-xs text-ink-muted">Inspector: {inspection.inspector_name}</p>
+                  <p className="text-xs text-ink-muted">{t('option.facility.inspectorName', { name: inspection.inspector_name })}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {inspection.unsatisfactory_count > 0 ? (
-                    <StatusBadge status="issues" tone="danger" label={`${inspection.unsatisfactory_count} unsatisfactory`} />
+                    <StatusBadge status="issues" tone="danger" label={t('status.facility.unsatisfactoryCount', { n: inspection.unsatisfactory_count })} />
                   ) : (
-                    <StatusBadge status="clean" tone="success" label="No issues" />
+                    <StatusBadge status="clean" tone="success" label={t('status.facility.noIssues')} />
                   )}
-                  {inspection.uniform_issue_count > 0 && <StatusBadge status="uniform" tone="warning" label={`${inspection.uniform_issue_count} uniform`} />}
-                  {inspection.staff_complaint_count > 0 && <StatusBadge status="staff-complaint" tone="danger" label={`${inspection.staff_complaint_count} staff complaint${inspection.staff_complaint_count === 1 ? '' : 's'}`} />}
-                  {inspection.customer_complaint_count > 0 && <StatusBadge status="customer-complaint" tone="danger" label={`${inspection.customer_complaint_count} customer complaint${inspection.customer_complaint_count === 1 ? '' : 's'}`} />}
-                  {inspection.voided && <StatusBadge status="voided" tone="neutral" label="Voided" />}
+                  {inspection.uniform_issue_count > 0 && <StatusBadge status="uniform" tone="warning" label={t('status.facility.uniformCount', { n: inspection.uniform_issue_count })} />}
+                  {inspection.staff_complaint_count > 0 && <StatusBadge status="staff-complaint" tone="danger" label={tCount('status.facility.staffComplaints', inspection.staff_complaint_count)} />}
+                  {inspection.customer_complaint_count > 0 && <StatusBadge status="customer-complaint" tone="danger" label={tCount('status.facility.customerComplaints', inspection.customer_complaint_count)} />}
+                  {inspection.voided && <StatusBadge status="voided" tone="neutral" label={t('status.facility.voided')} />}
                 </div>
               </button>
             ))}
@@ -296,6 +304,7 @@ function Banner({ message }: { message: string | null }) {
 }
 
 function ScheduleModal({ row, onClose }: { row: FacilityStatusRow; onClose: () => void }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const [days, setDays] = useState(row.frequency_days ? String(row.frequency_days) : '');
@@ -306,30 +315,30 @@ function ScheduleModal({ row, onClose }: { row: FacilityStatusRow; onClose: () =
     mutationFn: () => facilityApi.setSchedule(row.client_company_id, { frequency_days: Number(days), due_soon_days: soon === '' ? null : Number(soon) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['facility-status'] });
-      show('Inspection frequency saved.');
+      show(t('notify.facility.frequencySaved'));
       onClose();
     },
-    onError: (err) => setError(friendlyErrorMessage(err, 'Could not save the frequency.')),
+    onError: (err) => setError(friendlyErrorMessage(err, t('notify.facility.frequencyFailed'))),
   });
 
   return (
     <Modal
       isOpen
       onClose={onClose}
-      title={`Inspection frequency - ${row.company}`}
+      title={t('confirm.facility.frequencyTitle', { company: row.company })}
       size="sm"
       footer={
         <>
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" isLoading={save.isPending} disabled={!/^\d+$/.test(days) || Number(days) < 1} onClick={() => save.mutate()}>Save</Button>
+          <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
+          <Button size="sm" isLoading={save.isPending} disabled={!/^\d+$/.test(days) || Number(days) < 1} onClick={() => save.mutate()}>{t('action.save')}</Button>
         </>
       }
     >
       <Banner message={error} />
-      <FormField label="Inspect every (days)" htmlFor="freq-days" required hint="For example 30 for a monthly inspection. The next due date is counted from the last inspection.">
+      <FormField label={t('confirm.facility.frequencyDays')} htmlFor="freq-days" required hint={t('confirm.facility.frequencyDaysHint')}>
         <input id="freq-days" type="number" min={1} max={730} className={inputClasses} value={days} onChange={(e) => setDays(e.target.value)} />
       </FormField>
-      <FormField label="Show as 'Due soon' this many days before" htmlFor="freq-soon" hint="Optional. Leave empty for the default.">
+      <FormField label={t('confirm.facility.dueSoonDays')} htmlFor="freq-soon" hint={t('confirm.facility.dueSoonDaysHint')}>
         <input id="freq-soon" type="number" min={0} max={60} className={inputClasses} value={soon} onChange={(e) => setSoon(e.target.value)} />
       </FormField>
     </Modal>
@@ -338,6 +347,7 @@ function ScheduleModal({ row, onClose }: { row: FacilityStatusRow; onClose: () =
 
 /** Records a new inspection, or - with `editing` - corrects a saved one (header, checklist, uniform issues; complaints are managed on the Complaints screen). */
 function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initialCompanyId: number | null; editing?: FacilityInspectionDetail; onClose: () => void }) {
+  const { t, tValue } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const { admin } = useAuth();
@@ -376,10 +386,10 @@ function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initial
   const staffProblems = editing ? {} : validateComplaintSection(staff, 'staff');
   const customerProblems = editing ? {} : validateComplaintSection(customer, 'customer');
   const headerProblems: string[] = [];
-  if (companyId === '') headerProblems.push('Choose the company or workplace.');
-  if (inspector.trim() === '') headerProblems.push('Enter the inspector name.');
-  if (inspectedOn === '') headerProblems.push('Enter the inspection date.');
-  if (followUp !== '' && inspectedOn !== '' && followUp < inspectedOn) headerProblems.push('The follow-up date cannot be before the inspection date.');
+  if (companyId === '') headerProblems.push(t('validation.facility.chooseCompany'));
+  if (inspector.trim() === '') headerProblems.push(t('validation.facility.inspectorName'));
+  if (inspectedOn === '') headerProblems.push(t('validation.facility.inspectionDate'));
+  if (followUp !== '' && inspectedOn !== '' && followUp < inspectedOn) headerProblems.push(t('validation.facility.followUpBeforeInspection'));
   const deepCleaningProblems = validateDeepCleaning(deepCleaning, editing?.deep_cleaning ?? null, facilityToday());
   const valid = headerProblems.length === 0 && deepCleaningProblems.length === 0 && Object.keys(itemProblems).length === 0 && Object.keys(issueProblems).length === 0 && Object.keys(staffProblems).length === 0 && Object.keys(customerProblems).length === 0;
 
@@ -416,10 +426,10 @@ function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initial
       queryClient.invalidateQueries({ queryKey: ['facility-inspections'] });
       queryClient.invalidateQueries({ queryKey: ['facility-report'] });
       queryClient.invalidateQueries({ queryKey: ['facility-complaints'] });
-      show(editing ? 'Inspection corrected.' : 'Inspection recorded.');
+      show(editing ? t('notify.facility.inspectionCorrected') : t('notify.facility.inspectionRecorded'));
       onClose();
     },
-    onError: (err) => setServerError(friendlyErrorMessage(err, 'Could not record the inspection. Nothing was saved.')),
+    onError: (err) => setServerError(friendlyErrorMessage(err, t('notify.facility.inspectionFailed'))),
   });
 
   const submit = (event?: FormEvent) => {
@@ -436,14 +446,14 @@ function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initial
     <Modal
       isOpen
       onClose={onClose}
-      title={editing ? 'Edit facility inspection' : 'Record facility inspection'}
+      title={editing ? t('confirm.facility.editTitle') : t('confirm.facility.recordTitle')}
       size="lg"
       confirmDiscard
       dirty={dirty}
       footer={
         <>
           <ModalCancelButton disabled={save.isPending} />
-          <Button size="sm" onClick={() => submit()} isLoading={save.isPending}>{editing ? 'Save changes' : 'Save inspection'}</Button>
+          <Button size="sm" onClick={() => submit()} isLoading={save.isPending}>{editing ? t('action.facility.saveChanges') : t('action.facility.saveInspection')}</Button>
         </>
       }
     >
@@ -451,100 +461,104 @@ function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initial
         <Banner message={serverError} />
         {showErrors && headerProblems.length > 0 && <Banner message={headerProblems.join(' ')} />}
         <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2">
-          <FormField label="Company / Guri" htmlFor="insp-company" required>
+          <FormField label={t('option.label.companyGuri')} htmlFor="insp-company" required>
             <Select
               id="insp-company"
               disabled={editing !== undefined}
               value={companyId}
               onChange={(e) => setCompanyId(e.target.value)}
-              placeholder="Choose…"
-              options={(companies ?? []).filter((c) => c.status === 'active').map((c) => ({ value: String(c.id), label: c.category === 'guri' ? `${c.name} (Guri)` : c.name }))}
+              placeholder={t('option.facility.choose')}
+              options={(companies ?? []).filter((c) => c.status === 'active').map((c) => ({ value: String(c.id), label: c.category === 'guri' ? `${c.name} (${t('option.company.filterGuri')})` : c.name }))}
             />
           </FormField>
-          <FormField label="Inspection date" htmlFor="insp-date" required>
+          <FormField label={t('option.facility.inspectionDate')} htmlFor="insp-date" required>
             <input id="insp-date" type="date" max={facilityToday()} className={inputClasses} value={inspectedOn} onChange={(e) => setInspectedOn(e.target.value)} />
           </FormField>
-          <FormField label="Inspector" htmlFor="insp-inspector" required>
+          <FormField label={t('option.facility.inspector')} htmlFor="insp-inspector" required>
             <input id="insp-inspector" className={inputClasses} value={inspector} onChange={(e) => setInspector(e.target.value)} />
           </FormField>
-          <FormField label="Next follow-up date" htmlFor="insp-followup" hint="Optional. Overrides the usual frequency for this company.">
+          <FormField label={t('option.facility.nextFollowUpDate')} htmlFor="insp-followup" hint={t('warning.facility.followUpOverrides')}>
             <input id="insp-followup" type="date" className={inputClasses} value={followUp} onChange={(e) => setFollowUp(e.target.value)} />
           </FormField>
         </div>
 
-        <h3 className="mb-2 mt-2 font-display text-sm font-bold text-ink">Checklist</h3>
+        <h3 className="mb-2 mt-2 font-display text-sm font-bold text-ink">{t('option.facility.checklist')}</h3>
         <div className="mb-4 divide-y divide-border rounded-md border border-border">
-          {items.map((item) => (
-            <div key={item.key} className="px-3.5 py-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-medium text-ink">{item.label}</p>
-                <div role="radiogroup" aria-label={item.label} className="flex flex-wrap gap-1.5">
-                  {CHOICES.map((choice) => (
-                    <button
-                      key={choice.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={item.choice === choice.value}
-                      onClick={() => updateItem(item.key, { choice: choice.value })}
-                      className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
-                        item.choice === choice.value
-                          ? choice.value === 'unsatisfactory'
-                            ? 'border-danger bg-danger text-white'
-                            : 'border-primary bg-primary text-white'
-                          : 'border-border bg-surface text-ink-muted hover:border-primary/40'
-                      }`}
-                    >
-                      {choice.label}
-                    </button>
-                  ))}
+          {items.map((item) => {
+            const itemLabel = tValue('option.facility.item', item.key) ?? item.label;
+
+            return (
+              <div key={item.key} className="px-3.5 py-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-ink">{itemLabel}</p>
+                  <div role="radiogroup" aria-label={itemLabel} className="flex flex-wrap gap-1.5">
+                    {CHOICES.map((choice) => (
+                      <button
+                        key={choice.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={item.choice === choice.value}
+                        onClick={() => updateItem(item.key, { choice: choice.value })}
+                        className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                          item.choice === choice.value
+                            ? choice.value === 'unsatisfactory'
+                              ? 'border-danger bg-danger text-white'
+                              : 'border-primary bg-primary text-white'
+                            : 'border-border bg-surface text-ink-muted hover:border-primary/40'
+                        }`}
+                      >
+                        {t(choice.labelKey)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+                {item.choice === 'unsatisfactory' && (
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <input aria-label={t('option.facility.itemIssueAria', { item: itemLabel })} className={inputClasses} placeholder={t('option.facility.issueFound')} value={item.issue} onChange={(e) => updateItem(item.key, { issue: e.target.value })} />
+                    <input aria-label={t('option.facility.itemActionAria', { item: itemLabel })} className={inputClasses} placeholder={t('option.label.correctiveAction')} value={item.action} onChange={(e) => updateItem(item.key, { action: e.target.value })} />
+                  </div>
+                )}
+                {showErrors && itemProblems[item.key] && <p className="mt-1 text-xs text-danger">{itemProblems[item.key]}</p>}
               </div>
-              {item.choice === 'unsatisfactory' && (
-                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <input aria-label={`${item.label} - issue found`} className={inputClasses} placeholder="Issue found" value={item.issue} onChange={(e) => updateItem(item.key, { issue: e.target.value })} />
-                  <input aria-label={`${item.label} - corrective action`} className={inputClasses} placeholder="Corrective action" value={item.action} onChange={(e) => updateItem(item.key, { action: e.target.value })} />
-                </div>
-              )}
-              {showErrors && itemProblems[item.key] && <p className="mt-1 text-xs text-danger">{itemProblems[item.key]}</p>}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="font-display text-sm font-bold text-ink">Uniform issues</h3>
+          <h3 className="font-display text-sm font-bold text-ink">{t('option.facility.uniformIssues')}</h3>
           <Button variant="outline" size="sm" onClick={() => setIssues((current) => [...current, blankUniformIssue()])} disabled={companyId === ''}>
             <Icon name="plus" size={14} />
-            Add employee
+            {t('action.addEmployee')}
           </Button>
         </div>
-        {companyId === '' && <p className="mb-3 text-xs text-ink-faint">Choose the company first - only people who work for it can be listed.</p>}
-        {issues.length === 0 && companyId !== '' && <p className="mb-3 text-xs text-ink-faint">No uniform issues recorded. Add an employee only if their uniform was not worn properly.</p>}
+        {companyId === '' && <p className="mb-3 text-xs text-ink-faint">{t('warning.facility.chooseCompanyListed')}</p>}
+        {issues.length === 0 && companyId !== '' && <p className="mb-3 text-xs text-ink-faint">{t('warning.facility.noUniformIssues')}</p>}
         {issues.map((row, index) => (
           <div key={index} className="mb-3 rounded-md border border-border px-3.5 py-3">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Select
-                aria-label="Employee"
+                aria-label={t('option.label.employee')}
                 value={row.employeeId}
                 onChange={(e) => updateIssue(index, { employeeId: e.target.value })}
-                placeholder="Employee at this company…"
+                placeholder={t('option.facility.employeeAtCompany')}
                 options={(employees ?? []).map((e) => ({ value: String(e.id), label: `${e.full_name} (${e.employee_number})` }))}
               />
-              <input aria-label="Uniform issue" className={inputClasses} placeholder="Uniform issue" value={row.issue} onChange={(e) => updateIssue(index, { issue: e.target.value })} />
-              <input aria-label="Reason the uniform was not worn" className={inputClasses} placeholder="Reason not worn (if known)" value={row.reasonNotWorn} onChange={(e) => updateIssue(index, { reasonNotWorn: e.target.value })} />
-              <input aria-label="Corrective action" className={inputClasses} placeholder="Corrective action" value={row.action} onChange={(e) => updateIssue(index, { action: e.target.value })} />
+              <input aria-label={t('option.facility.uniformIssue')} className={inputClasses} placeholder={t('option.facility.uniformIssue')} value={row.issue} onChange={(e) => updateIssue(index, { issue: e.target.value })} />
+              <input aria-label={t('option.facility.reasonNotWornAria')} className={inputClasses} placeholder={t('option.facility.reasonNotWornPlaceholder')} value={row.reasonNotWorn} onChange={(e) => updateIssue(index, { reasonNotWorn: e.target.value })} />
+              <input aria-label={t('option.label.correctiveAction')} className={inputClasses} placeholder={t('option.label.correctiveAction')} value={row.action} onChange={(e) => updateIssue(index, { action: e.target.value })} />
               <label className="flex items-center gap-2 text-sm text-ink">
                 <input type="checkbox" checked={row.warningGiven} onChange={(e) => updateIssue(index, { warningGiven: e.target.checked })} />
-                Warning given
+                {t('option.facility.warningGiven')}
               </label>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-ink-muted">Follow up on</span>
-                <input aria-label="Follow-up date" type="date" className={inputClasses} value={row.followUpOn} onChange={(e) => updateIssue(index, { followUpOn: e.target.value })} />
+                <span className="text-xs text-ink-muted">{t('option.facility.followUpOn')}</span>
+                <input aria-label={t('option.label.followUpDate')} type="date" className={inputClasses} value={row.followUpOn} onChange={(e) => updateIssue(index, { followUpOn: e.target.value })} />
               </div>
             </div>
             <div className="mt-2 flex items-center justify-between">
               {showErrors && issueProblems[index] ? <p className="text-xs text-danger">{issueProblems[index]}</p> : <span />}
               <button type="button" onClick={() => setIssues((current) => current.filter((_, i) => i !== index))} className="text-xs font-semibold text-danger hover:underline">
-                Remove
+                {t('action.remove')}
               </button>
             </div>
           </div>
@@ -553,7 +567,16 @@ function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initial
         {editing ? (
           <div className="mb-4 rounded-md border border-border bg-surface-alt/50 px-3.5 py-3 text-sm text-ink-muted" data-testid="complaints-managed-elsewhere">
             {complaintAnswerText(editing.staff_complaints_reported, editing.staff_complaint_count, 'staff')} · {complaintAnswerText(editing.customer_complaints_reported, editing.customer_complaint_count, 'customer')}.{' '}
-            Complaints are changed on the <Link to={`/hr/facility-complaints?company=${editing.client_company_id}`} className="font-semibold text-primary hover:underline">Complaints screen</Link>, where each one keeps its own history.
+            <Msg
+              id="warning.facility.complaintsManagedElsewhere"
+              values={{
+                link: (
+                  <Link to={`/hr/facility-complaints?company=${editing.client_company_id}`} className="font-semibold text-primary hover:underline">
+                    {t('action.facility.complaintsScreen')}
+                  </Link>
+                ),
+              }}
+            />
           </div>
         ) : (
           <>
@@ -564,7 +587,7 @@ function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initial
 
         <InspectionDeepCleaningSection form={deepCleaning} onChange={setDeepCleaning} saved={editing?.deep_cleaning ?? null} problems={deepCleaningProblems} showErrors={showErrors} />
 
-        <FormField label="Notes" htmlFor="insp-notes">
+        <FormField label={t('option.label.notes')} htmlFor="insp-notes">
           <textarea id="insp-notes" rows={3} className={`${inputClasses} h-auto py-2`} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </FormField>
       </form>
@@ -573,6 +596,7 @@ function RecordInspectionModal({ initialCompanyId, editing, onClose }: { initial
 }
 
 function InspectionDetailModal({ id, canManage, onClose, onEdit }: { id: number; canManage: boolean; onClose: () => void; onEdit: (detail: FacilityInspectionDetail) => void }) {
+  const { t, tValue } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const [reason, setReason] = useState('');
@@ -589,89 +613,89 @@ function InspectionDetailModal({ id, canManage, onClose, onEdit }: { id: number;
       queryClient.invalidateQueries({ queryKey: ['facility-inspections'] });
       queryClient.invalidateQueries({ queryKey: ['facility-inspection', id] });
       queryClient.invalidateQueries({ queryKey: ['facility-report'] });
-      show('Inspection voided. It is kept on record but no longer counted.');
+      show(t('notify.facility.inspectionVoided'));
       onClose();
     },
-    onError: (err) => setError(friendlyErrorMessage(err, 'Could not void the inspection.')),
+    onError: (err) => setError(friendlyErrorMessage(err, t('notify.facility.inspectionVoidFailed'))),
   });
 
   return (
     <Modal
       isOpen
       onClose={onClose}
-      title={data ? `Inspection - ${data.company ?? ''}, ${formatDate(data.inspected_on)}` : 'Inspection'}
+      title={data ? t('confirm.facility.detailTitle', { company: data.company ?? '', date: formatDate(data.inspected_on) }) : t('confirm.facility.detailTitleLoading')}
       size="lg"
       footer={
         data && canManage && !data.voided ? (
           voiding ? (
             <>
-              <Button variant="outline" size="sm" onClick={() => setVoiding(false)}>Keep it</Button>
-              <Button variant="danger" size="sm" isLoading={voidIt.isPending} disabled={reason.trim().length < 5} onClick={() => voidIt.mutate()}>Void inspection</Button>
+              <Button variant="outline" size="sm" onClick={() => setVoiding(false)}>{t('action.facility.keepIt')}</Button>
+              <Button variant="danger" size="sm" isLoading={voidIt.isPending} disabled={reason.trim().length < 5} onClick={() => voidIt.mutate()}>{t('action.facility.voidInspection')}</Button>
             </>
           ) : (
             <>
-              <Button variant="outline" size="sm" onClick={() => setVoiding(true)}>Void this inspection</Button>
-              <Button size="sm" onClick={() => onEdit(data)}>Edit inspection</Button>
+              <Button variant="outline" size="sm" onClick={() => setVoiding(true)}>{t('action.facility.voidThisInspection')}</Button>
+              <Button size="sm" onClick={() => onEdit(data)}>{t('action.facility.editInspection')}</Button>
             </>
           )
         ) : undefined
       }
     >
-      {isLoading && <LoadingState label="Loading inspection…" />}
+      {isLoading && <LoadingState label={t('option.facility.loadingInspection')} />}
       {loadError && <ErrorState error={loadError} />}
       {data && (
         <div className="space-y-4 text-sm">
           <Banner message={error} />
           {data.voided && (
             <div className="rounded-md border border-border bg-surface-alt px-3.5 py-2.5 text-ink-muted">
-              Voided{data.void_reason ? `: ${data.void_reason}` : ''}. This inspection is kept on record but is not counted.
+              {t('warning.facility.inspectionVoided', { reason: data.void_reason ? `: ${data.void_reason}` : '' })}
             </div>
           )}
           <dl className="grid grid-cols-2 gap-3">
-            <div><dt className="text-xs text-ink-faint">Inspector</dt><dd className="text-ink">{data.inspector_name}</dd></div>
-            <div><dt className="text-xs text-ink-faint">Recorded by</dt><dd className="text-ink">{data.recorded_by ?? '—'}</dd></div>
-            <div><dt className="text-xs text-ink-faint">Next follow-up</dt><dd className="text-ink">{data.next_follow_up_on ? formatDate(data.next_follow_up_on) : '—'}</dd></div>
-            <div><dt className="text-xs text-ink-faint">Workplace</dt><dd className="text-ink">{data.workplace ?? '—'}</dd></div>
+            <div><dt className="text-xs text-ink-faint">{t('option.facility.inspector')}</dt><dd className="text-ink">{data.inspector_name}</dd></div>
+            <div><dt className="text-xs text-ink-faint">{t('option.label.recordedBy')}</dt><dd className="text-ink">{data.recorded_by ?? '—'}</dd></div>
+            <div><dt className="text-xs text-ink-faint">{t('option.facility.nextFollowUp')}</dt><dd className="text-ink">{data.next_follow_up_on ? formatDate(data.next_follow_up_on) : '—'}</dd></div>
+            <div><dt className="text-xs text-ink-faint">{t('option.label.workplace')}</dt><dd className="text-ink">{data.workplace ?? '—'}</dd></div>
           </dl>
           <div className="divide-y divide-border rounded-md border border-border">
             {data.items.map((item) => (
               <div key={item.item_key} className="flex flex-wrap items-start justify-between gap-2 px-3.5 py-2">
                 <div>
-                  <p className="font-medium text-ink">{item.label}</p>
+                  <p className="font-medium text-ink">{tValue('option.facility.item', item.item_key) ?? item.label}</p>
                   {item.result === 'unsatisfactory' && (
                     <p className="text-xs text-ink-muted">
-                      Issue: {item.issue_description} · Action: {item.corrective_action}
+                      {t('option.facility.issueAndAction', { issue: item.issue_description ?? '', action: item.corrective_action ?? '' })}
                     </p>
                   )}
                 </div>
                 {!item.applicable ? (
-                  <StatusBadge status="na" tone="neutral" label="Not applicable" />
+                  <StatusBadge status="na" tone="neutral" label={t('option.facility.choice.notApplicable')} />
                 ) : item.result === 'unsatisfactory' ? (
-                  <StatusBadge status="bad" tone="danger" label="Unsatisfactory" />
+                  <StatusBadge status="bad" tone="danger" label={t('status.facility.unsatisfactory')} />
                 ) : (
-                  <StatusBadge status="good" tone="success" label="Satisfactory" />
+                  <StatusBadge status="good" tone="success" label={t('status.facility.satisfactory')} />
                 )}
               </div>
             ))}
           </div>
           <div data-testid="deep-cleaning-detail">
-            <h3 className="mb-1.5 font-display text-sm font-bold text-ink">Deep Cleaning</h3>
+            <h3 className="mb-1.5 font-display text-sm font-bold text-ink">{t('option.hr.deepCleaning')}</h3>
             {data.deep_cleaning === null ? (
-              <p className="text-xs text-ink-muted">Not recorded in this inspection.</p>
+              <p className="text-xs text-ink-muted">{t('option.hr.dcDetailNotRecorded')}</p>
             ) : data.deep_cleaning.withdrawn ? (
-              <p className="text-xs text-ink-muted">Recorded for {formatCalendarDate(data.deep_cleaning.completed_on)}, then withdrawn{data.deep_cleaning.withdrawn_reason ? `: ${data.deep_cleaning.withdrawn_reason}` : ''}. Kept on record, not counted.</p>
+              <p className="text-xs text-ink-muted">{t('warning.hr.dcDetailWithdrawn', { date: formatCalendarDate(data.deep_cleaning.completed_on), reason: data.deep_cleaning.withdrawn_reason ? `: ${data.deep_cleaning.withdrawn_reason}` : '' })}</p>
             ) : (
               <p className="text-xs text-ink-muted">
-                Completed on {formatCalendarDate(data.deep_cleaning.completed_on)}
-                {data.deep_cleaning.recorded_by ? ` · recorded by ${data.deep_cleaning.recorded_by}` : ''}
+                {t('option.hr.dcDetailCompletedOn', { date: formatCalendarDate(data.deep_cleaning.completed_on) })}
+                {data.deep_cleaning.recorded_by ? ` · ${t('option.hr.dcRecordedByLower', { name: data.deep_cleaning.recorded_by })}` : ''}
                 {data.deep_cleaning.notes ? ` · ${data.deep_cleaning.notes}` : ''}
-                {data.deep_cleaning.changed_by ? ` · changed by ${data.deep_cleaning.changed_by}${data.deep_cleaning.change_reason ? ` (${data.deep_cleaning.change_reason})` : ''}` : ''}
+                {data.deep_cleaning.changed_by ? ` · ${t('option.hr.dcChangedByLower', { name: data.deep_cleaning.changed_by })}${data.deep_cleaning.change_reason ? ` (${data.deep_cleaning.change_reason})` : ''}` : ''}
               </p>
             )}
           </div>
           {data.uniform_issues.length > 0 && (
             <div>
-              <h3 className="mb-1.5 font-display text-sm font-bold text-ink">Uniform issues</h3>
+              <h3 className="mb-1.5 font-display text-sm font-bold text-ink">{t('option.facility.uniformIssues')}</h3>
               <div className="divide-y divide-border rounded-md border border-border">
                 {data.uniform_issues.map((row) => (
                   <div key={row.id} className="px-3.5 py-2">
@@ -680,10 +704,10 @@ function InspectionDetailModal({ id, canManage, onClose, onEdit }: { id: number;
                     </p>
                     <p className="text-xs text-ink-muted">
                       {row.issue}
-                      {row.reason_not_worn ? ` · Reason: ${row.reason_not_worn}` : ''}
-                      {row.corrective_action ? ` · Action: ${row.corrective_action}` : ''}
-                      {row.warning_given ? ' · Warning given' : ''}
-                      {row.follow_up_on ? ` · Follow up ${formatDate(row.follow_up_on)}` : ''}
+                      {row.reason_not_worn ? ` · ${t('option.facility.reasonIs', { reason: row.reason_not_worn })}` : ''}
+                      {row.corrective_action ? ` · ${t('option.facility.actionIs', { action: row.corrective_action })}` : ''}
+                      {row.warning_given ? ` · ${t('option.facility.warningGiven')}` : ''}
+                      {row.follow_up_on ? ` · ${t('option.facility.followUpDateIs', { date: formatDate(row.follow_up_on) })}` : ''}
                     </p>
                   </div>
                 ))}
@@ -691,7 +715,7 @@ function InspectionDetailModal({ id, canManage, onClose, onEdit }: { id: number;
             </div>
           )}
           <div>
-            <h3 className="mb-1.5 font-display text-sm font-bold text-ink">Staff and customer complaints</h3>
+            <h3 className="mb-1.5 font-display text-sm font-bold text-ink">{t('option.facility.staffCustomerComplaints')}</h3>
             <p className="text-xs text-ink-muted">
               {complaintAnswerText(data.staff_complaints_reported, data.staff_complaint_count, 'staff')} · {complaintAnswerText(data.customer_complaints_reported, data.customer_complaint_count, 'customer')}
             </p>
@@ -700,22 +724,22 @@ function InspectionDetailModal({ id, canManage, onClose, onEdit }: { id: number;
                 {data.complaints.map((c) => (
                   <div key={c.id} className="px-3.5 py-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-medium text-ink">{c.type_label} <span className="font-normal text-ink-muted">· {c.reporter_employee ?? c.reporter_name ?? 'reporter not named'}</span></p>
-                      <StatusBadge status={c.status} label={c.status_label} tone={complaintStatusTone(c.status)} />
+                      <p className="font-medium text-ink">{tValue('option.facility.type', c.type) ?? c.type_label} <span className="font-normal text-ink-muted">· {c.reporter_employee ?? c.reporter_name ?? t('option.facility.reporterNotNamed')}</span></p>
+                      <StatusBadge status={c.status} label={tValue('option.facility.status', c.status) ?? c.status_label} tone={complaintStatusTone(c.status)} />
                     </div>
                     <p className="text-xs text-ink-muted">{c.details}</p>
                     <p className="text-xs text-ink-faint">
-                      Responsible: {c.responsible_person ?? '-'}{c.response ? ` · Response: ${c.response}` : ''}{c.corrective_action ? ` · Action: ${c.corrective_action}` : ''}{c.follow_up_on ? ` · Follow up ${formatDate(c.follow_up_on)}` : ''} · Satisfaction: {c.satisfaction_label}
+                      {t('option.facility.responsibleName', { name: c.responsible_person ?? '-' })}{c.response ? ` · ${t('option.facility.responseIs', { response: c.response })}` : ''}{c.corrective_action ? ` · ${t('option.facility.actionIs', { action: c.corrective_action })}` : ''}{c.follow_up_on ? ` · ${t('option.facility.followUpDateIs', { date: formatDate(c.follow_up_on) })}` : ''} · {t('option.facility.satisfactionIs', { label: tValue('option.facility.satisfaction', c.satisfaction ?? 'not_recorded') ?? c.satisfaction_label })}
                     </p>
-                    <Link to={`/hr/facility-complaints?company=${c.client_company_id}`} className="text-xs font-semibold text-primary hover:underline">Open on the Complaints screen</Link>
+                    <Link to={`/hr/facility-complaints?company=${c.client_company_id}`} className="text-xs font-semibold text-primary hover:underline">{t('action.facility.openOnComplaints')}</Link>
                   </div>
                 ))}
               </div>
             )}
           </div>
-          {data.general_notes && <p className="text-ink-muted">Notes: {data.general_notes}</p>}
+          {data.general_notes && <p className="text-ink-muted">{t('option.facility.notesIs', { notes: data.general_notes })}</p>}
           {voiding && (
-            <FormField label="Why is this inspection being voided?" htmlFor="void-reason" required hint="At least 5 characters. It is kept in the audit history.">
+            <FormField label={t('confirm.facility.voidInspectionReason')} htmlFor="void-reason" required hint={t('confirm.facility.voidInspectionReasonHint')}>
               <input id="void-reason" className={inputClasses} value={reason} onChange={(e) => setReason(e.target.value)} />
             </FormField>
           )}

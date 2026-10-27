@@ -17,6 +17,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate } from '@/utils/formatters';
+import { useI18n } from '@/i18n/useI18n';
 
 /**
  * docs/HRM_MARKETING_SRS.md HR §10: batches/sessions for Practical, sitting
@@ -28,6 +29,7 @@ export function PracticalBatchesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t, tValue } = useI18n();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [batchDate, setBatchDate] = useState(new Date().toISOString().slice(0, 10));
   const [location, setLocation] = useState('');
@@ -39,32 +41,32 @@ export function PracticalBatchesPage() {
     mutationFn: () => hrApi.practicalBatches.create({ batch_date: batchDate, location: location || null, team_or_group: teamOrGroup || null }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['practical-batches'] });
-      show('Practical batch created.');
+      show(t('notify.pipeline.practicalBatchCreated'));
       setIsCreateOpen(false);
       setLocation('');
       setTeamOrGroup('');
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Something went wrong.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.somethingWrong'), 'error'),
   });
 
   return (
     <div>
       <PageHeader
-        title="Practical Batches"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Practical Batches' }]}
+        title={t('nav.practicalBatches')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.practicalBatches') }]}
         actions={
           <PermissionGate module="hr">
             <Button onClick={() => setIsCreateOpen(true)}>
               <Icon name="plus" size={15} />
-              Create Practical Batch
+              {t('action.createPracticalBatch')}
             </Button>
           </PermissionGate>
         }
       />
 
-      {isLoading && <LoadingState label="Loading practical batches…" />}
+      {isLoading && <LoadingState label={t('option.pipeline.loadingPracticalBatches')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
-      {data && data.length === 0 && <EmptyState icon="check" title="No practical batches yet" />}
+      {data && data.length === 0 && <EmptyState icon="check" title={t('option.pipeline.noPracticalBatchesYet')} />}
 
       {data && data.length > 0 && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -77,10 +79,10 @@ export function PracticalBatchesPage() {
                     {formatDate(batch.batch_date)} {batch.location && `· ${batch.location}`} {batch.team_or_group && `· ${batch.team_or_group}`}
                   </p>
                 </div>
-                <StatusBadge status={batch.status} tone={batch.status === 'completed' ? 'success' : 'warning'} />
+                <StatusBadge status={batch.status} label={tValue('status.pipeline.batch', batch.status)} tone={batch.status === 'completed' ? 'success' : 'warning'} />
               </div>
 
-              <p className="mb-1.5 text-xs font-medium text-ink-faint">Assessed here</p>
+              <p className="mb-1.5 text-xs font-medium text-ink-faint">{t('option.pipeline.assessedHere')}</p>
               {batch.assessments.length > 0 ? (
                 <div className="space-y-1.5">
                   {batch.assessments.map((a) => (
@@ -93,13 +95,17 @@ export function PracticalBatchesPage() {
                       <span className="text-ink">
                         {a.employee_name} {a.attempt_number && <span className="text-xs text-ink-faint">(#{a.attempt_number})</span>}
                       </span>
-                      <StatusBadge status={a.result} tone={a.result === 'approved' ? 'success' : a.result === 'rejected' ? 'danger' : 'warning'} />
+                      <StatusBadge
+                        status={a.result}
+                        label={tValue('status.pipeline.assessment', a.result)}
+                        tone={a.result === 'approved' ? 'success' : a.result === 'rejected' ? 'danger' : 'warning'}
+                      />
                     </button>
                   ))}
                 </div>
               ) : (
                 <p className="text-xs italic text-ink-faint">
-                  No decisions recorded yet — record them from the employee's profile and select this batch.
+                  {t('option.pipeline.noDecisionsYet')}
                 </p>
               )}
             </Card>
@@ -110,22 +116,22 @@ export function PracticalBatchesPage() {
       <Modal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        title="New Practical Batch"
+        title={t('confirm.pipeline.newPracticalBatch')}
         size="sm"
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-            <Button size="sm" isLoading={createMutation.isPending} onClick={() => createMutation.mutate()}>Create</Button>
+            <Button variant="outline" size="sm" onClick={() => setIsCreateOpen(false)}>{t('action.cancel')}</Button>
+            <Button size="sm" isLoading={createMutation.isPending} onClick={() => createMutation.mutate()}>{t('action.create')}</Button>
           </>
         }
       >
-        <FormField label="Batch date" htmlFor="pb-date" required>
+        <FormField label={t('option.pipeline.batchDate')} htmlFor="pb-date" required>
           <input id="pb-date" type="date" className={inputClasses} value={batchDate} onChange={(e) => setBatchDate(e.target.value)} />
         </FormField>
-        <FormField label="Location" htmlFor="pb-location">
+        <FormField label={t('option.pipeline.location')} htmlFor="pb-location">
           <input id="pb-location" className={inputClasses} value={location} onChange={(e) => setLocation(e.target.value)} />
         </FormField>
-        <FormField label="Team / group" htmlFor="pb-team">
+        <FormField label={t('option.pipeline.teamOrGroup')} htmlFor="pb-team">
           <input id="pb-team" className={inputClasses} value={teamOrGroup} onChange={(e) => setTeamOrGroup(e.target.value)} />
         </FormField>
       </Modal>

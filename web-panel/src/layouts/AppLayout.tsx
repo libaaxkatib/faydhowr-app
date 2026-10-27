@@ -3,8 +3,10 @@ import { Outlet } from 'react-router-dom';
 
 import { Sidebar } from '@/layouts/Sidebar';
 import { Header } from '@/layouts/Header';
+import { useI18n } from '@/i18n/useI18n';
 
 export function AppLayout() {
+  const { t } = useI18n();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
@@ -14,7 +16,7 @@ export function AppLayout() {
       {isSidebarOpen && (
         <button
           type="button"
-          aria-label="Close menu"
+          aria-label={t('action.closeMenu')}
           className="fixed inset-0 z-30 bg-ink/40 lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />

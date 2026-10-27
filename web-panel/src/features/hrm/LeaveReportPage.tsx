@@ -12,6 +12,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { useDateRangePreset } from '@/hooks/useDateRangePreset';
 import { formatDate } from '@/utils/formatters';
 import type { EmployeeLeave, LeaveType } from '@/types/employee';
+import { useI18n } from '@/i18n/useI18n';
 
 const LEAVE_TYPE_OPTIONS: { value: LeaveType; label: string }[] = [
   { value: 'annual', label: 'Annual' },
@@ -22,6 +23,7 @@ const LEAVE_TYPE_OPTIONS: { value: LeaveType; label: string }[] = [
 
 /** docs/HRM_MARKETING_SRS.md HR Phase 6: company-wide Leave list - previously only visible one employee at a time. */
 export function LeaveReportPage() {
+  const { t, tValue } = useI18n();
   const { preset, setPreset, from, to, setFrom, setTo, options: presetOptions } = useDateRangePreset();
   const [departmentId, setDepartmentId] = useState('');
   const [leaveType, setLeaveType] = useState<LeaveType | ''>('');
@@ -46,7 +48,7 @@ export function LeaveReportPage() {
   const columns = useMemo<ColumnDef<EmployeeLeave, unknown>[]>(
     () => [
       {
-        header: 'Employee',
+        header: t('option.label.employee'),
         id: 'employee',
         cell: ({ row }) => (
           <div className="min-w-0">
@@ -56,12 +58,12 @@ export function LeaveReportPage() {
         ),
       },
       {
-        header: 'Type',
+        header: t('option.label.type'),
         accessorKey: 'leave_type_label',
-        cell: ({ row }) => <span className="text-ink">{row.original.leave_type_label}</span>,
+        cell: ({ row }) => <span className="text-ink">{tValue('option.leaveType', row.original.leave_type) ?? row.original.leave_type_label}</span>,
       },
       {
-        header: 'Period',
+        header: t('option.label.period'),
         id: 'period',
         cell: ({ row }) => (
           <span className="text-ink-muted">
@@ -70,19 +72,19 @@ export function LeaveReportPage() {
         ),
       },
       {
-        header: 'Recorded By',
+        header: t('option.reports.colRecordedBy'),
         accessorKey: 'recorded_by',
         cell: ({ row }) => <span className="text-ink-muted">{row.original.recorded_by ?? '—'}</span>,
       },
     ],
-    [],
+    [t, tValue],
   );
 
   return (
     <div>
       <PageHeader
-        title="Leave Report"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Reports', to: '/hr/reports' }, { label: 'Leave Report' }]}
+        title={t('nav.leaveReport')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.reports'), to: '/hr/reports' }, { label: t('nav.leaveReport') }]}
       />
 
       <Card className="mb-4">
@@ -131,7 +133,7 @@ export function LeaveReportPage() {
               setDepartmentId(e.target.value);
               setPage(1);
             }}
-            placeholder="All departments"
+            placeholder={t('option.pipeline.allDepartments')}
             options={(departments ?? []).map((d) => ({ value: String(d.id), label: d.name }))}
             className="w-44"
           />
@@ -141,8 +143,8 @@ export function LeaveReportPage() {
               setLeaveType(e.target.value as LeaveType | '');
               setPage(1);
             }}
-            placeholder="All leave types"
-            options={LEAVE_TYPE_OPTIONS}
+            placeholder={t('option.pipeline.allLeaveTypes')}
+            options={LEAVE_TYPE_OPTIONS.map((o) => ({ value: o.value, label: tValue('option.leaveType', o.value) ?? o.label }))}
             className="w-40"
           />
         </div>
@@ -153,8 +155,8 @@ export function LeaveReportPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          emptyTitle="No leaves recorded"
-          emptyDescription="Leaves appear here once recorded for an employee."
+          emptyTitle={t('option.reports.leavesEmptyTitle')}
+          emptyDescription={t('option.reports.leavesEmptyBody')}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

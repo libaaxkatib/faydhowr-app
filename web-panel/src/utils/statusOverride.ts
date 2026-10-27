@@ -2,6 +2,8 @@
 // unit-tested by Node's native test runner (statusOverride.test.ts). The BACKEND is the real guard; these
 // only give the user quick feedback before a request is sent.
 
+import { tNow } from '../i18n/active.ts';
+
 export const OVERRIDE_MIN_LENGTH = 10;
 export const OVERRIDE_MAX_LENGTH = 500;
 
@@ -16,8 +18,8 @@ export function normalizeReason(reason: string): string {
 /** Null when the reason is acceptable, otherwise a plain-language problem. */
 export function overrideReasonError(reason: string): string | null {
   const text = normalizeReason(reason);
-  if (text.length < OVERRIDE_MIN_LENGTH) return `Write a reason of at least ${OVERRIDE_MIN_LENGTH} characters.`;
-  if (text.length > OVERRIDE_MAX_LENGTH) return `The reason may not be longer than ${OVERRIDE_MAX_LENGTH} characters.`;
+  if (text.length < OVERRIDE_MIN_LENGTH) return tNow('validation.employees.reasonMin', { min: OVERRIDE_MIN_LENGTH });
+  if (text.length > OVERRIDE_MAX_LENGTH) return tNow('validation.employees.reasonMax', { max: OVERRIDE_MAX_LENGTH });
   return null;
 }
 

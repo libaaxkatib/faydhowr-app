@@ -17,20 +17,22 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
+import { useI18n } from '@/i18n/useI18n';
+import type { MessageKey } from '@/i18n/messages';
 import { formatDate, formatDateTime } from '@/utils/formatters';
 import type { FollowUpFilter, MarketingRecordStatus } from '@/types/marketing';
 
-const TABS: { value: FollowUpFilter; label: string }[] = [
-  { value: 'today', label: "Today's Follow-ups" },
-  { value: 'upcoming', label: 'Upcoming' },
-  { value: 'overdue', label: 'Overdue' },
+const TABS: { value: FollowUpFilter; label: string; labelKey: MessageKey }[] = [
+  { value: 'today', label: "Today's Follow-ups", labelKey: 'option.marketing.todaysFollowUps' },
+  { value: 'upcoming', label: 'Upcoming', labelKey: 'option.marketing.tabUpcoming' },
+  { value: 'overdue', label: 'Overdue', labelKey: 'option.marketing.tabOverdue' },
 ];
 
-const RECORD_STATUS_OPTIONS: { value: MarketingRecordStatus; label: string }[] = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'quotation', label: 'Quotation' },
-  { value: 'done', label: 'Done' },
-  { value: 'cancelled', label: 'Cancelled' },
+const RECORD_STATUS_OPTIONS: { value: MarketingRecordStatus; label: string; labelKey: MessageKey }[] = [
+  { value: 'pending', label: 'Pending', labelKey: 'status.marketing.record.pending' },
+  { value: 'quotation', label: 'Quotation', labelKey: 'status.marketing.record.quotation' },
+  { value: 'done', label: 'Done', labelKey: 'status.marketing.record.done' },
+  { value: 'cancelled', label: 'Cancelled', labelKey: 'status.marketing.record.cancelled' },
 ];
 
 /** SRS §15's reminder actions. Only one inline editor is open per follow-up at a time. */
@@ -48,8 +50,9 @@ export function FollowUpsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t, tValue } = useI18n();
   const url = useUrlFilters();
-  const tab: FollowUpFilter = TABS.find((t) => t.value === url.get('tab'))?.value ?? 'today';
+  const tab: FollowUpFilter = TABS.find((tabItem) => tabItem.value === url.get('tab'))?.value ?? 'today';
   const setTab = (value: FollowUpFilter) => url.set('tab', value === 'today' ? '' : value);
   const [editor, setEditor] = useState<ActiveEditor>(null);
   const [rescheduleDate, setRescheduleDate] = useState('');
@@ -72,9 +75,9 @@ export function FollowUpsPage() {
     mutationFn: (id: number) => marketingApi.followUps.complete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['marketing-follow-ups'] });
-      show('Follow-up marked completed.');
+      show(t('notify.marketing.followUpCompleted'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not complete follow-up.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotCompleteFollowUp'), 'error'),
   });
 
   const rescheduleMutation = useMutation({
@@ -82,9 +85,9 @@ export function FollowUpsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['marketing-follow-ups'] });
       closeEditor();
-      show('Follow-up rescheduled.');
+      show(t('notify.marketing.followUpRescheduled'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not reschedule follow-up.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotRescheduleFollowUp'), 'error'),
   });
 
   const feedbackMutation = useMutation({
@@ -92,9 +95,9 @@ export function FollowUpsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['marketing-follow-ups'] });
       closeEditor();
-      show('Feedback added.');
+      show(t('notify.marketing.feedbackAdded'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not add feedback.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotAddFeedback'), 'error'),
   });
 
   const statusMutation = useMutation({
@@ -102,34 +105,34 @@ export function FollowUpsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['marketing-follow-ups'] });
       closeEditor();
-      show('Status updated.');
+      show(t('notify.marketing.statusUpdated'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not update status.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotUpdateStatus'), 'error'),
   });
 
   return (
     <div>
-      <PageHeader title="Follow-ups" breadcrumb={[{ label: 'Marketing', to: '/marketing' }, { label: 'Follow-ups' }]} />
+      <PageHeader title={t('nav.marketing.followUps')} breadcrumb={[{ label: t('nav.marketing.marketing'), to: '/marketing' }, { label: t('nav.marketing.followUps') }]} />
 
       <div className="mb-4 flex gap-1 rounded-md border border-border bg-surface p-1">
-        {TABS.map((t) => (
+        {TABS.map((tabItem) => (
           <button
-            key={t.value}
+            key={tabItem.value}
             type="button"
-            onClick={() => setTab(t.value)}
+            onClick={() => setTab(tabItem.value)}
             className={`flex-1 rounded-sm px-3 py-2 text-sm font-medium transition ${
-              tab === t.value ? 'bg-primary text-white' : 'text-ink-muted hover:bg-surface-alt'
+              tab === tabItem.value ? 'bg-primary text-white' : 'text-ink-muted hover:bg-surface-alt'
             }`}
           >
-            {t.label}
+            {t(tabItem.labelKey)}
           </button>
         ))}
       </div>
 
       <Card>
-        {isLoading && <LoadingState label="Loading follow-ups…" />}
+        {isLoading && <LoadingState label={t('option.marketing.loadingFollowUps')} />}
         {error && <ErrorState error={error} onRetry={refetch} />}
-        {data && data.length === 0 && <EmptyState icon="calendar" title="Nothing here" description="No follow-ups match this view." />}
+        {data && data.length === 0 && <EmptyState icon="calendar" title={t('warning.marketing.nothingHere')} description={t('warning.marketing.noFollowUpsMatch')} />}
         {data && data.length > 0 && (
           <div className="divide-y divide-border">
             {data.map((fu) => (
@@ -151,16 +154,16 @@ export function FollowUpsPage() {
                       </button>
                     </div>
                     <p className="mt-0.5 text-xs text-ink-muted">
-                      <span className="text-ink-faint">Team:</span>{' '}
-                      <span className={fu.record_team_name ? '' : 'italic text-ink-faint'}>{fu.record_team_name ?? 'Unassigned'}</span>
+                      <span className="text-ink-faint">{t('option.marketing.teamColon')}</span>{' '}
+                      <span className={fu.record_team_name ? '' : 'italic text-ink-faint'}>{fu.record_team_name ?? t('option.employees.unassigned')}</span>
                       {' · '}
-                      <span className="text-ink-faint">Employee:</span>{' '}
-                      <span className={fu.assigned_admin ? '' : 'italic text-ink-faint'}>{fu.assigned_admin ?? 'Unassigned'}</span>
+                      <span className="text-ink-faint">{t('option.marketing.employeeColon')}</span>{' '}
+                      <span className={fu.assigned_admin ? '' : 'italic text-ink-faint'}>{fu.assigned_admin ?? t('option.employees.unassigned')}</span>
                       {' · '}
                       {formatDate(fu.follow_up_date)}
                     </p>
                   </div>
-                  <StatusBadge status={fu.status} tone={fu.status === 'completed' ? 'success' : 'warning'} />
+                  <StatusBadge status={fu.status} label={tValue('status.marketing.followUp', fu.status)} tone={fu.status === 'completed' ? 'success' : 'warning'} />
                 </div>
 
                 <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
@@ -169,7 +172,7 @@ export function FollowUpsPage() {
                       href={`tel:${fu.phone}`}
                       className="flex h-7 items-center gap-1 rounded-sm border border-border px-2 text-xs text-ink-muted hover:bg-surface-alt hover:text-primary"
                     >
-                      <Icon name="phone" size={13} /> Call
+                      <Icon name="phone" size={13} /> {t('action.marketing.call')}
                     </a>
                   )}
                   {fu.phone && (
@@ -189,23 +192,23 @@ export function FollowUpsPage() {
                       rel="noreferrer"
                       className="flex h-7 items-center gap-1 rounded-sm border border-border px-2 text-xs text-ink-muted hover:bg-surface-alt hover:text-primary"
                     >
-                      <Icon name="map-pin" size={13} /> Visit
+                      <Icon name="map-pin" size={13} /> {t('action.marketing.visit')}
                     </a>
                   )}
 
                   <PermissionGate module="marketing">
                     <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditor({ id: fu.id, kind: 'feedback' })}>
-                      <Icon name="pencil" size={13} /> Add Feedback
+                      <Icon name="pencil" size={13} /> {t('action.marketing.addFeedback')}
                     </Button>
                     <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditor({ id: fu.id, kind: 'status' })}>
-                      <Icon name="flag" size={13} /> Update Status
+                      <Icon name="flag" size={13} /> {t('action.marketing.updateStatus')}
                     </Button>
                     <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditor({ id: fu.id, kind: 'reschedule' })}>
-                      Reschedule
+                      {t('action.marketing.reschedule')}
                     </Button>
                     {fu.status !== 'completed' && (
                       <Button size="sm" className="h-7 px-2 text-xs" isLoading={completeMutation.isPending} onClick={() => completeMutation.mutate(fu.id)}>
-                        Complete
+                        {t('action.marketing.complete')}
                       </Button>
                     )}
                   </PermissionGate>
@@ -216,7 +219,7 @@ export function FollowUpsPage() {
                       className="ml-auto text-xs text-primary hover:underline"
                       onClick={() => setExpandedHistoryId(expandedHistoryId === fu.id ? null : fu.id)}
                     >
-                      {expandedHistoryId === fu.id ? 'Hide history' : 'History'}
+                      {expandedHistoryId === fu.id ? t('action.marketing.hideHistory') : t('action.history')}
                     </button>
                   )}
                 </div>
@@ -225,7 +228,7 @@ export function FollowUpsPage() {
                   <div className="mt-2.5 flex items-center gap-1.5 border-t border-border pt-2.5">
                     <input type="date" value={rescheduleDate} onChange={(e) => setRescheduleDate(e.target.value)} className="h-8 rounded-sm border border-border bg-surface px-2 text-xs" />
                     <Button size="sm" disabled={!rescheduleDate} isLoading={rescheduleMutation.isPending} onClick={() => rescheduleMutation.mutate(fu.id)}>
-                      Save
+                      {t('action.save')}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={closeEditor}>
                       <Icon name="x" size={14} />
@@ -237,13 +240,13 @@ export function FollowUpsPage() {
                   <div className="mt-2.5 flex items-start gap-1.5 border-t border-border pt-2.5">
                     <textarea
                       rows={2}
-                      placeholder="What was encountered…"
+                      placeholder={t('option.marketing.feedbackPlaceholder')}
                       value={feedbackText}
                       onChange={(e) => setFeedbackText(e.target.value)}
                       className={inputClasses + ' h-auto flex-1 py-1.5 text-xs'}
                     />
                     <Button size="sm" disabled={!feedbackText.trim()} isLoading={feedbackMutation.isPending} onClick={() => feedbackMutation.mutate(fu.id)}>
-                      Save
+                      {t('action.save')}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={closeEditor}>
                       <Icon name="x" size={14} />
@@ -253,9 +256,9 @@ export function FollowUpsPage() {
 
                 {editor?.id === fu.id && editor.kind === 'status' && (
                   <div className="mt-2.5 flex items-center gap-1.5 border-t border-border pt-2.5">
-                    <Select value={statusValue} onChange={(e) => setStatusValue(e.target.value as MarketingRecordStatus)} options={RECORD_STATUS_OPTIONS} className="h-8 w-36 text-xs" />
+                    <Select value={statusValue} onChange={(e) => setStatusValue(e.target.value as MarketingRecordStatus)} options={RECORD_STATUS_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))} className="h-8 w-36 text-xs" />
                     <Button size="sm" isLoading={statusMutation.isPending} onClick={() => statusMutation.mutate(fu.id)}>
-                      Save
+                      {t('action.save')}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={closeEditor}>
                       <Icon name="x" size={14} />
@@ -267,9 +270,9 @@ export function FollowUpsPage() {
                   <ul className="mt-2.5 space-y-1.5 border-t border-border pt-2.5 pl-1">
                     {fu.histories.map((h) => (
                       <li key={h.id} className="text-xs text-ink-muted">
-                        <span className="font-medium text-ink">{h.action.replace('_', ' ')}</span>
+                        <span className="font-medium text-ink">{tValue('status.marketing.historyAction', h.action) ?? h.action.replace('_', ' ')}</span>
                         {h.note && <span> — {h.note}</span>}
-                        <span className="text-ink-faint"> · {h.performed_by ?? 'System'} · {formatDateTime(h.created_at)}</span>
+                        <span className="text-ink-faint"> · {h.performed_by ?? t('option.marketing.system')} · {formatDateTime(h.created_at)}</span>
                       </li>
                     ))}
                   </ul>

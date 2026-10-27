@@ -14,12 +14,14 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
+import { useI18n } from '@/i18n/useI18n';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import type { Department } from '@/types/employee';
 
 export function DepartmentsPage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<Department | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Department | null>(null);
@@ -50,22 +52,22 @@ export function DepartmentsPage() {
         : hrApi.departments.create({ name, description: description || null }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['departments'] });
-      show(editing ? 'Department updated.' : 'Department created.');
+      show(editing ? t('notify.company.departmentUpdated') : t('notify.company.departmentCreated'));
       setIsOpen(false);
     },
-    onError: (err) => show(friendlyErrorMessage(err, 'Something went wrong.'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.company.somethingWentWrong')), 'error'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => hrApi.departments.remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['departments'] });
-      show('Department deleted.');
+      show(t('notify.company.departmentDeleted'));
       setPendingDelete(null);
       setDeleteError(null);
     },
     // A refusal ("still used by 2 positions …") stays visible in the dialog instead of flashing past as a toast.
-    onError: (err) => setDeleteError(friendlyErrorMessage(err, 'Could not delete the department. Please try again.')),
+    onError: (err) => setDeleteError(friendlyErrorMessage(err, t('notify.company.couldNotDeleteDepartment'))),
   });
 
   const closeDeleteDialog = () => {
@@ -76,22 +78,22 @@ export function DepartmentsPage() {
   return (
     <div>
       <PageHeader
-        title="Departments"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Departments' }]}
+        title={t('nav.departments')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.departments') }]}
         actions={
           <PermissionGate module="hr">
             <Button onClick={openCreate}>
               <Icon name="plus" size={15} />
-              Add Department
+              {t('action.company.addDepartment')}
             </Button>
           </PermissionGate>
         }
       />
 
       <Card>
-        {isLoading && <LoadingState label="Loading departments…" />}
+        {isLoading && <LoadingState label={t('option.employees.loadingDepartments')} />}
         {error && <ErrorState error={error} onRetry={refetch} />}
-        {data && data.length === 0 && <EmptyState icon="box" title="No departments yet" />}
+        {data && data.length === 0 && <EmptyState icon="box" title={t('option.employees.noDepartmentsYet')} />}
         {data && data.length > 0 && (
           <div className="divide-y divide-border">
             {data.map((department) => (
@@ -105,7 +107,7 @@ export function DepartmentsPage() {
                     <button type="button" onClick={() => openEdit(department)} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary">
                       <Icon name="pencil" size={14} />
                     </button>
-                    <button type="button" aria-label={`Delete department ${department.name}`} onClick={() => { setDeleteError(null); setPendingDelete(department); }} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger">
+                    <button type="button" aria-label={t('action.company.deleteDepartmentNamed', { name: department.name })} onClick={() => { setDeleteError(null); setPendingDelete(department); }} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger">
                       <Icon name="trash" size={14} />
                     </button>
                   </div>
@@ -120,28 +122,28 @@ export function DepartmentsPage() {
         confirmDiscard
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
-        title={editing ? 'Edit Department' : 'Add Department'}
+        title={editing ? t('confirm.company.editDepartmentTitle') : t('action.company.addDepartment')}
         size="sm"
         footer={
           <>
             <ModalCancelButton />
-            <Button size="sm" isLoading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>Save</Button>
+            <Button size="sm" isLoading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>{t('action.save')}</Button>
           </>
         }
       >
-        <FormField label="Name" htmlFor="dept-name" required>
+        <FormField label={t('option.label.name')} htmlFor="dept-name" required>
           <input id="dept-name" className={inputClasses} value={name} onChange={(e) => setName(e.target.value)} />
         </FormField>
-        <FormField label="Description" htmlFor="dept-description">
+        <FormField label={t('option.label.description')} htmlFor="dept-description">
           <textarea id="dept-description" rows={2} className={inputClasses + ' h-auto py-2'} value={description} onChange={(e) => setDescription(e.target.value)} />
         </FormField>
       </Modal>
 
       <ConfirmDialog
         isOpen={pendingDelete !== null}
-        title="Delete department?"
-        description={`Delete "${pendingDelete?.name ?? ''}"? This cannot be undone. A department that positions or employees still use cannot be deleted.`}
-        confirmLabel="Delete department"
+        title={t('confirm.company.deleteDepartmentTitle')}
+        description={t('confirm.company.deleteDepartmentBody', { name: pendingDelete?.name ?? '' })}
+        confirmLabel={t('confirm.company.deleteDepartmentButton')}
         tone="danger"
         isLoading={deleteMutation.isPending}
         errorMessage={deleteError}

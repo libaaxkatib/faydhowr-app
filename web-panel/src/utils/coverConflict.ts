@@ -4,6 +4,8 @@
  * form can warn before anything is saved. These helpers only decide when to ask and how to present the answer; no rule is repeated here.
  */
 
+import { tNow } from '../i18n/active.ts';
+
 export type CoverConflictCode =
   | 'TEMPORARY_COVER_OVERLAPS_POSITION'
   | 'TEMPORARY_COVER_OVERLAPS_EMPLOYEE'
@@ -49,14 +51,46 @@ export function conflictFromError(error: unknown): CoverConflict | null {
   return { code: e.code, message: e.message, conflicts };
 }
 
-/** The short English heading above the server's message. */
+/** The short heading above the message. */
 export function conflictHeading(code: CoverConflictCode): string {
   switch (code) {
     case 'TEMPORARY_COVER_OVERLAPS_POSITION':
-      return 'This position already has a Temporary cover on some of these days';
+      return tNow('warning.pipeline.conflictHeadingPosition');
     case 'TEMPORARY_COVER_OVERLAPS_EMPLOYEE':
-      return 'This Temporary already covers another position on some of these days';
+      return tNow('warning.pipeline.conflictHeadingEmployee');
     case 'TEMPORARY_EMPLOYEE_HAS_OVERLAPPING_ASSIGNMENT':
-      return 'Ogeysiis: this employee already has their own assignment at the same time';
+      return tNow('warning.pipeline.conflictHeadingOwnAssignment');
+  }
+}
+
+function until(endDate: string | null): string {
+  return endDate ?? tNow('warning.pipeline.conflictNoEndDate');
+}
+
+function describe(record: CoverConflictRecord): string {
+  const where = record.company ?? tNow('warning.pipeline.conflictOffice');
+  const key = record.kind === 'cover' ? 'warning.pipeline.conflictRecordCover' : 'warning.pipeline.conflictRecordAssignment';
+
+  return tNow(key, { id: record.id, where, start: record.start_date, end: until(record.end_date) });
+}
+
+/**
+ * The message shown for a conflict, in the language the user chose. It is built from the catalogue and the conflicting record the server named, so
+ * the English and the Somali wording are both ours. For the employee's own assignment the opening paragraph is the owner-approved text
+ * (`warning.pipeline.coverOwnAssignmentOverlap`). When the server named no record, its own message is shown as received.
+ */
+export function conflictMessage(conflict: CoverConflict): string {
+  const record = conflict.conflicts[0];
+  if (record === undefined) return conflict.message;
+
+  const hint = tNow('warning.pipeline.shiftRuleHint');
+
+  switch (conflict.code) {
+    case 'TEMPORARY_COVER_OVERLAPS_POSITION':
+      return `${tNow('warning.pipeline.conflictPosition', { record: describe(record) })} ${tNow('warning.pipeline.conflictPositionAdvice')}`;
+    case 'TEMPORARY_COVER_OVERLAPS_EMPLOYEE':
+      return `${tNow('warning.pipeline.conflictEmployee', { record: describe(record) })} ${hint}`;
+    case 'TEMPORARY_EMPLOYEE_HAS_OVERLAPPING_ASSIGNMENT':
+      return `${tNow('warning.pipeline.coverOwnAssignmentOverlap')} ${tNow('warning.pipeline.conflictEarlier', { record: describe(record) })} ${hint}`;
   }
 }

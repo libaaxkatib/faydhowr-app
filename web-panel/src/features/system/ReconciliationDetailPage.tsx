@@ -18,6 +18,7 @@ import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatDateTime } from '@/utils/formatters';
 import { DataIssueEditDialog } from '@/features/system/DataIssueEditDialog';
 import { ResolveDataIssueDialog } from '@/features/system/ResolveDataIssueDialog';
+import { useI18n } from '@/i18n/useI18n';
 import type { DataIssueSeverity, DataIssueStatus } from '@/types/reconciliation';
 
 const STATUS_TONE: Record<DataIssueStatus, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
@@ -45,13 +46,14 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function ReconciliationDetailPage() {
+  const { t, tValue } = useI18n();
   const { id } = useParams<{ id: string }>();
   const issueId = Number(id);
   const navigate = useNavigate();
   const location = useLocation();
   const origin = location.state as { fromPath?: string; fromLabel?: string } | null;
   const fromPath = origin?.fromPath ?? '/system/data-issues';
-  const fromLabel = origin?.fromLabel ?? 'Data Issues & Reconciliation';
+  const fromLabel = origin?.fromLabel ?? t('option.system.pageDataIssues');
   const { hasPermission } = useEffectivePermissions();
 
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -92,7 +94,7 @@ export function ReconciliationDetailPage() {
   const pagedRecords = filteredRecords.slice((recordPage - 1) * RECORDS_PER_PAGE, recordPage * RECORDS_PER_PAGE);
   const totalRecordPages = Math.max(1, Math.ceil(filteredRecords.length / RECORDS_PER_PAGE));
 
-  if (isLoading) return <LoadingState label="Loading data issue…" />;
+  if (isLoading) return <LoadingState label={t('option.system.loadingIssue')} />;
   if (error || !issue) return <ErrorState error={error} onRetry={refetch} />;
 
   const canEdit = hasPermission('reconciliation.update');
@@ -103,23 +105,23 @@ export function ReconciliationDetailPage() {
     <div>
       <PageHeader
         title={`${issue.issue_number} — ${issue.title}`}
-        breadcrumb={[{ label: 'System', to: '/system/settings' }, { label: fromLabel, to: fromPath }, { label: issue.issue_number }]}
+        breadcrumb={[{ label: t('option.system.system'), to: '/system/settings' }, { label: fromLabel, to: fromPath }, { label: issue.issue_number }]}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate(fromPath)}>
               <Icon name="chevron-left" size={14} />
-              Back to {fromLabel}
+              {t('action.system.backTo', { label: fromLabel })}
             </Button>
             {canEdit && (
               <Button variant="outline" size="sm" onClick={() => setIsEditOpen(true)}>
                 <Icon name="pencil" size={14} />
-                Edit
+                {t('action.edit')}
               </Button>
             )}
             {canResolve && !isClosing && (
               <Button size="sm" onClick={() => setIsResolveOpen(true)}>
                 <Icon name="check" size={14} />
-                Resolve
+                {t('action.system.resolve')}
               </Button>
             )}
           </div>
@@ -129,41 +131,48 @@ export function ReconciliationDetailPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <h3 className="font-display text-sm font-bold text-ink">Overview</h3>
+            <h3 className="font-display text-sm font-bold text-ink">{t('option.system.overview')}</h3>
             <div className="flex items-center gap-2">
-              <StatusBadge status={issue.severity} tone={SEVERITY_TONE[issue.severity]} label={issue.severity_label} />
-              <StatusBadge status={issue.status} tone={STATUS_TONE[issue.status]} label={issue.status_label} />
+              <StatusBadge status={issue.severity} tone={SEVERITY_TONE[issue.severity]} label={tValue('option.system.issueSeverity', issue.severity) ?? issue.severity_label} />
+              <StatusBadge status={issue.status} tone={STATUS_TONE[issue.status]} label={tValue('option.system.issueStatus', issue.status) ?? issue.status_label} />
             </div>
           </CardHeader>
           <CardBody>
             <dl className="grid grid-cols-2 gap-4 text-sm">
-              <Field label="Module" value={issue.module_label} />
-              <Field label="Type" value={issue.issue_type_label} />
-              <Field label="Description" value={issue.description} />
+              <Field label={t('option.system.colModule')} value={tValue('option.system.issueModule', issue.module) ?? issue.module_label} />
+              <Field label={t('option.label.type')} value={tValue('option.system.issueType', issue.issue_type) ?? issue.issue_type_label} />
+              <Field label={t('option.label.description')} value={issue.description} />
               <div />
-              <Field label="Expected" value={issue.expected_value} />
-              <Field label="Actual" value={issue.actual_value} />
-              <Field label="Difference" value={issue.difference_value} />
+              <Field label={t('option.system.expected')} value={issue.expected_value} />
+              <Field label={t('option.system.actual')} value={issue.actual_value} />
+              <Field label={t('option.system.difference')} value={issue.difference_value} />
               <div />
-              <Field label="Root Cause" value={issue.root_cause} />
-              <Field label="Resolution" value={issue.resolution} />
-              <Field label="Source / Reference" value={issue.source_reference} />
-              <Field label="Notes" value={issue.notes} />
+              <Field label={t('option.system.rootCause')} value={issue.root_cause} />
+              <Field label={t('option.system.resolution')} value={issue.resolution} />
+              <Field label={t('option.system.sourceReference')} value={issue.source_reference} />
+              <Field label={t('option.label.notes')} value={issue.notes} />
             </dl>
           </CardBody>
         </Card>
 
         <Card>
           <CardHeader>
-            <h3 className="font-display text-sm font-bold text-ink">Timeline</h3>
+            <h3 className="font-display text-sm font-bold text-ink">{t('option.system.timeline')}</h3>
           </CardHeader>
           <CardBody>
             <dl className="space-y-4 text-sm">
-              <Field label="Created" value={`${formatDateTime(issue.created_at)}${issue.created_by_name ? ` by ${issue.created_by_name}` : ''}`} />
-              <Field label="Last Updated" value={formatDateTime(issue.updated_at)} />
               <Field
-                label="Resolved"
-                value={issue.resolved_at ? `${formatDateTime(issue.resolved_at)}${issue.resolved_by_name ? ` by ${issue.resolved_by_name}` : ''}` : null}
+                label={t('option.system.colCreated')}
+                value={`${formatDateTime(issue.created_at)}${issue.created_by_name ? ` ${t('option.system.byName', { name: issue.created_by_name })}` : ''}`}
+              />
+              <Field label={t('option.system.lastUpdated')} value={formatDateTime(issue.updated_at)} />
+              <Field
+                label={t('option.system.colResolved')}
+                value={
+                  issue.resolved_at
+                    ? `${formatDateTime(issue.resolved_at)}${issue.resolved_by_name ? ` ${t('option.system.byName', { name: issue.resolved_by_name })}` : ''}`
+                    : null
+                }
               />
             </dl>
           </CardBody>
@@ -173,7 +182,7 @@ export function ReconciliationDetailPage() {
       <div className="mt-4">
         <Card>
           <CardHeader>
-            <h3 className="font-display text-sm font-bold text-ink">Affected Records ({filteredRecords.length})</h3>
+            <h3 className="font-display text-sm font-bold text-ink">{t('option.system.affectedRecordsTitle', { n: filteredRecords.length })}</h3>
           </CardHeader>
           <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3">
             <SearchInput
@@ -182,16 +191,16 @@ export function ReconciliationDetailPage() {
                 setRecordSearch(v);
                 setRecordPage(1);
               }}
-              placeholder="Search affected records…"
+              placeholder={t('option.system.searchAffectedRecords')}
               className="min-w-[220px] flex-1"
             />
             <Select
               className={inputClasses + ' w-auto'}
               options={[
-                { value: 'newest', label: 'Newest first' },
-                { value: 'oldest', label: 'Oldest first' },
-                { value: 'name_asc', label: 'Name A–Z' },
-                { value: 'name_desc', label: 'Name Z–A' },
+                { value: 'newest', label: t('option.system.sortNewest') },
+                { value: 'oldest', label: t('option.system.sortOldest') },
+                { value: 'name_asc', label: t('option.system.sortNameAsc') },
+                { value: 'name_desc', label: t('option.system.sortNameDesc') },
               ]}
               value={recordSort}
               onChange={(e) => setRecordSort(e.target.value as typeof recordSort)}
@@ -199,18 +208,18 @@ export function ReconciliationDetailPage() {
           </div>
           <CardBody>
             {pagedRecords.length === 0 ? (
-              <EmptyState icon="users" title="No affected records" description="No employees or records are linked to this issue yet." />
+              <EmptyState icon="users" title={t('warning.system.noAffectedRecords')} description={t('warning.system.noAffectedRecordsText')} />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[720px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-border bg-surface-alt">
-                      <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-ink-faint">Employee #</th>
-                      <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-ink-faint">Name</th>
-                      <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-ink-faint">Category</th>
-                      <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-ink-faint">Status</th>
-                      <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-ink-faint">Note</th>
-                      <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-ink-faint">Linked</th>
+                      <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-ink-faint">{t('option.system.colEmployeeNumber')}</th>
+                      <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-ink-faint">{t('option.label.name')}</th>
+                      <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-ink-faint">{t('option.label.category')}</th>
+                      <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-ink-faint">{t('option.label.status')}</th>
+                      <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-ink-faint">{t('option.system.colNote')}</th>
+                      <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-ink-faint">{t('option.system.colLinked')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -228,10 +237,10 @@ export function ReconciliationDetailPage() {
                         <td className="px-4 py-3 font-mono text-xs text-ink">{record.employee?.employee_number ?? '—'}</td>
                         <td className="px-4 py-3 text-ink">
                           {record.employee?.full_name ?? '—'}
-                          {record.employee?.deleted_at && <span className="ml-2 text-xs text-danger">(removed)</span>}
+                          {record.employee?.deleted_at && <span className="ml-2 text-xs text-danger">{t('status.system.removedBadge')}</span>}
                         </td>
                         <td className="px-4 py-3 text-ink">{record.employee?.category_name ?? '—'}</td>
-                        <td className="px-4 py-3 text-ink">{record.employee?.status ?? '—'}</td>
+                        <td className="px-4 py-3 text-ink">{record.employee?.status != null ? (tValue('status', record.employee.status) ?? record.employee.status) : '—'}</td>
                         <td className="px-4 py-3 text-ink-muted">{record.context_note ?? '—'}</td>
                         <td className="px-4 py-3 text-ink-muted">{record.created_at ? formatDateTime(record.created_at) : '—'}</td>
                       </tr>
@@ -243,15 +252,13 @@ export function ReconciliationDetailPage() {
 
             {totalRecordPages > 1 && (
               <div className="mt-4 flex items-center justify-between text-sm text-ink-muted">
-                <span>
-                  Page {recordPage} of {totalRecordPages}
-                </span>
+                <span>{t('warning.common.pageOf', { page: recordPage, pages: totalRecordPages })}</span>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" disabled={recordPage <= 1} onClick={() => setRecordPage((p) => p - 1)}>
-                    Previous
+                    {t('option.system.previous')}
                   </Button>
                   <Button variant="outline" size="sm" disabled={recordPage >= totalRecordPages} onClick={() => setRecordPage((p) => p + 1)}>
-                    Next
+                    {t('option.system.next')}
                   </Button>
                 </div>
               </div>
@@ -263,18 +270,18 @@ export function ReconciliationDetailPage() {
       <div className="mt-4">
         <Card>
           <CardHeader>
-            <h3 className="font-display text-sm font-bold text-ink">Audit Trail</h3>
+            <h3 className="font-display text-sm font-bold text-ink">{t('option.system.auditTrail')}</h3>
           </CardHeader>
           <CardBody>
             {!issue.audit_logs || issue.audit_logs.length === 0 ? (
-              <EmptyState icon="list" title="No changes recorded yet" />
+              <EmptyState icon="list" title={t('warning.system.noChangesRecorded')} />
             ) : (
               <div className="space-y-3">
                 {issue.audit_logs.map((entry) => (
                   <div key={entry.id} className="flex items-start justify-between border-b border-border pb-3 text-sm last:border-0">
                     <div>
                       <p className="text-ink">
-                        <span className="font-medium">{entry.admin_name ?? 'System'}</span> changed{' '}
+                        <span className="font-medium">{entry.admin_name ?? t('option.system.system')}</span> {t('option.system.changed')}{' '}
                         <span className="font-mono text-xs">{entry.field_changed}</span>
                       </p>
                       <p className="mt-0.5 text-xs text-ink-muted">

@@ -1,4 +1,6 @@
 import { FormField, inputClasses } from '@/components/ui/FormField';
+import { useI18n } from '@/i18n/useI18n';
+import type { MessageKey } from '@/i18n/messages';
 import { DEEP_CLEANING_REASON_MIN, facilityToday, formatCalendarDate, type DeepCleaningFormState } from '@/utils/facility';
 import type { FacilityDeepCleaningDetail } from '@/types/facility';
 
@@ -11,9 +13,9 @@ interface Props {
   showErrors: boolean;
 }
 
-const CHOICES: { value: DeepCleaningFormState['choice']; label: string }[] = [
-  { value: 'none', label: 'Not recorded in this inspection' },
-  { value: 'completed', label: 'Deep Cleaning completed' },
+const CHOICES: { value: DeepCleaningFormState['choice']; labelKey: MessageKey }[] = [
+  { value: 'none', labelKey: 'option.hr.dcNotRecordedChoice' },
+  { value: 'completed', labelKey: 'option.hr.dcCompletedChoice' },
 ];
 
 /**
@@ -22,6 +24,7 @@ const CHOICES: { value: DeepCleaningFormState['choice']; label: string }[] = [
  * here, with its own date. A completion that is already saved can only be changed or withdrawn with a reason, which stays in the audit history.
  */
 export function InspectionDeepCleaningSection({ form, onChange, saved, problems, showErrors }: Props) {
+  const { t } = useI18n();
   const counted = saved !== null && !saved.withdrawn;
   const changed = counted && (form.choice === 'none' || form.completedOn !== saved.completed_on || form.notes.trim() !== (saved.notes ?? '').trim());
   const reasonNeeded = changed || (saved?.withdrawn === true && form.choice === 'completed');
@@ -29,24 +32,27 @@ export function InspectionDeepCleaningSection({ form, onChange, saved, problems,
   return (
     <section className="mb-5 rounded-md border border-border" aria-labelledby="deep-cleaning-heading" data-testid="deep-cleaning-section">
       <div className="border-b border-border bg-surface-alt/50 px-3.5 py-2.5">
-        <h3 id="deep-cleaning-heading" className="font-display text-sm font-bold text-ink">Deep Cleaning</h3>
-        <p className="text-xs text-ink-muted">Each facility should be deep cleaned at least once every calendar month. Record it here only if it was actually completed.</p>
+        <h3 id="deep-cleaning-heading" className="font-display text-sm font-bold text-ink">{t('option.hr.deepCleaning')}</h3>
+        <p className="text-xs text-ink-muted">{t('option.hr.dcSectionHint')}</p>
       </div>
       <div className="px-3.5 py-3">
         {counted && (
           <p className="mb-2 text-xs text-ink-muted" data-testid="deep-cleaning-saved">
-            Recorded: completed on {formatCalendarDate(saved.completed_on)}
-            {saved.recorded_by ? ` by ${saved.recorded_by}` : ''}.
-            {saved.changed_by ? ` Last changed by ${saved.changed_by}${saved.change_reason ? ` (${saved.change_reason})` : ''}.` : ''}
+            {saved.recorded_by
+              ? t('option.hr.dcSavedBy', { date: formatCalendarDate(saved.completed_on), name: saved.recorded_by })
+              : t('option.hr.dcSaved', { date: formatCalendarDate(saved.completed_on) })}
+            {saved.changed_by
+              ? ` ${saved.change_reason ? t('option.hr.dcChangedByReason', { name: saved.changed_by, reason: saved.change_reason }) : t('option.hr.dcChangedBy', { name: saved.changed_by })}`
+              : ''}
           </p>
         )}
         {saved?.withdrawn && (
           <p className="mb-2 text-xs text-ink-muted" data-testid="deep-cleaning-withdrawn">
-            A Deep Cleaning recorded on {formatCalendarDate(saved.completed_on)} was withdrawn{saved.withdrawn_reason ? `: ${saved.withdrawn_reason}` : ''}. It is kept on record but not counted.
+            {t('warning.hr.dcWithdrawn', { date: formatCalendarDate(saved.completed_on), reason: saved.withdrawn_reason ? `: ${saved.withdrawn_reason}` : '' })}
           </p>
         )}
 
-        <div role="radiogroup" aria-label="Deep Cleaning" className="flex flex-wrap gap-2">
+        <div role="radiogroup" aria-label={t('option.hr.deepCleaning')} className="flex flex-wrap gap-2">
           {CHOICES.map((choice) => (
             <button
               key={choice.value}
@@ -58,17 +64,17 @@ export function InspectionDeepCleaningSection({ form, onChange, saved, problems,
                 form.choice === choice.value ? 'border-primary bg-primary text-white' : 'border-border bg-surface text-ink-muted hover:border-primary/40'
               }`}
             >
-              {choice.label}
+              {t(choice.labelKey)}
             </button>
           ))}
         </div>
 
         {form.choice === 'completed' && (
           <div className="mt-3 grid grid-cols-1 gap-x-3 sm:grid-cols-2">
-            <FormField label="Date completed" htmlFor="deep-cleaning-date" required hint="The day the Deep Cleaning was done (Mogadishu date), not the inspection date. It cannot be in the future.">
+            <FormField label={t('option.hr.dcDateCompleted')} htmlFor="deep-cleaning-date" required hint={t('option.hr.dcDateCompletedHint')}>
               <input id="deep-cleaning-date" type="date" max={facilityToday()} className={inputClasses} value={form.completedOn} onChange={(e) => onChange({ ...form, completedOn: e.target.value })} />
             </FormField>
-            <FormField label="Deep Cleaning notes" htmlFor="deep-cleaning-notes" hint="Optional.">
+            <FormField label={t('option.hr.dcNotes')} htmlFor="deep-cleaning-notes" hint={t('option.hr.optionalDot')}>
               <input id="deep-cleaning-notes" className={inputClasses} value={form.notes} onChange={(e) => onChange({ ...form, notes: e.target.value })} />
             </FormField>
           </div>
@@ -76,10 +82,10 @@ export function InspectionDeepCleaningSection({ form, onChange, saved, problems,
 
         {reasonNeeded && (
           <FormField
-            label={form.choice === 'none' ? 'Why is the recorded Deep Cleaning being withdrawn?' : 'Why is the Deep Cleaning record being changed?'}
+            label={form.choice === 'none' ? t('option.hr.dcWhyWithdrawn') : t('option.hr.dcWhyChanged')}
             htmlFor="deep-cleaning-reason"
             required
-            hint={`At least ${DEEP_CLEANING_REASON_MIN} characters. The earlier values stay in the audit history with this reason.`}
+            hint={t('option.hr.dcReasonHint', { min: DEEP_CLEANING_REASON_MIN })}
           >
             <input id="deep-cleaning-reason" className={inputClasses} value={form.changeReason} onChange={(e) => onChange({ ...form, changeReason: e.target.value })} />
           </FormField>

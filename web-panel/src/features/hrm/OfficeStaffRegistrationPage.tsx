@@ -13,6 +13,8 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { useToast } from '@/components/ui/useToast';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useI18n } from '@/i18n/useI18n';
+import type { MessageKey } from '@/i18n/messages';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { isDirty } from '@/utils/unsavedChanges';
 import { duplicateMatchesFromError, friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
@@ -25,6 +27,7 @@ import {
   buildPayload,
   DEFAULT_DOCUMENT_GROUPS,
   documentFileError,
+  documentGroupLabel,
   documentSummary,
   emptyForm,
   formFromSummary,
@@ -40,10 +43,10 @@ import {
   type OverwriteField,
 } from '@/utils/officeStaff';
 
-const OVERWRITE_LABEL: Record<OverwriteField, string> = {
-  emergency_contact: 'emergency contact',
-  guarantor: 'guarantor',
-  position: 'position',
+const OVERWRITE_LABEL_KEYS: Record<OverwriteField, MessageKey> = {
+  emergency_contact: 'option.employees.overwriteEmergencyContact',
+  guarantor: 'option.employees.overwriteGuarantor',
+  position: 'option.employees.overwritePosition',
 };
 
 type StagedFiles = Partial<Record<OfficeStaffDocumentGroup['key'], File | null>>;
@@ -52,6 +55,8 @@ type StagedFiles = Partial<Record<OfficeStaffDocumentGroup['key'], File | null>>
 export function OfficeStaffRegistrationPage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t, tValue } = useI18n();
+  const overwriteLabel = (field: OverwriteField) => t(OVERWRITE_LABEL_KEYS[field]);
   const today = localToday();
 
   const [mode, setMode] = useState<OfficeStaffMode>('existing');
@@ -132,7 +137,7 @@ export function OfficeStaffRegistrationPage() {
         try {
           await hrApi.employees.uploadDocument(summary.id, upload.file, { employee_document_category_id: upload.categoryId });
         } catch (error) {
-          uploadFailures.push(`${upload.file.name}: ${friendlyErrorMessage(error, 'could not be uploaded')}`);
+          uploadFailures.push(`${upload.file.name}: ${friendlyErrorMessage(error, t('notify.employees.couldNotUpload'))}`);
         }
       }
 
@@ -144,25 +149,25 @@ export function OfficeStaffRegistrationPage() {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       queryClient.invalidateQueries({ queryKey: ['hr-dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['office-staff-lookup'] });
-      show(mode === 'new' ? 'Office Staff registered.' : 'Employee added to Office Staff.');
+      show(mode === 'new' ? t('notify.employees.officeStaffRegistered') : t('notify.employees.officeStaffAdded'));
     },
     onError: (error) => {
       const conflicts = overwriteConflictsFromError(error);
       if (conflicts !== null) {
-        show(`Some ${conflicts.map((c) => OVERWRITE_LABEL[c]).join(', ')} details are already recorded and differ. Nothing was changed - confirm each replacement below, or keep the existing value.`, 'error');
+        show(t('notify.employees.overwriteConflict', { fields: conflicts.map(overwriteLabel).join(', ') }), 'error');
         return;
       }
       if (needsAdditionalAssignmentConfirmation(error)) {
-        show('This employee already has an assignment. Tick the confirmation below to add Office Staff as a second assignment.', 'error');
+        show(t('notify.employees.additionalAssignmentNeeded'), 'error');
         return;
       }
       const duplicates = duplicateMatchesFromError(error);
       if (duplicates !== null) {
         setDuplicateMatches(duplicates);
-        show('An employee with this phone number already exists.', 'error');
+        show(t('notify.employees.phoneAlreadyExists'), 'error');
         return;
       }
-      show(friendlyErrorMessage(error, 'Could not save.'), 'error');
+      show(friendlyErrorMessage(error, t('notify.employees.couldNotSave')), 'error');
     },
   });
 
@@ -180,10 +185,10 @@ export function OfficeStaffRegistrationPage() {
       queryClient.invalidateQueries({ queryKey: ['positions'] });
       setForm((current) => ({ ...current, position_id: String(created.id) }));
       setIsPositionDialogOpen(false);
-      show(`Position "${created.name}" created and selected.`);
+      show(t('notify.employees.positionCreatedSelected', { name: created.name }));
     },
     onError: async (error) => {
-      const message = error instanceof ApiClientError ? (error.fieldErrors?.name?.[0] ?? error.message) : friendlyErrorMessage(error, 'Could not create the position.');
+      const message = error instanceof ApiClientError ? (error.fieldErrors?.name?.[0] ?? error.message) : friendlyErrorMessage(error, t('notify.employees.positionCreateFailed'));
       setNewPositionError(message);
       // Someone else may have just created it: refresh the list so it can be picked instead.
       await queryClient.invalidateQueries({ queryKey: ['positions'] });
@@ -199,7 +204,7 @@ export function OfficeStaffRegistrationPage() {
       // Already there (any letter case or spacing): select it rather than creating a duplicate.
       setForm((current) => ({ ...current, position_id: String(decision.id) }));
       setIsPositionDialogOpen(false);
-      show(`"${decision.name}" already exists - it has been selected.`);
+      show(t('notify.employees.positionExistsSelected', { name: decision.name }));
     } else {
       setNewPositionError('');
       createPositionMutation.mutate(decision.name);
@@ -229,12 +234,12 @@ export function OfficeStaffRegistrationPage() {
     <div>
       {unsavedGuard}
       <PageHeader
-        title="Add Office Staff"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Office Staff', to: '/hr/office-staff' }, { label: 'Add' }]}
+        title={t('action.employees.addOfficeStaff')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.officeStaff'), to: '/hr/office-staff' }, { label: t('action.add') }]}
       />
 
-      <div role="tablist" aria-label="How to add Office Staff" className="mb-4 flex flex-wrap gap-2">
-        {([['existing', 'Add existing employee'], ['new', 'Register new Office Staff']] as const).map(([value, label]) => (
+      <div role="tablist" aria-label={t('option.employees.howToAddOfficeStaff')} className="mb-4 flex flex-wrap gap-2">
+        {([['existing', t('option.employees.addExistingEmployee')], ['new', t('option.employees.registerNewOfficeStaff')]] as const).map(([value, label]) => (
           <button
             key={value}
             type="button"
@@ -252,11 +257,11 @@ export function OfficeStaffRegistrationPage() {
 
       {mode === 'existing' && (
         <Card className="mb-4">
-          <CardHeader><h3 className="font-display text-sm font-bold text-ink">Find the employee</h3></CardHeader>
+          <CardHeader><h3 className="font-display text-sm font-bold text-ink">{t('option.employees.findTheEmployee')}</h3></CardHeader>
           <CardBody>
-            <SearchInput value={search} onChange={setSearch} placeholder="Search by name, phone number or employee number…" className="w-full max-w-md" />
-            {isSearching && <p className="mt-2 text-xs text-ink-muted">Searching…</p>}
-            {matches && matches.length === 0 && debouncedSearch.trim().length >= 2 && <p className="mt-3 text-sm text-ink-muted">No employee found. Check the spelling, or use "Register new Office Staff".</p>}
+            <SearchInput value={search} onChange={setSearch} placeholder={t('option.employees.searchOfficeStaff')} className="w-full max-w-md" />
+            {isSearching && <p className="mt-2 text-xs text-ink-muted">{t('option.label.searching')}</p>}
+            {matches && matches.length === 0 && debouncedSearch.trim().length >= 2 && <p className="mt-3 text-sm text-ink-muted">{t('warning.employees.noEmployeeFound')}</p>}
             <ul className="mt-3 flex flex-col gap-2">
               {(matches ?? []).map((candidate) => (
                 <li key={candidate.id}>
@@ -269,12 +274,12 @@ export function OfficeStaffRegistrationPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium text-ink">{candidate.full_name}</span>
                       <span className="text-xs text-ink-muted">{candidate.employee_number}</span>
-                      <StatusBadge status={candidate.status} />
-                      {candidate.is_office_staff && <StatusBadge status="office" label="Already Office Staff" tone="info" />}
+                      <StatusBadge status={candidate.status} label={tValue('status', candidate.status)} />
+                      {candidate.is_office_staff && <StatusBadge status="office" label={t('status.employees.alreadyOfficeStaff')} tone="info" />}
                     </div>
                     <p className="mt-1 text-xs text-ink-muted">
-                      {candidate.phone ?? 'No phone'} · {candidate.position_name ?? 'No position'} ·{' '}
-                      {candidate.current_salary ? `${candidate.current_salary.amount} ${candidate.current_salary.currency}/month` : 'No salary recorded'} · {documentSummary(candidate.documents)}
+                      {candidate.phone ?? t('option.employees.noPhone')} · {candidate.position_name ?? t('option.employees.noPosition')} ·{' '}
+                      {candidate.current_salary ? t('option.employees.salaryPerMonth', { amount: candidate.current_salary.amount, currency: candidate.current_salary.currency }) : t('option.employees.noSalaryRecorded')} · {documentSummary(candidate.documents)}
                     </p>
                   </button>
                 </li>
@@ -291,66 +296,66 @@ export function OfficeStaffRegistrationPage() {
       {(mode === 'new' || (selected && selected.can_add)) && (
         <>
           <Card className="mb-4">
-            <CardHeader><h3 className="font-display text-sm font-bold text-ink">1. Employee information</h3></CardHeader>
+            <CardHeader><h3 className="font-display text-sm font-bold text-ink">{t('option.employees.stepEmployeeInfo')}</h3></CardHeader>
             <CardBody>
               <div className="grid gap-x-4 sm:grid-cols-2">
                 {mode === 'new' ? (
                   <>
-                    <TextField id="os-name" label="Full name" required value={form.full_name} onChange={setField('full_name')} error={errors.full_name} />
-                    <FormField label="Employee number" htmlFor="os-number" hint="Assigned automatically when you save, using the usual EMP-000000 numbering.">
-                      <input id="os-number" className={inputClasses} value="Assigned on save" disabled readOnly />
+                    <TextField id="os-name" label={t('option.label.fullName')} required value={form.full_name} onChange={setField('full_name')} error={errors.full_name} />
+                    <FormField label={t('option.employees.employeeNumber')} htmlFor="os-number" hint={t('warning.employees.employeeNumberNewHint')}>
+                      <input id="os-number" className={inputClasses} value={t('option.employees.assignedOnSave')} disabled readOnly />
                     </FormField>
-                    <TextField id="os-phone" label="Phone number" required value={form.phone} onChange={setField('phone')} error={errors.phone} />
-                    <FormField label="Employee category" htmlFor="os-category" hint="Set automatically for everyone registered as Office Staff.">
+                    <TextField id="os-phone" label={t('option.label.phoneNumber')} required value={form.phone} onChange={setField('phone')} error={errors.phone} />
+                    <FormField label={t('option.employees.employeeCategory')} htmlFor="os-category" hint={t('warning.employees.categoryNewHint')}>
                       <input id="os-category" className={inputClasses} value={OFFICE_STAFF_CATEGORY} disabled readOnly />
                     </FormField>
                   </>
                 ) : (
                   <>
-                    <FormField label="Full name" htmlFor="os-name"><input id="os-name" className={inputClasses} value={selected?.full_name ?? ''} disabled readOnly /></FormField>
-                    <FormField label="Employee number" htmlFor="os-number" hint="The existing number is kept."><input id="os-number" className={inputClasses} value={selected?.employee_number ?? ''} disabled readOnly /></FormField>
-                    <FormField label="Employee category" htmlFor="os-category" hint="Unchanged: adding Office Staff never changes an employee's category."><input id="os-category" className={inputClasses} value={selected?.category_name ?? '—'} disabled readOnly /></FormField>
+                    <FormField label={t('option.label.fullName')} htmlFor="os-name"><input id="os-name" className={inputClasses} value={selected?.full_name ?? ''} disabled readOnly /></FormField>
+                    <FormField label={t('option.employees.employeeNumber')} htmlFor="os-number" hint={t('warning.employees.employeeNumberKeptHint')}><input id="os-number" className={inputClasses} value={selected?.employee_number ?? ''} disabled readOnly /></FormField>
+                    <FormField label={t('option.employees.employeeCategory')} htmlFor="os-category" hint={t('warning.employees.categoryUnchangedHint')}><input id="os-category" className={inputClasses} value={selected?.category_name ?? '—'} disabled readOnly /></FormField>
                   </>
                 )}
-                <FormField label="Position / job title" htmlFor="os-position" required error={errors.position_id} hint={mode === 'existing' && selected?.position_name ? `Currently recorded: ${selected.position_name}` : 'Positions are managed under Human Resources > Positions.'}>
-                  <Select id="os-position" value={form.position_id} onChange={(e) => setField('position_id')(e.target.value)} options={(positions ?? []).map((p) => ({ value: String(p.id), label: p.name }))} placeholder="Choose a position…" />
+                <FormField label={t('option.employees.positionJobTitle')} htmlFor="os-position" required error={errors.position_id} hint={mode === 'existing' && selected?.position_name ? t('warning.employees.positionCurrentHint', { name: selected.position_name }) : t('warning.employees.positionsManagedHint')}>
+                  <Select id="os-position" value={form.position_id} onChange={(e) => setField('position_id')(e.target.value)} options={(positions ?? []).map((p) => ({ value: String(p.id), label: p.name }))} placeholder={t('option.employees.choosePosition')} />
                   <button type="button" onClick={openCreatePosition} className="mt-1.5 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                    + Create position
+                    {t('action.employees.createPositionLinkLower')}
                   </button>
                 </FormField>
                 <TextField
-                  id="os-salary" label="Monthly salary (USD)" required inputMode="decimal" value={form.monthly_salary} onChange={setField('monthly_salary')} error={errors.monthly_salary}
-                  hint={mode === 'existing' && selected?.current_salary ? `Current salary on record: ${selected.current_salary.amount} ${selected.current_salary.currency}. Confirm or change it. Saving does not pay anyone or create payroll.` : 'Saving a salary does not pay anyone or create payroll.'}
+                  id="os-salary" label={t('option.employees.monthlySalaryUsd')} required inputMode="decimal" value={form.monthly_salary} onChange={setField('monthly_salary')} error={errors.monthly_salary}
+                  hint={mode === 'existing' && selected?.current_salary ? t('warning.employees.salaryCurrentHint', { amount: selected.current_salary.amount, currency: selected.current_salary.currency }) : t('warning.employees.salarySavingHint')}
                 />
-                <FormField label="Start date" htmlFor="os-start" required error={errors.start_date}>
+                <FormField label={t('option.label.startDate')} htmlFor="os-start" required error={errors.start_date}>
                   <input id="os-start" type="date" className={inputClasses} value={form.start_date} onChange={(e) => setField('start_date')(e.target.value)} />
                 </FormField>
-                <TextField id="os-ec-name" label="Emergency contact name" required value={form.emergency_contact_name} onChange={setField('emergency_contact_name')} error={errors.emergency_contact_name} />
-                <TextField id="os-ec-phone" label="Emergency contact phone" required value={form.emergency_contact_phone} onChange={setField('emergency_contact_phone')} error={errors.emergency_contact_phone} />
+                <TextField id="os-ec-name" label={t('option.employees.emergencyContactName')} required value={form.emergency_contact_name} onChange={setField('emergency_contact_name')} error={errors.emergency_contact_name} />
+                <TextField id="os-ec-phone" label={t('option.employees.emergencyContactPhone')} required value={form.emergency_contact_phone} onChange={setField('emergency_contact_phone')} error={errors.emergency_contact_phone} />
               </div>
               <ConfirmRow shown={pending.includes('emergency_contact')} checked={confirmOverwrite.includes('emergency_contact')} onChange={(on) => setConfirmOverwrite((c) => (on ? [...c, 'emergency_contact'] : c.filter((x) => x !== 'emergency_contact')))}
-                text={`Replace the recorded emergency contact (${selected?.emergency_contact.name ?? ''}, ${selected?.emergency_contact.phone ?? ''}).`} />
+                text={t('warning.employees.replaceEmergencyContact', { name: selected?.emergency_contact.name ?? '', phone: selected?.emergency_contact.phone ?? '' })} />
               <ConfirmRow shown={pending.includes('position')} checked={confirmOverwrite.includes('position')} onChange={(on) => setConfirmOverwrite((c) => (on ? [...c, 'position'] : c.filter((x) => x !== 'position')))}
-                text={`Replace the recorded position (${selected?.position_name ?? ''}).`} />
+                text={t('warning.employees.replacePosition', { name: selected?.position_name ?? '' })} />
             </CardBody>
           </Card>
 
           <Card className="mb-4">
-            <CardHeader><h3 className="font-display text-sm font-bold text-ink">2. Guarantor (Damiin) - separate from the emergency contact</h3></CardHeader>
+            <CardHeader><h3 className="font-display text-sm font-bold text-ink">{t('option.employees.stepGuarantor')}</h3></CardHeader>
             <CardBody>
               <div className="grid gap-x-4 sm:grid-cols-2">
-                <TextField id="os-g-name" label="Guarantor full name" required value={form.guarantor_name} onChange={setField('guarantor_name')} error={errors.guarantor_name} />
-                <TextField id="os-g-phone" label="Guarantor phone number" required value={form.guarantor_phone} onChange={setField('guarantor_phone')} error={errors.guarantor_phone} />
-                <TextField id="os-g-rel" label="Relationship (optional)" value={form.guarantor_relationship} onChange={setField('guarantor_relationship')} />
+                <TextField id="os-g-name" label={t('option.employees.guarantorFullName')} required value={form.guarantor_name} onChange={setField('guarantor_name')} error={errors.guarantor_name} />
+                <TextField id="os-g-phone" label={t('option.employees.guarantorPhoneNumber')} required value={form.guarantor_phone} onChange={setField('guarantor_phone')} error={errors.guarantor_phone} />
+                <TextField id="os-g-rel" label={t('option.employees.relationshipOptional')} value={form.guarantor_relationship} onChange={setField('guarantor_relationship')} />
               </div>
               <ConfirmRow shown={pending.includes('guarantor')} checked={confirmOverwrite.includes('guarantor')} onChange={(on) => setConfirmOverwrite((c) => (on ? [...c, 'guarantor'] : c.filter((x) => x !== 'guarantor')))}
-                text={`Replace the recorded guarantor (${selected?.guarantor?.name ?? ''}, ${selected?.guarantor?.phone ?? ''}).`} />
+                text={t('warning.employees.replaceGuarantor', { name: selected?.guarantor?.name ?? '', phone: selected?.guarantor?.phone ?? '' })} />
             </CardBody>
           </Card>
 
           <Card className="mb-4">
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">3. Documents</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.employees.stepDocuments')}</h3>
               {mode === 'existing' && selected && <span className="text-xs text-ink-muted">{documentSummary(selected.documents)}</span>}
             </CardHeader>
             <CardBody>
@@ -363,64 +368,64 @@ export function OfficeStaffRegistrationPage() {
                 onStage={stage}
                 onUploaded={(summary) => { setSelected(summary); }}
               />
-              {mode === 'new' && <p className="mt-2 text-xs text-ink-faint">Chosen files are uploaded right after the employee is saved. Documents can also be added later.</p>}
+              {mode === 'new' && <p className="mt-2 text-xs text-ink-faint">{t('warning.employees.chosenFilesNote')}</p>}
             </CardBody>
           </Card>
 
           {needsAdditional && selected && (
             <div role="alert" className="mb-4 rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-ink">
-              <p className="font-medium">This employee already has an active assignment: {selected.active_assignments.map((a) => `${a.label} (${a.salary})`).join('; ')}.</p>
-              <p className="mt-1 text-ink-muted">Adding Office Staff creates a second assignment with its own salary, and payroll pays both.</p>
+              <p className="font-medium">{t('warning.employees.alreadyAssigned', { assignments: selected.active_assignments.map((a) => `${a.label} (${a.salary})`).join('; ') })}</p>
+              <p className="mt-1 text-ink-muted">{t('warning.employees.secondAssignmentNote')}</p>
               <label className="mt-2 flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={confirmAdditional} onChange={(e) => setConfirmAdditional(e.target.checked)} /> I understand - add Office Staff as an additional assignment.
+                <input type="checkbox" checked={confirmAdditional} onChange={(e) => setConfirmAdditional(e.target.checked)} /> {t('warning.employees.understandAdditional')}
               </label>
             </div>
           )}
 
           {duplicateMatches && duplicateMatches.length > 0 && (
             <div role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm">
-              <p className="font-medium text-danger">An employee with this phone number already exists:</p>
+              <p className="font-medium text-danger">{t('warning.employees.phoneExistsList')}</p>
               <ul className="mt-1 list-disc pl-5 text-ink">
                 {duplicateMatches.map((m) => (
                   <li key={m.id}>
-                    {m.full_name} ({m.employee_number}, {m.status}{m.archived ? ', archived' : ''}){' '}
-                    <button type="button" className="font-medium text-primary hover:underline" onClick={() => { setMode('existing'); setSearch(m.employee_number); }}>Add this employee instead</button>
+                    {m.full_name} ({m.employee_number}, {tValue('status', m.status) ?? m.status}{m.archived ? `, ${t('status.employees.archived')}` : ''}){' '}
+                    <button type="button" className="font-medium text-primary hover:underline" onClick={() => { setMode('existing'); setSearch(m.employee_number); }}>{t('action.employees.addThisInstead')}</button>
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-ink-muted">If this really is a different person, give a reason (at least 10 characters) to register anyway.</p>
-              <input aria-label="Reason this is a different person" className={`${inputClasses} mt-2`} value={duplicateReason} onChange={(e) => setDuplicateReason(e.target.value)} placeholder="Why is this a different person?" />
+              <p className="mt-2 text-ink-muted">{t('warning.employees.differentPersonReason')}</p>
+              <input aria-label={t('option.employees.reasonDifferentPerson')} className={`${inputClasses} mt-2`} value={duplicateReason} onChange={(e) => setDuplicateReason(e.target.value)} placeholder={t('option.employees.whyDifferentPerson')} />
             </div>
           )}
 
           {showErrors && (Object.keys(errors).length > 0 || unconfirmed.length > 0) && (
             <p role="alert" className="mb-3 text-sm text-danger">
-              {Object.keys(errors).length > 0 ? 'Some required details are missing or invalid - see the highlighted fields.' : `Confirm the replacement of the existing ${unconfirmed.map((f) => OVERWRITE_LABEL[f]).join(', ')} or change the value back.`}
+              {Object.keys(errors).length > 0 ? t('validation.employees.requiredMissing') : t('validation.employees.confirmReplacement', { fields: unconfirmed.map(overwriteLabel).join(', ') })}
             </p>
           )}
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button isLoading={saveMutation.isPending} onClick={submit}>{mode === 'new' ? 'Register Office Staff' : 'Add to Office Staff'}</Button>
-            <Link to="/hr/office-staff" className="text-sm text-ink-muted hover:text-primary">Cancel</Link>
+            <Button isLoading={saveMutation.isPending} onClick={submit}>{mode === 'new' ? t('action.employees.registerOfficeStaff') : t('action.employees.addToOfficeStaff')}</Button>
+            <Link to="/hr/office-staff" className="text-sm text-ink-muted hover:text-primary">{t('action.cancel')}</Link>
           </div>
         </>
       )}
 
-      {mode === 'existing' && !selected && !isSearching && debouncedSearch.trim().length < 2 && <p className="text-sm text-ink-muted">Search for an employee above to continue.</p>}
+      {mode === 'existing' && !selected && !isSearching && debouncedSearch.trim().length < 2 && <p className="text-sm text-ink-muted">{t('warning.employees.searchToContinue')}</p>}
 
       <Modal
         isOpen={isPositionDialogOpen}
         onClose={() => setIsPositionDialogOpen(false)}
-        title="Create position"
+        title={t('action.employees.createPosition')}
         size="sm"
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={() => setIsPositionDialogOpen(false)}>Cancel</Button>
-            <Button size="sm" isLoading={createPositionMutation.isPending} onClick={saveNewPosition}>Create and select</Button>
+            <Button variant="outline" size="sm" onClick={() => setIsPositionDialogOpen(false)}>{t('action.cancel')}</Button>
+            <Button size="sm" isLoading={createPositionMutation.isPending} onClick={saveNewPosition}>{t('action.employees.createAndSelect')}</Button>
           </>
         }
       >
-        <FormField label="Position name" htmlFor="os-new-position" required error={newPositionError} hint="Positions never carry a salary. The salary is entered for each employee.">
+        <FormField label={t('option.employees.positionName')} htmlFor="os-new-position" required error={newPositionError} hint={t('warning.employees.newPositionHint')}>
           <input
             id="os-new-position"
             className={inputClasses}
@@ -445,12 +450,14 @@ function TextField({ id, label, value, onChange, error, required, hint, inputMod
 }
 
 function ConfirmRow({ shown, checked, onChange, text }: { shown: boolean; checked: boolean; onChange: (on: boolean) => void; text: string }) {
+  const { t } = useI18n();
+
   if (!shown) return null;
 
   return (
     <label className="mb-2 flex items-start gap-2 rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-ink">
       <input type="checkbox" className="mt-1" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span>{text} The existing value is kept unless you tick this.</span>
+      <span>{text} {t('warning.employees.keptUnlessTicked')}</span>
     </label>
   );
 }
@@ -468,6 +475,7 @@ function DocumentGroupsPanel({
   onUploaded: (summary: OfficeStaffSummary) => void;
 }) {
   const { show } = useToast();
+  const { t } = useI18n();
   const [replacing, setReplacing] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -480,9 +488,9 @@ function DocumentGroupsPanel({
       await hrApi.employees.uploadDocument(employeeId, file, { employee_document_category_id: categoryIdByName[group.category] });
       onUploaded(await hrApi.officeStaff.get(employeeId));
       setReplacing(null);
-      show(`${group.label} uploaded.`);
+      show(t('notify.employees.documentUploaded', { label: documentGroupLabel(group) }));
     } catch (error) {
-      show(friendlyErrorMessage(error, 'Could not upload the file.'), 'error');
+      show(friendlyErrorMessage(error, t('notify.employees.fileUploadFailed')), 'error');
     } finally {
       setBusy(null);
     }
@@ -497,25 +505,25 @@ function DocumentGroupsPanel({
         return (
           <li key={group.key} className="rounded-md border border-border p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-ink">{group.label}{group.required ? ' *' : ''}</span>
-              <StatusBadge status={group.status} label={group.status === 'on_file' ? 'On file' : 'Missing'} tone={group.status === 'on_file' ? 'success' : group.required ? 'warning' : 'neutral'} />
+              <span className="text-sm font-medium text-ink">{documentGroupLabel(group)}{group.required ? ' *' : ''}</span>
+              <StatusBadge status={group.status} label={group.status === 'on_file' ? t('status.employees.onFile') : t('status.employees.missing')} tone={group.status === 'on_file' ? 'success' : group.required ? 'warning' : 'neutral'} />
             </div>
             {group.files.map((file) => (
               <p key={file.id} className="mt-1 text-xs text-ink-muted">
                 {file.file_name} · {file.verification_status}
                 {employeeId !== null && (
-                  <button type="button" className="ml-2 font-medium text-primary hover:underline" onClick={() => hrApi.employees.downloadDocument(employeeId, file.id, file.file_name).catch((e) => show(friendlyErrorMessage(e, 'Could not open the file.'), 'error'))}>View</button>
+                  <button type="button" className="ml-2 font-medium text-primary hover:underline" onClick={() => hrApi.employees.downloadDocument(employeeId, file.id, file.file_name).catch((e) => show(friendlyErrorMessage(e, t('notify.employees.fileOpenFailed')), 'error'))}>{t('action.employees.viewFile')}</button>
                 )}
               </p>
             ))}
             {group.status === 'on_file' && replacing !== group.key && live && (
-              <button type="button" className="mt-1 text-xs font-medium text-primary hover:underline" onClick={() => setReplacing(group.key)}>Replace file…</button>
+              <button type="button" className="mt-1 text-xs font-medium text-primary hover:underline" onClick={() => setReplacing(group.key)}>{t('action.employees.replaceFile')}</button>
             )}
             {askForFile && (live || group.status === 'missing') && (
               <div className="mt-2">
                 <input
                   type="file"
-                  aria-label={`${group.status === 'on_file' ? 'Replace' : 'Upload'} ${group.label}`}
+                  aria-label={group.status === 'on_file' ? t('action.employees.replaceDocument', { label: documentGroupLabel(group) }) : t('action.employees.uploadDocument', { label: documentGroupLabel(group) })}
                   accept={ALLOWED_DOCUMENT_EXTENSIONS.map((e) => `.${e}`).join(',')}
                   disabled={busy === group.key}
                   className="text-sm"
@@ -524,8 +532,8 @@ function DocumentGroupsPanel({
                     if (live && file) void upload(group, file); else onStage(group.key, file);
                   }}
                 />
-                {group.status === 'on_file' && <p className="mt-1 text-xs text-ink-faint">The new file becomes the current one; the previous file is kept in the history.</p>}
-                {!live && staged[group.key] && <p className="mt-1 text-xs text-ink-muted">Ready to upload: {staged[group.key]?.name}</p>}
+                {group.status === 'on_file' && <p className="mt-1 text-xs text-ink-faint">{t('warning.employees.replaceFileNote')}</p>}
+                {!live && staged[group.key] && <p className="mt-1 text-xs text-ink-muted">{t('warning.employees.readyToUpload', { name: staged[group.key]?.name ?? '' })}</p>}
                 {stagedErrors[group.key] && <p className="mt-1 text-xs text-danger">{stagedErrors[group.key]}</p>}
               </div>
             )}
@@ -537,37 +545,38 @@ function DocumentGroupsPanel({
 }
 
 function SavedPanel({ saved, categoryIdByName, onAnother }: { saved: { summary: OfficeStaffSummary; uploadFailures: string[] }; categoryIdByName: Record<string, number>; onAnother: () => void }) {
+  const { t } = useI18n();
   const [summary, setSummary] = useState(saved.summary);
 
   return (
     <div>
-      <PageHeader title="Office Staff saved" breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Office Staff', to: '/hr/office-staff' }, { label: 'Saved' }]} />
+      <PageHeader title={t('notify.employees.officeStaffSavedTitle')} breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.officeStaff'), to: '/hr/office-staff' }, { label: t('notify.employees.savedCrumb') }]} />
       <Card className="mb-4">
         <CardBody>
           <p className="text-lg font-bold text-ink">{summary.full_name} <span className="text-sm font-normal text-ink-muted">{summary.employee_number}</span></p>
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-            <div><dt className="text-xs text-ink-faint">Position</dt><dd className="text-ink">{summary.position_name ?? '—'}</dd></div>
-            <div><dt className="text-xs text-ink-faint">Monthly salary</dt><dd className="text-ink">{summary.current_salary ? `${summary.current_salary.amount} ${summary.current_salary.currency}` : '—'}</dd></div>
-            <div><dt className="text-xs text-ink-faint">Emergency contact</dt><dd className="text-ink">{summary.emergency_contact.name ?? '—'} · {summary.emergency_contact.phone ?? '—'}</dd></div>
-            <div><dt className="text-xs text-ink-faint">Guarantor</dt><dd className="text-ink">{summary.guarantor ? `${summary.guarantor.name} · ${summary.guarantor.phone}` : '—'}</dd></div>
+            <div><dt className="text-xs text-ink-faint">{t('option.label.position')}</dt><dd className="text-ink">{summary.position_name ?? '—'}</dd></div>
+            <div><dt className="text-xs text-ink-faint">{t('confirm.company.monthlySalary')}</dt><dd className="text-ink">{summary.current_salary ? `${summary.current_salary.amount} ${summary.current_salary.currency}` : '—'}</dd></div>
+            <div><dt className="text-xs text-ink-faint">{t('option.employees.emergencyContact')}</dt><dd className="text-ink">{summary.emergency_contact.name ?? '—'} · {summary.emergency_contact.phone ?? '—'}</dd></div>
+            <div><dt className="text-xs text-ink-faint">{t('option.employees.guarantor')}</dt><dd className="text-ink">{summary.guarantor ? `${summary.guarantor.name} · ${summary.guarantor.phone}` : '—'}</dd></div>
           </dl>
         </CardBody>
       </Card>
       {saved.uploadFailures.length > 0 && (
         <div role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
-          The employee was saved, but some documents could not be uploaded - add them below:
+          {t('warning.employees.uploadFailuresIntro')}
           <ul className="mt-1 list-disc pl-5">{saved.uploadFailures.map((f) => <li key={f}>{f}</li>)}</ul>
         </div>
       )}
       <Card className="mb-4">
-        <CardHeader><h3 className="font-display text-sm font-bold text-ink">Documents</h3><span className="text-xs text-ink-muted">{documentSummary(summary.documents)}</span></CardHeader>
+        <CardHeader><h3 className="font-display text-sm font-bold text-ink">{t('option.employees.documents')}</h3><span className="text-xs text-ink-muted">{documentSummary(summary.documents)}</span></CardHeader>
         <CardBody>
           <DocumentGroupsPanel groups={summary.documents} employeeId={summary.id} categoryIdByName={categoryIdByName} staged={{}} stagedErrors={{}} onStage={() => undefined} onUploaded={setSummary} />
         </CardBody>
       </Card>
       <div className="flex gap-3">
-        <Button onClick={onAnother}>Add another</Button>
-        <Link to="/hr/office-staff" className="inline-flex items-center text-sm text-primary hover:underline">Go to Office Staff</Link>
+        <Button onClick={onAnother}>{t('action.employees.addAnother')}</Button>
+        <Link to="/hr/office-staff" className="inline-flex items-center text-sm text-primary hover:underline">{t('action.employees.goToOfficeStaff')}</Link>
       </div>
     </div>
   );

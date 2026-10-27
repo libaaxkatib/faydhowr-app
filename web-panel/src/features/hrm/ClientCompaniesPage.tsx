@@ -17,6 +17,8 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
+import { useI18n } from '@/i18n/useI18n';
+import type { MessageKey } from '@/i18n/messages';
 import { MultiCompanyPolicyCard } from '@/features/hrm/companyEmployees/MultiCompanyPolicyCard';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatDate } from '@/utils/formatters';
@@ -24,9 +26,9 @@ import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import { CATEGORY_FILTERS, categoryCounts, filterByCategory, parseCategoryFilter, visibleAliases } from '@/utils/clientCompanyFilter';
 import type { ClientCompany, ClientCompanyAgreement, ClientCompanyCategory, WorkLocation } from '@/types/employee';
 
-const CATEGORY_OPTIONS: { value: ClientCompanyCategory; label: string }[] = [
-  { value: 'company', label: 'Company' },
-  { value: 'guri', label: 'Guri (household)' },
+const CATEGORY_OPTIONS: { value: ClientCompanyCategory; label: string; labelKey: MessageKey }[] = [
+  { value: 'company', label: 'Company', labelKey: 'option.companyCategory.company' },
+  { value: 'guri', label: 'Guri (household)', labelKey: 'option.companyCategory.guri' },
 ];
 
 function formatFileSize(bytes: number): string {
@@ -38,6 +40,7 @@ function formatFileSize(bytes: number): string {
 export function ClientCompaniesPage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t, tValue } = useI18n();
   const { hasPermission } = useEffectivePermissions();
   const [searchParams, setSearchParams] = useSearchParams();
   const categoryFilter = parseCategoryFilter(searchParams);
@@ -60,40 +63,40 @@ export function ClientCompaniesPage() {
     mutationFn: (id: number) => hrApi.clientCompanies.remove(id),
     onSuccess: () => {
       invalidate();
-      show('Client company deleted.');
+      show(t('notify.company.clientCompanyDeleted'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not delete client company.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : t('notify.company.couldNotDeleteClientCompany'), 'error'),
   });
 
   const deleteLocationMutation = useMutation({
     mutationFn: (id: number) => hrApi.workLocations.remove(id),
     onSuccess: () => {
       invalidate();
-      show('Work location deleted.');
+      show(t('notify.company.workLocationDeleted'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not delete work location.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : t('notify.company.couldNotDeleteWorkLocation'), 'error'),
   });
 
-  if (isLoading) return <LoadingState label="Loading companies…" />;
+  if (isLoading) return <LoadingState label={t('option.company.loadingCompanies')} />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
 
   return (
     <div>
       <PageHeader
-        title="Companies & Workplaces"
-        breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Companies & Workplaces' }]}
+        title={t('nav.companiesWorkplaces')}
+        breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.companiesWorkplaces') }]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {hasPermission('hr.inspections.view') && (
               <Link to="/hr/facility-inspections" className="inline-flex h-10 items-center gap-1.5 rounded-sm border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-alt">
                 <Icon name="eye" size={15} />
-                Facility Inspections
+                {t('nav.facilityInspections')}
               </Link>
             )}
             <PermissionGate module="hr">
               <Button onClick={() => setCompanyModal({ editing: null })}>
                 <Icon name="plus" size={15} />
-                Add Client Company
+                {t('action.company.addClientCompany')}
               </Button>
             </PermissionGate>
           </div>
@@ -103,7 +106,7 @@ export function ClientCompaniesPage() {
       <MultiCompanyPolicyCard />
 
       {companies && companies.length > 0 && (
-        <div role="group" aria-label="Filter by category" className="mb-4 flex flex-wrap items-center gap-2">
+        <div role="group" aria-label={t('option.company.filterByCategory')} className="mb-4 flex flex-wrap items-center gap-2">
           {CATEGORY_FILTERS.map((option) => {
             const isActive = categoryFilter === option.value;
 
@@ -117,16 +120,16 @@ export function ClientCompaniesPage() {
                   isActive ? 'border-primary bg-primary text-white' : 'border-border bg-surface text-ink-muted hover:border-primary/40 hover:text-primary'
                 }`}
               >
-                {option.label} <span className={isActive ? 'text-white/80' : 'text-ink-faint'}>({counts[option.value]})</span>
+                {t(option.labelKey)} <span className={isActive ? 'text-white/80' : 'text-ink-faint'}>({counts[option.value]})</span>
               </button>
             );
           })}
         </div>
       )}
 
-      {companies && companies.length === 0 && <EmptyState icon="box" title="No client companies yet" />}
+      {companies && companies.length === 0 && <EmptyState icon="box" title={t('option.company.noClientCompanies')} />}
       {companies && companies.length > 0 && visibleCompanies.length === 0 && (
-        <EmptyState icon="box" title={`No ${categoryFilter === 'guri' ? 'Guri' : 'Company'} records`} />
+        <EmptyState icon="box" title={t('option.company.noCategoryRecords', { category: categoryFilter === 'guri' ? t('option.company.filterGuri') : t('option.companyCategory.company') })} />
       )}
 
       <div className="flex flex-col gap-4">
@@ -138,27 +141,27 @@ export function ClientCompaniesPage() {
                   <h3 className="font-display text-sm font-bold text-ink">{company.name}</h3>
                   <StatusBadge
                     status={company.category}
-                    label={company.category_label ?? (company.category === 'guri' ? 'Guri (household)' : 'Company')}
+                    label={tValue('option.companyCategory', company.category) ?? company.category_label ?? (company.category === 'guri' ? t('option.companyCategory.guri') : t('option.companyCategory.company'))}
                     tone={company.category === 'guri' ? 'info' : 'neutral'}
                   />
                 </div>
                 <p className="text-xs text-ink-muted">
-                  {[company.contact_person, company.phone, company.location].filter(Boolean).join(' · ') || 'No contact details'}
+                  {[company.contact_person, company.phone, company.location].filter(Boolean).join(' · ') || t('option.company.noContactDetails')}
                 </p>
                 {visibleAliases(company.name, company.aliases).length > 0 && (
-                  <p className="text-xs text-ink-faint">Also known as: {visibleAliases(company.name, company.aliases).join(', ')}</p>
+                  <p className="text-xs text-ink-faint">{t('option.company.alsoKnownAs')} {visibleAliases(company.name, company.aliases).join(', ')}</p>
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-1">
               <Link to={`/hr/companies/${company.id}/employees`} state={{ fromPath: `${window.location.pathname}${window.location.search}` }} className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-border px-2.5 text-xs font-semibold text-ink hover:bg-surface-alt">
                 <Icon name="users" size={14} />
-                Employees
+                {t('nav.employees')}
               </Link>
               <PermissionGate module="hr">
                 <div className="flex flex-wrap items-center gap-1">
                   <Button variant="outline" size="sm" onClick={() => setLocationModal({ clientCompanyId: company.id, editing: null })}>
                     <Icon name="plus" size={14} />
-                    Add Location
+                    {t('action.company.addLocation')}
                   </Button>
                   <button type="button" onClick={() => setCompanyModal({ editing: company })} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary">
                     <Icon name="pencil" size={14} />
@@ -172,7 +175,7 @@ export function ClientCompaniesPage() {
             </CardHeader>
             <CardBody>
               {!company.work_locations || company.work_locations.length === 0 ? (
-                <p className="text-sm text-ink-muted">No work locations yet. A workplace is optional - employees can be assigned to the company first.</p>
+                <p className="text-sm text-ink-muted">{t('option.company.noWorkLocations')}</p>
               ) : (
                 <div className="divide-y divide-border">
                   {company.work_locations.map((location) => (
@@ -180,8 +183,8 @@ export function ClientCompaniesPage() {
                       <div>
                         <p className="text-sm font-medium text-ink">{location.name}</p>
                         <p className="text-xs text-ink-muted">
-                          {location.location ?? 'No address'}
-                          {location.capacity !== null && ` · Capacity ${location.capacity} (${location.active_assignments_count} assigned)`}
+                          {location.location ?? t('option.company.noAddress')}
+                          {location.capacity !== null && ` · ${t('option.company.capacityAssigned', { capacity: location.capacity, assigned: location.active_assignments_count })}`}
                         </p>
                       </div>
                       <PermissionGate module="hr">
@@ -240,6 +243,7 @@ function CompanyFormModal({
   onSaved: () => void;
 }) {
   const { show } = useToast();
+  const { t } = useI18n();
   const [name, setName] = useState(editing?.name ?? '');
   const [contactPerson, setContactPerson] = useState(editing?.contact_person ?? '');
   const [phone, setPhone] = useState(editing?.phone ?? '');
@@ -261,7 +265,7 @@ function CompanyFormModal({
       return editing ? hrApi.clientCompanies.update(editing.id, payload) : hrApi.clientCompanies.create(payload);
     },
     onSuccess: () => {
-      show(editing ? 'Client company updated.' : 'Client company created.');
+      show(editing ? t('notify.company.clientCompanyUpdated') : t('notify.company.clientCompanyCreated'));
       onSaved();
     },
     onError: (err) => {
@@ -269,7 +273,7 @@ function CompanyFormModal({
         setFieldErrors(err.fieldErrors);
         if (err.fieldErrors.name) return;
       }
-      show(friendlyErrorMessage(err, 'Something went wrong.'), 'error');
+      show(friendlyErrorMessage(err, t('notify.company.somethingWentWrong')), 'error');
     },
   });
 
@@ -278,42 +282,42 @@ function CompanyFormModal({
       confirmDiscard
       isOpen
       onClose={onClose}
-      title={editing ? 'Edit Client Company' : 'Add Client Company'}
+      title={editing ? t('confirm.company.editClientCompany') : t('action.company.addClientCompany')}
       size="sm"
       footer={
         <>
           <ModalCancelButton />
-          <Button size="sm" isLoading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>Save</Button>
+          <Button size="sm" isLoading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>{t('action.save')}</Button>
         </>
       }
     >
       <FormField
-        label="Company name"
+        label={t('option.company.companyName')}
         htmlFor="cc-name"
         required
         error={
           fieldErrors.name?.[0]
             ? /taken|already/i.test(fieldErrors.name[0])
-              ? 'A company with this name already exists. Names are the same even if the capital letters or spaces differ.'
+              ? t('validation.company.companyNameExists')
               : fieldErrors.name[0]
             : undefined
         }
       >
         <input id="cc-name" className={inputClasses} value={name} onChange={(e) => setName(e.target.value)} />
       </FormField>
-      <FormField label="Type" htmlFor="cc-category" hint="Choose Guri for a household. You can change this later.">
-        <Select id="cc-category" value={category} onChange={(e) => setCategory(e.target.value as ClientCompanyCategory)} options={CATEGORY_OPTIONS} />
+      <FormField label={t('option.label.type')} htmlFor="cc-category" hint={t('warning.company.categoryHint')}>
+        <Select id="cc-category" value={category} onChange={(e) => setCategory(e.target.value as ClientCompanyCategory)} options={CATEGORY_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))} />
       </FormField>
-      <FormField label="Contact person" htmlFor="cc-contact">
+      <FormField label={t('option.company.contactPerson')} htmlFor="cc-contact">
         <input id="cc-contact" className={inputClasses} value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
       </FormField>
-      <FormField label="Phone" htmlFor="cc-phone">
+      <FormField label={t('option.label.phone')} htmlFor="cc-phone">
         <input id="cc-phone" className={inputClasses} value={phone} onChange={(e) => setPhone(e.target.value)} />
       </FormField>
-      <FormField label="Location" htmlFor="cc-location">
+      <FormField label={t('option.label.location')} htmlFor="cc-location">
         <input id="cc-location" className={inputClasses} value={location} onChange={(e) => setLocation(e.target.value)} />
       </FormField>
-      <FormField label="Notes" htmlFor="cc-notes">
+      <FormField label={t('option.label.notes')} htmlFor="cc-notes">
         <textarea id="cc-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </FormField>
     </Modal>
@@ -328,6 +332,7 @@ function CompanyFormModal({
 function AgreementSection({ company, onChanged }: { company: ClientCompany; onChanged: () => void }) {
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [notes, setNotes] = useState('');
@@ -344,14 +349,14 @@ function AgreementSection({ company, onChanged }: { company: ClientCompany; onCh
       queryClient.invalidateQueries({ queryKey: ['client-company-agreements', company.id] });
       onChanged();
       setNotes('');
-      show('Agreement uploaded. Earlier agreements are kept as history.');
+      show(t('notify.company.agreementUploaded'));
     },
-    onError: (err) => show(friendlyErrorMessage(err, 'Could not upload the agreement.'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.company.couldNotUploadAgreement')), 'error'),
   });
 
   const downloadMutation = useMutation({
     mutationFn: (agreement: ClientCompanyAgreement) => hrApi.clientCompanies.agreements.download(company.id, agreement),
-    onError: (err) => show(friendlyErrorMessage(err, 'Could not download the agreement.'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.company.couldNotDownloadAgreement')), 'error'),
   });
 
   // Newest first = the current agreement; sort defensively in case the server order changes.
@@ -362,14 +367,14 @@ function AgreementSection({ company, onChanged }: { company: ClientCompany; onCh
     <div className="mt-4 border-t border-border pt-3">
       <button type="button" onClick={() => setIsOpen((open) => !open)} className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted hover:text-primary">
         <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} size={14} />
-        Agreement {count > 0 ? `(${count} on file)` : '(none yet)'}
+        {count > 0 ? t('option.company.agreementWithCount', { count }) : t('option.company.agreementNone')}
       </button>
 
       {isOpen && (
         <div className="mt-3 space-y-3">
-          {isLoading && <p className="text-xs text-ink-faint">Loading agreements…</p>}
-          {error && <p className="text-xs text-danger">{friendlyErrorMessage(error, 'Could not load agreements.')}</p>}
-          {agreements && sorted.length === 0 && <p className="text-xs italic text-ink-faint">No agreement uploaded yet. This is optional.</p>}
+          {isLoading && <p className="text-xs text-ink-faint">{t('option.company.loadingAgreements')}</p>}
+          {error && <p className="text-xs text-danger">{friendlyErrorMessage(error, t('notify.company.couldNotLoadAgreements'))}</p>}
+          {agreements && sorted.length === 0 && <p className="text-xs italic text-ink-faint">{t('option.company.noAgreementYet')}</p>}
 
           {sorted.length > 0 && (
             <div className="space-y-1.5">
@@ -378,11 +383,12 @@ function AgreementSection({ company, onChanged }: { company: ClientCompany; onCh
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-2 text-sm text-ink">
                       <span className="truncate">{agreement.file_name}</span>
-                      {index === 0 ? <StatusBadge status="current" label="Current" tone="success" /> : <span className="text-xs text-ink-faint">Earlier version</span>}
+                      {index === 0 ? <StatusBadge status="current" label={t('status.company.current')} tone="success" /> : <span className="text-xs text-ink-faint">{t('option.company.earlierVersion')}</span>}
                     </p>
                     <p className="text-xs text-ink-faint">
-                      {formatFileSize(agreement.file_size)} · uploaded {formatDate(agreement.uploaded_at)}
-                      {agreement.uploaded_by && ` by ${agreement.uploaded_by}`}
+                      {agreement.uploaded_by
+                        ? t('option.company.agreementUploadedBy', { size: formatFileSize(agreement.file_size), date: formatDate(agreement.uploaded_at), name: agreement.uploaded_by })
+                        : t('option.company.agreementUploaded', { size: formatFileSize(agreement.file_size), date: formatDate(agreement.uploaded_at) })}
                       {agreement.notes && ` · ${agreement.notes}`}
                     </p>
                   </div>
@@ -392,7 +398,7 @@ function AgreementSection({ company, onChanged }: { company: ClientCompany; onCh
                     isLoading={downloadMutation.isPending && downloadMutation.variables?.id === agreement.id}
                     onClick={() => downloadMutation.mutate(agreement)}
                   >
-                    Download
+                    {t('action.download')}
                   </Button>
                 </div>
               ))}
@@ -402,18 +408,18 @@ function AgreementSection({ company, onChanged }: { company: ClientCompany; onCh
           <PermissionGate module="hr">
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-[10rem] flex-1">
-                <label htmlFor={`agreement-notes-${company.id}`} className="mb-1 block text-xs font-medium text-ink-muted">Note (optional)</label>
+                <label htmlFor={`agreement-notes-${company.id}`} className="mb-1 block text-xs font-medium text-ink-muted">{t('confirm.company.noteOptional')}</label>
                 <input
                   id={`agreement-notes-${company.id}`}
                   className={inputClasses}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="e.g. Renewed for 2026"
+                  placeholder={t('option.company.agreementNotePlaceholder')}
                 />
               </div>
               <Button size="sm" variant="outline" isLoading={uploadMutation.isPending} onClick={() => fileInputRef.current?.click()}>
                 <Icon name="plus" size={14} />
-                {sorted.length > 0 ? 'Upload new agreement' : 'Upload agreement'}
+                {sorted.length > 0 ? t('action.company.uploadNewAgreement') : t('action.company.uploadAgreement')}
               </Button>
               <input
                 ref={fileInputRef}
@@ -427,7 +433,7 @@ function AgreementSection({ company, onChanged }: { company: ClientCompany; onCh
                 }}
               />
             </div>
-            <p className="text-xs text-ink-faint">PDF, Word or picture files, up to 10 MB. A new upload becomes the current agreement; the old one stays in the list.</p>
+            <p className="text-xs text-ink-faint">{t('confirm.company.agreementHelp')}</p>
           </PermissionGate>
         </div>
       )}
@@ -447,6 +453,7 @@ function LocationFormModal({
   onSaved: () => void;
 }) {
   const { show } = useToast();
+  const { t } = useI18n();
   const [name, setName] = useState(editing?.name ?? '');
   const [location, setLocation] = useState(editing?.location ?? '');
   const [contactPerson, setContactPerson] = useState(editing?.contact_person ?? '');
@@ -479,10 +486,10 @@ function LocationFormModal({
       });
     },
     onSuccess: () => {
-      show(editing ? 'Work location updated.' : 'Work location created.');
+      show(editing ? t('notify.company.workLocationUpdated') : t('notify.company.workLocationCreated'));
       onSaved();
     },
-    onError: (err) => show(friendlyErrorMessage(err, 'Something went wrong.'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.company.somethingWentWrong')), 'error'),
   });
 
   const isOfficeEdit = editing?.location_type === 'office';
@@ -492,31 +499,31 @@ function LocationFormModal({
       confirmDiscard
       isOpen
       onClose={onClose}
-      title={editing ? `Edit ${isOfficeEdit ? 'Fayadhowr Office' : 'Work Location'}` : 'Add Work Location'}
+      title={editing ? (isOfficeEdit ? t('confirm.company.editOfficeTitle') : t('confirm.company.editWorkLocation')) : t('confirm.company.addWorkLocation')}
       size="sm"
       footer={
         <>
           <ModalCancelButton />
-          <Button size="sm" isLoading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>Save</Button>
+          <Button size="sm" isLoading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>{t('action.save')}</Button>
         </>
       }
     >
-      <FormField label="Name" htmlFor="wl-name" required>
+      <FormField label={t('option.label.name')} htmlFor="wl-name" required>
         <input id="wl-name" className={inputClasses} value={name} onChange={(e) => setName(e.target.value)} />
       </FormField>
-      <FormField label="Address / location" htmlFor="wl-location">
+      <FormField label={t('option.company.addressLocation')} htmlFor="wl-location">
         <input id="wl-location" className={inputClasses} value={location} onChange={(e) => setLocation(e.target.value)} />
       </FormField>
-      <FormField label="Contact person" htmlFor="wl-contact">
+      <FormField label={t('option.company.contactPerson')} htmlFor="wl-contact">
         <input id="wl-contact" className={inputClasses} value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
       </FormField>
-      <FormField label="Phone" htmlFor="wl-phone">
+      <FormField label={t('option.label.phone')} htmlFor="wl-phone">
         <input id="wl-phone" className={inputClasses} value={phone} onChange={(e) => setPhone(e.target.value)} />
       </FormField>
-      <FormField label="Approved employee capacity" htmlFor="wl-capacity">
-        <input id="wl-capacity" type="number" min={0} className={inputClasses} value={capacity} onChange={(e) => setCapacity(e.target.value)} placeholder="No limit" />
+      <FormField label={t('option.company.approvedCapacity')} htmlFor="wl-capacity">
+        <input id="wl-capacity" type="number" min={0} className={inputClasses} value={capacity} onChange={(e) => setCapacity(e.target.value)} placeholder={t('option.label.noLimit')} />
       </FormField>
-      <FormField label="Notes" htmlFor="wl-notes">
+      <FormField label={t('option.label.notes')} htmlFor="wl-notes">
         <textarea id="wl-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </FormField>
     </Modal>

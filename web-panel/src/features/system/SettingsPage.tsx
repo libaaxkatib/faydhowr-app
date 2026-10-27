@@ -18,7 +18,16 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/useToast';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatDateTime } from '@/utils/formatters';
-import { SETTINGS_CATEGORY_LABELS, SETTINGS_CATEGORY_ORDER, SETTINGS_FIELD_SCHEMA } from '@/features/system/settingsSchema';
+import {
+  SETTINGS_CATEGORY_ORDER,
+  SETTINGS_FIELD_SCHEMA,
+  settingCategoryLabel,
+  settingFieldHint,
+  settingFieldLabel,
+  settingOptionLabel,
+} from '@/features/system/settingsSchema';
+import { Msg } from '@/i18n/Msg';
+import { useI18n } from '@/i18n/useI18n';
 import type { SettingCategory, SettingFieldSchema } from '@/types/settings';
 
 function qualifiedKey(category: SettingCategory, field: string): string {
@@ -35,7 +44,11 @@ interface FieldInputProps {
 }
 
 function FieldInput({ category, field, value, onChange, disabled, error }: FieldInputProps) {
+  const { tValue } = useI18n();
   const id = `setting-${category}-${field.key}`;
+  const label = settingFieldLabel(category, field, tValue);
+  const hint = settingFieldHint(category, field, tValue);
+  const options = field.options?.map((option) => ({ value: option.value, label: settingOptionLabel(category, field, option, tValue) }));
 
   if (field.type === 'boolean') {
     return (
@@ -49,7 +62,7 @@ function FieldInput({ category, field, value, onChange, disabled, error }: Field
             onChange={(event) => onChange(event.target.checked)}
             className="h-4 w-4 rounded-sm border-border text-primary focus:ring-primary/30"
           />
-          {field.label}
+          {label}
         </label>
         {error && <p className="mt-1 text-xs text-danger">{error}</p>}
       </div>
@@ -59,9 +72,9 @@ function FieldInput({ category, field, value, onChange, disabled, error }: Field
   if (field.type === 'multiselect') {
     const selected = new Set(Array.isArray(value) ? (value as string[]) : []);
     return (
-      <FormField label={field.label} htmlFor={id} hint={field.hint} error={error}>
+      <FormField label={label} htmlFor={id} hint={hint} error={error}>
         <div className="flex flex-wrap gap-3 rounded-sm border border-border p-3">
-          {field.options?.map((option) => (
+          {options?.map((option) => (
             <label key={option.value} className="flex items-center gap-1.5 text-xs text-ink">
               <input
                 type="checkbox"
@@ -85,13 +98,13 @@ function FieldInput({ category, field, value, onChange, disabled, error }: Field
 
   if (field.type === 'select') {
     return (
-      <FormField label={field.label} htmlFor={id} hint={field.hint} error={error}>
+      <FormField label={label} htmlFor={id} hint={hint} error={error}>
         <Select
           id={id}
           value={value == null ? '' : String(value)}
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
-          options={field.options ?? []}
+          options={options ?? []}
         />
       </FormField>
     );
@@ -100,7 +113,7 @@ function FieldInput({ category, field, value, onChange, disabled, error }: Field
   const inputType = field.type === 'password' ? 'password' : field.type === 'number' ? 'number' : field.type === 'time' ? 'time' : 'text';
 
   return (
-    <FormField label={field.label} htmlFor={id} hint={field.hint} error={error}>
+    <FormField label={label} htmlFor={id} hint={hint} error={error}>
       <input
         id={id}
         type={inputType}
@@ -115,6 +128,7 @@ function FieldInput({ category, field, value, onChange, disabled, error }: Field
 }
 
 function CategoryForm({ category }: { category: SettingCategory }) {
+  const { t, tValue } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const { hasPermission } = useEffectivePermissions();
@@ -164,13 +178,13 @@ function CategoryForm({ category }: { category: SettingCategory }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings', category] });
       queryClient.invalidateQueries({ queryKey: ['settings-audit-log', category] });
-      show(`${SETTINGS_CATEGORY_LABELS[category]} settings saved.`);
+      show(t('notify.system.settingsSaved', { name: settingCategoryLabel(category, tValue) }));
     },
     onError: (err) => {
       if (err instanceof ApiClientError && err.isValidation) {
         setFieldErrors(err.fieldErrors ?? {});
       } else {
-        show(err instanceof ApiClientError ? err.message : 'Could not save settings.', 'error');
+        show(err instanceof ApiClientError ? err.message : t('notify.system.settingsSaveFailed'), 'error');
       }
     },
   });
@@ -179,19 +193,19 @@ function CategoryForm({ category }: { category: SettingCategory }) {
     mutationFn: () => settingsApi.restoreDefaults(category),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings', category] });
-      show(`${SETTINGS_CATEGORY_LABELS[category]} settings restored to defaults.`);
+      show(t('notify.system.settingsRestored', { name: settingCategoryLabel(category, tValue) }));
       setIsRestoreConfirmOpen(false);
     },
     onError: (err) => {
-      show(err instanceof ApiClientError ? err.message : 'Could not restore defaults.', 'error');
+      show(err instanceof ApiClientError ? err.message : t('notify.system.settingsRestoreFailed'), 'error');
       setIsRestoreConfirmOpen(false);
     },
   });
 
   const smtpTestMutation = useMutation({
     mutationFn: () => settingsApi.sendSmtpTest(testEmail),
-    onSuccess: () => show('Test email sent.'),
-    onError: (err) => show(err instanceof ApiClientError ? err.message : 'Could not send test email.', 'error'),
+    onSuccess: () => show(t('notify.system.testEmailSent')),
+    onError: (err) => show(err instanceof ApiClientError ? err.message : t('notify.system.testEmailFailed'), 'error'),
   });
 
   function handleSubmit(event: FormEvent) {
@@ -203,10 +217,13 @@ function CategoryForm({ category }: { category: SettingCategory }) {
     <Card className="p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="font-display text-base font-bold text-ink">{SETTINGS_CATEGORY_LABELS[category]} settings</h3>
+          <h3 className="font-display text-base font-bold text-ink">{t('option.system.settingsTitle', { name: settingCategoryLabel(category, tValue) })}</h3>
           {data?.last_updated_by && (
             <p className="text-xs text-ink-faint">
-              Last updated by {data.last_updated_by.name} ({data.last_updated_by.role.replace('_', ' ')})
+              {t('option.system.lastUpdatedBy', {
+                name: data.last_updated_by.name,
+                role: tValue('status.system.role', data.last_updated_by.role) ?? data.last_updated_by.role.replace('_', ' '),
+              })}
               {data.updated_at && ` · ${formatDateTime(data.updated_at)}`}
             </p>
           )}
@@ -214,16 +231,16 @@ function CategoryForm({ category }: { category: SettingCategory }) {
         {canManage && (
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setIsRestoreConfirmOpen(true)} disabled={saveMutation.isPending}>
-              Restore defaults
+              {t('action.system.restoreDefaults')}
             </Button>
             <Button size="sm" onClick={handleSubmit} isLoading={saveMutation.isPending}>
-              Save changes
+              {t('action.company.saveChanges')}
             </Button>
           </div>
         )}
       </div>
 
-      {isLoading && <LoadingState label="Loading settings…" />}
+      {isLoading && <LoadingState label={t('option.system.loadingSettings')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
 
       {data && (
@@ -244,7 +261,7 @@ function CategoryForm({ category }: { category: SettingCategory }) {
 
           {category === 'smtp' && (
             <div className="mt-2 border-t border-border pt-4">
-              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">Send test email</p>
+              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">{t('option.system.sendTestEmailHeading')}</p>
               <div className="flex items-center gap-2">
                 <input
                   type="email"
@@ -262,7 +279,7 @@ function CategoryForm({ category }: { category: SettingCategory }) {
                   isLoading={smtpTestMutation.isPending}
                   onClick={() => smtpTestMutation.mutate()}
                 >
-                  Send test
+                  {t('action.system.sendTest')}
                 </Button>
               </div>
             </div>
@@ -274,12 +291,12 @@ function CategoryForm({ category }: { category: SettingCategory }) {
 
       {canView && recentChanges.data && recentChanges.data.length > 0 && (
         <div className="mt-4 border-t border-border pt-4">
-          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">Recent changes</p>
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">{t('option.system.recentChanges')}</p>
           <div className="space-y-1.5 text-xs text-ink-muted">
             {recentChanges.data.map((entry) => (
               <p key={entry.id}>
-                <span className="font-medium text-ink">{entry.key}</span> changed by{' '}
-                {entry.changed_by?.name ?? 'unknown'} · {formatDateTime(entry.changed_at)}
+                <span className="font-medium text-ink">{entry.key}</span>{' '}
+                {t('option.system.changedBy', { name: entry.changed_by?.name ?? t('option.system.unknownLowercase') })} · {formatDateTime(entry.changed_at)}
               </p>
             ))}
           </div>
@@ -288,9 +305,9 @@ function CategoryForm({ category }: { category: SettingCategory }) {
 
       <ConfirmDialog
         isOpen={isRestoreConfirmOpen}
-        title={`Restore ${SETTINGS_CATEGORY_LABELS[category]} defaults?`}
-        description="This replaces every value in this category with its factory default. This can be undone by editing the values again, but not automatically."
-        confirmLabel="Restore defaults"
+        title={t('confirm.system.restoreDefaultsTitle', { name: settingCategoryLabel(category, tValue) })}
+        description={t('confirm.system.restoreDefaultsBody')}
+        confirmLabel={t('action.system.restoreDefaults')}
         tone="danger"
         isLoading={restoreMutation.isPending}
         onConfirm={() => restoreMutation.mutate()}
@@ -301,6 +318,7 @@ function CategoryForm({ category }: { category: SettingCategory }) {
 }
 
 function BackupsPanel({ canManage }: { canManage: boolean }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
@@ -312,35 +330,35 @@ function BackupsPanel({ canManage }: { canManage: boolean }) {
     mutationFn: settingsApi.backups.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['backups'] });
-      show('Backup created.');
+      show(t('notify.system.backupCreated'));
     },
-    onError: (err) => show(err instanceof ApiClientError ? err.message : 'Could not create backup.', 'error'),
+    onError: (err) => show(err instanceof ApiClientError ? err.message : t('notify.system.backupCreateFailed'), 'error'),
   });
 
   const restoreMutation = useMutation({
     mutationFn: (id: string) => settingsApi.backups.restore(id),
     onSuccess: () => {
-      show('Backup restored.');
+      show(t('notify.system.backupRestored'));
       setRestoreTarget(null);
       setRestoreConfirmText('');
     },
-    onError: (err) => show(err instanceof ApiClientError ? err.message : 'Could not restore backup.', 'error'),
+    onError: (err) => show(err instanceof ApiClientError ? err.message : t('notify.system.backupRestoreFailed'), 'error'),
   });
 
   return (
     <div className="mt-2 border-t border-border pt-4">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-bold uppercase tracking-wide text-ink-faint">Backups</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-ink-faint">{t('option.system.backups')}</p>
         {canManage && (
           <Button type="button" variant="outline" size="sm" isLoading={createMutation.isPending} onClick={() => createMutation.mutate()}>
-            <Icon name="plus" size={13} /> Create backup
+            <Icon name="plus" size={13} /> {t('action.system.createBackup')}
           </Button>
         )}
       </div>
 
-      {isLoading && <LoadingState label="Loading backups…" />}
+      {isLoading && <LoadingState label={t('option.system.loadingBackups')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
-      {data && data.length === 0 && <EmptyState icon="box" title="No backups yet" />}
+      {data && data.length === 0 && <EmptyState icon="box" title={t('warning.system.noBackups')} />}
 
       {data && data.length > 0 && (
         <div className="divide-y divide-border rounded-md border border-border">
@@ -349,14 +367,14 @@ function BackupsPanel({ canManage }: { canManage: boolean }) {
               <div>
                 <p className="font-medium text-ink">{backup.id}</p>
                 <p className="text-xs text-ink-faint">
-                  {(backup.size_bytes / 1024).toFixed(1)} KB · {backup.created_by ?? 'system'} · {formatDateTime(backup.created_at)}
+                  {(backup.size_bytes / 1024).toFixed(1)} KB · {backup.created_by ?? t('option.system.systemLowercase')} · {formatDateTime(backup.created_at)}
                 </p>
               </div>
               {canManage && (
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    title="Download"
+                    title={t('action.download')}
                     onClick={() => settingsApi.backups.download(backup.id, `${backup.id}.zip`)}
                     className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary"
                   >
@@ -364,7 +382,7 @@ function BackupsPanel({ canManage }: { canManage: boolean }) {
                   </button>
                   <button
                     type="button"
-                    title="Restore this backup"
+                    title={t('option.system.titleRestoreBackup')}
                     onClick={() => setRestoreTarget(backup.id)}
                     className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger"
                   >
@@ -383,7 +401,7 @@ function BackupsPanel({ canManage }: { canManage: boolean }) {
           setRestoreTarget(null);
           setRestoreConfirmText('');
         }}
-        title="Restore backup — destructive"
+        title={t('confirm.system.restoreBackupTitle')}
         size="sm"
         footer={
           <>
@@ -396,7 +414,7 @@ function BackupsPanel({ canManage }: { canManage: boolean }) {
               }}
               disabled={restoreMutation.isPending}
             >
-              Cancel
+              {t('action.cancel')}
             </Button>
             <Button
               variant="danger"
@@ -405,14 +423,13 @@ function BackupsPanel({ canManage }: { canManage: boolean }) {
               isLoading={restoreMutation.isPending}
               onClick={() => restoreTarget && restoreMutation.mutate(restoreTarget)}
             >
-              Restore
+              {t('action.system.restore')}
             </Button>
           </>
         }
       >
         <p className="mb-3 text-sm text-ink-muted">
-          This overwrites current settings with the contents of backup <strong>{restoreTarget}</strong>. This cannot be undone except by
-          restoring a different backup. Type <strong>RESTORE</strong> to confirm.
+          <Msg id="confirm.system.restoreBackupBody" values={{ id: <strong>{restoreTarget}</strong>, word: <strong>RESTORE</strong> }} />
         </p>
         <input
           className={inputClasses}
@@ -426,6 +443,7 @@ function BackupsPanel({ canManage }: { canManage: boolean }) {
 }
 
 function BranchesPanel() {
+  const { t, tValue } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const { hasPermission } = useEffectivePermissions();
@@ -437,27 +455,27 @@ function BranchesPanel() {
     mutationFn: settingsApi.branches.activate,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] });
-      show('Branch activated.');
+      show(t('notify.system.branchActivated'));
     },
-    onError: (err) => show(err instanceof ApiClientError ? err.message : 'Could not activate branch.', 'error'),
+    onError: (err) => show(err instanceof ApiClientError ? err.message : t('notify.system.branchActivateFailed'), 'error'),
   });
 
   const defaultMutation = useMutation({
     mutationFn: settingsApi.branches.makeDefault,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] });
-      show('Default branch updated.');
+      show(t('notify.system.defaultBranchUpdated'));
     },
-    onError: (err) => show(err instanceof ApiClientError ? err.message : 'Could not set default branch.', 'error'),
+    onError: (err) => show(err instanceof ApiClientError ? err.message : t('notify.system.defaultBranchFailed'), 'error'),
   });
 
   return (
     <Card className="p-5">
-      <h3 className="mb-4 font-display text-base font-bold text-ink">Branches</h3>
+      <h3 className="mb-4 font-display text-base font-bold text-ink">{settingCategoryLabel('branch', tValue)}</h3>
 
-      {isLoading && <LoadingState label="Loading branches…" />}
+      {isLoading && <LoadingState label={t('option.system.loadingBranches')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
-      {data && data.length === 0 && <EmptyState icon="briefcase" title="No branches yet" />}
+      {data && data.length === 0 && <EmptyState icon="briefcase" title={t('warning.system.noBranches')} />}
 
       {data && data.length > 0 && (
         <div className="divide-y divide-border rounded-md border border-border">
@@ -467,21 +485,21 @@ function BranchesPanel() {
                 <p className="font-medium text-ink">
                   {branch.name} <span className="text-ink-faint">({branch.code})</span>
                   {branch.is_default && (
-                    <span className="ml-2 rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-bold text-primary">DEFAULT</span>
+                    <span className="ml-2 rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-bold text-primary">{t('status.system.defaultBadge')}</span>
                   )}
                 </p>
                 <p className="text-xs text-ink-faint">{branch.city ?? '—'}</p>
               </div>
               <div className="flex items-center gap-2">
-                <StatusBadge status={branch.status} />
+                <StatusBadge status={branch.status} label={tValue('status', branch.status)} />
                 {canManage && branch.status !== 'active' && (
                   <Button size="sm" variant="outline" isLoading={activateMutation.isPending} onClick={() => activateMutation.mutate(branch.id)}>
-                    Activate
+                    {t('action.system.activate')}
                   </Button>
                 )}
                 {canManage && branch.status === 'active' && !branch.is_default && (
                   <Button size="sm" variant="outline" isLoading={defaultMutation.isPending} onClick={() => defaultMutation.mutate(branch.id)}>
-                    Set default
+                    {t('action.system.setDefault')}
                   </Button>
                 )}
               </div>
@@ -494,11 +512,15 @@ function BranchesPanel() {
 }
 
 export function SettingsPage() {
+  const { t, tValue } = useI18n();
   const [selected, setSelected] = useState<SettingCategory>('company');
 
   return (
     <div>
-      <PageHeader title="Settings" breadcrumb={[{ label: 'System', to: '/system/settings' }, { label: 'Settings' }]} />
+      <PageHeader
+        title={t('option.system.pageSettings')}
+        breadcrumb={[{ label: t('option.system.system'), to: '/system/settings' }, { label: t('option.system.pageSettings') }]}
+      />
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-[200px_1fr]">
         <div className="space-y-1">
@@ -511,7 +533,7 @@ export function SettingsPage() {
                 selected === category ? 'bg-primary-soft text-primary' : 'text-ink-muted hover:bg-surface-alt'
               }`}
             >
-              {SETTINGS_CATEGORY_LABELS[category]}
+              {settingCategoryLabel(category, tValue)}
             </button>
           ))}
         </div>

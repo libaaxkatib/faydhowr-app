@@ -7,14 +7,16 @@ import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Select } from '@/components/ui/Select';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { useI18n } from '@/i18n/useI18n';
+import type { MessageKey } from '@/i18n/messages';
 import { formatNumber } from '@/utils/formatters';
 import type { MarketingRecordStatus, MarketingRecordType } from '@/types/marketing';
 
-const STATUS_OPTIONS: { value: MarketingRecordStatus; label: string }[] = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'quotation', label: 'Quotation' },
-  { value: 'done', label: 'Done' },
-  { value: 'cancelled', label: 'Cancelled' },
+const STATUS_OPTIONS: { value: MarketingRecordStatus; label: string; labelKey: MessageKey }[] = [
+  { value: 'pending', label: 'Pending', labelKey: 'status.marketing.record.pending' },
+  { value: 'quotation', label: 'Quotation', labelKey: 'status.marketing.record.quotation' },
+  { value: 'done', label: 'Done', labelKey: 'status.marketing.record.done' },
+  { value: 'cancelled', label: 'Cancelled', labelKey: 'status.marketing.record.cancelled' },
 ];
 
 const TYPE_OPTIONS: { value: MarketingRecordType; label: string }[] = [
@@ -23,6 +25,7 @@ const TYPE_OPTIONS: { value: MarketingRecordType; label: string }[] = [
 ];
 
 export function MarketingReportsPage() {
+  const { t, tValue } = useI18n();
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [teamId, setTeamId] = useState('');
@@ -60,34 +63,34 @@ export function MarketingReportsPage() {
 
   return (
     <div>
-      <PageHeader title="Marketing Reports" breadcrumb={[{ label: 'Marketing', to: '/marketing' }, { label: 'Reports' }]} />
+      <PageHeader title={t('nav.marketing.reportsTitle')} breadcrumb={[{ label: t('nav.marketing.marketing'), to: '/marketing' }, { label: t('nav.reports') }]} />
 
       <Card className="mb-4">
         <CardBody className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-muted">Date from</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.marketing.dateFrom')}</label>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-sm border border-border bg-surface px-2 text-sm" />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-muted">Date to</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.marketing.dateTo')}</label>
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-sm border border-border bg-surface px-2 text-sm" />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-muted">Team</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.marketing.team')}</label>
             <Select
               value={teamId}
               onChange={(e) => setTeamId(e.target.value)}
-              placeholder="All teams"
-              options={(teams ?? []).map((t) => ({ value: String(t.id), label: t.name }))}
+              placeholder={t('option.marketing.allTeams')}
+              options={(teams ?? []).map((team) => ({ value: String(team.id), label: team.name }))}
               className="w-40"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-muted">Marketing employee</label>
-            <Select value={adminId} onChange={(e) => setAdminId(e.target.value)} placeholder="All employees" options={employeeOptions} className="w-44" />
+            <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.marketing.marketingEmployee')}</label>
+            <Select value={adminId} onChange={(e) => setAdminId(e.target.value)} placeholder={t('option.marketing.allEmployees')} options={employeeOptions} className="w-44" />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-muted">Record type</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.marketing.recordType')}</label>
             <Select
               value={type}
               onChange={(e) => setType(e.target.value as MarketingRecordType | '')}
@@ -97,26 +100,26 @@ export function MarketingReportsPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-muted">Status</label>
+            <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.label.status')}</label>
             <Select
               value={status}
               onChange={(e) => setStatus(e.target.value as MarketingRecordStatus | '')}
-              placeholder="All statuses"
-              options={STATUS_OPTIONS}
+              placeholder={t('option.marketing.allStatuses')}
+              options={STATUS_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
               className="w-36"
             />
           </div>
         </CardBody>
       </Card>
 
-      {isLoading && <LoadingState label="Loading report…" />}
+      {isLoading && <LoadingState label={t('option.reports.loading')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
 
       {data && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Total Records</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.marketing.totalRecords')}</h3>
             </CardHeader>
             <CardBody>
               <p className="font-display text-3xl font-bold text-ink">{formatNumber(data.total_records)}</p>
@@ -126,7 +129,7 @@ export function MarketingReportsPage() {
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">By Type (XARUN / PROJECT)</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.marketing.byType')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {Object.entries(data.type_breakdown).map(([recordType, total]) => (
@@ -140,12 +143,12 @@ export function MarketingReportsPage() {
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">By Status</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.marketing.byStatus')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {Object.entries(data.status_breakdown).map(([recordStatus, total]) => (
                 <div key={recordStatus} className="flex items-center justify-between text-sm">
-                  <span className="capitalize text-ink-muted">{recordStatus}</span>
+                  <span className="capitalize text-ink-muted">{tValue('status.marketing.record', recordStatus) ?? recordStatus}</span>
                   <span className="font-semibold text-ink">{formatNumber(total ?? 0)}</span>
                 </div>
               ))}
@@ -154,7 +157,7 @@ export function MarketingReportsPage() {
 
           <Card>
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Team A / Team B / All Teams</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.marketing.teamBreakdown')}</h3>
             </CardHeader>
             <CardBody className="space-y-2">
               {data.team_breakdown.map((team) => (
@@ -168,11 +171,11 @@ export function MarketingReportsPage() {
 
           <Card className="lg:col-span-2">
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">Individual Employee</h3>
+              <h3 className="font-display text-sm font-bold text-ink">{t('option.marketing.individualEmployee')}</h3>
             </CardHeader>
             <CardBody>
               {data.employee_breakdown.length === 0 ? (
-                <p className="text-sm text-ink-muted">No records assigned to an employee in this range yet.</p>
+                <p className="text-sm text-ink-muted">{t('warning.marketing.noEmployeeRecords')}</p>
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {data.employee_breakdown.map((employee) => (

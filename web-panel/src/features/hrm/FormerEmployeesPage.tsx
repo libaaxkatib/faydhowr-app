@@ -18,6 +18,7 @@ import { useToast } from '@/components/ui/useToast';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { formatDate, initialsOf } from '@/utils/formatters';
 import type { Employee } from '@/types/employee';
+import { useI18n } from '@/i18n/useI18n';
 
 /**
  * docs/HRM_MARKETING_SRS.md HR Phase 3: dedicated Former Employees page,
@@ -30,6 +31,7 @@ export function FormerEmployeesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { show } = useToast();
+  const { t } = useI18n();
   // Search and page live in the address bar, so Back from an employee returns to the same results.
   const url = useUrlFilters();
   const search = url.get('q');
@@ -48,15 +50,15 @@ export function FormerEmployeesPage() {
     mutationFn: (employeeId: number) => hrApi.employees.rehire(employeeId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
-      show('Employee rehired.');
+      show(t('notify.pipeline.employeeRehired'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : 'Could not rehire employee.', 'error'),
+    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.couldNotRehire'), 'error'),
   });
 
   const columns = useMemo<ColumnDef<Employee, unknown>[]>(
     () => [
       {
-        header: 'Employee',
+        header: t('option.label.employee'),
         accessorKey: 'full_name',
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
@@ -71,28 +73,28 @@ export function FormerEmployeesPage() {
         ),
       },
       {
-        header: 'Category',
+        header: t('option.label.category'),
         accessorKey: 'employee_category_name',
         cell: ({ row }) => <span className="text-ink">{row.original.employee_category_name ?? '—'}</span>,
       },
       {
-        header: 'Separation Reason',
+        header: t('option.employees.separationReason'),
         id: 'reason',
         cell: ({ row }) => <span className="text-ink">{row.original.latest_separation?.reason_label ?? '—'}</span>,
       },
       {
-        header: 'Separation Date',
+        header: t('option.employees.separationDate'),
         id: 'separation_date',
         cell: ({ row }) => <span className="text-ink-muted">{formatDate(row.original.latest_separation?.separation_date)}</span>,
       },
       {
-        header: 'Rehire Eligible',
+        header: t('option.employees.rehireEligible'),
         id: 'rehire_eligible',
         cell: ({ row }) =>
           row.original.latest_separation ? (
             <StatusBadge
               status="rehire"
-              label={row.original.latest_separation.rehire_eligible ? 'Eligible' : 'Not marked eligible'}
+              label={row.original.latest_separation.rehire_eligible ? t('status.pipeline.rehireEligible') : t('status.pipeline.rehireNotMarked')}
               tone={row.original.latest_separation.rehire_eligible ? 'success' : 'neutral'}
             />
           ) : (
@@ -114,18 +116,18 @@ export function FormerEmployeesPage() {
                 rehireMutation.mutate(row.original.id);
               }}
             >
-              Rehire
+              {t('action.rehire')}
             </Button>
           </PermissionGate>
         ),
       },
     ],
-    [rehireMutation],
+    [rehireMutation, t],
   );
 
   return (
     <div>
-      <PageHeader title="Former Employees" breadcrumb={[{ label: 'Human Resources', to: '/hr' }, { label: 'Former Employees' }]} />
+      <PageHeader title={t('nav.formerEmployees')} breadcrumb={[{ label: t('nav.hrGroup'), to: '/hr' }, { label: t('nav.formerEmployees') }]} />
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
@@ -135,7 +137,7 @@ export function FormerEmployeesPage() {
               setSearch(value);
               setPage(1);
             }}
-            placeholder="Search by name, phone, or employee number…"
+            placeholder={t('option.employees.searchEmployees')}
             className="w-full max-w-xs"
           />
         </div>
@@ -147,8 +149,8 @@ export function FormerEmployeesPage() {
           error={error}
           onRetry={refetch}
           onRowClick={(employee) => navigate(`/hr/employees/${employee.id}`, { state: returnState(window.location.pathname, window.location.search, 'Former Employees') })}
-          emptyTitle="No former employees"
-          emptyDescription="Employees appear here once marked Inactive."
+          emptyTitle={t('option.employees.noFormerEmployees')}
+          emptyDescription={t('option.employees.noFormerEmployeesHint')}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

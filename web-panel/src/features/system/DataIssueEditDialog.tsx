@@ -11,6 +11,8 @@ import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { ApiClientError } from '@/api/client';
+import { EDITABLE_STATUS_OPTIONS, MODULE_OPTIONS, SEVERITY_OPTIONS, TYPE_OPTIONS, translateOptions } from '@/features/system/dataIssueOptions';
+import { useI18n } from '@/i18n/useI18n';
 import type { DataIssue, DataIssueModule, DataIssueSeverity, DataIssueType, UpdateDataIssuePayload } from '@/types/reconciliation';
 
 interface DataIssueEditDialogProps {
@@ -19,44 +21,8 @@ interface DataIssueEditDialogProps {
   issue: DataIssue;
 }
 
-const MODULE_OPTIONS: { value: DataIssueModule; label: string }[] = [
-  { value: 'hr', label: 'HR' },
-  { value: 'marketing', label: 'Marketing' },
-  { value: 'finance', label: 'Finance' },
-  { value: 'bookings', label: 'Bookings' },
-  { value: 'customers', label: 'Customers' },
-  { value: 'quotations', label: 'Quotations' },
-  { value: 'store', label: 'Store' },
-  { value: 'system', label: 'System' },
-  { value: 'other', label: 'Other' },
-];
-
-const TYPE_OPTIONS: { value: DataIssueType; label: string }[] = [
-  { value: 'missing_data', label: 'Missing Data' },
-  { value: 'missing_record', label: 'Missing Record' },
-  { value: 'duplicate', label: 'Duplicate' },
-  { value: 'conflict', label: 'Conflict' },
-  { value: 'source_mismatch', label: 'Source Mismatch' },
-  { value: 'count_discrepancy', label: 'Count Discrepancy' },
-  { value: 'invalid_record', label: 'Invalid Record' },
-  { value: 'system_error', label: 'System Error' },
-  { value: 'migration_issue', label: 'Migration Issue' },
-  { value: 'other', label: 'Other' },
-];
-
-const SEVERITY_OPTIONS: { value: DataIssueSeverity; label: string }[] = [
-  { value: 'critical', label: 'Critical' },
-  { value: 'high', label: 'High' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'low', label: 'Low' },
-];
-
-const STATUS_OPTIONS = [
-  { value: 'open', label: 'Open' },
-  { value: 'investigating', label: 'Investigating' },
-];
-
 export function DataIssueEditDialog({ isOpen, onClose, issue }: DataIssueEditDialogProps) {
+  const { t, tValue } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const [form, setForm] = useState({
@@ -132,7 +98,7 @@ export function DataIssueEditDialog({ isOpen, onClose, issue }: DataIssueEditDia
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['data-issue', issue.id] });
       queryClient.invalidateQueries({ queryKey: ['data-issues'] });
-      show('Data issue updated.', 'success');
+      show(t('notify.system.issueUpdated'), 'success');
       onClose();
     },
     onError: (error) => {
@@ -140,7 +106,7 @@ export function DataIssueEditDialog({ isOpen, onClose, issue }: DataIssueEditDia
         setFieldErrors(error.fieldErrors);
         return;
       }
-      show(error instanceof Error ? error.message : 'Failed to update data issue.', 'error');
+      show(error instanceof Error ? error.message : t('notify.system.issueUpdateFailed'), 'error');
     },
   });
 
@@ -154,69 +120,69 @@ export function DataIssueEditDialog({ isOpen, onClose, issue }: DataIssueEditDia
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Edit ${issue.issue_number}`}
+      title={t('option.system.editIssueTitle', { number: issue.issue_number })}
       size="lg"
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {t('action.cancel')}
           </Button>
           <Button isLoading={mutation.isPending} onClick={handleSubmit}>
-            Save Changes
+            {t('action.saveChanges')}
           </Button>
         </>
       }
     >
       <form onSubmit={handleSubmit} className="space-y-1">
-        <FormField label="Title" htmlFor="edi-title" required error={fieldErrors.title?.[0]}>
+        <FormField label={t('option.system.colTitle')} htmlFor="edi-title" required error={fieldErrors.title?.[0]}>
           <input id="edi-title" className={inputClasses} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
         </FormField>
 
-        <FormField label="Description" htmlFor="edi-description" error={fieldErrors.description?.[0]}>
+        <FormField label={t('option.label.description')} htmlFor="edi-description" error={fieldErrors.description?.[0]}>
           <textarea id="edi-description" rows={2} className={inputClasses + ' h-auto py-2'} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </FormField>
 
         <div className="grid grid-cols-4 gap-3">
-          <FormField label="Module" htmlFor="edi-module" error={fieldErrors.module?.[0]}>
-            <Select id="edi-module" options={MODULE_OPTIONS} value={form.module} onChange={(e) => setForm({ ...form, module: e.target.value as DataIssueModule })} />
+          <FormField label={t('option.system.module')} htmlFor="edi-module" error={fieldErrors.module?.[0]}>
+            <Select id="edi-module" options={translateOptions(MODULE_OPTIONS, 'option.system.issueModule', tValue)} value={form.module} onChange={(e) => setForm({ ...form, module: e.target.value as DataIssueModule })} />
           </FormField>
-          <FormField label="Type" htmlFor="edi-type" error={fieldErrors.issue_type?.[0]}>
-            <Select id="edi-type" options={TYPE_OPTIONS} value={form.issue_type} onChange={(e) => setForm({ ...form, issue_type: e.target.value as DataIssueType })} />
+          <FormField label={t('option.label.type')} htmlFor="edi-type" error={fieldErrors.issue_type?.[0]}>
+            <Select id="edi-type" options={translateOptions(TYPE_OPTIONS, 'option.system.issueType', tValue)} value={form.issue_type} onChange={(e) => setForm({ ...form, issue_type: e.target.value as DataIssueType })} />
           </FormField>
-          <FormField label="Severity" htmlFor="edi-severity" error={fieldErrors.severity?.[0]}>
-            <Select id="edi-severity" options={SEVERITY_OPTIONS} value={form.severity} onChange={(e) => setForm({ ...form, severity: e.target.value as DataIssueSeverity })} />
+          <FormField label={t('option.system.severity')} htmlFor="edi-severity" error={fieldErrors.severity?.[0]}>
+            <Select id="edi-severity" options={translateOptions(SEVERITY_OPTIONS, 'option.system.issueSeverity', tValue)} value={form.severity} onChange={(e) => setForm({ ...form, severity: e.target.value as DataIssueSeverity })} />
           </FormField>
-          <FormField label="Status" htmlFor="edi-status" hint="Resolve via the Resolve button" error={fieldErrors.status?.[0]}>
-            <Select id="edi-status" options={STATUS_OPTIONS} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as 'open' | 'investigating' })} />
+          <FormField label={t('option.label.status')} htmlFor="edi-status" hint={t('warning.system.statusResolveHint')} error={fieldErrors.status?.[0]}>
+            <Select id="edi-status" options={translateOptions(EDITABLE_STATUS_OPTIONS, 'option.system.issueStatus', tValue)} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as 'open' | 'investigating' })} />
           </FormField>
         </div>
 
         <div className="grid grid-cols-3 gap-3">
-          <FormField label="Expected" htmlFor="edi-expected" error={fieldErrors.expected_value?.[0]}>
+          <FormField label={t('option.system.expected')} htmlFor="edi-expected" error={fieldErrors.expected_value?.[0]}>
             <textarea id="edi-expected" rows={2} className={inputClasses + ' h-auto py-2'} value={form.expected_value} onChange={(e) => setForm({ ...form, expected_value: e.target.value })} />
           </FormField>
-          <FormField label="Actual" htmlFor="edi-actual" error={fieldErrors.actual_value?.[0]}>
+          <FormField label={t('option.system.actual')} htmlFor="edi-actual" error={fieldErrors.actual_value?.[0]}>
             <textarea id="edi-actual" rows={2} className={inputClasses + ' h-auto py-2'} value={form.actual_value} onChange={(e) => setForm({ ...form, actual_value: e.target.value })} />
           </FormField>
-          <FormField label="Difference" htmlFor="edi-difference" error={fieldErrors.difference_value?.[0]}>
+          <FormField label={t('option.system.difference')} htmlFor="edi-difference" error={fieldErrors.difference_value?.[0]}>
             <textarea id="edi-difference" rows={2} className={inputClasses + ' h-auto py-2'} value={form.difference_value} onChange={(e) => setForm({ ...form, difference_value: e.target.value })} />
           </FormField>
         </div>
 
-        <FormField label="Root Cause" htmlFor="edi-root-cause" error={fieldErrors.root_cause?.[0]}>
+        <FormField label={t('option.system.rootCause')} htmlFor="edi-root-cause" error={fieldErrors.root_cause?.[0]}>
           <textarea id="edi-root-cause" rows={2} className={inputClasses + ' h-auto py-2'} value={form.root_cause} onChange={(e) => setForm({ ...form, root_cause: e.target.value })} />
         </FormField>
 
-        <FormField label="Source / Reference" htmlFor="edi-source" error={fieldErrors.source_reference?.[0]}>
+        <FormField label={t('option.system.sourceReference')} htmlFor="edi-source" error={fieldErrors.source_reference?.[0]}>
           <input id="edi-source" className={inputClasses} value={form.source_reference} onChange={(e) => setForm({ ...form, source_reference: e.target.value })} />
         </FormField>
 
-        <FormField label="Notes" htmlFor="edi-notes" error={fieldErrors.notes?.[0]}>
+        <FormField label={t('option.label.notes')} htmlFor="edi-notes" error={fieldErrors.notes?.[0]}>
           <textarea id="edi-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         </FormField>
 
         <div className="mb-2 border-t border-border pt-4">
-          <label className="mb-1.5 block text-sm font-medium text-ink">Affected Employees</label>
+          <label className="mb-1.5 block text-sm font-medium text-ink">{t('option.system.affectedEmployees')}</label>
 
           {(issue.affected_records ?? []).map((record) => {
             const marked = toRemove.includes(record.id);
@@ -230,7 +196,7 @@ export function DataIssueEditDialog({ isOpen, onClose, issue }: DataIssueEditDia
                   onClick={() => setToRemove((prev) => (marked ? prev.filter((id) => id !== record.id) : [...prev, record.id]))}
                   className="text-xs text-ink-muted hover:text-danger"
                 >
-                  {marked ? 'Undo' : 'Remove'}
+                  {marked ? t('action.system.undo') : t('action.remove')}
                 </button>
               </div>
             );
@@ -250,7 +216,7 @@ export function DataIssueEditDialog({ isOpen, onClose, issue }: DataIssueEditDia
           <div className="relative mt-2">
             <input
               className={inputClasses}
-              placeholder="Search to add another affected employee…"
+              placeholder={t('option.system.searchAddAffected')}
               value={employeeSearch}
               onChange={(e) => setEmployeeSearch(e.target.value)}
             />

@@ -1,0 +1,168 @@
+{
+  "description": "The 23 owner-supplied Somali terms whose review is still open (status owner-term). NOT locked: they stay awaiting review until the owner approves them. Source: catalogue as committed in 2a4ecc2.",
+  "sourceCommit": "2a4ecc2",
+  "count": 23,
+  "messages": [
+    {
+      "key": "action.importRows.one",
+      "id": "HR-ACT-062a",
+      "en": "Import {n} ready row",
+      "so": "Soo geli Excel (safafka diyaarka ah: {n})",
+      "soSha256": "343d65591aed7e3cdd89ea5cb361cc69b0acc860eadc1425a6b0b41ef1527150"
+    },
+    {
+      "key": "action.importRows.other",
+      "id": "HR-ACT-062a",
+      "en": "Import {n} ready rows",
+      "so": "Soo geli Excel (safafka diyaarka ah: {n})",
+      "soSha256": "343d65591aed7e3cdd89ea5cb361cc69b0acc860eadc1425a6b0b41ef1527150"
+    },
+    {
+      "key": "nav.contractPending",
+      "id": "HR-NAV-006",
+      "en": "Contract Pending",
+      "so": "Hishiiska Shaqaalaha",
+      "soSha256": "a61d117715ab35ef6f5096e40d8f4a17ee9de63f7e911e0946395d043b806317"
+    },
+    {
+      "key": "nav.formerEmployees",
+      "id": "HR-NAV-018",
+      "en": "Former Employees",
+      "so": "Shaqaalah hore u shaqeyn jiray",
+      "soSha256": "823d6a033e80b18ed34fce094c3bade13ae4916502379edac65d7d60d81dd37d"
+    },
+    {
+      "key": "nav.hrGroup",
+      "id": "HR-NAV-001",
+      "en": "Human Resources",
+      "so": "Maamulka shaqaalaha",
+      "soSha256": "c7e4fff02e324355619022a315007b901bdbe2dd40e353885279aa69298e3c45"
+    },
+    {
+      "key": "nav.needPractical",
+      "id": "HR-NAV-009",
+      "en": "Need Practical",
+      "so": "Ubaahan Baraatiko",
+      "soSha256": "6095f04e2f7c33c080dda76c343d4fa59f85a02bcd7c3e72a2dba7a39568abfe"
+    },
+    {
+      "key": "nav.needTraining",
+      "id": "HR-NAV-008",
+      "en": "Need Training",
+      "so": "Ubaahan Tababar",
+      "soSha256": "3122ba249208725cb3774176cf4a2761314095cf809ef285b5ac5e50597f1e8a"
+    },
+    {
+      "key": "nav.practicalBatches",
+      "id": "HR-NAV-016",
+      "en": "Practical Batches",
+      "so": "kooxaha Baraatikada isla qaadanayo",
+      "soSha256": "5a0151833d4ccc6c7fae923765780f6d3bda9d4e9b30f8c9302b56b02dd47d4e"
+    },
+    {
+      "key": "nav.practicalRepeat",
+      "id": "HR-NAV-010",
+      "en": "Practical Repeat",
+      "so": "KU celis Baraatiko",
+      "soSha256": "9f8c08a9486b9fba19705ff9e3645c1337a18f5a589b0370a56148ce95dc5973"
+    },
+    {
+      "key": "nav.rejected",
+      "id": "HR-NAV-011",
+      "en": "Rejected",
+      "so": "Dadka la kansalay",
+      "soSha256": "e2f537e601555087a31f106fe0f62db3111c758e29932c6ab9c481f7b5b585e0"
+    },
+    {
+      "key": "nav.rejectedHistorical",
+      "id": "HR-NAV-012",
+      "en": "Rejected (Historical)",
+      "so": "Dadka mar hore la kansala",
+      "soSha256": "4cb4fef2f20089f309819ccf60c5306c9dce6e40cbf2ef40d4d42fe4bcd82457"
+    },
+    {
+      "key": "nav.trainingBatches",
+      "id": "HR-NAV-015",
+      "en": "Training Batches",
+      "so": "Kooxaha Tababarka isla qadanayo",
+      "soSha256": "84ce9b9e495f7a22797beb728dba5880eaeedf105aae61859b4edd5733fa6158"
+    },
+    {
+      "key": "nav.uniformPending",
+      "id": "HR-NAV-007",
+      "en": "Uniform Pending",
+      "so": "Uniformka laga sugayo",
+      "soSha256": "6ec42eb789c6fb797aa6086a41a586bd73295847cb98f59797646c5130b4b42f"
+    },
+    {
+      "key": "nav.waiting",
+      "id": "HR-NAV-013",
+      "en": "Waiting",
+      "so": "Shaqa sugayaal",
+      "soSha256": "c4d9f1822cf827340c3aaa463e84ff241f2162cb7c4632222cce1c91c8759d2c"
+    },
+    {
+      "key": "status.stage.contract_pending",
+      "id": "HR-NAV-006",
+      "en": "Contract Pending",
+      "so": "Hishiiska Shaqaalaha",
+      "soSha256": "a61d117715ab35ef6f5096e40d8f4a17ee9de63f7e911e0946395d043b806317"
+    },
+    {
+      "key": "status.stage.need_practical",
+      "id": "HR-NAV-009",
+      "en": "Need Practical",
+      "so": "Ubaahan Baraatiko",
+      "soSha256": "6095f04e2f7c33c080dda76c343d4fa59f85a02bcd7c3e72a2dba7a39568abfe"
+    },
+    {
+      "key": "status.stage.need_training",
+      "id": "HR-NAV-008",
+      "en": "Need Training",
+      "so": "Ubaahan Tababar",
+      "soSha256": "3122ba249208725cb3774176cf4a2761314095cf809ef285b5ac5e50597f1e8a"
+    },
+    {
+      "key": "status.stage.practical_repeat",
+      "id": "HR-NAV-010",
+      "en": "Practical Repeat",
+      "so": "KU celis Baraatiko",
+      "soSha256": "9f8c08a9486b9fba19705ff9e3645c1337a18f5a589b0370a56148ce95dc5973"
+    },
+    {
+      "key": "status.stage.rejected",
+      "id": "HR-NAV-011",
+      "en": "Rejected",
+      "so": "Dadka la kansalay",
+      "soSha256": "e2f537e601555087a31f106fe0f62db3111c758e29932c6ab9c481f7b5b585e0"
+    },
+    {
+      "key": "status.stage.uniform_pending",
+      "id": "HR-NAV-007",
+      "en": "Uniform Pending",
+      "so": "Uniformka laga sugayo",
+      "soSha256": "6ec42eb789c6fb797aa6086a41a586bd73295847cb98f59797646c5130b4b42f"
+    },
+    {
+      "key": "status.stageMove.need_practical",
+      "id": "HR-STG-002",
+      "en": "Practice (Need Practical)",
+      "so": "Ubaahan Baraatiko",
+      "soSha256": "6095f04e2f7c33c080dda76c343d4fa59f85a02bcd7c3e72a2dba7a39568abfe"
+    },
+    {
+      "key": "status.stageMove.need_training",
+      "id": "HR-STG-001",
+      "en": "Training (Need Training)",
+      "so": "Ubaahan Tababar",
+      "soSha256": "3122ba249208725cb3774176cf4a2761314095cf809ef285b5ac5e50597f1e8a"
+    },
+    {
+      "key": "status.waiting",
+      "id": "HR-NAV-013",
+      "en": "Waiting",
+      "so": "Shaqa sugayaal",
+      "soSha256": "c4d9f1822cf827340c3aaa463e84ff241f2162cb7c4632222cce1c91c8759d2c"
+    }
+  ]
+}

@@ -19,18 +19,16 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { useAuth } from '@/features/auth/useAuth';
 import { formatDateTime } from '@/utils/formatters';
-import { ADMIN_ROLE_LABELS, ASSIGNABLE_ADMIN_ROLES } from '@/types/system';
+import { ASSIGNABLE_ADMIN_ROLES, adminRoleLabel } from '@/types/system';
 import { AdminFormDialog } from '@/features/system/AdminFormDialog';
 import { ResetPasswordDialog } from '@/features/system/ResetPasswordDialog';
+import { useI18n } from '@/i18n/useI18n';
 import type { Admin, AdminRole, AdminStatus } from '@/types/admin';
 
 const ROLE_OPTIONS = [{ value: 'super_admin', label: 'Super Admin' }, ...ASSIGNABLE_ADMIN_ROLES];
-const STATUS_OPTIONS = [
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-];
 
 export function AdminUsersPage() {
+  const { t, tValue } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
   const { admin: currentAdmin } = useAuth();
@@ -66,11 +64,11 @@ export function AdminUsersPage() {
       adminsApi.update(target.id, { status: target.status === 'active' ? 'inactive' : 'active' }),
     onSuccess: (_data, target) => {
       queryClient.invalidateQueries({ queryKey: ['admins'] });
-      show(target.status === 'active' ? 'Admin deactivated.' : 'Admin reactivated.');
+      show(target.status === 'active' ? t('notify.system.adminDeactivated') : t('notify.system.adminReactivated'));
       setStatusTarget(null);
     },
     onError: (err) => {
-      show(err instanceof ApiClientError ? err.message : 'Could not update admin status.', 'error');
+      show(err instanceof ApiClientError ? err.message : t('notify.system.adminStatusFailed'), 'error');
       setStatusTarget(null);
     },
   });
@@ -78,7 +76,7 @@ export function AdminUsersPage() {
   const columns = useMemo<ColumnDef<Admin, unknown>[]>(
     () => [
       {
-        header: 'Admin',
+        header: t('option.system.colAdmin'),
         accessorKey: 'full_name',
         cell: ({ row }) => (
           <div>
@@ -88,22 +86,22 @@ export function AdminUsersPage() {
         ),
       },
       {
-        header: 'Phone',
+        header: t('option.label.phone'),
         accessorKey: 'phone',
         cell: ({ row }) => <span className="text-ink-muted">{row.original.phone ?? '—'}</span>,
       },
       {
-        header: 'Role',
+        header: t('option.system.role'),
         accessorKey: 'role',
-        cell: ({ row }) => <span className="text-ink">{ADMIN_ROLE_LABELS[row.original.role]}</span>,
+        cell: ({ row }) => <span className="text-ink">{adminRoleLabel(row.original.role, tValue)}</span>,
       },
       {
-        header: 'Status',
+        header: t('option.label.status'),
         accessorKey: 'status',
-        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+        cell: ({ row }) => <StatusBadge status={row.original.status} label={tValue('status', row.original.status)} />,
       },
       {
-        header: 'Last login',
+        header: t('option.system.colLastLogin'),
         accessorKey: 'last_login_at',
         cell: ({ row }) => <span className="text-ink-muted">{formatDateTime(row.original.last_login_at)}</span>,
       },
@@ -121,7 +119,7 @@ export function AdminUsersPage() {
                   setIsFormOpen(true);
                 }}
                 className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary"
-                title="Edit admin"
+                title={t('option.system.titleEditAdmin')}
               >
                 <Icon name="pencil" size={14} />
               </button>
@@ -132,7 +130,7 @@ export function AdminUsersPage() {
                   setResetTarget(row.original);
                 }}
                 className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary"
-                title="Reset password"
+                title={t('option.system.titleResetPassword')}
               >
                 <Icon name="shield" size={14} />
               </button>
@@ -143,7 +141,7 @@ export function AdminUsersPage() {
                   setStatusTarget(row.original);
                 }}
                 className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger"
-                title={row.original.status === 'active' ? 'Deactivate admin' : 'Reactivate admin'}
+                title={row.original.status === 'active' ? t('option.system.titleDeactivateAdmin') : t('option.system.titleReactivateAdmin')}
               >
                 <Icon name={row.original.status === 'active' ? 'x' : 'check'} size={14} />
               </button>
@@ -151,14 +149,20 @@ export function AdminUsersPage() {
           ),
       },
     ],
-    [canManageAdmins],
+    [canManageAdmins, t, tValue],
   );
+
+  const roleOptions = ROLE_OPTIONS.map((option) => ({ value: option.value, label: adminRoleLabel(option.value, tValue) }));
+  const statusOptions = [
+    { value: 'active', label: t('status.active') },
+    { value: 'inactive', label: t('status.inactive') },
+  ];
 
   return (
     <div>
       <PageHeader
-        title="Admin Users"
-        breadcrumb={[{ label: 'System', to: '/system/admins' }, { label: 'Admin Users' }]}
+        title={t('option.system.pageAdminUsers')}
+        breadcrumb={[{ label: t('option.system.system'), to: '/system/admins' }, { label: t('option.system.pageAdminUsers') }]}
         actions={
           canManageAdmins && (
             <Button
@@ -168,7 +172,7 @@ export function AdminUsersPage() {
               }}
             >
               <Icon name="plus" size={15} />
-              Add Admin
+              {t('action.system.addAdmin')}
             </Button>
           )
         }
@@ -182,7 +186,7 @@ export function AdminUsersPage() {
               setSearch(value);
               setPage(1);
             }}
-            placeholder="Search by name, email, or phone…"
+            placeholder={t('option.system.searchAdmins')}
             className="w-full max-w-xs"
           />
           <Select
@@ -191,8 +195,8 @@ export function AdminUsersPage() {
               setRole(event.target.value as AdminRole | '');
               setPage(1);
             }}
-            options={ROLE_OPTIONS}
-            placeholder="All roles"
+            options={roleOptions}
+            placeholder={t('option.system.allRoles')}
             className="w-48"
           />
           <Select
@@ -201,8 +205,8 @@ export function AdminUsersPage() {
               setStatus(event.target.value as AdminStatus | '');
               setPage(1);
             }}
-            options={STATUS_OPTIONS}
-            placeholder="All statuses"
+            options={statusOptions}
+            placeholder={t('option.system.allStatuses')}
             className="w-40"
           />
         </div>
@@ -213,8 +217,8 @@ export function AdminUsersPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          emptyTitle="No admins found"
-          emptyDescription="Try adjusting your search or filters."
+          emptyTitle={t('warning.system.noAdmins')}
+          emptyDescription={t('option.system.noMatchHint')}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}
@@ -231,15 +235,15 @@ export function AdminUsersPage() {
 
       <ConfirmDialog
         isOpen={statusTarget !== null}
-        title={statusTarget?.status === 'active' ? 'Deactivate admin?' : 'Reactivate admin?'}
+        title={statusTarget?.status === 'active' ? t('confirm.system.deactivateTitle') : t('confirm.system.reactivateTitle')}
         description={
           statusTarget?.status === 'active'
-            ? `${statusTarget?.full_name} will no longer be able to log in. This can be undone at any time by reactivating them.${
-                statusTarget?.id === currentAdmin?.id ? ' This is your own account — you will be signed out immediately and no one will be able to reactivate it except another Super Admin.' : ''
+            ? `${t('confirm.system.deactivateBody', { name: statusTarget?.full_name ?? '' })}${
+                statusTarget?.id === currentAdmin?.id ? ` ${t('confirm.system.deactivateOwnAccount')}` : ''
               }`
-            : `${statusTarget?.full_name} will be able to log in again.`
+            : t('confirm.system.reactivateBody', { name: statusTarget?.full_name ?? '' })
         }
-        confirmLabel={statusTarget?.status === 'active' ? 'Deactivate' : 'Reactivate'}
+        confirmLabel={statusTarget?.status === 'active' ? t('action.system.deactivate') : t('action.system.reactivate')}
         tone={statusTarget?.status === 'active' ? 'danger' : 'primary'}
         isLoading={toggleStatusMutation.isPending}
         onConfirm={() => statusTarget && toggleStatusMutation.mutate(statusTarget)}

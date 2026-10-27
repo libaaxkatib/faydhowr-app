@@ -3,6 +3,7 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tan
 import { LoadingState } from '@/components/ui/LoadingState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { useI18n } from '@/i18n/useI18n';
 
 interface DataTableProps<T> {
   columns: ColumnDef<T, unknown>[];
@@ -21,19 +22,20 @@ export function DataTable<T>({
   isLoading,
   error,
   onRetry,
-  emptyTitle = 'Nothing here yet',
+  emptyTitle,
   emptyDescription,
   onRowClick,
 }: DataTableProps<T>) {
+  const { t } = useI18n();
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
 
-  if (isLoading) return <LoadingState label="Loading records…" />;
+  if (isLoading) return <LoadingState label={t('option.common.loadingRecords')} />;
   if (error) return <ErrorState error={error} onRetry={onRetry} />;
-  if (data.length === 0) return <EmptyState title={emptyTitle} description={emptyDescription} />;
+  if (data.length === 0) return <EmptyState title={emptyTitle ?? t('option.shell.nothingYet')} description={emptyDescription} />;
 
   return (
     <div className="overflow-x-auto">
