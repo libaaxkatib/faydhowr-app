@@ -356,6 +356,25 @@ class PayrollLifecycleTest extends TestCase
         $this->assertSame(1, EmployeePayment::query()->count());
     }
 
+    public function test_the_verified_workdays_column_keeps_reporting_attendance_while_the_amount_uses_the_coverage_period(): void
+    {
+        [, $token] = $this->superAdminToken();
+        [, $assignment] = $this->permanentWith(300);
+        // The cover ran 3-7 September (5 days); attendance was only verified for two of them.
+        $cover = $this->cover($assignment, range(3, 7), verified: false);
+        $cover->workdays()->get()->take(2)->each(fn ($day) => $day->update(['status' => 'verified']));
+        $run = $this->generate($token)->json('data.id');
+
+        $sheet = IOFactory::load($this->withToken($token)->get("/api/v1/admin/hr/payroll-runs/{$run}/export")->assertOk()->baseResponse->getFile()->getPathname())->getActiveSheet();
+
+        $this->assertSame('Verified workdays', (string) $sheet->getCell('N3')->getValue(), 'the column keeps its name');
+        $row = collect(range(4, 8))->first(fn (int $r): bool => str_starts_with((string) $sheet->getCell("C{$r}")->getValue(), 'Temporary'));
+        $this->assertSame('2', (string) $sheet->getCell("N{$row}")->getValue(), 'and its meaning: the verified attendance days');
+        $this->assertSame('50.00', (string) $sheet->getCell("P{$row}")->getValue(), 'while the replacement amount counts all 5 days of the cover (5 x 10.00)');
+        $this->assertSame('2026-09-03', (string) $sheet->getCell("L{$row}")->getValue());
+        $this->assertSame('2026-09-07', (string) $sheet->getCell("M{$row}")->getValue());
+    }
+
     public function test_excel_export_comes_from_stored_data_with_temporaries_under_their_permanent(): void
     {
         [, $token] = $this->superAdminToken();

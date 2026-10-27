@@ -264,6 +264,20 @@ class TemporaryExpectedPaymentTest extends TestCase
         $this->assertSame(2, TemporaryReplacementPayment::query()->count());
     }
 
+    public function test_there_is_no_approval_gate_on_paying_a_temporary_and_paying_approves_nothing(): void
+    {
+        [, $token] = $this->superAdminToken();
+        [$a, $temp] = $this->position(600);
+        $r = $this->cover($a, $temp, '2026-09-21', '2026-09-30');
+        $this->assertNull($r->approved_at);
+
+        $this->pay($token, $r, ['amount' => 50])->assertCreated();
+        $this->pay($token, $r, ['amount' => 150, 'payment_date' => '2026-10-02'])->assertCreated();
+
+        $this->assertSame(2, TemporaryReplacementPayment::query()->count());
+        $this->assertNull($r->fresh()->approved_at, 'the payment workflow is unchanged: it neither needs nor gives an approval');
+    }
+
     public function test_a_payer_without_payroll_visibility_still_records_the_calculation_but_is_not_shown_it(): void
     {
         $hr = $this->tokenWithOnly(['hr.view', 'hr.manage']);

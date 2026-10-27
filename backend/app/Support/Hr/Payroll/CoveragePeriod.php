@@ -17,8 +17,9 @@ use RuntimeException;
  *   - It is bounded by the covered assignment's own dates and by `$through` (never later than today in the business calendar: nothing is
  *     charged or paid in advance).
  *   - Verified attendance days play no part: the individually recorded workdays remain a record of attendance and never shrink the period.
- *   - A day is never counted twice for one position: when another cover of the same assignment overlaps, the day belongs to the cover that
- *     started first (then the lower id) and is reported as an overlap here.
+ *   - A day is never counted twice for one position, and never paid twice to one person: when another cover of the same assignment, or another
+ *     cover of the same Temporary employee, overlaps, the day belongs to the cover that started first (then the lower id) and is reported as an
+ *     overlap here.
  *   - The salary is the covered Permanent's monthly salary in effect ON THAT DAY (a change splits a month by its effective date).
  *
  * Every date here is a plain calendar date (UTC midnight): the business day is Mogadishu's, but no instant in another zone is ever compared
@@ -134,8 +135,10 @@ final class CoveragePeriod
             return ['days' => $days, 'with' => $with];
         }
 
+        // Two safeguards, both inherited from the attendance ledger's unique indexes: a position-day is charged once (another cover of the SAME covered
+        // assignment) and a person-day is paid once (another cover of the SAME Temporary employee, on any assignment).
         $others = TemporaryReplacement::query()
-            ->where('work_assignment_id', $replacement->work_assignment_id)
+            ->where(fn ($q) => $q->where('work_assignment_id', $replacement->work_assignment_id)->orWhere('replacement_employee_id', $replacement->replacement_employee_id))
             ->where('id', '!=', $replacement->id)
             ->get()
             ->filter(fn (TemporaryReplacement $o): bool => $o->start_date->lt($replacement->start_date) || ($o->start_date->equalTo($replacement->start_date) && $o->id < $replacement->id));

@@ -500,6 +500,8 @@ class PermanentSuccessionTest extends TestCase
         $this->assertSame('2026-11-10', $new->start_date->toDateString(), 'a later effective date is not backdated');
         $this->assertSame([], $this->payrollLine($token, '2026-10', $temp->fresh()), 'no line for the new Permanent before the effective date');
         $this->assertSame('210.00', $this->payrollLine($token, '2026-11', $temp->fresh())['gross']);
+        // The gap (1-9 November) is paid to nobody: the former Permanent has no line in November and the successor starts on the 10th.
+        $this->assertSame([], $this->payrollLine($token, '2026-11', $permanent));
 
         // The former Permanent still carries the cover's cost in October, and the cover and the history are intact.
         $this->assertSame('ended', $cover->fresh()->status->value);
@@ -560,5 +562,80 @@ class PermanentSuccessionTest extends TestCase
         $this->withToken($super)->postJson($this->stopUrl($a), ['end_date' => '2026-09-10', 'reason' => 'Left', 'correction_reason' => 'Appointed with effect from 11 September', 'successor' => $body])->assertOk();
         $this->assertSame('permanent', $temp->fresh()->employment_type);
         $this->assertSame('2026-09-11', EmployeeWorkAssignment::query()->where('employee_id', $temp->id)->sole()->start_date->toDateString());
+    }
+
+    /** @return array<int, array<string, mixed>> gross, net and deductions of every line of the month, by employee */
+    private function payrollItems(string $token, string $period): array
+    {
+        $runId = $this->withToken($token)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => $period])->assertCreated()->json('data.id');
+        $items = [];
+
+        foreach ($this->withToken($token)->getJson("/api/v1/admin/hr/payroll-runs/{$runId}")->json('data.items') as $item) {
+            $items[$item['employee_id']] = ['gross' => $item['gross'], 'net' => $item['net'], 'deductions' => array_map(fn (array $d): array => [$d['kind'], $d['amount']], $item['deductions'])];
+        }
+
+        ksort($items);
+
+        return $items;
+    }
+
+    public function test_converting_a_temporary_does_not_change_what_was_calculated_for_earlier_months(): void
+    {
+        [, $token] = $this->superAdminToken();
+        [, $a] = $this->position(300);
+        $temp = $this->makeEmployee('active', 'temporary');
+        $this->cover($a, $temp, '2026-09-01')->update(['approved_at' => now()]);
+
+        $before = $this->payrollItems($token, '2026-09');
+        $this->stop($token, $a, '2026-10-09', $this->temporaryChoice($temp) + ['effective_date' => '2026-10-10'])->assertOk();
+
+        // The employee record now says Permanent, yet September is calculated exactly as before: the cover cost is still deducted from the former
+        // Permanent and the new Permanent (assignment from 10 October) has no line in September.
+        $this->assertSame('permanent', $temp->fresh()->employment_type);
+        $this->assertSame($before, $this->payrollItems($token, '2026-09'));
+        $this->assertSame([['replacement', '300.00']], $before[$a->employee_id]['deductions']);
+        $this->assertArrayNotHasKey($temp->id, $before);
+        $this->assertArrayNotHasKey($temp->id, $this->payrollItems($token, '2026-09'));
+    }
+
+    public function test_replace_employee_still_accepts_any_active_employee(): void
+    {
+        [, $token] = $this->superAdminToken();
+        [, $a] = $this->position(300);
+        [, $b] = $this->position(300);
+        // Neither is a Temporary who covered the position nor on the Waiting List: Replace Employee names its own successor and is not limited to N1's two kinds.
+        $first = $this->makeEmployee('active', 'permanent');
+        $second = $this->makeEmployee('active', 'permanent');
+
+        $this->withToken($token)->postJson("/api/v1/admin/hr/client-companies/{$a->client_company_id}/employees/{$a->id}/replace", [
+            'replacement_employee_id' => $first->id, 'replacement_date' => '2026-10-16', 'assignment_type' => 'permanent',
+            'salary_amount' => 280, 'salary_currency' => 'USD', 'salary_frequency' => 'monthly',
+        ])->assertOk();
+        $this->withToken($token)->postJson("/api/v1/admin/hr/client-companies/{$b->client_company_id}/employees/{$b->id}/replace", [
+            'replacement_employee_id' => $second->id, 'replacement_date' => '2026-10-16', 'assignment_type' => 'replacement',
+        ])->assertOk();
+
+        $this->assertSame($a->id, EmployeeWorkAssignment::query()->where('employee_id', $first->id)->sole()->replaces_assignment_id);
+        $this->assertSame($b->id, EmployeeWorkAssignment::query()->where('employee_id', $second->id)->sole()->replaces_assignment_id);
+        $this->assertSame(0, AssignmentSuccession::query()->count(), 'Replace Employee records its own successor, not an N1 choice');
+    }
+
+    public function test_permanent_to_temporary_has_no_approved_rule_so_the_current_behaviour_is_only_recorded(): void
+    {
+        // U1 is UNRESOLVED (docs/HR_PAYROLL_RULES.md 5.2). This pins what the system does today so that any future rule is a deliberate change.
+        [$admin, $token] = $this->superAdminToken();
+        [$permanent, $a] = $this->position(300);
+
+        $this->withToken($token)->putJson("/api/v1/admin/hr/employees/{$permanent->id}", ['employment_type' => 'temporary'])->assertOk();
+
+        $this->assertSame('temporary', $permanent->fresh()->employment_type);
+        $this->assertSame(['active', null], [$a->fresh()->status->value, $a->fresh()->end_date?->toDateString()], 'the open assignment is not touched');
+        $audit = json_decode(DB::table('audit_logs')->where('entity_type', Employee::class)->where('entity_id', $permanent->id)->where('description', 'like', '%updated%')->orderByDesc('id')->value('metadata'), true);
+        $this->assertSame(['from' => 'permanent', 'to' => 'temporary'], $audit['employment_type']);
+
+        // Consequence: payroll skips the person's own assignment with a warning, so the pay line disappears.
+        $run = $this->withToken($token)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-09'])->assertCreated();
+        $this->assertSame(0, $run->json('data.item_count'));
+        $this->assertStringContainsString('Temporary employee', implode(' ', $run->json('data.warnings')));
     }
 }

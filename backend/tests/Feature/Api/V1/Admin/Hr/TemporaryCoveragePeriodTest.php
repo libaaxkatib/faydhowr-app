@@ -44,10 +44,10 @@ class TemporaryCoveragePeriodTest extends TestCase
         return [$permanent, $this->makeAssignment($permanent, $this->makeCompany(fake()->unique()->company()), null, $dollars, '2026-01-01')];
     }
 
-    private function cover(EmployeeWorkAssignment $a, string $start, ?string $end, bool $approved = true): TemporaryReplacement
+    private function cover(EmployeeWorkAssignment $a, string $start, ?string $end, bool $approved = true, ?Employee $temp = null): TemporaryReplacement
     {
         return TemporaryReplacement::query()->create([
-            'work_assignment_id' => $a->id, 'replacement_employee_id' => $this->makeEmployee('active', 'temporary')->id,
+            'work_assignment_id' => $a->id, 'replacement_employee_id' => ($temp ?? $this->makeEmployee('active', 'temporary'))->id,
             'start_date' => $start, 'end_date' => $end, 'currency' => 'USD', 'status' => $end === null ? 'active' : 'ended', 'approved_at' => $approved ? now() : null,
         ]);
     }
@@ -189,6 +189,65 @@ class TemporaryCoveragePeriodTest extends TestCase
         // Regenerating the draft does not duplicate the deduction.
         $this->payrollLine($token, '2026-09', $permanent);
         $this->assertSame(1, PayrollItemDeduction::query()->where('kind', 'replacement')->where('source_id', $pending->id)->count());
+    }
+
+    public function test_a_temporary_is_paid_once_for_a_day_even_when_two_positions_overlap(): void
+    {
+        [, $token] = $this->superAdminToken();
+        [$permanentA, $a] = $this->position(600);
+        [$permanentB, $b] = $this->position(600);
+        $temp = $this->makeEmployee('active', 'temporary');
+        $first = $this->cover($a, '2026-09-21', '2026-09-30', true, $temp);
+        $second = $this->cover($b, '2026-09-26', '2026-10-03', true, $temp);
+
+        // The same person cannot be paid twice for 26-30 September: those days belong to the cover that started first.
+        $this->expected($token, $first)->assertOk()->assertJsonPath('data.counted_days', 10)->assertJsonPath('data.overlap.days', 0);
+        $response = $this->expected($token, $second)->assertOk();
+        $response->assertJsonPath('data.counted_days', 3)->assertJsonPath('data.overlap.days', 5)->assertJsonPath('data.overlap.with', [$first->id]);
+        $this->assertContains('OVERLAPPING_COVER', array_column($response->json('data.warnings'), 'code'));
+        $this->assertSame('200.00', $this->replacementDeduction($this->payrollLine($token, '2026-09', $permanentA)));
+        $this->assertNull(collect($this->payrollLine($token, '2026-09', $permanentB)['deductions'])->firstWhere('kind', 'replacement'), 'the second position is not charged for days the person was paid for elsewhere');
+    }
+
+    public function test_rounding_is_done_once_per_month_from_the_exact_fraction_never_per_day(): void
+    {
+        [, $token] = $this->superAdminToken();
+        [$permanent, $a] = $this->position(100);
+        $r = $this->cover($a, '2026-10-01', '2026-10-10');
+
+        // 100.00 x 10 / 31 = 32.2580...: 32.26 once. Rounding each day first (3.23 x 10) would give 32.30.
+        $this->expected($token, $r)->assertOk()->assertJsonPath('data.expected', '32.26');
+        $this->assertSame('32.26', $this->replacementDeduction($this->payrollLine($token, '2026-10', $permanent)));
+    }
+
+    public function test_what_the_temporaries_are_paid_equals_what_is_deducted_from_the_permanent_to_the_cent(): void
+    {
+        [, $token] = $this->superAdminToken();
+        [$permanent, $a] = $this->position(100);
+        $covers = [$this->cover($a, '2026-10-01', '2026-10-10'), $this->cover($a, '2026-10-11', '2026-10-20'), $this->cover($a, '2026-10-21', '2026-10-30')];
+
+        $entitlements = array_map(fn (TemporaryReplacement $c): string => $this->expected($token, $c)->assertOk()->json('data.expected'), $covers);
+        $line = $this->payrollLine($token, '2026-10', $permanent);
+        $deductions = collect($line['deductions'])->where('kind', 'replacement')->pluck('amount')->all();
+
+        // Each cover is rounded once (32.26 each); the figures paid and the figures deducted are the same, so no cent is created or lost between them.
+        $this->assertSame(['32.26', '32.26', '32.26'], $entitlements);
+        $this->assertSame($entitlements, array_map('strval', $deductions));
+        $this->assertEqualsWithDelta(96.78, array_sum(array_map('floatval', $deductions)), 0.0001);
+    }
+
+    public function test_an_overlap_is_visible_in_the_deduction_audit_detail(): void
+    {
+        [, $token] = $this->superAdminToken();
+        [$permanent, $a] = $this->position(310);
+        $this->cover($a, '2026-09-21', '2026-09-30');
+        $this->cover($a, '2026-09-26', '2026-10-03');
+
+        // In October only the second cover has days (the first ended on 30 September), so it is the one replacement deduction of the month.
+        $deduction = collect($this->payrollLine($token, '2026-10', $permanent)['deductions'])->firstWhere('kind', 'replacement');
+        $this->assertSame(3, $deduction['detail']['covered_days'], 'October holds only the second cover\'s own days (1-3 October)');
+        $this->assertSame(5, $deduction['detail']['coverage']['overlap_days'], 'the five days owned by the earlier cover are recorded');
+        $this->assertSame('2026-10-03', $deduction['detail']['coverage']['actual_end_date']);
     }
 
     public function test_the_coverage_and_the_calculation_are_kept_for_audit(): void
