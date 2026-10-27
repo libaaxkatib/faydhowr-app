@@ -6,6 +6,9 @@ export type IconName =
   | 'bell'
   | 'mail'
   | 'expand'
+  | 'sun'
+  | 'moon'
+  | 'monitor'
   | 'chevron-down'
   | 'chevron-right'
   | 'chevron-left'
@@ -103,6 +106,34 @@ export function Icon({ name, size = 18, ...rest }: IconProps) {
           <polyline points="15,3 21,3 21,9" />
           <polyline points="3,15 3,21 9,21" />
           <polyline points="21,15 21,21 15,21" />
+        </svg>
+      );
+    case 'sun':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="4" />
+          <line x1="12" y1="2.5" x2="12" y2="4.5" />
+          <line x1="12" y1="19.5" x2="12" y2="21.5" />
+          <line x1="2.5" y1="12" x2="4.5" y2="12" />
+          <line x1="19.5" y1="12" x2="21.5" y2="12" />
+          <line x1="5.3" y1="5.3" x2="6.7" y2="6.7" />
+          <line x1="17.3" y1="17.3" x2="18.7" y2="18.7" />
+          <line x1="5.3" y1="18.7" x2="6.7" y2="17.3" />
+          <line x1="17.3" y1="6.7" x2="18.7" y2="5.3" />
+        </svg>
+      );
+    case 'moon':
+      return (
+        <svg {...common}>
+          <path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.8 6.8 0 0 0 9.7 9.7Z" />
+        </svg>
+      );
+    case 'monitor':
+      return (
+        <svg {...common}>
+          <rect x="3" y="4" width="18" height="12" rx="2" />
+          <line x1="8" y1="20" x2="16" y2="20" />
+          <line x1="12" y1="16" x2="12" y2="20" />
         </svg>
       );
     case 'chevron-down':

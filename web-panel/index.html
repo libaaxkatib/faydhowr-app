@@ -22,6 +22,30 @@
         document.documentElement.setAttribute('lang', lang);
       })();
     </script>
+    <script>
+      /* Applies the saved colour theme before the page is painted, so a reload never flashes the wrong theme.
+         Same rules as src/theme/theme.ts (a unit test runs this exact script and compares the two). */
+      (function () {
+        var mode = 'light';
+        try {
+          var stored = window.localStorage.getItem('fayadhowr.ui.theme');
+          if (stored === 'light' || stored === 'dark' || stored === 'system') mode = stored;
+        } catch (e) {}
+        var dark = mode === 'dark';
+        if (mode === 'system') {
+          try {
+            dark = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+          } catch (e) {
+            dark = false;
+          }
+        }
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      })();
+    </script>
+    <style>
+      /* Until the stylesheet is applied (development builds inject it from JavaScript), the dark theme must not start on a white page. */
+      html[data-theme='dark'] { background-color: #0b1220; color-scheme: dark; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

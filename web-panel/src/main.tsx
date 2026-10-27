@@ -7,6 +7,7 @@ import { queryClient } from '@/app/queryClient';
 import { AuthProvider } from '@/features/auth/AuthProvider';
 import { ToastProvider } from '@/components/ui/Toast';
 import { I18nProvider } from '@/i18n/I18nProvider';
+import { ThemeProvider } from '@/theme/ThemeProvider';
 import App from '@/App';
 
 import '@/index.css';
@@ -22,15 +23,17 @@ const router = createBrowserRouter([
   {
     path: '*',
     element: (
-      <I18nProvider>
-        <QueryClientProvider client={queryClient}>
-          <ToastProvider>
-            <AuthProvider>
-              <App />
-            </AuthProvider>
-          </ToastProvider>
-        </QueryClientProvider>
-      </I18nProvider>
+      <ThemeProvider>
+        <I18nProvider>
+          <QueryClientProvider client={queryClient}>
+            <ToastProvider>
+              <AuthProvider>
+                <App />
+              </AuthProvider>
+            </ToastProvider>
+          </QueryClientProvider>
+        </I18nProvider>
+      </ThemeProvider>
     ),
   },
 ]);

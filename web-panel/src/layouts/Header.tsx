@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { Icon } from '@/components/ui/Icon';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { useAuth } from '@/features/auth/useAuth';
 import { ChangePasswordDialog } from '@/features/auth/ChangePasswordDialog';
 import { useI18n } from '@/i18n/useI18n';
@@ -47,6 +48,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
       <div className="ml-auto flex items-center gap-1">
         <LanguageSwitcher className="mr-1" />
+        <ThemeToggle className="mr-1" />
         <button
           type="button"
           title={t('warning.common.notificationsNotWired')}

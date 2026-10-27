@@ -2,8 +2,11 @@ import logoSrc from '@/assets/logo.png';
 
 interface LogoProps {
   className?: string;
-  /** Renders a light wordmark for use on the dark sidebar background. */
-  variant?: 'default' | 'inverted';
+  /**
+   * 'inverted': the white wordmark for the always-dark sidebar. 'auto': the normal full-colour logo in Light Mode and the same white wordmark in
+   * Dark Mode, for the one place the logo sits on a background that changes with the theme (the sign-in page). The asset itself is never changed.
+   */
+  variant?: 'default' | 'inverted' | 'auto';
 }
 
 /**
@@ -18,7 +21,7 @@ export function Logo({ className = 'h-8 w-auto', variant = 'default' }: LogoProp
     <img
       src={logoSrc}
       alt="Fayadhowr"
-      className={`${className} ${variant === 'inverted' ? 'brightness-0 invert' : ''}`}
+      className={`${className} ${variant === 'inverted' ? 'brightness-0 invert' : ''} ${variant === 'auto' ? 'logo-auto' : ''}`}
     />
   );
 }

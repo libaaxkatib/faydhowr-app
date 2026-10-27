@@ -5,6 +5,7 @@ import { useAuth } from '@/features/auth/useAuth';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/Button';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { useI18n } from '@/i18n/useI18n';
 import { describeLoginFailure } from '@/utils/loginError';
 
@@ -35,12 +36,13 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-muted px-4">
-      <div className="fixed right-4 top-4 z-10">
+      <div className="fixed right-4 top-4 z-10 flex items-center gap-2">
         <LanguageSwitcher />
+        <ThemeToggle />
       </div>
       <div className="w-full max-w-[400px]">
         <div className="mb-8 flex flex-col items-center gap-3">
-          <Logo className="h-10 w-auto" />
+          <Logo className="h-10 w-auto" variant="auto" />
           <p className="text-sm text-ink-muted">{t('option.shell.signInTitle')}</p>
         </div>
 

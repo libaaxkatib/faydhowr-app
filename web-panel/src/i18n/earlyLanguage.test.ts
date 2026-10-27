@@ -12,9 +12,10 @@ import { LANGUAGE_STORAGE_KEY, LANG_ATTRIBUTE, parseLanguage } from './language.
  */
 
 const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
-const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+// index.html carries one early script per preference (language and colour theme); this file looks at the language one.
+const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]).filter((script) => script.includes(LANGUAGE_STORAGE_KEY));
 
-test('index.html still has exactly one inline script, before the app bundle, and it reads the language key', () => {
+test('index.html has exactly one inline language script, before the app bundle, and it reads the language key', () => {
   assert.equal(scripts.length, 1);
   assert.ok(html.indexOf('<script>') < html.indexOf('type="module"'));
   assert.ok(scripts[0].includes(LANGUAGE_STORAGE_KEY), 'reads the same storage key as the app');

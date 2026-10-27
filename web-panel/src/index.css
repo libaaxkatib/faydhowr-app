@@ -3,6 +3,128 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * Colour themes. Every colour in the panel is a variable holding space-separated RGB channels (so Tailwind's opacity utilities such as
+   * bg-primary/20 still work); tailwind.config.ts maps the semantic names (primary, surface, ink, border, success, ...) onto them.
+   *
+   * Light (the default) is exactly the approved brand palette that was previously written in tailwind.config.ts. Dark is applied by
+   * <html data-theme="dark"> (set by the theme controller and, before first paint, by the script in index.html).
+   *
+   * A colour used as TEXT has its own "-text" variable: a link or label needs a lighter value on a dark surface than the same colour has as a
+   * button fill. "ink" as a background is the modal scrim and the grey chart bars, so those have their own "-overlay"/"-fill" variables.
+   *
+   * The pairs that matter are checked by src/theme/themeTokens.test.ts (contrast, both themes defined, Light unchanged).
+   */
+  :root {
+    color-scheme: light;
+
+    --color-primary: 14 51 155; /* #0E339B */
+    --color-primary-ink: 10 38 120; /* #0A2678 */
+    --color-primary-soft: 231 236 249; /* #E7ECF9 */
+    --color-primary-text: 14 51 155; /* #0E339B */
+
+    --color-secondary: 0 185 179; /* #00B9B3 */
+    --color-secondary-soft: 224 247 245; /* #E0F7F5 */
+    --color-secondary-text: 0 185 179; /* #00B9B3 */
+
+    --color-surface: 255 255 255; /* #FFFFFF */
+    --color-surface-muted: 247 249 252; /* #F7F9FC */
+    --color-surface-alt: 238 242 249; /* #EEF2F9 */
+
+    --color-ink-text: 31 41 55; /* #1F2937 */
+    --color-ink-muted-text: 107 114 128; /* #6B7280 */
+    --color-ink-faint-text: 148 163 184; /* #94A3B8 */
+    --color-ink-overlay: 31 41 55; /* #1F2937 */
+    --color-ink-muted-fill: 107 114 128; /* #6B7280 */
+    --color-ink-faint-fill: 148 163 184; /* #94A3B8 */
+
+    --color-border: 229 231 235; /* #E5E7EB */
+
+    --color-success: 23 138 76; /* #178A4C */
+    --color-success-soft: 225 246 234; /* #E1F6EA */
+    --color-success-text: 23 138 76; /* #178A4C */
+    --color-warning: 181 115 11; /* #B5730B */
+    --color-warning-soft: 252 240 218; /* #FCF0DA */
+    --color-warning-text: 181 115 11; /* #B5730B */
+    --color-danger: 195 50 50; /* #C33232 */
+    --color-danger-soft: 251 230 230; /* #FBE6E6 */
+    --color-danger-text: 195 50 50; /* #C33232 */
+
+    --color-sidebar: 10 27 63; /* #0A1B3F */
+    --color-sidebar-hover: 19 40 92; /* #13285C */
+
+    --color-focus: 14 51 155; /* keyboard focus ring: the brand blue */
+    --shadow-card: 0 1px 2px rgba(20, 30, 60, 0.04), 0 8px 24px -12px rgba(20, 30, 60, 0.12);
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+
+    --color-primary: 53 87 206; /* #3557CE  white text on it 6.2:1; white at 80% (the filter-chip counts) 4.6:1 */
+    --color-primary-ink: 45 77 184; /* #2D4DB8 */
+    --color-primary-soft: 26 42 92; /* #1A2A5C */
+    --color-primary-text: 157 180 255; /* #9DB4FF */
+
+    --color-secondary: 0 127 121; /* #007F79 */
+    --color-secondary-soft: 14 59 60; /* #0E3B3C */
+    --color-secondary-text: 61 218 211; /* #3DDAD3 */
+
+    --color-surface: 17 26 46; /* #111A2E  cards, dialogs, header */
+    --color-surface-muted: 11 18 32; /* #0B1220  the page behind the cards */
+    --color-surface-alt: 27 39 68; /* #1B2744  hover and banded rows */
+
+    --color-ink-text: 230 234 243; /* #E6EAF3 */
+    --color-ink-muted-text: 168 179 201; /* #A8B3C9 */
+    --color-ink-faint-text: 140 153 178; /* #8C99B2 */
+    --color-ink-overlay: 0 0 0; /* the scrim behind dialogs */
+    --color-ink-muted-fill: 100 116 139; /* #64748B */
+    --color-ink-faint-fill: 85 96 121; /* #556079 */
+
+    --color-border: 51 67 106; /* #33436A */
+
+    --color-success: 23 130 74; /* #17824A */
+    --color-success-soft: 16 56 42; /* #10382A */
+    --color-success-text: 82 214 138; /* #52D68A */
+    --color-warning: 178 106 0; /* #B26A00 */
+    --color-warning-soft: 58 42 12; /* #3A2A0C */
+    --color-warning-text: 245 188 85; /* #F5BC55 */
+    --color-danger: 200 59 59; /* #C83B3B */
+    --color-danger-soft: 62 28 33; /* #3E1C21 */
+    --color-danger-text: 255 154 154; /* #FF9A9A */
+
+    --color-sidebar: 6 12 27; /* #060C1B */
+    --color-sidebar-hover: 15 27 58; /* #0F1B3A */
+
+    --color-focus: 157 180 255; /* #9DB4FF */
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Keyboard focus: a visible ring on anything focusable that does not already draw its own (:where keeps this rule weaker than any utility class). */
+  :where(a, button, summary, [role='button'], [role='radio'], [tabindex]):focus-visible {
+    outline: 2px solid rgb(var(--color-focus));
+    outline-offset: 2px;
+  }
+
+  /* The logo's dark blue (82% of its pixels) is 1.65:1 against the Dark page, so on a theme-dependent background it uses the same white wordmark
+     as the dark sidebar. Dark Mode only; the asset is untouched and Light Mode is unchanged. */
+  :root[data-theme='dark'] .logo-auto {
+    filter: brightness(0) invert(1);
+  }
+
+  /* Dark Mode only: Tailwind's default placeholder grey (#9ca3af) is tuned for white fields. Light keeps it unchanged. */
+  :root[data-theme='dark'] ::placeholder {
+    color: rgb(var(--color-ink-faint-text));
+  }
+
+  /* Dark Mode only: Chrome paints autofilled fields a pale yellow/blue that is unreadable on a dark surface. */
+  :root[data-theme='dark'] input:-webkit-autofill,
+  :root[data-theme='dark'] textarea:-webkit-autofill,
+  :root[data-theme='dark'] select:-webkit-autofill {
+    -webkit-text-fill-color: rgb(var(--color-ink-text));
+    box-shadow: 0 0 0 1000px rgb(var(--color-surface)) inset;
+    caret-color: rgb(var(--color-ink-text));
+  }
+
   html {
     font-family: 'Public Sans', system-ui, sans-serif;
   }

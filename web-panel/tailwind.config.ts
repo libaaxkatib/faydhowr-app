@@ -1,40 +1,65 @@
 import type { Config } from 'tailwindcss';
 
+/**
+ * A colour that is a CSS variable (`--color-<name>`, space-separated RGB channels) so the Light and Dark themes can switch it, while Tailwind's
+ * opacity utilities (`bg-primary/20`, `border-danger/40`) keep working. The values live in src/index.css: the Light values are exactly the
+ * approved brand colours that used to be written here (Issue #11: Primary #0E339B, Secondary #00B9B3, White #FFFFFF).
+ */
+const color = (name: string) => `rgb(var(--color-${name}) / <alpha-value>)`;
+
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // Fills, borders, rings and every other non-text use of a colour.
       colors: {
-        // Approved Fayadhowr brand colors (Issue #11): Primary #0E339B, Secondary
-        // #00B9B3, White #FFFFFF (already matched by surface.DEFAULT below).
         primary: {
-          DEFAULT: '#0E339B',
-          ink: '#0A2678',
-          soft: '#E7ECF9',
+          DEFAULT: color('primary'),
+          ink: color('primary-ink'),
+          soft: color('primary-soft'),
         },
         secondary: {
-          DEFAULT: '#00B9B3',
-          soft: '#E0F7F5',
+          DEFAULT: color('secondary'),
+          soft: color('secondary-soft'),
         },
         surface: {
-          DEFAULT: '#FFFFFF',
-          muted: '#F7F9FC',
-          alt: '#EEF2F9',
+          DEFAULT: color('surface'),
+          muted: color('surface-muted'),
+          alt: color('surface-alt'),
         },
+        // "ink" is the text colour, but as a background it is the modal scrim and the grey chart bars - those must not turn light in Dark Mode.
         ink: {
-          DEFAULT: '#1F2937',
-          muted: '#6B7280',
-          faint: '#94A3B8',
+          DEFAULT: color('ink-overlay'),
+          muted: color('ink-muted-fill'),
+          faint: color('ink-faint-fill'),
         },
         border: {
-          DEFAULT: '#E5E7EB',
+          DEFAULT: color('border'),
         },
-        success: { DEFAULT: '#178A4C', soft: '#E1F6EA' },
-        warning: { DEFAULT: '#B5730B', soft: '#FCF0DA' },
-        danger: { DEFAULT: '#C33232', soft: '#FBE6E6' },
+        success: { DEFAULT: color('success'), soft: color('success-soft') },
+        warning: { DEFAULT: color('warning'), soft: color('warning-soft') },
+        danger: { DEFAULT: color('danger'), soft: color('danger-soft') },
         sidebar: {
-          DEFAULT: '#0A1B3F',
-          hover: '#13285C',
+          DEFAULT: color('sidebar'),
+          hover: color('sidebar-hover'),
+        },
+      },
+      // A bare `border` / `divide-y` (no colour class) used to fall back to Tailwind's grey #e5e7eb, which is exactly the Light border token.
+      borderColor: {
+        DEFAULT: color('border'),
+      },
+      // The same names used as TEXT (text-primary, text-ink-muted, text-danger ...). A link or a label needs a lighter value on a dark surface
+      // than the fill of a button, so text has its own variables; nothing in a page has to choose between them.
+      textColor: {
+        primary: { DEFAULT: color('primary-text') },
+        secondary: { DEFAULT: color('secondary-text') },
+        success: { DEFAULT: color('success-text') },
+        warning: { DEFAULT: color('warning-text') },
+        danger: { DEFAULT: color('danger-text') },
+        ink: {
+          DEFAULT: color('ink-text'),
+          muted: color('ink-muted-text'),
+          faint: color('ink-faint-text'),
         },
       },
       fontFamily: {
@@ -47,7 +72,7 @@ export default {
         lg: '16px',
       },
       boxShadow: {
-        card: '0 1px 2px rgba(20,30,60,.04), 0 8px 24px -12px rgba(20,30,60,.12)',
+        card: 'var(--shadow-card)',
       },
     },
   },
