@@ -6,7 +6,7 @@ import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/Button';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { useI18n } from '@/i18n/useI18n';
-import { ApiClientError } from '@/api/client';
+import { describeLoginFailure } from '@/utils/loginError';
 
 export function LoginPage() {
   const { login, isLoggingIn, status } = useAuth();
@@ -14,7 +14,9 @@ export function LoginPage() {
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // The failure itself, not its text: the message is worked out on every render so that it follows the language when it is switched.
+  const [failure, setFailure] = useState<unknown>(null);
+  const error = failure === null ? null : describeLoginFailure(failure);
 
   if (status === 'authenticated') {
     const redirectTo = (location.state as { from?: Location })?.from?.pathname ?? '/dashboard';
@@ -23,19 +25,11 @@ export function LoginPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setError(null);
+    setFailure(null);
     try {
       await login({ email, password });
     } catch (err) {
-      if (err instanceof ApiClientError) {
-        if (err.isValidation && err.fieldErrors) {
-          setError(Object.values(err.fieldErrors).flat()[0] ?? err.message);
-        } else {
-          setError(err.message);
-        }
-      } else {
-        setError(t('notify.shell.somethingWrongTryAgain'));
-      }
+      setFailure(err);
     }
   }
 

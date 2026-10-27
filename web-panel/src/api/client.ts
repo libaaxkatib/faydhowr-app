@@ -1,7 +1,9 @@
-import { tNow } from '../i18n/active.ts';
+import { getActiveLanguage, tNow } from '../i18n/active.ts';
+import { localizeFieldErrors, localizeServerMessage } from '../i18n/serverMessages.ts';
 import type { ApiErrorEnvelope, ApiSuccessEnvelope } from '@/types/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// `?.`: Node's test runner has no Vite `import.meta.env`; the browser build always has it.
+const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL;
 const TOKEN_STORAGE_KEY = 'fayadhowr.admin.token';
 
 export function getStoredToken(): string | null {
@@ -34,14 +36,24 @@ export function setStoredToken(token: string | null): void {
 export class ApiClientError extends Error {
   readonly status: number;
   readonly code?: string;
-  readonly fieldErrors?: Record<string, string[]>;
+  /** What the server sent, untouched (the screens read `message` and `fieldErrors`, which follow the language chosen right now). */
+  readonly rawMessage: string;
+  readonly rawFieldErrors?: Record<string, string[]>;
 
   constructor(status: number, message: string, code?: string, fieldErrors?: Record<string, string[]>) {
     super(message);
     this.name = 'ApiClientError';
     this.status = status;
     this.code = code;
-    this.fieldErrors = fieldErrors;
+    this.rawMessage = message;
+    this.rawFieldErrors = fieldErrors;
+    // A getter, not a copy made now: an error that is still on screen when the language is switched shows the new language on the next render.
+    Object.defineProperty(this, 'message', { configurable: true, enumerable: false, get: () => localizeServerMessage(getActiveLanguage(), this.rawMessage) });
+  }
+
+  /** The validation messages, in the chosen language when the catalogue knows the sentence and as the server wrote them otherwise. */
+  get fieldErrors(): Record<string, string[]> | undefined {
+    return localizeFieldErrors(getActiveLanguage(), this.rawFieldErrors);
   }
 
   /** 401 = not authenticated (missing/expired token). Distinct from 403 = authenticated but forbidden. */

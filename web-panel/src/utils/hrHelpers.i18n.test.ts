@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { setActiveLanguage } from '../i18n/active.ts';
 import { CATALOGUE } from '../i18n/messages/index.ts';
+import { ApiClientError } from '../api/client.ts';
 import { SOMALI_WORDING_CODES, additionalCompanyQuestion, assignmentLabel, friendlyErrorMessage } from './hrHelpers.ts';
 
 const ALL_ERROR_KEYS = Object.keys(CATALOGUE).filter((key) => /^notify\.error\.[A-Z_]+$/.test(key));
@@ -78,4 +79,14 @@ test('the Fayadhowr Office is shown in the language of the screen', () => {
   } finally {
     setActiveLanguage('en');
   }
+});
+
+test('a validation failure shows its first field message in the chosen language (the generic "given data was invalid" is never shown instead)', () => {
+  const failure = () =>
+    new ApiClientError(422, 'The given data was invalid.', 'VALIDATION_ERROR', { phone: ['The phone field is required.'], full_name: ['The full name field is required.'] });
+  setActiveLanguage('en');
+  assert.equal(friendlyErrorMessage(failure(), 'fallback'), 'The phone field is required.');
+  setActiveLanguage('so');
+  assert.equal(friendlyErrorMessage(failure(), 'fallback'), 'Taleefan waa loo baahan yahay.');
+  setActiveLanguage('en');
 });

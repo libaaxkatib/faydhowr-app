@@ -51,6 +51,7 @@ test('every Somali text differs from its English, except the listed names and ac
     'status.system.role.super_admin', 'status.system.role.hr_manager', 'status.system.role.marketing_manager', 'status.system.role.mobile_app_manager',
     'option.system.settingsCategory.smtp', 'option.system.settingField.company.facebook', 'option.system.settingField.company.instagram',
     'option.system.settingField.company.whatsapp', 'option.system.permissionGroup.hr', 'option.system.permissionGroup.marketing',
+    'validation.field.facebook', 'validation.field.instagram', 'validation.field.whatsapp',
   ]);
   const identical = Object.entries(CATALOGUE).filter(([key, entry]) => entry.so.trim() === entry.en.trim() && !sameInBoth.has(key));
   assert.deepEqual(identical.map(([key]) => key), []);
