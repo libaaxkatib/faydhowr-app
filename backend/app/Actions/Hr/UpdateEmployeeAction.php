@@ -8,11 +8,13 @@ use App\Models\Admin;
 use App\Models\Employee;
 use App\Support\ApiResponse;
 use App\Support\Hr\EmployeeDuplicateFinder;
+use App\Support\Hr\EmploymentTypeChange;
 use App\Support\Hr\Payroll\OpenPayrollNames;
 use App\Support\Hr\Payroll\PaymentNumber;
 use App\Support\Hr\UnresolvedTemporaryReplacements;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Edits an employee. Setting a phone / alternate phone that already belongs to
@@ -71,7 +73,16 @@ class UpdateEmployeeAction
             ? UnresolvedTemporaryReplacements::query()->where('employee_id', $employee->id)->get()
             : collect();
 
-        $employee->update($attributes);
+        // Permanent -> Temporary is refused while the person still holds an Active assignment (their pay line would vanish); the check and the save
+        // happen under one lock so an assignment created at the same moment cannot slip in between.
+        DB::transaction(function () use ($employee, $attributes): void {
+            if (array_key_exists('employment_type', $attributes)) {
+                Employee::query()->whereKey($employee->id)->lockForUpdate()->first();
+                EmploymentTypeChange::assertAllowed($employee, (string) $attributes['employment_type']);
+            }
+
+            $employee->update($attributes);
+        });
 
         // A corrected name follows the lines of payroll runs that are still open (draft/reviewed); closed months keep the name they were approved with.
         $renamed = $employee->wasChanged('full_name');

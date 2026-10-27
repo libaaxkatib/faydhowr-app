@@ -135,6 +135,7 @@ class MonthlyPaymentReportBuilder
                 'adjustment_cents' => 0,
                 'net_cents' => 0,
                 'line_count' => 0,
+                'paid_cents' => 0,
                 'payment_statuses' => [],
                 'company_missing' => false,
                 'payment' => $employee !== null ? PaymentNumber::resolve($employee) : ['number' => null, 'label' => PaymentNumber::LABEL_MISSING, 'from_phone' => false, 'needs_review' => false],
@@ -151,6 +152,8 @@ class MonthlyPaymentReportBuilder
             $row['net_cents'] += (int) $line['net_cents'];
             $row['line_count']++;
             $row['payment_statuses'][] = $paymentStatusByAssignment[$line['work_assignment_id']] ?? null;
+            // What has been paid of this line: only a line marked paid in a finalized run counts (see finishRow).
+            $row['paid_cents'] += ($paymentStatusByAssignment[$line['work_assignment_id']] ?? null) === 'paid' ? (int) $line['net_cents'] : 0;
             $row['company_missing'] = $row['company_missing'] || $companyName === self::CATEGORY_UNASSIGNED;
             $rows[$key] = $row;
 
@@ -269,6 +272,7 @@ class MonthlyPaymentReportBuilder
 
             $rows[] = [
                 'row_type' => 'temporary',
+                'type' => 'Temporary',
                 'employee_id' => $temporary->id,
                 'employee_number' => $temporary->employee_number,
                 'employee_name' => $temporary->full_name,
@@ -461,8 +465,14 @@ class MonthlyPaymentReportBuilder
             $flags[] = self::FLAG_MULTIPLE;
         }
 
+        // "Paid to date" is only a recorded fact once the run is finalized; before that it is not known, and is reported as such (null), never as 0.
+        $recorded = $view['source'] === PayrollPeriodView::SOURCE_STORED && $view['run_status'] === PayrollRun::STATUS_FINALIZED;
+
         return [
             'row_type' => 'permanent',
+            'type' => 'Permanent',
+            'paid_cents' => $recorded ? $row['paid_cents'] : null,
+            'balance_cents' => $recorded ? $row['net_cents'] - $row['paid_cents'] : null,
             'employee_id' => $row['employee_id'],
             'employee_number' => $row['employee_number'],
             'employee_name' => $row['employee_name'],

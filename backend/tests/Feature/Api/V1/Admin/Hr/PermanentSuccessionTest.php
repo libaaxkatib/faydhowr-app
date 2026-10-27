@@ -619,23 +619,4 @@ class PermanentSuccessionTest extends TestCase
         $this->assertSame($b->id, EmployeeWorkAssignment::query()->where('employee_id', $second->id)->sole()->replaces_assignment_id);
         $this->assertSame(0, AssignmentSuccession::query()->count(), 'Replace Employee records its own successor, not an N1 choice');
     }
-
-    public function test_permanent_to_temporary_has_no_approved_rule_so_the_current_behaviour_is_only_recorded(): void
-    {
-        // U1 is UNRESOLVED (docs/HR_PAYROLL_RULES.md 5.2). This pins what the system does today so that any future rule is a deliberate change.
-        [$admin, $token] = $this->superAdminToken();
-        [$permanent, $a] = $this->position(300);
-
-        $this->withToken($token)->putJson("/api/v1/admin/hr/employees/{$permanent->id}", ['employment_type' => 'temporary'])->assertOk();
-
-        $this->assertSame('temporary', $permanent->fresh()->employment_type);
-        $this->assertSame(['active', null], [$a->fresh()->status->value, $a->fresh()->end_date?->toDateString()], 'the open assignment is not touched');
-        $audit = json_decode(DB::table('audit_logs')->where('entity_type', Employee::class)->where('entity_id', $permanent->id)->where('description', 'like', '%updated%')->orderByDesc('id')->value('metadata'), true);
-        $this->assertSame(['from' => 'permanent', 'to' => 'temporary'], $audit['employment_type']);
-
-        // Consequence: payroll skips the person's own assignment with a warning, so the pay line disappears.
-        $run = $this->withToken($token)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-09'])->assertCreated();
-        $this->assertSame(0, $run->json('data.item_count'));
-        $this->assertStringContainsString('Temporary employee', implode(' ', $run->json('data.warnings')));
-    }
 }

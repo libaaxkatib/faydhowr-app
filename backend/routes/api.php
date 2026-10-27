@@ -1627,6 +1627,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.inspections.manage', 
 Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.view', 'permission:hr.manage', 'throttle:admin-operations'])->group(function (): void {
     Route::get('v1/admin/hr/reports/monthly-payment-list', [AdminMonthlyPaymentReportController::class, 'download'])
         ->name('api.v1.admin.hr.reports.monthly-payment-list');
+    // The Companies and Guryo that exist, for the download's filter (same permissions as the download itself).
+    Route::get('v1/admin/hr/reports/monthly-payment-list/filters', [AdminMonthlyPaymentReportController::class, 'filters'])
+        ->name('api.v1.admin.hr.reports.monthly-payment-list.filters');
 });
 
 Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.approve', 'throttle:admin-operations'])->group(function (): void {

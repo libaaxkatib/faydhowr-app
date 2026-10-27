@@ -397,4 +397,37 @@ class TemporaryCoverConflictTest extends TestCase
             ->assertStatus(422)->assertJsonPath('error_code', 'TEMPORARY_COVER_OVERLAPS_EMPLOYEE');
         $this->assertSame('night', $nightPosition->fresh()->shift->value);
     }
+
+    public function test_editing_the_dates_of_the_persons_own_assignment_cannot_make_it_overlap_their_cover(): void
+    {
+        [, $token] = $this->superAdminToken();
+        [, $dayPosition] = $this->position('day');
+        [, $nightPosition] = $this->position('night');
+        [$temp, $own] = $this->temporaryWithOwnAssignment('day', '2026-01-01', '2026-09-09');
+        $this->saved($token, $dayPosition, $temp, '2026-09-10', '2026-09-20');
+
+        // Stretching the earlier day assignment into the cover days puts one person on two day shifts at once: refused, nothing saved.
+        $this->withToken($token)->putJson("/api/v1/admin/hr/work-assignments/{$own->id}", ['end_date' => '2026-09-12'])
+            ->assertStatus(422)->assertJsonPath('error_code', 'TEMPORARY_EMPLOYEE_HAS_OVERLAPPING_ASSIGNMENT');
+        $this->assertSame('2026-09-09', $own->fresh()->end_date->toDateString());
+
+        // The same stretch is fine when the assignment is on the other shift, and a plain note edit never conflicts with itself.
+        $own->update(['shift' => 'night']);
+        $this->withToken($token)->putJson("/api/v1/admin/hr/work-assignments/{$own->id}", ['end_date' => '2026-09-12', 'notes' => 'moved'])->assertOk();
+        $this->assertSame('2026-09-12', $own->fresh()->end_date->toDateString());
+        $this->assertNotNull($nightPosition);
+    }
+
+    public function test_submitting_the_same_cover_twice_saves_it_once(): void
+    {
+        [, $token] = $this->superAdminToken();
+        [, $position] = $this->position('day');
+        $temp = $this->temporary();
+
+        // The second request finds the first one saved (the position and the person are locked while checking and saving).
+        $this->create($token, $position, $temp, '2026-09-10', '2026-09-20')->assertCreated();
+        $this->create($token, $position, $temp, '2026-09-10', '2026-09-20')->assertStatus(422)->assertJsonPath('error_code', 'TEMPORARY_COVER_OVERLAPS_POSITION');
+
+        $this->assertSame(1, TemporaryReplacement::query()->count());
+    }
 }

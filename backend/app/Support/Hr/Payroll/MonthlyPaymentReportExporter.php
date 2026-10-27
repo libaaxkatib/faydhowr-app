@@ -10,8 +10,8 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
- * Writes the MonthlyPaymentReportBuilder result as an Excel file: a Summary sheet, an Employees sheet
- * (filters on, header frozen) and a "Not in payroll" sheet. Text is always written as text (names or
+ * Writes the MonthlyPaymentReportBuilder result as an Excel file: a Summary sheet, the "Payment list" sheet (the ten approved columns, the sheet
+ * HR pays from), the full "Employees" detail sheet (filters on, header frozen) and a "Not in payroll" sheet. Text is always written as text (names or
  * payment numbers starting with "=", "+" or "0" are never treated as formulas or numbers); money is
  * written as real numbers so Excel can total and filter it. Missing data is spelled out, never blank.
  *
@@ -31,7 +31,17 @@ final class MonthlyPaymentReportExporter
         'Row type', 'Linked employee', 'Cover period', 'Paid to date (USD)', 'Balance (USD)',
     ];
 
+    /**
+     * The "Payment list" sheet: exactly these ten columns, in this order (owner decision 2026-10-27). NUMBER is the payment destination number
+     * (PaymentNumber::resolve: the recorded payment/account number, else the registration phone), never an employee id.
+     */
+    public const PAYMENT_LIST_HEADERS = [
+        'Employee', 'NUMBER', 'COMPANY OR GURI', 'Type', 'Pay amount', 'Row type', 'Linked employee', 'Cover period', 'Paid to date', 'Balance',
+    ];
+
     private const MONEY_FORMAT = '#,##0.00';
+
+    private const DOLLAR_FORMAT = '"$"#,##0.00';
 
     private const MISSING_FILL = 'FFF2CC';
 
@@ -47,9 +57,11 @@ final class MonthlyPaymentReportExporter
         $spreadsheet = new Spreadsheet;
 
         $this->summarySheet($spreadsheet->getActiveSheet(), $report);
+        $this->paymentListSheet($spreadsheet->createSheet(), $report);
         $this->detailSheet($spreadsheet->createSheet(), $report);
         $this->notInPayrollSheet($spreadsheet->createSheet(), $report);
-        $spreadsheet->setActiveSheetIndex(0);
+        // The workbook opens on the payment list: that is the sheet people pay from.
+        $spreadsheet->setActiveSheetIndex(1);
 
         IOFactory::createWriter($spreadsheet, 'Xlsx')->save($path);
     }
@@ -61,9 +73,9 @@ final class MonthlyPaymentReportExporter
         $ws->setTitle('Summary');
         $this->text($ws, 'A1', 'Monthly employee payment report'.($s['company_filter'] ? ' - '.($report['company_name'] ?? 'one company') : ''));
         $ws->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-        if ($s['company_filter']) {
-            $this->text($ws, 'A2', "Company list: only this company's employees and its own lines are included; the total below is this company's total.");
-        }
+        $this->text($ws, 'A2', $s['company_filter']
+            ? ($report['filter_label'] ?? 'One company').": only this record's employees and its own lines are included; the total below is its total."
+            : 'Filter: all companies and guryo.');
 
         $facts = [
             ['Reporting month', $report['period']],
@@ -177,6 +189,126 @@ final class MonthlyPaymentReportExporter
         $ws->getColumnDimension('D')->setWidth(22);
         $ws->getColumnDimension('F')->setWidth(60);
         $ws->getStyle('F'.($first - 1))->getAlignment()->setWrapText(true)->setVertical(Alignment::VERTICAL_TOP);
+    }
+
+    /**
+     * The ten-column payment list. One row per payment: a Permanent employee's payroll line, and - directly beneath the Permanent they covered - one
+     * row per Temporary cover with days in the month. Money is numeric. A missing NUMBER stays blank (and highlighted); "Paid to date" / "Balance" of a
+     * Permanent line say "Not recorded" until the payroll month is finalized, because nothing is recorded as paid before that.
+     *
+     * @param  array<string, mixed>  $report
+     */
+    private function paymentListSheet(Worksheet $ws, array $report): void
+    {
+        $s = $report['summary'];
+        $ws->setTitle('Payment list');
+        $this->text($ws, 'A1', "Payment list - {$report['period']} (USD)".(($report['filter_label'] ?? null) !== null ? ' - '.$report['filter_label'] : '').($report['is_estimate'] ? ' - ESTIMATE' : ''));
+        $ws->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $this->text($ws, 'A2', "A Temporary worker's row sits directly beneath the Permanent employee they covered. NUMBER is the number the salary is sent to. Permanent and Temporary totals are separate.");
+        $this->header($ws, 4, self::PAYMENT_LIST_HEADERS);
+
+        $rowNumber = 5;
+        $missingNumbers = 0;
+
+        foreach ($report['rows'] as $r) {
+            $temporary = ($r['row_type'] ?? 'permanent') === 'temporary';
+
+            $this->text($ws, "A{$rowNumber}", ($temporary ? "\u{21B3} " : '').(string) $r['employee_name']);
+
+            if ($r['payment_account'] === null) {
+                // Left blank on purpose (never an employee id, never invented); highlighted so HR follows it up.
+                $ws->setCellValueExplicit("B{$rowNumber}", '', DataType::TYPE_STRING);
+                $this->fill($ws, "B{$rowNumber}", self::MISSING_FILL);
+                $missingNumbers++;
+            } else {
+                $this->text($ws, "B{$rowNumber}", (string) $r['payment_account']);
+            }
+
+            $this->text($ws, "C{$rowNumber}", (string) $r['company']);
+            $this->text($ws, "D{$rowNumber}", (string) $r['type']);
+            $this->dollars($ws, "E{$rowNumber}", $this->usd($r['net_cents']));
+            $this->text($ws, "F{$rowNumber}", $temporary ? 'Temporary' : 'Permanent');
+            $this->text($ws, "G{$rowNumber}", $temporary ? (string) $r['linked_employee_name'] : "\u{2014}");
+            $this->text($ws, "H{$rowNumber}", $temporary ? $this->coverPeriod($r['cover_from'], $r['cover_through'], (bool) $r['cover_open_ended']) : "\u{2014}");
+
+            if ($r['paid_cents'] === null || $r['balance_cents'] === null) {
+                $this->text($ws, "I{$rowNumber}", 'Not recorded');
+                $this->text($ws, "J{$rowNumber}", 'Not recorded');
+            } else {
+                $this->dollars($ws, "I{$rowNumber}", $this->usd($r['paid_cents']));
+                $this->dollars($ws, "J{$rowNumber}", $this->usd($r['balance_cents']));
+            }
+
+            if ($temporary) {
+                $this->fill($ws, "A{$rowNumber}:J{$rowNumber}", self::TEMPORARY_FILL);
+                $ws->getStyle("A{$rowNumber}")->getAlignment()->setIndent(1);
+
+                if ($r['payment_account'] === null) {
+                    $this->fill($ws, "B{$rowNumber}", self::MISSING_FILL);
+                }
+            }
+
+            $rowNumber++;
+        }
+
+        $last = max($rowNumber - 1, 4);
+
+        if ($rowNumber === 5) {
+            $this->text($ws, 'A5', 'No payments for this month.');
+            $last = 5;
+        }
+
+        $ws->setAutoFilter("A4:J{$last}");
+        $ws->freezePane('A5');
+
+        // Separate totals, written below the table: the Permanent employees' pay, the Temporary workers' pay, and the two together.
+        $totalRow = $last + 2;
+        $totals = [
+            [$s['company_filter'] ? 'Permanent employees total (this record)' : 'Permanent employees total', $s['total_net_cents']],
+            ['Temporary workers total (not included in the Permanent total)', $s['temporary_total_cents'] ?? 0],
+            ['Combined total', $s['total_with_temporary_cents'] ?? $s['total_net_cents']],
+        ];
+        foreach ($totals as [$label, $cents]) {
+            $this->text($ws, "A{$totalRow}", $label);
+            $this->dollars($ws, "E{$totalRow}", $this->usd($cents));
+            $ws->getStyle("A{$totalRow}:E{$totalRow}")->getFont()->setBold(true);
+            $totalRow++;
+        }
+
+        if ($missingNumbers > 0) {
+            $totalRow++;
+            $this->text($ws, "A{$totalRow}", "{$missingNumbers} row(s) have no payment number (the NUMBER cell is highlighted and left blank). Add the number to the employee's record before paying; see the sheet \"Employees\", column Data checks.");
+            $this->fill($ws, "A{$totalRow}", self::MISSING_FILL);
+        }
+
+        foreach (['A' => 34, 'B' => 20, 'C' => 32, 'D' => 12, 'E' => 16, 'F' => 12, 'G' => 28, 'H' => 22, 'I' => 16, 'J' => 16] as $col => $width) {
+            $ws->getColumnDimension($col)->setWidth($width);
+        }
+    }
+
+    /** "Oct 1-10", "Sep 28-Oct 3", "Dec 28, 2026-Jan 3, 2027"; an open cover ends in "ongoing". */
+    private function coverPeriod(string $from, ?string $through, bool $open): string
+    {
+        $start = new \DateTimeImmutable($from);
+        $dash = "\u{2013}";
+
+        if ($open || $through === null) {
+            return $start->format('M j').$dash.'ongoing';
+        }
+
+        $end = new \DateTimeImmutable($through);
+
+        return match (true) {
+            $start->format('Y') !== $end->format('Y') => $start->format('M j, Y').$dash.$end->format('M j, Y'),
+            $start->format('n') === $end->format('n') => $start->format('M j').$dash.$end->format('j'),
+            default => $start->format('M j').$dash.$end->format('M j'),
+        };
+    }
+
+    private function dollars(Worksheet $ws, string $cell, float $value): void
+    {
+        $ws->setCellValueExplicit($cell, $value, DataType::TYPE_NUMERIC);
+        $ws->getStyle($cell)->getNumberFormat()->setFormatCode(self::DOLLAR_FORMAT);
     }
 
     /** @param  array<string, mixed>  $report */

@@ -19,6 +19,7 @@ use App\Models\PayrollItemDeduction;
 use App\Models\PayrollRecoveryDeduction;
 use App\Models\TemporaryReplacement;
 use App\Support\Hr\AssignmentChain;
+use App\Support\Hr\EmploymentTypeChange;
 use App\Support\Hr\PositionSuccession;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -75,7 +76,8 @@ class PayrollRunCalculator
                 continue;
             }
 
-            if ($employee->employment_type === 'temporary') {
+            // An assignment held as a Permanent until the person was changed to Temporary (after it had ended) is still a Permanent payroll line.
+            if ($employee->employment_type === 'temporary' && ! EmploymentTypeChange::wasHeldAsPermanent($employee, $assignment)) {
                 $warnings[] = $assignment->assignment_type === AssignmentType::Replacement
                     ? "UNRESOLVED: assignment #{$assignment->id} registers Temporary worker {$employee->employee_number} as a Replacement. No payroll line was calculated for these days; correct the classification before payroll is calculated."
                     : "Assignment #{$assignment->id} belongs to a Temporary employee ({$employee->employee_number}); Temporary pay is the replacement cost deducted from the covered Permanent employee, so no payroll line was created.";
@@ -296,7 +298,7 @@ class PayrollRunCalculator
             foreach ($chain->sortBy([['start_date', 'asc'], ['id', 'asc']]) as $member) {
                 $member->loadMissing('employee');
 
-                if ($member->employee === null || $member->employee->trashed() || $member->employee->employment_type === 'temporary') {
+                if ($member->employee === null || $member->employee->trashed() || ($member->employee->employment_type === 'temporary' && ! EmploymentTypeChange::wasHeldAsPermanent($member->employee, $member))) {
                     continue;
                 }
 

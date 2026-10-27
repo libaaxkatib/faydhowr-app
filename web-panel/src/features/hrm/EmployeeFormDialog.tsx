@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
 import { duplicateMatchesFromError, friendlyErrorMessage } from '@/utils/hrHelpers';
 import { recruitmentCategories } from '@/utils/employeeCategories';
+import { TYPE_CHANGE_BLOCKED_ENGLISH, TYPE_CHANGE_BLOCKED_SOMALI, isBlockedTypeChange, typeChangeBlockFromError } from '@/utils/employmentTypeChange';
 import type {
   CreateEmployeePayload,
   DuplicateEmployeeMatch,
@@ -81,6 +82,8 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
   const [acceptMismatch, setAcceptMismatch] = useState(false);
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [duplicateReason, setDuplicateReason] = useState('');
+  // The server refused Permanent -> Temporary because an assignment is still active (its Somali message).
+  const [typeChangeRefusal, setTypeChangeRefusal] = useState<string | null>(null);
   const checkSequence = useRef(0);
   const duplicatePanelRef = useRef<HTMLDivElement>(null);
 
@@ -90,6 +93,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
 
   useEffect(() => {
     if (isOpen) {
+      setTypeChangeRefusal(null);
       setFieldErrors({});
       setLiveMatches([]);
       setServerMatches([]);
@@ -162,6 +166,10 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
     setConfirmDuplicate(false);
     setDuplicateReason('');
   }
+
+  // Warn before sending: a Permanent employee with an active assignment cannot be switched to Temporary (the server enforces it too).
+  const typeChangeBlocked = mode === 'edit' && isBlockedTypeChange(employee?.employment_type, form.employment_type, employee?.active_work_assignments?.length ?? 0);
+  const typeChangeMessage = typeChangeBlocked ? TYPE_CHANGE_BLOCKED_SOMALI : form.employment_type === 'temporary' ? typeChangeRefusal : null;
 
   const phoneMatches = serverMatches.length > 0 ? serverMatches : liveMatches.filter((match) => match.matched_on.includes('phone'));
   const nameOnlyMatches = liveMatches.filter((match) => !match.matched_on.includes('phone'));
@@ -242,8 +250,12 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
       onClose();
     },
     onError: (error) => {
-      const duplicates = duplicateMatchesFromError(error);
-      if (duplicates) {
+      const typeRefusal = typeChangeBlockFromError(error);
+      const duplicates = typeRefusal ? null : duplicateMatchesFromError(error);
+      if (typeRefusal) {
+        setTypeChangeRefusal(typeRefusal);
+        setFieldErrors({});
+      } else if (duplicates) {
         // Same phone as an existing person: stop and ask HR to confirm this is someone different.
         setServerMatches(duplicates as DuplicateEmployeeMatch[]);
         setConfirmDuplicate(false);
@@ -259,7 +271,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (duplicateConfirmationMissing) return;
+    if (duplicateConfirmationMissing || typeChangeBlocked) return;
     mutation.mutate();
   }
 
@@ -274,7 +286,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
       footer={
         <>
           <ModalCancelButton disabled={mutation.isPending} />
-          <Button size="sm" onClick={handleSubmit} isLoading={mutation.isPending} disabled={duplicateConfirmationMissing}>
+          <Button size="sm" onClick={handleSubmit} isLoading={mutation.isPending} disabled={duplicateConfirmationMissing || typeChangeBlocked}>
             {needsDuplicateConfirmation
               ? mode === 'create'
                 ? 'Register as a different person'
@@ -533,11 +545,20 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
             <Select
               id="employment_type"
               value={form.employment_type}
-              onChange={(e) => setForm({ ...form, employment_type: e.target.value as EmploymentType })}
+              onChange={(e) => {
+                setTypeChangeRefusal(null);
+                setForm({ ...form, employment_type: e.target.value as EmploymentType });
+              }}
               options={EMPLOYMENT_TYPE_OPTIONS}
             />
           </FormField>
         </div>
+        {typeChangeMessage && (
+          <div role="alert" data-testid="type-change-blocked" className="mb-3 rounded-sm bg-danger-soft px-3 py-2 text-xs text-ink">
+            <p lang="so" className="font-semibold text-danger">{typeChangeMessage}</p>
+            <p className="mt-1 text-ink-muted">{TYPE_CHANGE_BLOCKED_ENGLISH}</p>
+          </div>
+        )}
 
         <FormField label="Notes" htmlFor="notes" error={fieldErrors.notes?.[0]}>
           <textarea id="notes" rows={2} className={inputClasses + ' h-auto py-2'} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />

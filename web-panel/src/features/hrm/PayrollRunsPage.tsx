@@ -22,6 +22,7 @@ import { friendlyErrorMessage, localMonth, localToday, nextMonth } from '@/utils
 import { PayrollCorrectionsPanel } from '@/features/hrm/PayrollCorrectionsPanel';
 import { useAuth } from '@/features/auth/useAuth';
 import { canVoidPayrollPayment, validateWriteOffReason } from '@/utils/payrollCorrections';
+import { SCOPE_LABELS, buttonLabel, canDownload, emptyOptionsMessage, optionsFor, selectedOption, type PaymentListScope } from '@/utils/paymentListFilter';
 import type {
   PayrollAdjustmentKind,
   PayrollDeductionDetail,
@@ -172,12 +173,16 @@ export function PayrollRunsPage() {
     onError: (err) => show(friendlyErrorMessage(err, 'Could not reopen the payroll.'), 'error'),
   });
 
-  const [listCompanyId, setListCompanyId] = useState('');
-  const { data: listCompanies } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list, enabled: canDownloadPaymentList });
-  const listCompany = (listCompanies ?? []).find((company) => String(company.id) === listCompanyId);
+  // The payment list: all records, ONE company or ONE guri, chosen from the records that really exist.
+  const [listScope, setListScope] = useState<PaymentListScope>('all');
+  const [listRecordId, setListRecordId] = useState('');
+  const { data: listFilters } = useQuery({ queryKey: ['payment-list-filters'], queryFn: hrApi.payrollRuns.paymentListFilters, enabled: canDownloadPaymentList });
+  const listRecords = optionsFor(listScope, listFilters);
+  const listSelected = selectedOption(listScope, listRecordId, listFilters);
+  const listEmptyMessage = emptyOptionsMessage(listScope, listFilters);
 
   const paymentListMutation = useMutation({
-    mutationFn: () => hrApi.payrollRuns.downloadPaymentList(period, listCompany ? { id: listCompany.id, name: listCompany.name } : undefined),
+    mutationFn: () => hrApi.payrollRuns.downloadPaymentList(period, listScope, listSelected),
     onError: (err) => show(friendlyErrorMessage(err, 'Could not download the payment list.'), 'error'),
   });
 
@@ -280,29 +285,49 @@ export function PayrollRunsPage() {
           )}
           {canDownloadPaymentList && (
             <div>
-              <label htmlFor="payment-list-company" className="mb-1 block text-xs font-medium text-ink-muted">Payment list for</label>
+              <label htmlFor="payment-list-scope" className="mb-1 block text-xs font-medium text-ink-muted">Payment list for</label>
               <select
-                id="payment-list-company"
-                value={listCompanyId}
-                onChange={(e) => setListCompanyId(e.target.value)}
+                id="payment-list-scope"
+                value={listScope}
+                onChange={(e) => {
+                  setListScope(e.target.value as PaymentListScope);
+                  setListRecordId('');
+                }}
                 className="h-9 max-w-[14rem] rounded-sm border border-border bg-surface px-2 text-sm"
               >
-                <option value="">All companies</option>
-                {(listCompanies ?? []).map((company) => (
-                  <option key={company.id} value={company.id}>{company.name}</option>
+                {(Object.keys(SCOPE_LABELS) as PaymentListScope[]).map((scope) => (
+                  <option key={scope} value={scope}>{SCOPE_LABELS[scope]}</option>
                 ))}
               </select>
+            </div>
+          )}
+          {canDownloadPaymentList && listScope !== 'all' && (
+            <div>
+              <label htmlFor="payment-list-record" className="mb-1 block text-xs font-medium text-ink-muted">{listScope === 'guri' ? 'Guri' : 'Company'}</label>
+              <select
+                id="payment-list-record"
+                value={listRecordId}
+                onChange={(e) => setListRecordId(e.target.value)}
+                disabled={listRecords.length === 0}
+                className="h-9 max-w-[14rem] rounded-sm border border-border bg-surface px-2 text-sm"
+              >
+                <option value="">{listRecords.length === 0 ? 'None available' : listScope === 'guri' ? 'Choose a guri…' : 'Choose a company…'}</option>
+                {listRecords.map((record) => (
+                  <option key={record.id} value={record.id}>{record.name}</option>
+                ))}
+              </select>
+              {listEmptyMessage && <p className="mt-1 text-xs text-ink-muted" data-testid="payment-list-empty">{listEmptyMessage}</p>}
             </div>
           )}
           {canDownloadPaymentList && (
             <Button
               variant="outline"
               isLoading={paymentListMutation.isPending}
-              disabled={!PERIOD_PATTERN.test(period)}
+              disabled={!PERIOD_PATTERN.test(period) || !canDownload(listScope, listRecordId, listFilters)}
               onClick={() => paymentListMutation.mutate()}
             >
               <Icon name="file-text" size={15} />
-              {listCompany ? `Download ${listCompany.name} list (Excel)` : 'Download payment list (Excel)'}
+              {buttonLabel(listScope, listSelected)}
             </Button>
           )}
           <p className="min-w-[14rem] flex-1 text-xs text-ink-muted">

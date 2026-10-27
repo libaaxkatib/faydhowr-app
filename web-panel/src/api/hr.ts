@@ -2,6 +2,7 @@ import { apiRequest, apiRequestWithMeta, downloadAuthenticatedFile } from '@/api
 import type { PageMeta } from '@/types/api';
 import type { OfficeStaffSummary } from '@/utils/officeStaff';
 import type { CoverConflict } from '@/utils/coverConflict';
+import { downloadQuery, fileName as paymentListFileName, type PaymentListFilterOptions, type PaymentListOption, type PaymentListScope } from '@/utils/paymentListFilter';
 import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollCorrectionsResponse, PayrollItem, PayrollRun } from '@/types/payroll';
 import type {
   AttendanceRosterEntry,
@@ -337,10 +338,13 @@ export const hrApi = {
     exportExcel: (run: Pick<PayrollRun, 'id' | 'period'>) =>
       downloadAuthenticatedFile(`admin/hr/payroll-runs/${run.id}/export`, `payroll-${run.period}.xlsx`),
     /** Excel list of who to pay for a month (needs hr.payroll.view + hr.manage). Read-only: pays nothing, creates no run. */
-    downloadPaymentList: (period: string, company?: { id: number; name: string }) =>
+    /** The Companies and Guryo that really exist, for the download's selectors (needs hr.payroll.view + hr.manage, like the download). */
+    paymentListFilters: () => apiRequest<PaymentListFilterOptions>('admin/hr/reports/monthly-payment-list/filters'),
+    /** All records, or ONE Company / ONE Guri named by id and kind; the server validates both. */
+    downloadPaymentList: (period: string, scope: PaymentListScope, selected: PaymentListOption | null) =>
       downloadAuthenticatedFile(
-        `admin/hr/reports/monthly-payment-list?period=${encodeURIComponent(period)}${company ? `&client_company_id=${company.id}` : ''}`,
-        company ? `payment-list-${period}-${company.name.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')}.xlsx` : `payment-list-${period}.xlsx`,
+        `admin/hr/reports/monthly-payment-list?${new URLSearchParams(downloadQuery(period, scope, selected ? String(selected.id) : '')).toString()}`,
+        paymentListFileName(period, selected),
       ),
     addAdjustment: (itemId: number, payload: CreatePayrollAdjustmentPayload) =>
       apiRequest<PayrollAdjustmentResult>(`admin/hr/payroll-items/${itemId}/adjustments`, { method: 'POST', body: payload }),

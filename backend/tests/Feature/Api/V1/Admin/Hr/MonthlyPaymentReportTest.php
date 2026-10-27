@@ -555,7 +555,9 @@ class MonthlyPaymentReportTest extends TestCase
 
         $book = $this->workbook($token, '2026-03');
 
-        $this->assertSame(['Summary', 'Employees', 'Not in payroll'], $book->getSheetNames());
+        $this->assertSame(['Summary', 'Payment list', 'Employees', 'Not in payroll'], $book->getSheetNames());
+        $this->assertSame('Payment list', $book->getActiveSheet()->getTitle(), 'the workbook opens on the ten-column payment list');
+        $this->assertSame('No payments for this month.', (string) $book->getSheetByName('Payment list')->getCell('A5')->getValue());
         $this->assertSame(0, $book->getSheetByName('Summary')->getCell('B6')->getValue());
         $this->assertNotNull($book->getSheetByName('Employees')->getAutoFilter()->getRange());
     }
