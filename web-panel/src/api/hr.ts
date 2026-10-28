@@ -2,7 +2,7 @@ import { apiRequest, apiRequestWithMeta, downloadAuthenticatedFile } from '@/api
 import type { PageMeta } from '@/types/api';
 import type { OfficeStaffSummary } from '@/utils/officeStaff';
 import type { CoverConflict } from '@/utils/coverConflict';
-import { downloadQuery, fileName as paymentListFileName, type PaymentListFilterOptions, type PaymentListOption, type PaymentListScope } from '@/utils/paymentListFilter';
+import { downloadQuery, fileName as paymentListFileName, type PaymentListFilterOptions, type PaymentListOption, type PaymentListPreview, type PaymentListScope } from '@/utils/paymentListFilter';
 import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollCorrectionsResponse, PayrollItem, PayrollRun } from '@/types/payroll';
 import type {
   AttendanceRosterEntry,
@@ -340,6 +340,9 @@ export const hrApi = {
     /** Excel list of who to pay for a month (needs hr.payroll.view + hr.manage). Read-only: pays nothing, creates no run. */
     /** The Companies and Guryo that really exist, for the download's selectors (needs hr.payroll.view + hr.manage, like the download). */
     paymentListFilters: () => apiRequest<PaymentListFilterOptions>('admin/hr/reports/monthly-payment-list/filters'),
+    /** Read-only totals of what the download for the same month and record would contain (same permissions; nothing is stored or audited). */
+    paymentListPreview: (period: string, scope: PaymentListScope, selected: PaymentListOption | null) =>
+      apiRequest<PaymentListPreview>('admin/hr/reports/monthly-payment-list/preview', { query: downloadQuery(period, scope, selected ? String(selected.id) : '') }),
     /** All records, or ONE Company / ONE Guri named by id and kind; the server validates both. */
     downloadPaymentList: (period: string, scope: PaymentListScope, selected: PaymentListOption | null) =>
       downloadAuthenticatedFile(

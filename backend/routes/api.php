@@ -1630,6 +1630,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.view', 'permi
     // The Companies and Guryo that exist, for the download's filter (same permissions as the download itself).
     Route::get('v1/admin/hr/reports/monthly-payment-list/filters', [AdminMonthlyPaymentReportController::class, 'filters'])
         ->name('api.v1.admin.hr.reports.monthly-payment-list.filters');
+    // Totals only (row count, Permanent / Temporary / combined, missing numbers) for the confirmation shown before the download; same permissions.
+    Route::get('v1/admin/hr/reports/monthly-payment-list/preview', [AdminMonthlyPaymentReportController::class, 'preview'])
+        ->name('api.v1.admin.hr.reports.monthly-payment-list.preview');
 });
 
 Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.approve', 'throttle:admin-operations'])->group(function (): void {

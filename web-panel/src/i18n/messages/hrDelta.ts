@@ -32,6 +32,33 @@ export const hrDelta = defineMessages({
   'option.payroll.noneAvailable': message('None available', 'Midna ma jiro'),
   'warning.payroll.noCompanyExists': message('No company exists yet, so there is nothing to choose.', 'Weli shirkad lama diiwaangelin, sidaas darteed wax la doorto ma jiro.'),
   'warning.payroll.noGuriExists': message('No guri exists yet, so there is nothing to choose.', 'Weli guri lama diiwaangelin, sidaas darteed wax la doorto ma jiro.'),
+
+  // ---- Monthly payment list: the read-only check shown before the Excel is downloaded for one company or guri
+  'confirm.payroll.listPreviewTitle': message('Check the payment list before downloading', 'Hubi liiska lacag-bixinta ka hor inta aanad soo dejin'),
+  'option.payroll.previewMonth': message('Payroll month', 'Bisha mushaharka'),
+  'option.payroll.previewRows': message('Payment-list rows', 'Safafka liiska lacag-bixinta'),
+  'option.payroll.previewPermanentTotal': message('Permanent total', 'Wadarta Joogtada'),
+  'option.payroll.previewTemporaryTotal': message('Temporary total', 'Wadarta Ku-meel-gaarka'),
+  'option.payroll.previewCombinedTotal': message('Combined total', 'Wadarta isku-darka'),
+  'option.payroll.previewMissingNumbers': message('Rows with no payment number', 'Safafka aan lahayn lambarka lacag-bixinta'),
+  'option.payroll.loadingPreview': message('Loading the preview…', 'Hordhaca waa la soo raraya…'),
+  'warning.payroll.previewOnly': message(
+    'This is a preview. Nothing has been paid, changed or downloaded yet.',
+    'Kani waa hordhac. Weli wax lacag ah lama bixin, wax lama beddelin, wax lamana soo dejin.',
+  ),
+  'warning.payroll.previewEstimate': message(
+    'Estimate: no approved payroll run exists for this month yet.',
+    'Qiyaas: weli ma jirto mushahar la ansixiyey oo bishan ah.',
+  ),
+  'warning.payroll.previewMissingNumbers': message(
+    'In the Excel file the NUMBER cell of these rows will be blank and highlighted. Add the number to the employee\'s record before paying.',
+    'Faylka Excel-ka, unugga NUMBER ee safafkan wuu madhan yahay oo waa la iftiimiyey. Ku dar lambarka diiwaanka shaqaalaha ka hor inta aan la bixin.',
+  ),
+  'warning.payroll.previewNoRecords': message(
+    '{name} has no payment records for {month}. There is nothing to download.',
+    '{name} ma laha diiwaanno lacag-bixin oo {month} ah. Wax la soo dejiyo ma jiro.',
+  ),
+  'notify.payroll.previewFailed': message('Could not load the preview. Nothing was downloaded.', 'Hordhaca lama soo rari karin. Waxba lama soo dejin.'),
   'action.payroll.downloadCompanyListNamed': message('Download company list: {name} (Excel)', 'Soo deji liiska shirkadda: {name} (Excel)'),
   'action.payroll.downloadGuriListNamed': message('Download guri list: {name} (Excel)', 'Soo deji liiska guriga: {name} (Excel)'),
 

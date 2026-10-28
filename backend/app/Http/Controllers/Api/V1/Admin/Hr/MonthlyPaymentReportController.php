@@ -10,6 +10,7 @@ use App\Models\ClientCompany;
 use App\Support\ApiResponse;
 use App\Support\Hr\Payroll\MonthlyPaymentReportBuilder;
 use App\Support\Hr\Payroll\MonthlyPaymentReportExporter;
+use App\Support\Hr\Payroll\PayrollMoney;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -38,14 +39,58 @@ class MonthlyPaymentReportController extends Controller
         return ApiResponse::success('Payment list filters retrieved successfully.', ['companies' => $map('company'), 'guryo' => $map('guri')]);
     }
 
-    public function download(MonthlyPaymentReportRequest $request, MonthlyPaymentReportBuilder $builder, MonthlyPaymentReportExporter $exporter): BinaryFileResponse|JsonResponse
+    /**
+     * What the download for the same month and selection would contain, as totals only: no employee, name or payment number is returned. It builds
+     * the report with the very same builder call as the download, so the row count and the three totals are those of the workbook's "Payment list"
+     * sheet. Read-only: nothing is stored and no audit entry is written (the audit entry belongs to the download itself).
+     */
+    public function preview(MonthlyPaymentReportRequest $request, MonthlyPaymentReportBuilder $builder): JsonResponse
     {
         $period = $request->validated('period');
+        [$report, $company, $kind] = $this->reportFor($request, $builder);
+
+        if ($company !== null && $report['rows'] === []) {
+            return ApiResponse::error("{$kind} '{$company->name}' has no payment records for {$period}.", 'NO_PAYMENT_RECORDS', 422);
+        }
+
+        $summary = $report['summary'];
+        $temporaryCount = (int) ($summary['temporary_cover_count'] ?? 0);
+
+        return ApiResponse::success('Payment list preview retrieved successfully.', [
+            'period' => $period,
+            'scope' => $company === null ? 'all' : strtolower($kind),
+            'record' => $company === null ? null : ['id' => $company->id, 'name' => $company->name, 'kind' => strtolower($kind)],
+            'is_estimate' => (bool) $report['is_estimate'],
+            'row_count' => count($report['rows']),
+            'permanent_count' => (int) $summary['employee_count'],
+            'temporary_count' => $temporaryCount,
+            'permanent_total' => PayrollMoney::format((int) $summary['total_net_cents']),
+            'temporary_total' => PayrollMoney::format((int) ($summary['temporary_total_cents'] ?? 0)),
+            'combined_total' => PayrollMoney::format((int) ($summary['total_with_temporary_cents'] ?? $summary['total_net_cents'])),
+            // The same rule as the workbook's blank, highlighted NUMBER cells (every row of the Payment list sheet, Temporary rows included).
+            'missing_payment_number_count' => count(array_filter($report['rows'], fn (array $row): bool => $row['payment_account'] === null)),
+            'currency' => 'USD',
+        ]);
+    }
+
+    /**
+     * @return array{0: array<string, mixed>, 1: ?ClientCompany, 2: ?string} the report, the selected record (null = all) and its kind label
+     */
+    private function reportFor(MonthlyPaymentReportRequest $request, MonthlyPaymentReportBuilder $builder): array
+    {
         $company = $request->filterCompanyId() !== null ? ClientCompany::query()->findOrFail($request->filterCompanyId()) : null;
-        $report = $builder->build($period, $company?->id);
+        $report = $builder->build($request->validated('period'), $company?->id);
         $report['company_name'] = $company?->name;
         $kind = $company === null ? null : (($company->category?->value ?? 'company') === 'guri' ? 'Guri' : 'Company');
         $report['filter_label'] = $company === null ? 'All companies and guryo' : "{$kind}: {$company->name}";
+
+        return [$report, $company, $kind];
+    }
+
+    public function download(MonthlyPaymentReportRequest $request, MonthlyPaymentReportBuilder $builder, MonthlyPaymentReportExporter $exporter): BinaryFileResponse|JsonResponse
+    {
+        $period = $request->validated('period');
+        [$report, $company, $kind] = $this->reportFor($request, $builder);
 
         // A list for one Company or Guri with nothing to pay says so, instead of handing over a workbook of zeros.
         if ($company !== null && $report['rows'] === []) {

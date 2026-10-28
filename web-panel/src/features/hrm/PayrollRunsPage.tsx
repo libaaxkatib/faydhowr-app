@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
@@ -26,7 +26,8 @@ import { friendlyErrorMessage, localMonth, localToday, nextMonth } from '@/utils
 import { PayrollCorrectionsPanel } from '@/features/hrm/PayrollCorrectionsPanel';
 import { useAuth } from '@/features/auth/useAuth';
 import { canVoidPayrollPayment, validateWriteOffReason } from '@/utils/payrollCorrections';
-import { PAYMENT_LIST_SCOPES, buttonLabel, canDownload, chooseRecordLabel, emptyOptionsMessage, optionsFor, recordFieldLabel, scopeLabel, selectedOption, type PaymentListScope } from '@/utils/paymentListFilter';
+import { PAYMENT_LIST_SCOPES, buttonLabel, canDownload, chooseRecordLabel, emptyOptionsMessage, needsPreview, optionsFor, recordFieldLabel, scopeLabel, selectedOption, type PaymentListScope } from '@/utils/paymentListFilter';
+import { PaymentListPreviewDialog } from '@/features/hrm/PaymentListPreviewDialog';
 import type {
   PayrollAdjustmentKind,
   PayrollDeductionDetail,
@@ -186,10 +187,24 @@ export function PayrollRunsPage() {
   const listSelected = selectedOption(listScope, listRecordId, listFilters);
   const listEmptyMessage = emptyOptionsMessage(listScope, listFilters);
 
+  // One company or guri is checked in a preview first; the person then confirms the download or cancels. "All" downloads directly, as before.
+  const [isListPreviewOpen, setIsListPreviewOpen] = useState(false);
+
+  // A ref, not the mutation's state: two clicks in the same instant both see "not pending" until the next render, and must still download once.
+  const paymentListLock = useRef(false);
   const paymentListMutation = useMutation({
     mutationFn: () => hrApi.payrollRuns.downloadPaymentList(period, listScope, listSelected),
+    onSuccess: () => setIsListPreviewOpen(false),
     onError: (err) => show(friendlyErrorMessage(err, t('notify.payroll.paymentListFailed')), 'error'),
+    onSettled: () => {
+      paymentListLock.current = false;
+    },
   });
+  const startPaymentListDownload = () => {
+    if (paymentListLock.current) return;
+    paymentListLock.current = true;
+    paymentListMutation.mutate();
+  };
 
   const exportMutation = useMutation({
     mutationFn: (target: PayrollRun) => hrApi.payrollRuns.exportExcel(target),
@@ -329,7 +344,7 @@ export function PayrollRunsPage() {
               variant="outline"
               isLoading={paymentListMutation.isPending}
               disabled={!PERIOD_PATTERN.test(period) || !canDownload(listScope, listRecordId, listFilters)}
-              onClick={() => paymentListMutation.mutate()}
+              onClick={() => (needsPreview(listScope) ? setIsListPreviewOpen(true) : startPaymentListDownload())}
             >
               <Icon name="file-text" size={15} />
               {buttonLabel(listScope, listSelected)}
@@ -343,6 +358,19 @@ export function PayrollRunsPage() {
           </p>
         </CardBody>
       </Card>
+
+      {canDownloadPaymentList && (
+        <PaymentListPreviewDialog
+          isOpen={isListPreviewOpen && needsPreview(listScope) && listSelected !== null}
+          period={period}
+          monthLabel={monthLabel(period)}
+          scope={listScope}
+          selected={listSelected}
+          isDownloading={paymentListMutation.isPending}
+          onClose={() => setIsListPreviewOpen(false)}
+          onConfirm={startPaymentListDownload}
+        />
+      )}
 
       {isLoading && <LoadingState label={t('option.payroll.loadingPayroll')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}

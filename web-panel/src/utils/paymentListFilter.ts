@@ -64,6 +64,30 @@ export function canDownload(scope: PaymentListScope, selectedId: string, options
   return optionsFor(scope, options).some((option) => String(option.id) === selectedId);
 }
 
+/**
+ * What the read-only preview (GET reports/monthly-payment-list/preview) returns: totals only, as the download would contain them. Amounts are
+ * decimal strings from the server ("406.45"), never calculated here.
+ */
+export interface PaymentListPreview {
+  period: string;
+  scope: PaymentListScope;
+  record: { id: number; name: string; kind: 'company' | 'guri' } | null;
+  is_estimate: boolean;
+  row_count: number;
+  permanent_count: number;
+  temporary_count: number;
+  permanent_total: string;
+  temporary_total: string;
+  combined_total: string;
+  missing_payment_number_count: number;
+  currency: string;
+}
+
+/** One company or one guri is checked before the download; "All" keeps downloading directly, as it always did. */
+export function needsPreview(scope: PaymentListScope): boolean {
+  return scope !== 'all';
+}
+
 /** The query sent to the server: the record is named by its id only (never by name). */
 export function downloadQuery(period: string, scope: PaymentListScope, selectedId: string): Record<string, string> {
   return scope === 'all' ? { period, scope: 'all' } : { period, scope, client_company_id: selectedId };
