@@ -9,6 +9,7 @@ import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/useToast';
 import { useI18n } from '@/i18n/useI18n';
+import { localizeServerMessage } from '@/i18n/serverMessages';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
 
 interface HrPolicy {
@@ -36,7 +37,7 @@ interface HrPoliciesResponse {
 export function MultiCompanyPolicyCard() {
   const queryClient = useQueryClient();
   const { show } = useToast();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -66,10 +67,10 @@ export function MultiCompanyPolicyCard() {
       <CardBody className="flex flex-wrap items-center justify-between gap-3">
         <div className="max-w-2xl">
           <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-            {policy.label}
+            {localizeServerMessage(language, policy.label)}
             <StatusBadge status={policy.enabled ? 'active' : 'inactive'} label={policy.enabled ? t('status.company.on') : t('status.company.off')} tone={policy.enabled ? 'warning' : 'neutral'} />
           </p>
-          <p className="text-xs text-ink-muted">{policy.description}</p>
+          <p className="text-xs text-ink-muted">{localizeServerMessage(language, policy.description)}</p>
           {policy.changed_by && <p className="mt-1 text-xs text-ink-faint">{t('option.company.lastChangedBy', { name: policy.changed_by })}{policy.reason ? ` — ${policy.reason}` : ''}</p>}
           {policy.enabled && (data?.employees_with_concurrent_assignments ?? 0) > 0 && (
             <p className="mt-1 text-xs text-ink-muted">{t('option.company.concurrentEmployees', { count: data?.employees_with_concurrent_assignments ?? 0 })}</p>

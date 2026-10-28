@@ -48,6 +48,8 @@ import { AdminUsersPage } from '@/features/system/AdminUsersPage';
 import { RolesPermissionsPage } from '@/features/system/RolesPermissionsPage';
 import { SettingsPage } from '@/features/system/SettingsPage';
 import { AuditLogPage } from '@/features/system/AuditLogPage';
+import { TranslationsPage } from '@/features/system/TranslationsPage';
+import { RequireSuperAdmin } from '@/features/auth/RequireSuperAdmin';
 import { ReconciliationListPage } from '@/features/system/ReconciliationListPage';
 import { ReconciliationDetailPage } from '@/features/system/ReconciliationDetailPage';
 import { PageState } from '@/components/ui/PageState';
@@ -212,6 +214,7 @@ export default function App() {
         <Route path="/system/admins" element={<RequirePermission permission="admins.manage"><AdminUsersPage /></RequirePermission>} />
         <Route path="/system/roles" element={<RequirePermission permission="roles.manage"><RolesPermissionsPage /></RequirePermission>} />
         <Route path="/system/settings" element={<RequirePermission permission="settings.view"><SettingsPage /></RequirePermission>} />
+        <Route path="/system/translations" element={<RequireSuperAdmin><TranslationsPage /></RequireSuperAdmin>} />
         <Route path="/system/audit-log" element={<RequirePermission permission="admins.manage"><AuditLogPage /></RequirePermission>} />
         <Route path="/system/data-issues" element={<RequirePermission permission="reconciliation.view"><ReconciliationListPage /></RequirePermission>} />
         <Route path="/system/data-issues/:id" element={<RequirePermission permission="reconciliation.view"><ReconciliationDetailPage /></RequirePermission>} />

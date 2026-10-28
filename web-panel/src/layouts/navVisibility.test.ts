@@ -116,7 +116,7 @@ test('Super Admin sees every group regardless of hasPermission', () => {
 test('every real (non-comingSoon) nav item declares the permission its own page requires', () => {
   for (const group of NAV_GROUPS) {
     for (const item of group.items) {
-      if (item.comingSoon) continue;
+      if (item.comingSoon || item.superAdminOnly) continue;
       assert.ok(
         typeof item.permission === 'string' && item.permission.length > 0,
         `"${item.label}" in "${group.label}" has no permission tag - it would be visible to every role`,
@@ -162,11 +162,22 @@ test('the sidebar lists Human Resources, Marketing, Mobile App Management, Syste
 
   // Only the order of the groups changed: every group still has all of its items and destinations.
   const sizes = Object.fromEntries(NAV_GROUPS.map((g) => [g.label, g.items.length]));
-  assert.deepEqual(sizes, { Marketing: 8, 'Human Resources': 37, 'Mobile App Management': 13, System: 5 });
-  assert.equal(new Set(NAV_GROUPS.flatMap((g) => g.items.map((i) => `${g.label}|${i.label}|${i.to}`))).size, 63);
+  assert.deepEqual(sizes, { Marketing: 8, 'Human Resources': 37, 'Mobile App Management': 13, System: 6 });
+  assert.equal(new Set(NAV_GROUPS.flatMap((g) => g.items.map((i) => `${g.label}|${i.label}|${i.to}`))).size, 64);
 
   // Permission visibility is unchanged: an HR Manager still sees only Human Resources, a Mobile App Manager only the Mobile App group.
   assert.deepEqual(groupLabels(permissionSetOf(['hr.view']), false), ['Human Resources']);
   assert.deepEqual(groupLabels(permissionSetOf(['customers.view']), false), ['Mobile App Management']);
   assert.deepEqual(groupLabels(permissionSetOf([]), true), labels);
+});
+
+test('the Translations page is listed for Super Admin only, whatever other permissions an admin holds', () => {
+  const system = NAV_GROUPS.find((group) => group.label === 'System')!;
+  const translations = system.items.find((item) => item.to === '/system/translations')!;
+  assert.ok(translations.superAdminOnly);
+
+  const everyPermission = (): boolean => true;
+  assert.equal(isItemRenderable(translations, everyPermission, false), false);
+  assert.equal(isItemRenderable(translations, permissionSetOf(['settings.view', 'admins.manage', 'roles.manage']), false), false);
+  assert.equal(isItemRenderable(translations, permissionSetOf([]), true), true);
 });

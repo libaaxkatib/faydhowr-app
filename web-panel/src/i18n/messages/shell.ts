@@ -34,6 +34,7 @@ export const shell = defineMessages({
   'nav.shell.adminUsers': message('Admin Users', 'Isticmaalayaasha Maamulka'),
   'nav.shell.rolesPermissions': message('Roles & Permissions', 'Doorarka & Ogolaanshaha'),
   'nav.shell.settings': message('Settings', 'Dejinta'),
+  'nav.shell.translations': message('Translations', 'Tarjumaadaha'),
   'nav.shell.auditLog': message('Audit Log', 'Diiwaanka Hubinta'),
   'nav.shell.dataIssues': message('Data Issues & Reconciliation', 'Dhibaatooyinka Xogta & Isku-waafajinta'),
 

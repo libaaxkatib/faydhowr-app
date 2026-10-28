@@ -216,4 +216,18 @@ export const serverErrors = defineMessages({
   'validation.field.override_reason': message('Override reason', 'Sababta beddelka'),
   'validation.field.duplicate_reason': message('Duplicate reason', 'Sababta labanlaabka'),
   'validation.field.cancellation_reason': message('Cancellation reason', 'Sababta joojinta'),
+
+  // Sentences the server puts in data fields (not errors), matched the same way and shown with localizeServerMessage.
+  'notify.server.payrollEstimateNote': message(
+    'Estimate: there is no approved or finalized payroll run for this month yet. These figures are calculated live with the same rules the payroll run uses and can change until the run is approved.',
+    'Qiyaas: bishan weli ma jiro mushahar la ansixiyey ama la dhammeeyey. Tirooyinkan waa la xisaabiyey isla markiiba iyadoo la adeegsanayo isla xeerarka mushaharka, waxayna isbeddeli karaan ilaa mushaharka la ansixiyo.',
+  ),
+  'notify.server.multiCompanyPolicyLabel': message(
+    'Allow one employee to work for more than one company',
+    'Ogolow shaqaale mid ah inuu u shaqeeyo in ka badan hal shirkad',
+  ),
+  'notify.server.multiCompanyPolicyDescription': message(
+    'Off: an employee can hold one assignment at a time. On: an employee may hold assignments at different companies at the same time; each keeps its own company, position, dates, salary and history.',
+    'Damisan: shaqaalaha wuxuu haysan karaa hal meelayn oo keliya markiiba. Shidan: shaqaalaha wuxuu isla mar haysan karaa meelayn shirkado kala duwan; mid walba waxay haysataa shirkaddeeda, jagadeeda, taariikhdeeda, mushaharkeeda iyo diiwaankeeda.',
+  ),
 });

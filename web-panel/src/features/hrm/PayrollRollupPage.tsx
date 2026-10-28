@@ -12,6 +12,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Msg } from '@/i18n/Msg';
 import { useI18n } from '@/i18n/useI18n';
+import { localizeServerMessage } from '@/i18n/serverMessages';
 import type { PayrollRollupRow } from '@/types/employee';
 
 function currentPeriod(): string {
@@ -28,7 +29,7 @@ function currentPeriod(): string {
  * note only.
  */
 export function PayrollRollupPage() {
-  const { t, tValue } = useI18n();
+  const { t, tValue, language } = useI18n();
   const [period, setPeriod] = useState(currentPeriod());
   const [clientCompanyId, setClientCompanyId] = useState('');
   const [departmentId, setDepartmentId] = useState('');
@@ -189,7 +190,7 @@ export function PayrollRollupPage() {
           {meta.is_estimate ? (
             <>
               <p className="font-semibold text-ink">{t('option.payroll.rollupEstimate')}</p>
-              <p>{meta.estimate_note}</p>
+              <p>{localizeServerMessage(language, meta.estimate_note ?? '')}</p>
               {meta.run_id && meta.differs_from_run && (
                 <p className="mt-1 font-medium text-danger">
                   {t('warning.payroll.rollupStale', { status: runStatusLabel })}

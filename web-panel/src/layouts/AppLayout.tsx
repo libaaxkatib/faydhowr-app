@@ -4,9 +4,11 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from '@/layouts/Sidebar';
 import { Header } from '@/layouts/Header';
 import { useI18n } from '@/i18n/useI18n';
+import { useLoadTranslationOverrides } from '@/hooks/useTranslationOverrides';
 
 export function AppLayout() {
   const { t } = useI18n();
+  useLoadTranslationOverrides();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (

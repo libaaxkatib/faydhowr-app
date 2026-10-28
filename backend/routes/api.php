@@ -103,6 +103,7 @@ use App\Http\Controllers\Api\V1\Admin\Settings\SettingsAuditLogController;
 use App\Http\Controllers\Api\V1\Admin\Settings\SettingsController;
 use App\Http\Controllers\Api\V1\Admin\Settings\SmtpTestController;
 use App\Http\Controllers\Api\V1\Admin\StoreOrders\StoreOrderController as AdminStoreOrderController;
+use App\Http\Controllers\Api\V1\Admin\TranslationOverrideController;
 use App\Http\Controllers\Api\V1\Auth\AuthenticatedUserController;
 use App\Http\Controllers\Api\V1\Auth\GoogleAuthController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
@@ -1816,3 +1817,20 @@ Route::middleware('auth:sanctum')->prefix('v1/notification-preferences')->group(
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+// Somali / English wording edits made by Super Admin in the Web Panel. Everyone signed in reads the overrides (the panel needs them to render);
+// only Super Admin changes them (role checked by the `super_admin` middleware, not by a permission).
+Route::prefix('v1/admin/i18n')
+    ->middleware(['auth:sanctum', 'admin'])
+    ->group(function (): void {
+        Route::get('overrides', [TranslationOverrideController::class, 'index'])
+            ->name('api.v1.admin.i18n.overrides.index');
+
+        Route::put('overrides/{key}', [TranslationOverrideController::class, 'update'])
+            ->middleware('super_admin')
+            ->name('api.v1.admin.i18n.overrides.update');
+
+        Route::delete('overrides/{key}', [TranslationOverrideController::class, 'destroy'])
+            ->middleware('super_admin')
+            ->name('api.v1.admin.i18n.overrides.destroy');
+    });

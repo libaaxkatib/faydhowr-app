@@ -493,4 +493,38 @@ export const system = defineMessages({
   'option.system.permission.reconciliation.create': message('Create Data Issues', 'Samee Dhibaatooyin Xogeed'),
   'option.system.permission.reconciliation.update': message('Update Data Issues', 'Cusboonaysii Dhibaatooyinka Xogta'),
   'option.system.permission.reconciliation.resolve': message('Resolve Data Issues', 'Xalli Dhibaatooyinka Xogta'),
+
+  // ---------------------------------------------------------------- Translations (Super Admin edits the Somali / English wording)
+  'option.system.pageTranslations': message('Translations', 'Tarjumaadaha'),
+  'warning.system.translationsIntro': message(
+    'Edit the English and Somali wording the panel shows. A saved change applies to everyone as soon as their page refreshes it.',
+    'Wax ka beddel erayada Ingiriisiga iyo Soomaaliga ee nidaamku muujiyo. Isbeddelka la keydiyo wuxuu quseeyaa qof kasta marka bogga la cusboonaysiiyo.',
+  ),
+  'option.system.translationsSearchPlaceholder': message('Search by wording or key...', 'Ku raadi eray ama fure...'),
+  'option.system.translationsOnlyEdited': message('Edited only', 'Kuwa la beddelay oo keliya'),
+  'option.system.translationsColKey': message('Key', 'Fure'),
+  'option.system.translationsColEnglish': message('English', 'Ingiriisi'),
+  'option.system.translationsColSomali': message('Somali', 'Soomaali'),
+  'option.system.translationEdited': message('Edited', 'La beddelay'),
+  'warning.system.translationsShowing': message(
+    'Showing the first {shown} of {total} messages. Search to narrow the list.',
+    'Waxaa la muujiyay {shown} ugu horreeya oo ka mid ah {total} fariin. Raadi si aad u soo koobto liiska.',
+  ),
+  'warning.system.translationsNone': message('No messages match your search.', 'Fariin ku habboon raadintaada ma jirto.'),
+  'option.system.translationEditTitle': message('Edit wording', 'Wax ka beddel erayada'),
+  'option.system.translationEnglishField': message('English wording', 'Erayada Ingiriisiga'),
+  'option.system.translationSomaliField': message('Somali wording', 'Erayada Soomaaliga'),
+  'option.system.translationBuiltIn': message('Built-in wording: {text}', 'Erayada asalka ah: {text}'),
+  'warning.system.translationPlaceholders': message('Keep these placeholders exactly as written: {list}', 'Ku hay calaamadahan sidii loo qoray: {list}'),
+  'validation.system.translationPlaceholders': message(
+    'The text must keep the placeholders {list} exactly as written.',
+    'Qoraalku waa inuu ku haystaa calaamadaha {list} sidii loo qoray.',
+  ),
+  'validation.system.translationRequired': message('Enter the English or the Somali wording.', 'Geli erayada Ingiriisiga ama Soomaaliga.'),
+  'validation.system.translationTooLong': message('The wording is too long (at most {max} characters).', 'Erayadu aad bay u dheer yihiin (ugu badnaan {max} xaraf).'),
+  'action.system.translationReset': message('Reset to built-in wording', 'Ku celi erayada asalka ah'),
+  'notify.system.translationSaved': message('Wording saved.', 'Erayada waa la keydiyay.'),
+  'notify.system.translationReset': message('Wording reset to the built-in text.', 'Erayada waxaa lagu celiyay qoraalka asalka ah.'),
+  'notify.system.translationFailed': message('The wording could not be saved.', 'Erayada lama keydin karin.'),
+  'notify.system.translationResetFailed': message('The wording could not be reset.', 'Erayada lama celin karin.'),
 });

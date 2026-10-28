@@ -75,6 +75,7 @@ test('routes, permissions, icons and flags of the Marketing, Mobile App and Syst
     ['Admin Users', '/system/admins', 'users', 'admins.manage', false, false],
     ['Roles & Permissions', '/system/roles', 'shield', 'roles.manage', false, false],
     ['Settings', '/system/settings', 'settings', 'settings.view', false, false],
+    ['Translations', '/system/translations', 'message-circle', null, false, false],
     ['Audit Log', '/system/audit-log', 'list', 'admins.manage', false, false],
     ['Data Issues & Reconciliation', '/system/data-issues', 'alert-triangle', 'reconciliation.view', false, false],
   ]);

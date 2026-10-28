@@ -22,6 +22,7 @@ export function isRealItemVisible(
   isSuperAdmin: boolean,
 ): boolean {
   if (item.comingSoon) return false;
+  if (item.superAdminOnly) return isSuperAdmin;
   if (isSuperAdmin) return true;
   if (!item.permission) return true;
   return hasPermission(item.permission);

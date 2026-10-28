@@ -27,6 +27,8 @@ export interface NavLeaf {
    * Sidebar.tsx) rather than claiming a permission that doesn't exist yet.
    */
   permission?: string;
+  /** Shown to Super Admin only (the backend checks the role itself; this only hides the link). */
+  superAdminOnly?: boolean;
 }
 
 export interface NavGroup {
@@ -121,6 +123,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Admin Users', labelKey: 'nav.shell.adminUsers', to: '/system/admins', icon: 'users', permission: 'admins.manage' },
       { label: 'Roles & Permissions', labelKey: 'nav.shell.rolesPermissions', to: '/system/roles', icon: 'shield', permission: 'roles.manage' },
       { label: 'Settings', labelKey: 'nav.shell.settings', to: '/system/settings', icon: 'settings', permission: 'settings.view' },
+      { label: 'Translations', labelKey: 'nav.shell.translations', to: '/system/translations', icon: 'message-circle', superAdminOnly: true },
       { label: 'Audit Log', labelKey: 'nav.shell.auditLog', to: '/system/audit-log', icon: 'list', permission: 'admins.manage' },
       { label: 'Data Issues & Reconciliation', labelKey: 'nav.shell.dataIssues', to: '/system/data-issues', icon: 'alert-triangle', permission: 'reconciliation.view' },
     ],

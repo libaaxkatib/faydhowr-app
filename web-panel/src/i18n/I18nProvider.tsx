@@ -5,6 +5,7 @@ import { getBrowserLanguageController } from '@/i18n/browserLanguageController';
 import { I18nContext, type I18nContextValue } from '@/i18n/i18nContext';
 import { applyLanguageAttribute, LANGUAGE_STORAGE_KEY } from '@/i18n/language';
 import { translateCount, translateKey, translateStoredValue } from '@/i18n/messages';
+import { getOverridesVersion, subscribeOverrides } from '@/i18n/overrides';
 
 /**
  * Makes the chosen language available to the whole panel (every screen, sign-in included). The choice is stored in the browser under its own key.
@@ -16,6 +17,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const controller = getBrowserLanguageController();
   const { language } = useSyncExternalStore(controller.subscribe, controller.getState);
   setActiveLanguage(language);
+  // Wording edited by Super Admin: when it changes, the functions below are rebuilt so every screen re-renders with the new text.
+  const overridesVersion = useSyncExternalStore(subscribeOverrides, getOverridesVersion);
 
   useEffect(() => {
     applyLanguageAttribute(document.documentElement, language);
@@ -40,7 +43,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       tCount: (base, count, params) => translateCount(language, base, count, params),
       tValue: (prefix, value) => translateStoredValue(language, prefix, value),
     }),
-    [language, controller],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- overridesVersion is read through the translate functions, not inside the callback
+    [language, controller, overridesVersion],
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

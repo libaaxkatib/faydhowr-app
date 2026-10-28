@@ -25,6 +25,7 @@ import { shell } from './shell.ts';
 import { theme } from './theme.ts';
 import { status } from './status.ts';
 import { system } from './system.ts';
+import { effectiveCatalogue } from '../overrides.ts';
 import { translate, translatePlural, translateValue, type Params } from '../translate.ts';
 import type { Language } from '../language.ts';
 
@@ -66,13 +67,13 @@ export type Translate = (key: MessageKey, params?: Params) => string;
 export type TranslatePlural = (base: PluralBase, count: number, params?: Params) => string;
 
 export function translateKey(language: Language, key: MessageKey, params?: Params): string {
-  return translate(CATALOGUE, language, key, params);
+  return translate(effectiveCatalogue(CATALOGUE), language, key, params);
 }
 
 export function translateStoredValue(language: Language, prefix: string, value: string): string | undefined {
-  return translateValue(CATALOGUE, language, prefix, value);
+  return translateValue(effectiveCatalogue(CATALOGUE), language, prefix, value);
 }
 
 export function translateCount(language: Language, base: PluralBase, count: number, params?: Params): string {
-  return translatePlural(CATALOGUE, language, base, count, params);
+  return translatePlural(effectiveCatalogue(CATALOGUE), language, base, count, params);
 }

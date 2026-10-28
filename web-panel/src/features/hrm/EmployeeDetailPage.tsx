@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { hrApi } from '@/api/hr';
 import { useI18n } from '@/i18n/useI18n';
+import { localizeServerMessage } from '@/i18n/serverMessages';
 import type { MessageKey } from '@/i18n/messages';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
@@ -2426,7 +2427,7 @@ function RecordAdvanceModal({
  * assignment shows no overtime line at all.
  */
 function PayrollSummaryCard({ employeeId, employee }: { employeeId: number; employee: Employee }) {
-  const { t, tValue } = useI18n();
+  const { t, tValue, language } = useI18n();
   // Every non-cancelled assignment is selectable, because a month can contain final pay for an assignment that has since ended.
   const activeAssignments = (employee.work_assignments ?? employee.active_work_assignments ?? []).filter((a) => a.status !== 'cancelled');
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
@@ -2484,7 +2485,7 @@ function PayrollSummaryCard({ employeeId, employee }: { employeeId: number; empl
                   {data.is_estimate ? (
                     <>
                       <p className="font-semibold text-ink">{t('status.employeeDetail.payrollEstimate')}</p>
-                      <p>{data.estimate_note}</p>
+                      <p>{localizeServerMessage(language, data.estimate_note ?? '')}</p>
                       {data.run_id && data.differs_from_run && (
                         <p className="mt-1 font-medium text-danger">{t('warning.employeeDetail.payrollRunMismatch', { status: runStatus })}</p>
                       )}

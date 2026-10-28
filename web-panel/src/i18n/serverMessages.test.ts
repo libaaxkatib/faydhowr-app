@@ -137,6 +137,8 @@ test('the backend sentences the panel recognises are still in the backend source
     read('app/Http/Middleware/EnsureSuperAdmin.php'),
     read('app/Http/Requests/Api/V1/Admin/Hr/Facility/UpdateFacilityInspectionRequest.php'),
     read('app/Http/Requests/Api/V1/Admin/Accounting/StoreAccountingPeriodRequest.php'),
+    read('app/Support/Hr/Payroll/PayrollSummaryPresenter.php'),
+    read('app/Models/HrPolicy.php'),
   ].join('\n');
   const framework = existsSync(new URL('vendor/laravel/framework/src/Illuminate/Routing/Middleware/ThrottleRequests.php', BACKEND))
     ? read('vendor/laravel/framework/src/Illuminate/Routing/Middleware/ThrottleRequests.php') + read('vendor/laravel/framework/src/Illuminate/Foundation/Exceptions/Handler.php')
