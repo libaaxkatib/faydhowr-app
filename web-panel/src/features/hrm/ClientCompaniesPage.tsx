@@ -9,6 +9,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Modal, ModalCancelButton } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -46,6 +47,8 @@ export function ClientCompaniesPage() {
   const categoryFilter = parseCategoryFilter(searchParams);
   const [companyModal, setCompanyModal] = useState<{ editing: ClientCompany | null } | null>(null);
   const [locationModal, setLocationModal] = useState<{ clientCompanyId: number | null; editing: WorkLocation | null } | null>(null);
+  // A delete button only asks; the record is deleted when this is confirmed.
+  const [pendingDelete, setPendingDelete] = useState<{ kind: 'company' | 'location'; id: number; name: string } | null>(null);
 
   const { data: companies, isLoading, error, refetch } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list });
 
@@ -66,6 +69,7 @@ export function ClientCompaniesPage() {
       show(t('notify.company.clientCompanyDeleted'));
     },
     onError: (err) => show(err instanceof Error ? err.message : t('notify.company.couldNotDeleteClientCompany'), 'error'),
+    onSettled: () => setPendingDelete(null),
   });
 
   const deleteLocationMutation = useMutation({
@@ -75,6 +79,7 @@ export function ClientCompaniesPage() {
       show(t('notify.company.workLocationDeleted'));
     },
     onError: (err) => show(err instanceof Error ? err.message : t('notify.company.couldNotDeleteWorkLocation'), 'error'),
+    onSettled: () => setPendingDelete(null),
   });
 
   if (isLoading) return <LoadingState label={t('option.company.loadingCompanies')} />;
@@ -163,10 +168,10 @@ export function ClientCompaniesPage() {
                     <Icon name="plus" size={14} />
                     {t('action.company.addLocation')}
                   </Button>
-                  <button type="button" onClick={() => setCompanyModal({ editing: company })} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary">
+                  <button type="button" aria-label={t('action.company.editCompanyNamed', { name: company.name })} title={t('action.company.editCompanyNamed', { name: company.name })} onClick={() => setCompanyModal({ editing: company })} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary">
                     <Icon name="pencil" size={14} />
                   </button>
-                  <button type="button" onClick={() => deleteCompanyMutation.mutate(company.id)} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger">
+                  <button type="button" aria-label={t('action.company.deleteCompanyNamed', { name: company.name })} title={t('action.company.deleteCompanyNamed', { name: company.name })} onClick={() => setPendingDelete({ kind: 'company', id: company.id, name: company.name })} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger">
                     <Icon name="trash" size={14} />
                   </button>
                 </div>
@@ -189,10 +194,10 @@ export function ClientCompaniesPage() {
                       </div>
                       <PermissionGate module="hr">
                         <div className="flex items-center gap-1">
-                          <button type="button" onClick={() => setLocationModal({ clientCompanyId: company.id, editing: location })} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary">
+                          <button type="button" aria-label={t('action.company.editLocationNamed', { name: location.name })} title={t('action.company.editLocationNamed', { name: location.name })} onClick={() => setLocationModal({ clientCompanyId: company.id, editing: location })} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary">
                             <Icon name="pencil" size={14} />
                           </button>
-                          <button type="button" onClick={() => deleteLocationMutation.mutate(location.id)} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger">
+                          <button type="button" aria-label={t('action.company.deleteLocationNamed', { name: location.name })} title={t('action.company.deleteLocationNamed', { name: location.name })} onClick={() => setPendingDelete({ kind: 'location', id: location.id, name: location.name })} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger">
                             <Icon name="trash" size={14} />
                           </button>
                         </div>
@@ -206,6 +211,21 @@ export function ClientCompaniesPage() {
           </Card>
         ))}
       </div>
+
+      <ConfirmDialog
+        isOpen={pendingDelete !== null}
+        title={pendingDelete?.kind === 'location' ? t('confirm.company.deleteLocationTitle') : t('confirm.company.deleteCompanyTitle')}
+        description={pendingDelete?.kind === 'location' ? t('confirm.company.deleteLocationBody', { name: pendingDelete.name }) : t('confirm.company.deleteCompanyBody', { name: pendingDelete?.name ?? '' })}
+        confirmLabel={pendingDelete?.kind === 'location' ? t('confirm.company.deleteLocationButton') : t('confirm.company.deleteCompanyButton')}
+        tone="danger"
+        isLoading={deleteCompanyMutation.isPending || deleteLocationMutation.isPending}
+        onConfirm={() => {
+          if (!pendingDelete) return;
+          if (pendingDelete.kind === 'location') deleteLocationMutation.mutate(pendingDelete.id);
+          else deleteCompanyMutation.mutate(pendingDelete.id);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
 
       {companyModal && (
         <CompanyFormModal

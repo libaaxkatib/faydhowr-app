@@ -25,7 +25,22 @@ export function isRealItemVisible(
   if (item.superAdminOnly) return isSuperAdmin;
   if (isSuperAdmin) return true;
   if (!item.permission) return true;
+  if (item.alsoPermission && !hasPermission(item.alsoPermission)) return false;
   return hasPermission(item.permission);
+}
+
+/**
+ * Where an admin who may not open the Dashboard (the backend asks for dashboard.view, which only some roles hold) should land instead: the first page
+ * in the sidebar they can really use, or null when there is none.
+ */
+export function firstAllowedPath(groups: NavGroup[], hasPermission: (key: string) => boolean, isSuperAdmin: boolean): string | null {
+  for (const group of groups) {
+    for (const item of group.items) {
+      if (isRealItemVisible(item, hasPermission, isSuperAdmin)) return item.to;
+    }
+  }
+
+  return null;
 }
 
 /**

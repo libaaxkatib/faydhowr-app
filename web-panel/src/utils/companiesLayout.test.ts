@@ -17,6 +17,7 @@ test('both button rows of the company card wrap instead of overflowing, and keep
   assert.doesNotMatch(cardHeader, /className="flex items-center gap-1"/);
   for (const key of ['nav.employees', 'action.company.addLocation']) assert.ok(cardHeader.includes(`t('${key}')`), `${key} is still offered`);
   assert.ok(cardHeader.includes('setCompanyModal({ editing: company })'), 'edit is still offered');
-  assert.ok(cardHeader.includes('deleteCompanyMutation.mutate(company.id)'), 'delete is still offered');
+  assert.ok(cardHeader.includes("setPendingDelete({ kind: 'company', id: company.id"), 'delete is still offered, and only asks first');
+  assert.ok(!cardHeader.includes('deleteCompanyMutation.mutate'), 'the delete button never deletes by itself: the confirmation dialog does');
   assert.ok(cardHeader.includes('<PermissionGate module="hr">'), 'the HR permission gate is kept');
 });

@@ -13,7 +13,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/useToast';
-import { useEffectivePermissions } from '@/hooks/usePermissions';
+import { useAuth } from '@/features/auth/useAuth';
 import { ASSIGNABLE_ADMIN_ROLES, adminRoleLabel, permissionAllowedForRole } from '@/types/system';
 import { useI18n } from '@/i18n/useI18n';
 import type { AdminRole } from '@/types/admin';
@@ -77,7 +77,8 @@ function RoleTab() {
   const { t, tValue } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
-  const { hasPermission } = useEffectivePermissions();
+  // Changing a role's or an admin's permissions is Super Admin only on the server (viewing needs roles.manage).
+  const { isSuperAdmin: actorIsSuperAdmin } = useAuth();
   const [selectedRole, setSelectedRole] = useState<AdminRole>(ASSIGNABLE_ADMIN_ROLES[0].value);
   const [draft, setDraft] = useState<Set<string>>(new Set());
 
@@ -134,7 +135,7 @@ function RoleTab() {
       <Card className="p-5">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-display text-base font-bold text-ink">{t('option.system.rolePermissionsTitle', { role: adminRoleLabel(selectedRole, tValue) })}</h3>
-          {hasPermission('roles.manage') && (
+          {actorIsSuperAdmin && (
             <Button size="sm" isLoading={saveMutation.isPending} disabled={!isDirty} onClick={() => saveMutation.mutate()}>
               {t('action.company.saveChanges')}
             </Button>
@@ -170,7 +171,8 @@ function AdminOverridesTab() {
   const { t, tValue } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
-  const { hasPermission } = useEffectivePermissions();
+  // Changing a role's or an admin's permissions is Super Admin only on the server (viewing needs roles.manage).
+  const { isSuperAdmin: actorIsSuperAdmin } = useAuth();
   const [adminId, setAdminId] = useState<number | ''>('');
   const [draft, setDraft] = useState<Set<string>>(new Set());
 
@@ -246,7 +248,7 @@ function AdminOverridesTab() {
 
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="font-display text-base font-bold text-ink">{t('option.system.directOverrides')}</h3>
-                {hasPermission('roles.manage') && (
+                {actorIsSuperAdmin && (
                   <Button size="sm" isLoading={saveMutation.isPending} disabled={!isDirty} onClick={() => saveMutation.mutate()}>
                     {t('action.company.saveChanges')}
                   </Button>

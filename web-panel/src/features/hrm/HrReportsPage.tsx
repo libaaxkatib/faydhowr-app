@@ -95,11 +95,11 @@ export function HrReportsPage() {
         <CardBody className="flex flex-wrap items-end gap-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.reports.dateFrom')}</label>
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-sm border border-border bg-surface px-2 text-sm" />
+            <input aria-label={t('option.reports.dateFrom')} type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-sm border border-border bg-surface px-2 text-sm" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.reports.dateTo')}</label>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-sm border border-border bg-surface px-2 text-sm" />
+            <input aria-label={t('option.reports.dateTo')} type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-sm border border-border bg-surface px-2 text-sm" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.reports.clientCompany')}</label>

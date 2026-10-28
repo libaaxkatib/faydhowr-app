@@ -207,7 +207,7 @@ export function DataIssueEditDialog({ isOpen, onClose, issue }: DataIssueEditDia
               <span>
                 {e.full_name} <span className="font-mono text-xs text-ink-muted">({e.employee_number})</span>
               </span>
-              <button type="button" onClick={() => setToAdd((prev) => prev.filter((x) => x.id !== e.id))} className="text-ink-muted hover:text-danger">
+              <button type="button" aria-label={t('action.dataIssue.removeEmployeeNamed', { name: e.full_name })} title={t('action.dataIssue.removeEmployeeNamed', { name: e.full_name })} onClick={() => setToAdd((prev) => prev.filter((x) => x.id !== e.id))} className="text-ink-muted hover:text-danger">
                 <Icon name="x" size={14} />
               </button>
             </div>

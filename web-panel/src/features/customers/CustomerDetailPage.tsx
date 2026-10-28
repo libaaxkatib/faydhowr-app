@@ -82,26 +82,30 @@ export function CustomerDetailPage() {
           { label: customer.customer_number },
         ]}
         actions={
-          <PermissionGate module="customers">
-            <div className="flex items-center gap-2">
-              {!isDeleted && (
+          <div className="flex items-center gap-2">
+            {!isDeleted && (
+              <PermissionGate module="customers" permission="customers.update">
                 <Button variant="outline" size="sm" onClick={() => setIsEditOpen(true)}>
                   <Icon name="pencil" size={14} />
                   {t('action.edit')}
                 </Button>
-              )}
-              {isDeleted ? (
+              </PermissionGate>
+            )}
+            {isDeleted ? (
+              <PermissionGate module="customers" permission="customers.restore">
                 <Button variant="secondary" size="sm" onClick={() => setConfirmAction('restore')}>
                   {t('action.customers.restore')}
                 </Button>
-              ) : (
+              </PermissionGate>
+            ) : (
+              <PermissionGate module="customers" permission="customers.delete">
                 <Button variant="danger" size="sm" onClick={() => setConfirmAction('delete')}>
                   <Icon name="trash" size={14} />
                   {t('action.customers.delete')}
                 </Button>
-              )}
-            </div>
-          </PermissionGate>
+              </PermissionGate>
+            )}
+          </div>
         }
       />
 
@@ -134,6 +138,7 @@ export function CustomerDetailPage() {
             </dl>
 
             {!isDeleted && (
+              <PermissionGate module="customers" permission="customers.update">
               <div className="mt-6 flex items-center gap-2 border-t border-border pt-5">
                 <span className="text-xs font-medium text-ink-muted">{t('option.customers.changeStatus')}</span>
                 {(['ACTIVE', 'INACTIVE', 'BLOCKED'] as const).map((option) => (
@@ -149,6 +154,7 @@ export function CustomerDetailPage() {
                   </Button>
                 ))}
               </div>
+              </PermissionGate>
             )}
           </CardBody>
         </Card>

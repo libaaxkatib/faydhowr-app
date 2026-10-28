@@ -30,6 +30,7 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
       </div>
 
       <nav className="scrollbar-thin flex-1 overflow-y-auto px-3 pb-6">
+        {(isSuperAdmin || (!isLoading && hasPermission('dashboard.view'))) && (
         <NavLink
           to="/dashboard"
           onClick={onNavigate}
@@ -42,6 +43,7 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
           <Icon name="home" size={17} />
           Dashboard
         </NavLink>
+        )}
 
         {/* Permissions haven't resolved yet — render nothing below Dashboard rather than
             flashing every group (or none) before the real effective-permission set loads. */}

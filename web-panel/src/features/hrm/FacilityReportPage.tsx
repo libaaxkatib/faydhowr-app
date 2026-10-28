@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useI18n } from '@/i18n/useI18n';
+import { TABLE_SCROLL_CLASS } from '@/components/ui/TableScroll';
 import { formatDate } from '@/utils/formatters';
 import { COMPLAINT_STATUS_LABELS, drillLink, dueStateTone, percent } from '@/utils/facility';
 import type { FacilityComplaintType, FacilityDueListRow, FacilityReport } from '@/types/facility';
@@ -157,10 +158,10 @@ export function FacilityReportPage() {
           <Select value={company} onChange={(e) => setParam('company', e.target.value)} placeholder={t('option.facility.allCompanies')} aria-label={t('option.label.company')} className="w-52" options={(companies ?? []).map((c) => ({ value: String(c.id), label: c.name }))} />
           <Select value={type} onChange={(e) => setParam('type', e.target.value)} placeholder={t('option.facility.allComplaintTypes')} aria-label={t('option.facility.complaintTypeAria')} className="w-48" options={[{ value: 'staff', label: t('option.facility.typeStaffPlural') }, { value: 'customer', label: t('option.facility.typeCustomerPlural') }]} />
           <label className="flex items-center gap-1.5 text-xs text-ink-muted">
-            {t('option.label.from')} <input type="date" value={from} onChange={(e) => setParam('from', e.target.value)} className={`${inputClasses} w-36`} />
+            {t('option.label.from')} <input aria-label={t('option.reports.dateFrom')} type="date" value={from} onChange={(e) => setParam('from', e.target.value)} className={`${inputClasses} w-36`} />
           </label>
           <label className="flex items-center gap-1.5 text-xs text-ink-muted">
-            {t('option.label.to')} <input type="date" value={to} onChange={(e) => setParam('to', e.target.value)} className={`${inputClasses} w-36`} />
+            {t('option.label.to')} <input aria-label={t('option.reports.dateTo')} type="date" value={to} onChange={(e) => setParam('to', e.target.value)} className={`${inputClasses} w-36`} />
           </label>
           {(company || type || from || to) && (
             <button type="button" onClick={() => setSearchParams({}, { replace: true })} className="text-xs font-semibold text-primary hover:underline">{t('action.facility.clearFilters')}</button>
@@ -273,7 +274,7 @@ export function FacilityReportPage() {
             {data.by_company.length === 0 ? (
               <EmptyState icon="bar-chart" title={t('option.facility.noActivity')} />
             ) : (
-              <div className="overflow-x-auto">
+              <div role="region" tabIndex={0} aria-label={t('option.common.dataTable')} className={TABLE_SCROLL_CLASS}>
                 <table className="w-full text-left text-sm">
                   <thead className="border-b border-border text-xs uppercase tracking-wide text-ink-muted">
                     <tr>

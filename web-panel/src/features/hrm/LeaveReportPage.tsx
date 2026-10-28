@@ -110,6 +110,7 @@ export function LeaveReportPage() {
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
           <input
+            aria-label={t('option.reports.dateFrom')}
             type="date"
             value={from}
             onChange={(e) => {
@@ -119,6 +120,7 @@ export function LeaveReportPage() {
             className="h-9 rounded-sm border border-border bg-surface px-2 text-sm"
           />
           <input
+            aria-label={t('option.reports.dateTo')}
             type="date"
             value={to}
             onChange={(e) => {

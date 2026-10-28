@@ -16,7 +16,6 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/useToast';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { useAuth } from '@/features/auth/useAuth';
 import { formatDateTime } from '@/utils/formatters';
 import { ASSIGNABLE_ADMIN_ROLES, adminRoleLabel } from '@/types/system';
@@ -31,9 +30,9 @@ export function AdminUsersPage() {
   const { t, tValue } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
-  const { admin: currentAdmin } = useAuth();
-  const { hasPermission } = useEffectivePermissions();
-  const canManageAdmins = hasPermission('admins.manage');
+  const { admin: currentAdmin, isSuperAdmin } = useAuth();
+  // Viewing the list needs admins.manage, but creating, editing, deleting and resetting passwords are Super Admin only on the server.
+  const canManageAdmins = isSuperAdmin;
 
   const [search, setSearch] = useState('');
   const [role, setRole] = useState<AdminRole | ''>('');

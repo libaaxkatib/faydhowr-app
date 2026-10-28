@@ -25,6 +25,7 @@ export function Header({ onMenuClick }: HeaderProps) {
       <button
         type="button"
         onClick={onMenuClick}
+        aria-label={t('action.openMenu')}
         className="flex h-9 w-9 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt lg:hidden"
       >
         <Icon name="menu" size={18} />
@@ -37,12 +38,12 @@ export function Header({ onMenuClick }: HeaderProps) {
           </span>
           <input
             type="text"
+            disabled
+            aria-label={t('warning.common.searchNotWired')}
+            title={t('warning.common.searchNotWired')}
             placeholder={t('option.common.searchAnything')}
-            className="h-10 w-full rounded-sm border border-border bg-surface-muted pl-9 pr-14 text-sm text-ink outline-none transition focus:border-primary focus:bg-surface focus:ring-2 focus:ring-primary/20"
+            className="h-10 w-full cursor-not-allowed rounded-sm border border-border bg-surface-muted pl-9 pr-3 text-sm opacity-60 text-ink outline-none transition focus:border-primary focus:bg-surface focus:ring-2 focus:ring-primary/20"
           />
-          <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-border bg-surface px-1.5 py-0.5 text-[10px] font-medium text-ink-faint">
-            Ctrl K
-          </kbd>
         </div>
       </div>
 
@@ -51,21 +52,27 @@ export function Header({ onMenuClick }: HeaderProps) {
         <ThemeToggle className="mr-1" />
         <button
           type="button"
+          disabled
+          aria-label={t('warning.common.notificationsNotWired')}
           title={t('warning.common.notificationsNotWired')}
-          className="relative flex h-9 w-9 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt"
+          className="relative flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-sm text-ink-muted opacity-50"
         >
           <Icon name="bell" size={17} />
         </button>
         <button
           type="button"
+          disabled
+          aria-label={t('warning.common.messagesNotWired')}
           title={t('warning.common.messagesNotWired')}
-          className="relative flex h-9 w-9 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt"
+          className="relative flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-sm text-ink-muted opacity-50"
         >
           <Icon name="mail" size={17} />
         </button>
         <button
           type="button"
           onClick={() => document.documentElement.requestFullscreen?.()}
+          aria-label={t('action.shell.fullscreen')}
+          title={t('action.shell.fullscreen')}
           className="hidden h-9 w-9 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt sm:flex"
         >
           <Icon name="expand" size={16} />

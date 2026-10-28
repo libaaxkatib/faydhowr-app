@@ -3,6 +3,7 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tan
 import { LoadingState } from '@/components/ui/LoadingState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { TableScroll } from '@/components/ui/TableScroll';
 import { useI18n } from '@/i18n/useI18n';
 
 interface DataTableProps<T> {
@@ -14,6 +15,8 @@ interface DataTableProps<T> {
   emptyTitle?: string;
   emptyDescription?: string;
   onRowClick?: (row: T) => void;
+  /** Names the scrollable table for screen readers. */
+  label?: string;
 }
 
 export function DataTable<T>({
@@ -25,6 +28,7 @@ export function DataTable<T>({
   emptyTitle,
   emptyDescription,
   onRowClick,
+  label,
 }: DataTableProps<T>) {
   const { t } = useI18n();
   const table = useReactTable({
@@ -38,7 +42,7 @@ export function DataTable<T>({
   if (data.length === 0) return <EmptyState title={emptyTitle ?? t('option.shell.nothingYet')} description={emptyDescription} />;
 
   return (
-    <div className="overflow-x-auto">
+    <TableScroll label={label}>
       <table className="w-full min-w-[640px] border-collapse text-sm">
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -70,6 +74,6 @@ export function DataTable<T>({
           ))}
         </tbody>
       </table>
-    </div>
+    </TableScroll>
   );
 }

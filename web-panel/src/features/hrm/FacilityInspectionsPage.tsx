@@ -27,6 +27,7 @@ import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import { Msg } from '@/i18n/Msg';
 import type { MessageKey } from '@/i18n/messages';
 import { useI18n } from '@/i18n/useI18n';
+import { TABLE_SCROLL_CLASS } from '@/components/ui/TableScroll';
 import { isDirty } from '@/utils/unsavedChanges';
 import { pageFromParam, withParam } from '@/utils/urlFilters';
 import {
@@ -183,7 +184,7 @@ export function FacilityInspectionsPage() {
         {status.error && <ErrorState error={status.error} onRetry={status.refetch} />}
         {status.data && status.data.rows.length === 0 && <EmptyState icon="eye" title={t('option.facility.noCompaniesMatch')} description={t('option.facility.changeFilterOrSearch')} />}
         {status.data && status.data.rows.length > 0 && (
-          <div className="overflow-x-auto">
+          <div role="region" tabIndex={0} aria-label={t('option.common.dataTable')} className={TABLE_SCROLL_CLASS}>
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border text-xs uppercase tracking-wide text-ink-muted">
                 <tr>

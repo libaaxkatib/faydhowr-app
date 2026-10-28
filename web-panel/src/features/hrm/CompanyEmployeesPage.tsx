@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { TABLE_SCROLL_CLASS } from '@/components/ui/TableScroll';
 
 import { companyEmployeesApi } from '@/api/companyEmployees';
 import { hrApi } from '@/api/hr';
@@ -163,7 +164,7 @@ export function CompanyEmployeesPage() {
           {rows.length === 0 ? (
             <EmptyState icon="users" title={t('option.company.noEmployeesForFilters')} description={canManage ? t('option.company.useAddEmployee') : t('option.company.tryAnotherMonth')} />
           ) : (
-            <div className="overflow-x-auto" aria-busy={isFetching}>
+            <div role="region" tabIndex={0} aria-label={t('option.common.dataTable')} className={TABLE_SCROLL_CLASS} aria-busy={isFetching}>
               <table className="w-full min-w-[1100px] text-sm">
                 <caption className="sr-only">{t('option.company.tableCaption', { company: companyName, period: periodLabel(period) })}</caption>
                 <thead>

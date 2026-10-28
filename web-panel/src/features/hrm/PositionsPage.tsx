@@ -108,7 +108,7 @@ export function PositionsPage() {
                 </div>
                 <PermissionGate module="hr">
                   <div className="flex items-center gap-1">
-                    <button type="button" onClick={() => openEdit(position)} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary">
+                    <button type="button" aria-label={t('action.company.editPositionNamed', { name: position.name })} title={t('action.company.editPositionNamed', { name: position.name })} onClick={() => openEdit(position)} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary">
                       <Icon name="pencil" size={14} />
                     </button>
                     <button type="button" aria-label={t('action.company.deletePositionNamed', { name: position.name })} onClick={() => { setDeleteError(null); setPendingDelete(position); }} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger">

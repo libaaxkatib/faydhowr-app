@@ -591,11 +591,6 @@
   },
   {
     "file": "layouts/Header.tsx",
-    "text": "Ctrl K",
-    "reason": "Keyboard shortcut hint, the same in both languages."
-  },
-  {
-    "file": "layouts/Header.tsx",
     "text": "Dashboard",
     "reason": "Dashboard stays English by owner decision (HR-NAV-002)."
   },

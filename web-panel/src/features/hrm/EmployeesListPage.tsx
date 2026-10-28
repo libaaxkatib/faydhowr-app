@@ -265,8 +265,8 @@ export function EmployeesListPage({
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-bold text-primary">
               {initialsOf(row.original.full_name)}
             </div>
-            <div className="min-w-0">
-              <p className="truncate font-medium text-ink">{row.original.full_name}</p>
+            <div className="min-w-[13rem] max-w-[22rem]">
+              <p className="break-words font-medium text-ink">{row.original.full_name}</p>
               <p className="truncate text-xs text-ink-muted">
                 {row.original.employee_number}
                 {row.original.gender && <span> · {tValue('option.gender', row.original.gender) ?? row.original.gender[0].toUpperCase() + row.original.gender.slice(1)}</span>}
@@ -305,7 +305,7 @@ export function EmployeesListPage({
             return <span className="italic text-ink-faint">{t('option.employees.unassigned')}</span>;
           }
           const labels = assignments.map((a) => (a.location_type === 'office' ? officeLabel() : (a.client_company_name ?? a.work_location_name ?? t('option.employees.companyNotRecorded'))));
-          return <span className="text-ink">{labels.join(', ')}</span>;
+          return <span className="inline-block min-w-[11rem] max-w-[20rem] text-ink">{labels.join(', ')}</span>;
         },
       },
       {
@@ -355,6 +355,8 @@ export function EmployeesListPage({
         cell: ({ row }) => (
           <button
             type="button"
+            aria-label={t('action.employees.openEmployeeNamed', { name: row.original.full_name })}
+            title={t('action.employees.openEmployeeNamed', { name: row.original.full_name })}
             onClick={(event) => {
               event.stopPropagation();
               goToEmployee(row.original.id);
@@ -435,7 +437,7 @@ export function EmployeesListPage({
                 onChange={(event) => setParam('archived', event.target.value)}
                 options={[{ value: 'true', label: t('option.employees.archivedEmployees') }]}
                 placeholder={t('option.employees.currentEmployees')}
-                className="w-44"
+                className="w-52"
                 aria-label={t('option.employees.whichEmployeesToList')}
               />
               <Select
@@ -443,21 +445,21 @@ export function EmployeesListPage({
                 onChange={(event) => setUrlFilter('status', event.target.value)}
                 options={STATUS_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
                 placeholder={t('option.employees.allStatuses')}
-                className="w-36"
+                className="w-48"
               />
               <Select
                 value={employeeCategoryId}
                 onChange={(event) => setUrlFilter('employee_category_id', event.target.value)}
                 options={(categories ?? []).map((c) => ({ value: String(c.id), label: c.archived ? t('option.employees.categoryArchived', { name: c.name }) : c.name }))}
                 placeholder={t('option.employees.allCategories')}
-                className="w-40"
+                className="w-52"
               />
               <Select
                 value={departmentId}
                 onChange={(event) => setParam('department_id', event.target.value)}
                 options={(departments ?? []).map((d) => ({ value: String(d.id), label: d.name }))}
                 placeholder={t('option.employees.allDepartments')}
-                className="w-40"
+                className="w-52"
               />
               <Button variant="outline" size="sm" aria-expanded={showMore} onClick={() => setMoreOpen((open) => !open)}>
                 <Icon name={showMore ? 'chevron-down' : 'chevron-right'} size={14} />

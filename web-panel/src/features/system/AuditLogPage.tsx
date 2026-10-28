@@ -168,6 +168,7 @@ export function AuditLogPage() {
             className="h-10 w-44 rounded-sm border border-border bg-surface px-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
           <input
+            aria-label={t('option.reports.dateFrom')}
             type="date"
             value={dateFrom}
             onChange={(event) => {
@@ -177,6 +178,7 @@ export function AuditLogPage() {
             className="h-10 rounded-sm border border-border bg-surface px-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
           <input
+            aria-label={t('option.reports.dateTo')}
             type="date"
             value={dateTo}
             onChange={(event) => {

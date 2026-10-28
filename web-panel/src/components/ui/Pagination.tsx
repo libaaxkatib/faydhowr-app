@@ -29,6 +29,7 @@ export function Pagination({ meta, onPageChange }: PaginationProps) {
       <div className="flex items-center gap-1">
         <button
           type="button"
+          aria-label={t('option.system.previous')}
           disabled={current_page <= 1}
           onClick={() => onPageChange(current_page - 1)}
           className="flex h-8 w-8 items-center justify-center rounded-sm border border-border text-ink-muted hover:bg-surface-alt disabled:cursor-not-allowed disabled:opacity-40"
@@ -40,6 +41,7 @@ export function Pagination({ meta, onPageChange }: PaginationProps) {
         </span>
         <button
           type="button"
+          aria-label={t('option.system.next')}
           disabled={current_page >= last_page}
           onClick={() => onPageChange(current_page + 1)}
           className="flex h-8 w-8 items-center justify-center rounded-sm border border-border text-ink-muted hover:bg-surface-alt disabled:cursor-not-allowed disabled:opacity-40"

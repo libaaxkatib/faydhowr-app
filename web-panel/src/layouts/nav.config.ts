@@ -29,6 +29,8 @@ export interface NavLeaf {
   permission?: string;
   /** Shown to Super Admin only (the backend checks the role itself; this only hides the link). */
   superAdminOnly?: boolean;
+  /** A second permission the page's own API also requires (a link shown without it would lead to "Access restricted"). */
+  alsoPermission?: string;
 }
 
 export interface NavGroup {
@@ -75,12 +77,12 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Reports', labelKey: 'nav.reports', to: '/hr/reports', icon: 'bar-chart', end: true, permission: 'hr.reports.view' },
       { label: 'Waiting Analytics', labelKey: 'nav.waitingAnalytics', to: '/hr/reports/waiting-analytics', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Workforce Request History', labelKey: 'nav.workforceRequestHistory', to: '/hr/reports/workforce-requests', icon: 'bar-chart', permission: 'hr.reports.view' },
-      { label: 'Temporary Replacement History', labelKey: 'nav.temporaryReplacementHistory', to: '/hr/reports/temporary-replacements', icon: 'bar-chart', permission: 'hr.reports.view' },
+      { label: 'Temporary Replacement History', labelKey: 'nav.temporaryReplacementHistory', to: '/hr/reports/temporary-replacements', icon: 'bar-chart', permission: 'hr.reports.view', alsoPermission: 'hr.view' },
       { label: 'Leave Report', labelKey: 'nav.leaveReport', to: '/hr/reports/leaves', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Performance Report', labelKey: 'nav.performanceReport', to: '/hr/reports/performance-reviews', icon: 'bar-chart', permission: 'hr.reports.view' },
-      { label: 'Financial Ledger', labelKey: 'nav.financialLedger', to: '/hr/reports/financial-ledger', icon: 'bar-chart', permission: 'hr.reports.view' },
-      { label: 'Payroll Rollup', labelKey: 'nav.payrollRollup', to: '/hr/reports/payroll-rollup', icon: 'bar-chart', permission: 'hr.reports.view' },
-      { label: 'Facility Report', labelKey: 'nav.facilityReport', to: '/hr/reports/facility', icon: 'bar-chart', permission: 'hr.reports.view' },
+      { label: 'Financial Ledger', labelKey: 'nav.financialLedger', to: '/hr/reports/financial-ledger', icon: 'bar-chart', permission: 'hr.reports.view', alsoPermission: 'hr.view' },
+      { label: 'Payroll Rollup', labelKey: 'nav.payrollRollup', to: '/hr/reports/payroll-rollup', icon: 'bar-chart', permission: 'hr.reports.view', alsoPermission: 'hr.view' },
+      { label: 'Facility Report', labelKey: 'nav.facilityReport', to: '/hr/reports/facility', icon: 'bar-chart', permission: 'hr.reports.view', alsoPermission: 'hr.inspections.view' },
     ],
   },
   {

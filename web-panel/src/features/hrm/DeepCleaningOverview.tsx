@@ -11,6 +11,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { deepCleaningGapText, deepCleaningStateTone, formatCalendarDate, monthLabel, shortMonth } from '@/utils/facility';
 import { useI18n } from '@/i18n/useI18n';
+import { TABLE_SCROLL_CLASS } from '@/components/ui/TableScroll';
 import type { MessageKey } from '@/i18n/messages';
 import { withParam } from '@/utils/urlFilters';
 import type { FacilityDeepCleaningState } from '@/types/facility';
@@ -112,7 +113,7 @@ export function DeepCleaningOverview({ canManage, onRecord }: { canManage: boole
           />
         )}
         {overview.data && rows.length > 0 && (
-          <div className="overflow-x-auto">
+          <div role="region" tabIndex={0} aria-label={t('option.common.dataTable')} className={TABLE_SCROLL_CLASS}>
             <table className="w-full text-left text-sm">
               <caption className="sr-only">{t('option.hr.dcTableCaption', { month: month ? monthLabel(month) : t('option.hr.dcSelectedMonth') })}</caption>
               <thead className="border-b border-border text-xs uppercase tracking-wide text-ink-muted">

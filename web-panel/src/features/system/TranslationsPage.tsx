@@ -9,6 +9,7 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Modal } from '@/components/ui/Modal';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SearchInput } from '@/components/ui/SearchInput';
+import { TableScroll } from '@/components/ui/TableScroll';
 import { useToast } from '@/components/ui/useToast';
 import { TRANSLATION_OVERRIDES_QUERY_KEY } from '@/hooks/useTranslationOverrides';
 import { placeholdersOf } from '@/i18n/catalog';
@@ -87,7 +88,7 @@ export function TranslationsPage() {
         {rows.length === 0 ? (
           <p className="py-8 text-center text-sm text-ink-muted">{t('warning.system.translationsNone')}</p>
         ) : (
-          <div className="overflow-x-auto">
+          <TableScroll>
             <table className="w-full min-w-[720px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-alt">
@@ -119,7 +120,7 @@ export function TranslationsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
 
         {rows.length > MAX_ROWS && (

@@ -150,7 +150,7 @@ export function TrainingBatchesPage() {
                         )}
                         {batch.status === 'scheduled' && (
                           <PermissionGate module="hr">
-                            <button type="button" onClick={() => removeParticipantMutation.mutate({ batchId: batch.id, participantId: p.id })} className="text-ink-faint hover:text-danger">
+                            <button type="button" aria-label={t('action.training.removeParticipantNamed', { name: p.employee_name ?? '' })} title={t('action.training.removeParticipantNamed', { name: p.employee_name ?? '' })} onClick={() => removeParticipantMutation.mutate({ batchId: batch.id, participantId: p.id })} className="text-ink-faint hover:text-danger">
                               <Icon name="x" size={13} />
                             </button>
                           </PermissionGate>

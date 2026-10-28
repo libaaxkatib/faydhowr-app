@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { NAV_GROUPS } from './nav.config.ts';
-import { isGroupVisible, isItemRenderable } from './navVisibility.ts';
+import { firstAllowedPath, isGroupVisible, isItemRenderable } from './navVisibility.ts';
 
 /**
  * Covers the actual bug: the sidebar previously showed every NAV_GROUPS
@@ -180,4 +180,27 @@ test('the Translations page is listed for Super Admin only, whatever other permi
   assert.equal(isItemRenderable(translations, everyPermission, false), false);
   assert.equal(isItemRenderable(translations, permissionSetOf(['settings.view', 'admins.manage', 'roles.manage']), false), false);
   assert.equal(isItemRenderable(translations, permissionSetOf([]), true), true);
+});
+
+test('an admin who may not open the Dashboard is sent to the first page they can use', () => {
+  assert.equal(firstAllowedPath(NAV_GROUPS, permissionSetOf(['hr.dashboard.view', 'hr.view']), false), '/hr');
+  assert.equal(firstAllowedPath(NAV_GROUPS, permissionSetOf(['hr.view']), false), '/hr/employees');
+  assert.equal(firstAllowedPath(NAV_GROUPS, permissionSetOf(['marketing.view']), false), '/marketing');
+  assert.equal(firstAllowedPath(NAV_GROUPS, permissionSetOf([]), false), null, 'nothing allowed: the page says so instead of redirecting');
+});
+
+test('a report that needs a second permission is listed only with both, like the page it opens', () => {
+  const find = (to: string) => NAV_GROUPS.flatMap((g) => g.items).find((item) => item.to === to)!;
+  for (const [to, second] of [
+    ['/hr/reports/temporary-replacements', 'hr.view'],
+    ['/hr/reports/financial-ledger', 'hr.view'],
+    ['/hr/reports/payroll-rollup', 'hr.view'],
+    ['/hr/reports/facility', 'hr.inspections.view'],
+  ] as const) {
+    const item = find(to);
+    assert.equal(item.alsoPermission, second);
+    assert.equal(isItemRenderable(item, permissionSetOf(['hr.reports.view']), false), false, to + ' with only hr.reports.view');
+    assert.equal(isItemRenderable(item, permissionSetOf(['hr.reports.view', second]), false), true, to + ' with both');
+    assert.equal(isItemRenderable(item, permissionSetOf([]), true), true, to + ' for Super Admin');
+  }
 });

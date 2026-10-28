@@ -13,6 +13,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/useToast';
 import { useI18n } from '@/i18n/useI18n';
 
@@ -24,6 +25,7 @@ export function TeamsPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [pendingMemberByTeam, setPendingMemberByTeam] = useState<Record<number, string>>({});
+  const [pendingDeleteTeam, setPendingDeleteTeam] = useState<{ id: number; name: string } | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['marketing-teams'], queryFn: marketingApi.teams.list });
   const { data: employees } = useQuery({ queryKey: ['marketing-employees'], queryFn: marketingApi.employees.list });
@@ -47,6 +49,7 @@ export function TeamsPage() {
       show(t('notify.marketing.teamDeleted'));
     },
     onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotDeleteTeam'), 'error'),
+    onSettled: () => setPendingDeleteTeam(null),
   });
 
   const addMemberMutation = useMutation({
@@ -96,7 +99,9 @@ export function TeamsPage() {
                 <PermissionGate module="marketing">
                   <button
                     type="button"
-                    onClick={() => deleteMutation.mutate(team.id)}
+                    aria-label={t('action.marketing.deleteTeamNamed', { name: team.name })}
+                    title={t('action.marketing.deleteTeamNamed', { name: team.name })}
+                    onClick={() => setPendingDeleteTeam({ id: team.id, name: team.name })}
                     className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger"
                   >
                     <Icon name="trash" size={14} />
@@ -114,6 +119,8 @@ export function TeamsPage() {
                         <PermissionGate module="marketing">
                           <button
                             type="button"
+                            aria-label={t('action.marketing.removeMemberNamed', { name: m.full_name })}
+                            title={t('action.marketing.removeMemberNamed', { name: m.full_name })}
                             onClick={() => removeMemberMutation.mutate({ teamId: team.id, adminId: m.id })}
                             className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-primary/20"
                           >
@@ -173,6 +180,17 @@ export function TeamsPage() {
           <textarea id="team-description" rows={2} className={inputClasses + ' h-auto py-2'} value={description} onChange={(e) => setDescription(e.target.value)} />
         </FormField>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={pendingDeleteTeam !== null}
+        title={t('confirm.marketing.deleteTeamTitle')}
+        description={t('confirm.marketing.deleteTeamBody', { name: pendingDeleteTeam?.name ?? '' })}
+        confirmLabel={t('confirm.marketing.deleteTeamButton')}
+        tone="danger"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => pendingDeleteTeam && deleteMutation.mutate(pendingDeleteTeam.id)}
+        onCancel={() => setPendingDeleteTeam(null)}
+      />
     </div>
   );
 }

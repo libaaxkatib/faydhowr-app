@@ -17,6 +17,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/useToast';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
+import { useAuth } from '@/features/auth/useAuth';
 import { formatDateTime } from '@/utils/formatters';
 import {
   SETTINGS_CATEGORY_ORDER,
@@ -318,6 +319,7 @@ function CategoryForm({ category }: { category: SettingCategory }) {
 }
 
 function BackupsPanel({ canManage }: { canManage: boolean }) {
+  const { isSuperAdmin } = useAuth();
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
@@ -380,14 +382,16 @@ function BackupsPanel({ canManage }: { canManage: boolean }) {
                   >
                     <Icon name="arrow-left" size={14} className="-rotate-90" />
                   </button>
-                  <button
-                    type="button"
-                    title={t('option.system.titleRestoreBackup')}
-                    onClick={() => setRestoreTarget(backup.id)}
-                    className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger"
-                  >
-                    <Icon name="refresh" size={14} />
-                  </button>
+                  {isSuperAdmin && (
+                    <button
+                      type="button"
+                      title={t('option.system.titleRestoreBackup')}
+                      onClick={() => setRestoreTarget(backup.id)}
+                      className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-danger-soft hover:text-danger"
+                    >
+                      <Icon name="refresh" size={14} />
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -446,8 +450,8 @@ function BranchesPanel() {
   const { t, tValue } = useI18n();
   const queryClient = useQueryClient();
   const { show } = useToast();
-  const { hasPermission } = useEffectivePermissions();
-  const canManage = hasPermission('settings.manage');
+  // Making a branch active or the default is Super Admin only on the server.
+  const { isSuperAdmin } = useAuth();
 
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['branches'], queryFn: settingsApi.branches.list });
 
@@ -492,12 +496,12 @@ function BranchesPanel() {
               </div>
               <div className="flex items-center gap-2">
                 <StatusBadge status={branch.status} label={tValue('status', branch.status)} />
-                {canManage && branch.status !== 'active' && (
+                {isSuperAdmin && branch.status !== 'active' && (
                   <Button size="sm" variant="outline" isLoading={activateMutation.isPending} onClick={() => activateMutation.mutate(branch.id)}>
                     {t('action.system.activate')}
                   </Button>
                 )}
-                {canManage && branch.status === 'active' && !branch.is_default && (
+                {isSuperAdmin && branch.status === 'active' && !branch.is_default && (
                   <Button size="sm" variant="outline" isLoading={defaultMutation.isPending} onClick={() => defaultMutation.mutate(branch.id)}>
                     {t('action.system.setDefault')}
                   </Button>

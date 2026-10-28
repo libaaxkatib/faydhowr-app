@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/useToast';
 import { useAuth } from '@/features/auth/useAuth';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { useI18n } from '@/i18n/useI18n';
+import { TABLE_SCROLL_CLASS } from '@/components/ui/TableScroll';
 import type { MessageKey } from '@/i18n/messages';
 import { formatCents } from '@/utils/companyEmployees';
 import { formatDate } from '@/utils/formatters';
@@ -61,7 +62,7 @@ export function PayrollCorrectionsPanel() {
         <p className="mb-3 text-xs text-ink-muted">
           {t('warning.payroll.correctionsExplain')}
         </p>
-        <div className="overflow-x-auto">
+        <div role="region" tabIndex={0} aria-label={t('option.common.dataTable')} className={TABLE_SCROLL_CLASS}>
           <table className="w-full text-left text-sm">
             <thead className="text-xs text-ink-muted">
               <tr>

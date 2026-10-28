@@ -112,7 +112,7 @@ export function CustomersListPage() {
         title={t('nav.customers.customers')}
         breadcrumb={[{ label: t('nav.customers.mobileApp'), to: '/dashboard' }, { label: t('nav.customers.customers') }]}
         actions={
-          <PermissionGate module="customers">
+          <PermissionGate module="customers" permission="customers.create">
             <Button onClick={() => setIsCreateOpen(true)}>
               <Icon name="plus" size={15} />
               {t('action.customers.add')}

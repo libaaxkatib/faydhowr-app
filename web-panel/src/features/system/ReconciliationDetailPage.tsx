@@ -19,6 +19,7 @@ import { formatDateTime } from '@/utils/formatters';
 import { DataIssueEditDialog } from '@/features/system/DataIssueEditDialog';
 import { ResolveDataIssueDialog } from '@/features/system/ResolveDataIssueDialog';
 import { useI18n } from '@/i18n/useI18n';
+import { TABLE_SCROLL_CLASS } from '@/components/ui/TableScroll';
 import type { DataIssueSeverity, DataIssueStatus } from '@/types/reconciliation';
 
 const STATUS_TONE: Record<DataIssueStatus, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
@@ -210,7 +211,7 @@ export function ReconciliationDetailPage() {
             {pagedRecords.length === 0 ? (
               <EmptyState icon="users" title={t('warning.system.noAffectedRecords')} description={t('warning.system.noAffectedRecordsText')} />
             ) : (
-              <div className="overflow-x-auto">
+              <div role="region" tabIndex={0} aria-label={t('option.common.dataTable')} className={TABLE_SCROLL_CLASS}>
                 <table className="w-full min-w-[720px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-border bg-surface-alt">

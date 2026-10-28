@@ -20,6 +20,7 @@ import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { getActiveLanguage } from '@/i18n/active';
 import { monthYearLabel } from '@/i18n/dates';
 import { useI18n } from '@/i18n/useI18n';
+import { TABLE_SCROLL_CLASS } from '@/components/ui/TableScroll';
 import type { MessageKey } from '@/i18n/messages';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage, localMonth, localToday, nextMonth } from '@/utils/hrHelpers';
@@ -632,7 +633,7 @@ function ItemsTable({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div role="region" tabIndex={0} aria-label={t('option.common.dataTable')} className={TABLE_SCROLL_CLASS}>
       <table className="w-full min-w-[860px] border-collapse text-sm">
         <thead>
           <tr className="border-b border-border bg-surface-alt">

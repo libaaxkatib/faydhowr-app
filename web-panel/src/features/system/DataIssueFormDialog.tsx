@@ -220,7 +220,7 @@ export function DataIssueFormDialog({ isOpen, onClose }: DataIssueFormDialogProp
                     <span className="text-sm font-medium text-ink">
                       {s.full_name} <span className="font-mono text-xs text-ink-muted">({s.employee_number})</span>
                     </span>
-                    <button type="button" onClick={() => removeEmployee(s.id)} className="text-ink-faint hover:text-danger">
+                    <button type="button" aria-label={t('action.dataIssue.removeEmployeeNamed', { name: s.full_name })} title={t('action.dataIssue.removeEmployeeNamed', { name: s.full_name })} onClick={() => removeEmployee(s.id)} className="text-ink-faint hover:text-danger">
                       <Icon name="x" size={14} />
                     </button>
                   </div>

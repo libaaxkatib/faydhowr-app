@@ -4,7 +4,6 @@ import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import { RequirePermission } from '@/features/auth/RequirePermission';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { AppLayout } from '@/layouts/AppLayout';
-import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { CustomersListPage } from '@/features/customers/CustomersListPage';
 import { CustomerDetailPage } from '@/features/customers/CustomerDetailPage';
 import { HrDashboardPage } from '@/features/hrm/HrDashboardPage';
@@ -50,14 +49,12 @@ import { SettingsPage } from '@/features/system/SettingsPage';
 import { AuditLogPage } from '@/features/system/AuditLogPage';
 import { TranslationsPage } from '@/features/system/TranslationsPage';
 import { RequireSuperAdmin } from '@/features/auth/RequireSuperAdmin';
+import { DashboardGate } from '@/features/dashboard/DashboardGate';
+import { NotFoundPage } from '@/features/shell/NotFoundPage';
 import { ReconciliationListPage } from '@/features/system/ReconciliationListPage';
 import { ReconciliationDetailPage } from '@/features/system/ReconciliationDetailPage';
-import { PageState } from '@/components/ui/PageState';
-import { useI18n } from '@/i18n/useI18n';
 
 export default function App() {
-  const { t } = useI18n();
-
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -69,9 +66,8 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        {/* No permission guard: every authenticated admin, of any role, sees this
-            page — matches the backend's 'dashboard' module, which has permissions: null. */}
-        <Route path="/dashboard" element={<DashboardPage />} />
+        {/* The backend asks for dashboard.view (only some roles hold it): an admin without it is taken to the first page they can use. */}
+        <Route path="/dashboard" element={<DashboardGate />} />
 
         <Route path="/mobile-app/customers" element={<RequirePermission permission="customers.view"><CustomersListPage /></RequirePermission>} />
         <Route path="/mobile-app/customers/:id" element={<RequirePermission permission="customers.view"><CustomerDetailPage /></RequirePermission>} />
@@ -179,12 +175,12 @@ export default function App() {
         <Route path="/hr/reports" element={<RequirePermission permission="hr.reports.view"><HrReportsPage /></RequirePermission>} />
         <Route path="/hr/reports/waiting-analytics" element={<RequirePermission permission="hr.reports.view"><WaitingAnalyticsPage /></RequirePermission>} />
         <Route path="/hr/reports/workforce-requests" element={<RequirePermission permission="hr.reports.view"><WorkforceRequestHistoryPage /></RequirePermission>} />
-        <Route path="/hr/reports/temporary-replacements" element={<RequirePermission permission="hr.reports.view"><TemporaryReplacementHistoryPage /></RequirePermission>} />
+        <Route path="/hr/reports/temporary-replacements" element={<RequirePermission permission="hr.reports.view"><RequirePermission permission="hr.view"><TemporaryReplacementHistoryPage /></RequirePermission></RequirePermission>} />
         <Route path="/hr/reports/leaves" element={<RequirePermission permission="hr.reports.view"><LeaveReportPage /></RequirePermission>} />
         <Route path="/hr/reports/performance-reviews" element={<RequirePermission permission="hr.reports.view"><PerformanceReportPage /></RequirePermission>} />
-        <Route path="/hr/reports/financial-ledger" element={<RequirePermission permission="hr.reports.view"><FinancialLedgerPage /></RequirePermission>} />
+        <Route path="/hr/reports/financial-ledger" element={<RequirePermission permission="hr.reports.view"><RequirePermission permission="hr.view"><FinancialLedgerPage /></RequirePermission></RequirePermission>} />
         <Route path="/hr/reports/facility" element={<RequirePermission permission="hr.reports.view"><RequirePermission permission="hr.inspections.view"><FacilityReportPage /></RequirePermission></RequirePermission>} />
-        <Route path="/hr/reports/payroll-rollup" element={<RequirePermission permission="hr.reports.view"><PayrollRollupPage /></RequirePermission>} />
+        <Route path="/hr/reports/payroll-rollup" element={<RequirePermission permission="hr.reports.view"><RequirePermission permission="hr.view"><PayrollRollupPage /></RequirePermission></RequirePermission>} />
 
         <Route path="/marketing" element={<RequirePermission permission="marketing.view"><MarketingDashboardPage /></RequirePermission>} />
         <Route
@@ -222,11 +218,7 @@ export default function App() {
         <Route
           path="*"
           element={
-            <PageState
-              icon="alert-triangle"
-              title={t('warning.shell.notBuiltTitle')}
-              description={t('warning.shell.notBuiltText')}
-            />
+            <NotFoundPage />
           }
         />
       </Route>
