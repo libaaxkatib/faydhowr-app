@@ -210,3 +210,27 @@ test('white text is only ever put on a filled colour, never on a surface that tu
   }
   assert.deepEqual(offenders, []);
 });
+
+// ------------------------------------------------------------------ Dark sidebar group labels
+
+function luminance([r, g, b]: number[]): number {
+  const [lr, lg, lb] = [r, g, b].map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
+}
+
+test('the Dark sidebar group labels reach 4.5:1 against the Dark sidebar', () => {
+  const css = readFileSync(new URL('../index.css', import.meta.url), 'utf8');
+  const sidebar = readFileSync(new URL('../layouts/Sidebar.tsx', import.meta.url), 'utf8');
+  assert.match(sidebar, /sidebar-group-label/);
+  const rule = css.match(/:root\[data-theme='dark'\] \.sidebar-group-label \{\s*color: rgb\(255 255 255 \/ ([0-9.]+)\);/);
+  assert.ok(rule, 'a Dark-only colour rule for .sidebar-group-label exists');
+  const alpha = Number(rule[1]);
+  const darkBlock = css.slice(css.indexOf(":root[data-theme='dark'] {"));
+  const bg = darkBlock.match(/--color-sidebar: (\d+) (\d+) (\d+);/)!.slice(1).map(Number);
+  const fg = bg.map((channel) => 255 * alpha + channel * (1 - alpha));
+  const [hi, lo] = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
+  assert.ok((hi + 0.05) / (lo + 0.05) >= 4.5);
+});

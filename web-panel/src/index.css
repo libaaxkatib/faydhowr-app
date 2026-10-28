@@ -116,6 +116,11 @@
     color: rgb(var(--color-ink-faint-text));
   }
 
+  /* Dark Mode only: the sidebar group labels (white at 40%) are 3.78:1 on the darker Dark sidebar; 60% reaches WCAG AA. Light is unchanged. */
+  :root[data-theme='dark'] .sidebar-group-label {
+    color: rgb(255 255 255 / 0.6);
+  }
+
   /* Dark Mode only: Chrome paints autofilled fields a pale yellow/blue that is unreadable on a dark surface. */
   :root[data-theme='dark'] input:-webkit-autofill,
   :root[data-theme='dark'] textarea:-webkit-autofill,

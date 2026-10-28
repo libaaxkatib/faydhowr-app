@@ -55,7 +55,7 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
                 <button
                   type="button"
                   onClick={() => setCollapsedGroups((prev) => ({ ...prev, [group.label]: !prev[group.label] }))}
-                  className="flex w-full items-center justify-between px-3 py-2 text-[10.5px] font-bold uppercase tracking-wider text-white/40"
+                  className="sidebar-group-label flex w-full items-center justify-between px-3 py-2 text-[10.5px] font-bold uppercase tracking-wider text-white/40"
                 >
                   <span className="flex items-center gap-1.5">
                     {group.labelKey ? t(group.labelKey) : group.label}
