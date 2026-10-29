@@ -13,7 +13,10 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Icon } from '@/components/ui/Icon';
 import { LoadingState } from '@/components/ui/LoadingState';
+import { NoMatchState, ResetFiltersButton, ResultCount } from '@/components/ui/ListFilterControls';
 import { Modal } from '@/components/ui/Modal';
+import { SearchInput } from '@/components/ui/SearchInput';
+import { Select } from '@/components/ui/Select';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/useToast';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
@@ -27,6 +30,7 @@ import { friendlyErrorMessage, localMonth, localToday, nextMonth } from '@/utils
 import { PayrollCorrectionsPanel } from '@/features/hrm/PayrollCorrectionsPanel';
 import { useAuth } from '@/features/auth/useAuth';
 import { canVoidPayrollPayment, validateWriteOffReason } from '@/utils/payrollCorrections';
+import { filterPayrollLines, type PayrollPaymentFilter } from '@/utils/payrollLineFilter';
 import { PAYMENT_LIST_SCOPES, buttonLabel, canDownload, chooseRecordLabel, emptyOptionsMessage, needsPreview, optionsFor, recordFieldLabel, scopeLabel, selectedOption, type PaymentListScope } from '@/utils/paymentListFilter';
 import { PaymentListPreviewDialog } from '@/features/hrm/PaymentListPreviewDialog';
 import type {
@@ -621,8 +625,17 @@ function ItemsTable({
 }) {
   const { t, tCount } = useI18n();
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  // Finding a line (display only): the lines of the month are already loaded, so the search and the payment filter work on them here.
+  const [search, setSearch] = useState('');
+  const [payment, setPayment] = useState<PayrollPaymentFilter>('');
   const isFinalized = run.status === 'finalized';
-  const items = run.items ?? [];
+  const allItems = run.items ?? [];
+  const items = filterPayrollLines(allItems, search, payment);
+  const filtered = search.trim() !== '' || payment !== '';
+  const reset = () => {
+    setSearch('');
+    setPayment('');
+  };
   const columnCount = isFinalized && canApprove ? 10 : 9;
 
   function toggle(id: number) {
@@ -633,6 +646,26 @@ function ItemsTable({
   }
 
   return (
+    <>
+    <div className="mb-3 flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchInput value={search} onChange={setSearch} placeholder={t('option.payroll.searchLines')} className="w-full max-w-sm" />
+        <Select
+          aria-label={t('status.payroll.paid')}
+          value={payment}
+          onChange={(event) => setPayment(event.target.value as PayrollPaymentFilter)}
+          options={[{ value: 'paid', label: t('option.payroll.paymentPaid') }, { value: 'unpaid', label: t('option.payroll.paymentNotPaid') }]}
+          placeholder={t('option.payroll.paymentAny')}
+          className="w-48"
+        />
+        <ResetFiltersButton count={(search.trim() !== '' ? 1 : 0) + (payment !== '' ? 1 : 0)} onReset={reset} />
+      </div>
+      <ResultCount matching={items.length} total={allItems.length} filtered={filtered} />
+      {filtered && <p className="text-xs text-ink-faint">{t('warning.payroll.totalsWholeMonth')}</p>}
+    </div>
+    {filtered && items.length === 0 ? (
+      <NoMatchState onReset={reset} />
+    ) : (
     <div role="region" tabIndex={0} aria-label={t('option.common.dataTable')} className={TABLE_SCROLL_CLASS}>
       <table className="w-full min-w-[860px] border-collapse text-sm">
         <thead>
@@ -728,6 +761,8 @@ function ItemsTable({
         </tbody>
       </table>
     </div>
+    )}
+    </>
   );
 }
 

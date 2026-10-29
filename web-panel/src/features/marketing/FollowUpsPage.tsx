@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { returnState } from '@/utils/urlFilters';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +11,8 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Select } from '@/components/ui/Select';
+import { SearchInput } from '@/components/ui/SearchInput';
+import { ResetFiltersAction, ResetFiltersButton, ResultCount } from '@/components/ui/ListFilterControls';
 import { inputClasses } from '@/components/ui/FormField';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LoadingState } from '@/components/ui/LoadingState';
@@ -54,6 +57,10 @@ export function FollowUpsPage() {
   const url = useUrlFilters();
   const tab: FollowUpFilter = TABS.find((tabItem) => tabItem.value === url.get('tab'))?.value ?? 'today';
   const setTab = (value: FollowUpFilter) => url.set('tab', value === 'today' ? '' : value);
+  // The search text is kept in the address bar next to the tab (changing the tab keeps it); the server does the searching.
+  const search = url.get('q');
+  const debouncedSearch = useDebouncedValue(search);
+  const searching = debouncedSearch.trim() !== '';
   const [editor, setEditor] = useState<ActiveEditor>(null);
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [feedbackText, setFeedbackText] = useState('');
@@ -61,8 +68,9 @@ export function FollowUpsPage() {
   const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['marketing-follow-ups', tab],
-    queryFn: () => marketingApi.followUps.list({ filter: tab }),
+    queryKey: ['marketing-follow-ups', tab, debouncedSearch.trim()],
+    queryFn: () => marketingApi.followUps.list({ filter: tab, search: debouncedSearch.trim() || undefined }),
+    placeholderData: (previous) => previous,
   });
 
   function closeEditor() {
@@ -129,10 +137,25 @@ export function FollowUpsPage() {
         ))}
       </div>
 
+      <div className="mb-4 flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <SearchInput value={search} onChange={(value) => url.set('q', value)} placeholder={t('option.marketing.searchFollowUps')} className="w-full max-w-xl" />
+          <ResetFiltersButton count={url.activeCount(['q'])} onReset={() => url.reset(['q'])} />
+        </div>
+        {data && <ResultCount matching={data.length} filtered={searching} />}
+      </div>
+
       <Card>
         {isLoading && <LoadingState label={t('option.marketing.loadingFollowUps')} />}
         {error && <ErrorState error={error} onRetry={refetch} />}
-        {data && data.length === 0 && <EmptyState icon="calendar" title={t('warning.marketing.nothingHere')} description={t('warning.marketing.noFollowUpsMatch')} />}
+        {data && data.length === 0 && (
+          <EmptyState
+            icon={searching ? 'search' : 'calendar'}
+            title={searching ? t('warning.common.noMatchTitle') : t('warning.marketing.nothingHere')}
+            description={searching ? t('warning.common.noMatchText') : t('warning.marketing.noFollowUpsMatch')}
+            action={searching ? <ResetFiltersAction onReset={() => url.reset(['q'])} /> : undefined}
+          />
+        )}
         {data && data.length > 0 && (
           <div className="divide-y divide-border">
             {data.map((fu) => (

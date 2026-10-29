@@ -1,6 +1,7 @@
 import { apiRequest, apiRequestWithMeta, downloadAuthenticatedFile } from '@/api/client';
 import type { PageMeta } from '@/types/api';
 import type { OfficeStaffSummary } from '@/utils/officeStaff';
+import type { CompanyListMeta } from '@/utils/clientCompanyFilter';
 import type { CoverConflict } from '@/utils/coverConflict';
 import { downloadQuery, fileName as paymentListFileName, type PaymentListFilterOptions, type PaymentListOption, type PaymentListPreview, type PaymentListScope } from '@/utils/paymentListFilter';
 import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollCorrectionsResponse, PayrollItem, PayrollRun } from '@/types/payroll';
@@ -126,6 +127,9 @@ export const hrApi = {
 
   clientCompanies: {
     list: () => apiRequest<ClientCompany[]>('admin/hr/client-companies'),
+    /** One page of the companies that match every filter at once, with the counts for the category buttons (server-side search and filters). */
+    listPage: (query: Record<string, string | number>) =>
+      apiRequestWithMeta<ClientCompany[]>('admin/hr/client-companies', { query }) as Promise<{ data: ClientCompany[]; meta: CompanyListMeta }>,
     create: (payload: {
       name: string;
       category?: ClientCompanyCategory;

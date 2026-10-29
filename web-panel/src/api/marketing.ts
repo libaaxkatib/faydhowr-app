@@ -81,7 +81,7 @@ export const marketingApi = {
   },
 
   followUps: {
-    list: (params?: { filter?: FollowUpFilter; assigned_admin_id?: number }) =>
+    list: (params?: { filter?: FollowUpFilter; assigned_admin_id?: number; search?: string }) =>
       apiRequest<FollowUp[]>('admin/marketing/follow-ups', { query: params }),
     create: (recordId: number, payload: { follow_up_date: string; assigned_admin_id?: number | null }) =>
       apiRequest<FollowUp>(`admin/marketing/records/${recordId}/follow-ups`, { method: 'POST', body: payload }),

@@ -23,6 +23,7 @@ class ListFollowUpsRequest extends FormRequest
         return [
             'filter' => ['sometimes', Rule::in(['today', 'upcoming', 'overdue', 'all'])],
             'assigned_admin_id' => ['sometimes', 'integer', 'exists:admins,id'],
+            'search' => ['sometimes', 'nullable', 'string', 'max:100'],
         ];
     }
 

@@ -12,10 +12,12 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
+import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { inputClasses } from '@/components/ui/FormField';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { formatDate } from '@/utils/formatters';
 import { DataIssueFormDialog } from '@/features/system/DataIssueFormDialog';
 import { MODULE_OPTIONS, SEVERITY_OPTIONS, STATUS_OPTIONS, TYPE_OPTIONS, translateOptions } from '@/features/system/dataIssueOptions';
@@ -41,21 +43,21 @@ export function ReconciliationListPage() {
   const { t, tValue } = useI18n();
   const navigate = useNavigate();
   const { hasPermission } = useEffectivePermissions();
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<DataIssueStatus | ''>('');
-  const [severity, setSeverity] = useState<DataIssueSeverity | ''>('');
-  const [module, setModule] = useState<DataIssueModule | ''>('');
-  const [issueType, setIssueType] = useState<DataIssueType | ''>('');
-  const [page, setPage] = useState(1);
+  // Search, the four filters and the page live in the address bar (changing one keeps the others and returns to page 1), so Back, a reload or a
+  // shared link bring the list back as it was.
+  const url = useUrlFilters();
+  const search = url.get('q');
+  const status = url.get('status') as DataIssueStatus | '';
+  const severity = url.get('severity') as DataIssueSeverity | '';
+  const module = url.get('module') as DataIssueModule | '';
+  const issueType = url.get('type') as DataIssueType | '';
+  const page = url.page;
+  const setPage = url.setPage;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
-
-  function resetPageAnd<T>(setter: (value: T) => void) {
-    return (value: T) => {
-      setter(value);
-      setPage(1);
-    };
-  }
+  const filterKeys = ['q', 'status', 'severity', 'module', 'type'] as const;
+  const filtered = debouncedSearch.trim() !== '' || status !== '' || severity !== '' || module !== '' || issueType !== '';
+  const resetFilters = () => url.reset(filterKeys);
 
   const { data: summary } = useQuery({
     queryKey: ['reconciliation-summary'],
@@ -164,36 +166,38 @@ export function ReconciliationListPage() {
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
-          <SearchInput value={search} onChange={resetPageAnd(setSearch)} placeholder={t('option.system.searchIssues')} className="min-w-[240px] flex-1" />
+          <SearchInput value={search} onChange={(value) => url.set('q', value)} placeholder={t('option.system.searchIssues')} className="min-w-[240px] flex-1" />
           <Select
             className={inputClasses + ' w-auto'}
             options={statusOptions}
             placeholder={t('option.system.allStatuses')}
             value={status}
-            onChange={(e) => resetPageAnd(setStatus)(e.target.value as DataIssueStatus | '')}
+            onChange={(e) => url.set('status', e.target.value)}
           />
           <Select
             className={inputClasses + ' w-auto'}
             options={severityOptions}
             placeholder={t('option.system.allSeverities')}
             value={severity}
-            onChange={(e) => resetPageAnd(setSeverity)(e.target.value as DataIssueSeverity | '')}
+            onChange={(e) => url.set('severity', e.target.value)}
           />
           <Select
             className={inputClasses + ' w-auto'}
             options={moduleOptions}
             placeholder={t('option.system.allModules')}
             value={module}
-            onChange={(e) => resetPageAnd(setModule)(e.target.value as DataIssueModule | '')}
+            onChange={(e) => url.set('module', e.target.value)}
           />
           <Select
             className={inputClasses + ' w-auto'}
             options={typeOptions}
             placeholder={t('option.system.allTypes')}
             value={issueType}
-            onChange={(e) => resetPageAnd(setIssueType)(e.target.value as DataIssueType | '')}
+            onChange={(e) => url.set('type', e.target.value)}
           />
+          <ResetFiltersButton count={url.activeCount(filterKeys)} onReset={resetFilters} />
         </div>
+        {data && <ListResultBar matching={data.meta.total} filtered={filtered} />}
 
         <DataTable
           columns={columns}
@@ -202,8 +206,9 @@ export function ReconciliationListPage() {
           error={error}
           onRetry={refetch}
           onRowClick={(issue) => navigate(`/system/data-issues/${issue.id}`)}
-          emptyTitle={t('warning.system.noIssues')}
-          emptyDescription={t('option.system.noMatchHint')}
+          emptyTitle={filtered ? t('warning.common.noMatchTitle') : t('warning.system.noIssues')}
+          emptyDescription={filtered ? t('warning.common.noMatchText') : t('option.system.noMatchHint')}
+          emptyAction={filtered ? <ResetFiltersAction onReset={resetFilters} /> : undefined}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

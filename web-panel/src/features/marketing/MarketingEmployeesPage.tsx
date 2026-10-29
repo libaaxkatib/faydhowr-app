@@ -1,4 +1,9 @@
 import { useMemo, useState } from 'react';
+import { NoMatchState, ResetFiltersButton, ResultCount } from '@/components/ui/ListFilterControls';
+import { SearchInput } from '@/components/ui/SearchInput';
+import { Select } from '@/components/ui/Select';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { MARKETING_STAFF_FILTER_KEYS, filterMarketingStaff, parseMarketingStaffFilters, teamsOf } from '@/utils/marketingStaffFilter';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { marketingApi } from '@/api/marketing';
@@ -43,6 +48,15 @@ export function MarketingEmployeesPage() {
 
   const manageable = useMemo(() => manageableTeams(teams.data), [teams.data]);
 
+  // Search and filters live in the address bar (Back, a reload or a shared link bring them back). The list is short and arrives whole, so it is
+  // searched here; only people the server already allowed this person to see are in it.
+  const url = useUrlFilters();
+  const filters = parseMarketingStaffFilters((key) => url.get(key));
+  const shown = data ? filterMarketingStaff(data, filters) : [];
+  const filtered = filters.search.trim() !== '' || filters.role !== '' || filters.team !== '' || filters.status !== '';
+  const resetFilters = () => url.reset(MARKETING_STAFF_FILTER_KEYS);
+  const teamOptions = teamsOf(data ?? []).map((team) => ({ value: String(team.id), label: team.name }));
+
   const statusMutation = useMutation({
     mutationFn: ({ employee, status }: { employee: MarketingEmployee; status: 'active' | 'inactive' }) => marketingApi.employees.update(employee.id, { status }),
     onSuccess: (_result, { status }) => {
@@ -70,15 +84,33 @@ export function MarketingEmployeesPage() {
         }
       />
 
+      {data && data.length > 0 && (
+        <div className="mb-4 flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <SearchInput value={url.get('q')} onChange={(value) => url.set('q', value)} placeholder={t('option.marketing.searchMarketingStaff')} className="w-full max-w-sm" />
+            <Select aria-label={t('option.marketing.filterByRole')} value={filters.role} onChange={(event) => url.set('role', event.target.value)} options={[{ value: 'marketing_manager', label: t('option.marketing.roleManager') }, { value: 'marketing_employee', label: t('option.label.employee') }]} placeholder={t('option.marketing.allRoles')} className="w-44" />
+            {teamOptions.length > 0 && (
+              <Select aria-label={t('option.marketing.filterByTeam')} value={filters.team} onChange={(event) => url.set('team', event.target.value)} options={teamOptions} placeholder={t('option.marketing.allTeams')} className="w-44" />
+            )}
+            {canSeeManagement && (
+              <Select aria-label={t('option.label.status')} value={filters.status} onChange={(event) => url.set('status', event.target.value)} options={[{ value: 'active', label: t('status.active') }, { value: 'inactive', label: t('status.inactive') }]} placeholder={t('option.marketing.allAccountStatuses')} className="w-44" />
+            )}
+            <ResetFiltersButton count={url.activeCount(MARKETING_STAFF_FILTER_KEYS)} onReset={resetFilters} />
+          </div>
+          <ResultCount matching={shown.length} total={data.length} filtered={filtered} />
+        </div>
+      )}
+
       <Card>
         {isLoading && <LoadingState label={t('option.marketing.loadingEmployees')} />}
         {error && <ErrorState error={error} onRetry={refetch} />}
         {data && data.length === 0 && (
           <EmptyState icon="users" title={t('warning.marketing.noEmployees')} description={t('warning.marketing.noEmployeesHint')} />
         )}
-        {data && data.length > 0 && (
+        {data && data.length > 0 && shown.length === 0 && <NoMatchState onReset={resetFilters} />}
+        {data && shown.length > 0 && (
           <div className="divide-y divide-border">
-            {data.map((employee) => (
+            {shown.map((employee) => (
               <div key={employee.id} className="flex items-center justify-between px-5 py-3.5">
                 <div>
                   <p className="text-sm font-medium text-ink">

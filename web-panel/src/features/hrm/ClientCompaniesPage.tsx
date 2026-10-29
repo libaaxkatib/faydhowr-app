@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 import { hrApi } from '@/api/hr';
 import { ApiClientError } from '@/api/client';
@@ -16,21 +16,29 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { NoMatchState, ResetFiltersButton, ResultCount } from '@/components/ui/ListFilterControls';
+import { Pagination } from '@/components/ui/Pagination';
+import { SearchInput } from '@/components/ui/SearchInput';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { useI18n } from '@/i18n/useI18n';
 import type { MessageKey } from '@/i18n/messages';
 import { MultiCompanyPolicyCard } from '@/features/hrm/companyEmployees/MultiCompanyPolicyCard';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
-import { CATEGORY_FILTERS, categoryCounts, filterByCategory, parseCategoryFilter, visibleAliases } from '@/utils/clientCompanyFilter';
+import { CATEGORY_FILTERS, COMPANY_FILTER_KEYS, companyListQuery, hasActiveCompanyFilters, parseCompanyListFilters, visibleAliases } from '@/utils/clientCompanyFilter';
 import type { ClientCompany, ClientCompanyAgreement, ClientCompanyCategory, WorkLocation } from '@/types/employee';
 
 const CATEGORY_OPTIONS: { value: ClientCompanyCategory; label: string; labelKey: MessageKey }[] = [
   { value: 'company', label: 'Company', labelKey: 'option.companyCategory.company' },
   { value: 'guri', label: 'Guri (household)', labelKey: 'option.companyCategory.guri' },
 ];
+
+/** Companies shown per page; the server does the paging. */
+const PAGE_SIZE = 20;
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -43,19 +51,35 @@ export function ClientCompaniesPage() {
   const { show } = useToast();
   const { t, tValue } = useI18n();
   const { hasPermission } = useEffectivePermissions();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const categoryFilter = parseCategoryFilter(searchParams);
+  // Search, category, status, workplaces and the page live in the address bar: a reload, a shared link and Back bring the list back as it was.
+  const url = useUrlFilters();
+  const typed = parseCompanyListFilters(new URLSearchParams({ q: url.get('q'), category: url.get('category'), status: url.get('status'), workplaces: url.get('workplaces') }));
+  const debouncedSearch = useDebouncedValue(typed.search);
+  const filters = { ...typed, search: debouncedSearch };
+  const filtered = hasActiveCompanyFilters(filters);
+  const categoryFilter = typed.category;
   const [companyModal, setCompanyModal] = useState<{ editing: ClientCompany | null } | null>(null);
   const [locationModal, setLocationModal] = useState<{ clientCompanyId: number | null; editing: WorkLocation | null } | null>(null);
   // A delete button only asks; the record is deleted when this is confirmed.
   const [pendingDelete, setPendingDelete] = useState<{ kind: 'company' | 'location'; id: number; name: string } | null>(null);
 
-  const { data: companies, isLoading, error, refetch } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list });
+  // The server does the searching, filtering and paging (the list can hold hundreds of companies), all filters at once. The previous page stays on
+  // screen while the next one loads, so typing does not flash the page empty.
+  const query = companyListQuery(filters, url.page, PAGE_SIZE);
+  const { data: result, isLoading, error, refetch } = useQuery({
+    queryKey: ['client-companies', 'list', query],
+    queryFn: () => hrApi.clientCompanies.listPage(query),
+    placeholderData: (previous) => previous,
+  });
+  const companies = result?.data;
+  const meta = result?.meta;
+  const counts = meta?.counts ?? { all: 0, company: 0, guri: 0 };
+  const resetFilters = () => url.reset(COMPANY_FILTER_KEYS);
 
-  // The Fayadhowr Office is Fayadhowr's own internal location, not a client: it is kept out of the client list,
-  // its filter and its counts. Its capacity is edited on the Office Staff page.
-  const counts = categoryCounts(companies ?? []);
-  const visibleCompanies = filterByCategory(companies ?? [], categoryFilter);
+  // A page past the end (the last record of the last page was deleted, or an old link) goes back to the last page that exists.
+  useEffect(() => {
+    if (meta && meta.total > 0 && companies?.length === 0 && url.page > meta.last_page) url.setPage(meta.last_page);
+  }, [meta, companies, url]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['client-companies'] });
@@ -83,7 +107,6 @@ export function ClientCompaniesPage() {
   });
 
   if (isLoading) return <LoadingState label={t('option.company.loadingCompanies')} />;
-  if (error) return <ErrorState error={error} onRetry={refetch} />;
 
   return (
     <div>
@@ -110,35 +133,57 @@ export function ClientCompaniesPage() {
 
       <MultiCompanyPolicyCard />
 
-      {companies && companies.length > 0 && (
-        <div role="group" aria-label={t('option.company.filterByCategory')} className="mb-4 flex flex-wrap items-center gap-2">
-          {CATEGORY_FILTERS.map((option) => {
-            const isActive = categoryFilter === option.value;
+      {meta && meta.unfiltered_total > 0 && (
+        <div className="mb-4 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <SearchInput value={typed.search} onChange={(value) => url.set('q', value)} placeholder={t('option.company.searchCompaniesPlaceholder')} className="w-full max-w-md" />
+            <Select
+              aria-label={t('option.company.filterByStatus')}
+              value={typed.status}
+              onChange={(event) => url.set('status', event.target.value)}
+              options={[{ value: 'active', label: t('status.active') }, { value: 'inactive', label: t('status.inactive') }]}
+              placeholder={t('option.company.allStatuses')}
+              className="w-48"
+            />
+            <Select
+              aria-label={t('option.company.filterByWorkplaces')}
+              value={typed.workplaces}
+              onChange={(event) => url.set('workplaces', event.target.value)}
+              options={[{ value: 'with', label: t('option.company.workplacesWith') }, { value: 'without', label: t('option.company.workplacesWithout') }]}
+              placeholder={t('option.company.workplacesAny')}
+              className="w-64"
+            />
+            <ResetFiltersButton count={url.activeCount(COMPANY_FILTER_KEYS)} onReset={resetFilters} />
+          </div>
+          <div role="group" aria-label={t('option.company.filterByCategory')} className="flex flex-wrap items-center gap-2">
+            {CATEGORY_FILTERS.map((option) => {
+              const isActive = categoryFilter === option.value;
 
-            return (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={isActive}
-                onClick={() => setSearchParams(option.value === 'all' ? {} : { category: option.value }, { replace: true })}
-                className={`rounded-full border px-4 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-                  isActive ? 'border-primary bg-primary text-white' : 'border-border bg-surface text-ink-muted hover:border-primary/40 hover:text-primary'
-                }`}
-              >
-                {t(option.labelKey)} <span className={isActive ? 'text-white/80' : 'text-ink-faint'}>({counts[option.value]})</span>
-              </button>
-            );
-          })}
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => url.set('category', option.value === 'all' ? '' : option.value)}
+                  className={`rounded-full border px-4 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                    isActive ? 'border-primary bg-primary text-white' : 'border-border bg-surface text-ink-muted hover:border-primary/40 hover:text-primary'
+                  }`}
+                >
+                  {t(option.labelKey)} <span className={isActive ? 'text-white/80' : 'text-ink-faint'}>({counts[option.value]})</span>
+                </button>
+              );
+            })}
+          </div>
+          <ResultCount matching={meta.total} total={meta.unfiltered_total} filtered={filtered} />
         </div>
       )}
 
-      {companies && companies.length === 0 && <EmptyState icon="box" title={t('option.company.noClientCompanies')} />}
-      {companies && companies.length > 0 && visibleCompanies.length === 0 && (
-        <EmptyState icon="box" title={t('option.company.noCategoryRecords', { category: categoryFilter === 'guri' ? t('option.company.filterGuri') : t('option.companyCategory.company') })} />
-      )}
+      {error && <ErrorState error={error} onRetry={refetch} />}
+      {!error && meta && meta.unfiltered_total === 0 && <EmptyState icon="box" title={t('option.company.noClientCompanies')} />}
+      {!error && meta && meta.unfiltered_total > 0 && meta.total === 0 && <NoMatchState onReset={resetFilters} />}
 
       <div className="flex flex-col gap-4">
-        {visibleCompanies.map((company) => (
+        {(companies ?? []).map((company) => (
           <Card key={company.id}>
             <CardHeader className="flex-wrap">
               <div className="min-w-0">
@@ -211,6 +256,12 @@ export function ClientCompaniesPage() {
           </Card>
         ))}
       </div>
+
+      {meta && meta.total > 0 && (
+        <Card className="mt-4">
+          <Pagination meta={meta} onPageChange={url.setPage} />
+        </Card>
+      )}
 
       <ConfirmDialog
         isOpen={pendingDelete !== null}

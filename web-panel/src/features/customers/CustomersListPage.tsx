@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
+import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { CustomerFormDialog } from '@/features/customers/CustomerFormDialog';
@@ -42,6 +43,9 @@ export function CustomersListPage() {
   const setPage = url.setPage;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
+  const filterKeys = ['q', 'status'] as const;
+  const filtered = debouncedSearch.trim() !== '' || status !== '';
+  const resetFilters = () => url.reset(filterKeys);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['customers', { search: debouncedSearch, status, page }],
@@ -154,7 +158,9 @@ export function CustomersListPage() {
             placeholder={t('option.customers.allStatuses')}
             className="w-44"
           />
+          <ResetFiltersButton count={url.activeCount(filterKeys)} onReset={resetFilters} />
         </div>
+        {data && <ListResultBar matching={data.meta.total} filtered={filtered} />}
 
         <DataTable
           columns={columns}
@@ -163,8 +169,9 @@ export function CustomersListPage() {
           error={error}
           onRetry={refetch}
           onRowClick={(customer) => openCustomer(customer.id)}
-          emptyTitle={t('warning.customers.noneFound')}
-          emptyDescription={t('warning.customers.adjustFilters')}
+          emptyTitle={filtered ? t('warning.common.noMatchTitle') : t('warning.customers.noneFound')}
+          emptyDescription={filtered ? t('warning.common.noMatchText') : t('warning.customers.adjustFilters')}
+          emptyAction={filtered ? <ResetFiltersAction onReset={resetFilters} /> : undefined}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

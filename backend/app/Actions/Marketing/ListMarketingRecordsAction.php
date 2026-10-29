@@ -5,6 +5,7 @@ namespace App\Actions\Marketing;
 use App\Models\Admin;
 use App\Models\MarketingRecord;
 use App\Support\Marketing\MarketingScope;
+use App\Support\Marketing\MarketingSearch;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class ListMarketingRecordsAction
@@ -16,14 +17,7 @@ class ListMarketingRecordsAction
             $actor,
         );
 
-        if (! empty($filters['search'])) {
-            $search = $filters['search'];
-            $query->where(function ($q) use ($search) {
-                $q->where('record_number', 'ilike', "%{$search}%")
-                    ->orWhereHas('xarunDetail', fn ($sub) => $sub->where('facility_name', 'ilike', "%{$search}%"))
-                    ->orWhereHas('projectDetail', fn ($sub) => $sub->where('responsible_person_name', 'ilike', "%{$search}%"));
-            });
-        }
+        MarketingSearch::applyToRecords($query, $filters['search'] ?? null);
 
         if (! empty($filters['type'])) {
             $query->where('type', $filters['type']);

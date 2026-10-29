@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 
 import { LoadingState } from '@/components/ui/LoadingState';
@@ -14,6 +15,8 @@ interface DataTableProps<T> {
   onRetry?: () => void;
   emptyTitle?: string;
   emptyDescription?: string;
+  /** Offered under the empty message, for example a "Reset filters" button when a search or filter hid every record. */
+  emptyAction?: ReactNode;
   onRowClick?: (row: T) => void;
   /** Names the scrollable table for screen readers. */
   label?: string;
@@ -27,6 +30,7 @@ export function DataTable<T>({
   onRetry,
   emptyTitle,
   emptyDescription,
+  emptyAction,
   onRowClick,
   label,
 }: DataTableProps<T>) {
@@ -39,7 +43,7 @@ export function DataTable<T>({
 
   if (isLoading) return <LoadingState label={t('option.common.loadingRecords')} />;
   if (error) return <ErrorState error={error} onRetry={onRetry} />;
-  if (data.length === 0) return <EmptyState title={emptyTitle ?? t('option.shell.nothingYet')} description={emptyDescription} />;
+  if (data.length === 0) return <EmptyState title={emptyTitle ?? t('option.shell.nothingYet')} description={emptyDescription} action={emptyAction} />;
 
   return (
     <TableScroll label={label}>

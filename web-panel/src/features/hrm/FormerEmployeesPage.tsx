@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
+import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
@@ -39,6 +40,9 @@ export function FormerEmployeesPage() {
   const setSearch = (value: string) => url.set('q', value);
   const setPage = url.setPage;
   const debouncedSearch = useDebouncedValue(search);
+  const filterKeys = ['q'] as const;
+  const filtered = debouncedSearch.trim() !== '';
+  const resetFilters = () => url.reset(filterKeys);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['employees', { search: debouncedSearch, status: 'inactive', page }],
@@ -140,7 +144,9 @@ export function FormerEmployeesPage() {
             placeholder={t('option.employees.searchEmployees')}
             className="w-full max-w-xs"
           />
+          <ResetFiltersButton count={url.activeCount(filterKeys)} onReset={resetFilters} />
         </div>
+        {data && <ListResultBar matching={data.meta.total} filtered={filtered} />}
 
         <DataTable
           columns={columns}
@@ -149,8 +155,9 @@ export function FormerEmployeesPage() {
           error={error}
           onRetry={refetch}
           onRowClick={(employee) => navigate(`/hr/employees/${employee.id}`, { state: returnState(window.location.pathname, window.location.search, 'Former Employees') })}
-          emptyTitle={t('option.employees.noFormerEmployees')}
-          emptyDescription={t('option.employees.noFormerEmployeesHint')}
+          emptyTitle={filtered ? t('warning.common.noMatchTitle') : t('option.employees.noFormerEmployees')}
+          emptyDescription={filtered ? t('warning.common.noMatchText') : t('option.employees.noFormerEmployeesHint')}
+          emptyAction={filtered ? <ResetFiltersAction onReset={resetFilters} /> : undefined}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

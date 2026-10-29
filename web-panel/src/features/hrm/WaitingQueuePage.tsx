@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
+import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { formatDate, formatDurationSince, initialsOf } from '@/utils/formatters';
@@ -31,6 +32,9 @@ export function WaitingQueuePage() {
   const setSearch = (value: string) => url.set('q', value);
   const setPage = url.setPage;
   const debouncedSearch = useDebouncedValue(search);
+  const filterKeys = ['q'] as const;
+  const filtered = debouncedSearch.trim() !== '';
+  const resetFilters = () => url.reset(filterKeys);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['employees', { search: debouncedSearch, status: 'waiting', page }],
@@ -109,7 +113,9 @@ export function WaitingQueuePage() {
             placeholder={t('option.pipeline.searchWaiting')}
             className="w-full max-w-xs"
           />
+          <ResetFiltersButton count={url.activeCount(filterKeys)} onReset={resetFilters} />
         </div>
+        {data && <ListResultBar matching={data.meta.total} filtered={filtered} />}
 
         <DataTable
           columns={columns}
@@ -122,8 +128,9 @@ export function WaitingQueuePage() {
               state: { fromPath: `${window.location.pathname}${window.location.search}`, fromLabel: 'Waiting' },
             })
           }
-          emptyTitle={t('option.pipeline.noOneWaiting')}
-          emptyDescription={t('option.pipeline.waitingEmptyDescription')}
+          emptyTitle={filtered ? t('warning.common.noMatchTitle') : t('option.pipeline.noOneWaiting')}
+          emptyDescription={filtered ? t('warning.common.noMatchText') : t('option.pipeline.waitingEmptyDescription')}
+          emptyAction={filtered ? <ResetFiltersAction onReset={resetFilters} /> : undefined}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

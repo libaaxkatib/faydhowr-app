@@ -58,3 +58,59 @@ export function visibleAliases(name: string, aliases: readonly { alias: string }
 
   return out;
 }
+
+// ------------------------------------------------------------------ search and filters of the Companies & Workplaces list (2026-10-29)
+// Everything below reads and writes the address bar, so a reload, a shared link and the browser Back button bring the list back exactly as it was.
+
+export type CompanyStatusFilter = '' | 'active' | 'inactive';
+export type CompanyWorkplaceFilter = '' | 'with' | 'without';
+
+/** The address-bar keys of this list's filters (the page number is handled separately). `q` is the search text. */
+export const COMPANY_FILTER_KEYS = ['q', 'category', 'status', 'workplaces'] as const;
+
+export interface CompanyListFilters {
+  search: string;
+  category: CompanyCategoryFilter;
+  status: CompanyStatusFilter;
+  workplaces: CompanyWorkplaceFilter;
+}
+
+/** Reads the filters from the address bar; an unknown value counts as "no filter", so a bad link never hides records. */
+export function parseCompanyListFilters(params: URLSearchParams): CompanyListFilters {
+  const status = params.get('status');
+  const workplaces = params.get('workplaces');
+
+  return {
+    search: (params.get('q') ?? '').replace(/\s+/g, ' ').trimStart(),
+    category: parseCategoryFilter(params),
+    status: status === 'active' || status === 'inactive' ? status : '',
+    workplaces: workplaces === 'with' || workplaces === 'without' ? workplaces : '',
+  };
+}
+
+/** The query sent to the server: only the filters that are set, trimmed, together with the page. Every filter applies at once. */
+export function companyListQuery(filters: CompanyListFilters, page: number, perPage: number): Record<string, string | number> {
+  const query: Record<string, string | number> = { page, per_page: perPage };
+  const search = filters.search.trim();
+
+  if (search !== '') query.search = search;
+  if (filters.category !== 'all') query.category = filters.category;
+  if (filters.status !== '') query.status = filters.status;
+  if (filters.workplaces !== '') query.workplaces = filters.workplaces;
+
+  return query;
+}
+
+/** Is any search word or filter active? (Decides between "there are no records" and "no records match".) */
+export function hasActiveCompanyFilters(filters: CompanyListFilters): boolean {
+  return filters.search.trim() !== '' || filters.category !== 'all' || filters.status !== '' || filters.workplaces !== '';
+}
+
+export interface CompanyListMeta {
+  current_page: number;
+  per_page: number;
+  total: number;
+  last_page: number;
+  counts: Record<CompanyCategoryFilter, number>;
+  unfiltered_total: number;
+}

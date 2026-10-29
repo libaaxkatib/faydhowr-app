@@ -27,3 +27,17 @@ export function withParam(current: URLSearchParams, key: string, value: string):
 export function returnState(pathname: string, search: string, label: string): { fromPath: string; fromLabel: string } {
   return { fromPath: `${pathname}${search}`, fromLabel: label };
 }
+
+/** How many of the given filter keys currently hold a value (the page number never counts as a filter). Used for "Reset filters (3)". */
+export function activeFilterCount(current: URLSearchParams, keys: readonly string[]): number {
+  return keys.filter((key) => key !== 'page' && (current.get(key) ?? '') !== '').length;
+}
+
+/** The query string after clearing the given filter keys and the page number; every other parameter is kept as it is. */
+export function withoutFilters(current: URLSearchParams, keys: readonly string[]): URLSearchParams {
+  const next = new URLSearchParams(current);
+  keys.forEach((key) => next.delete(key));
+  next.delete('page');
+
+  return next;
+}

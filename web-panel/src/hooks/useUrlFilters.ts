@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { pageFromParam, withParam } from '@/utils/urlFilters';
+import { activeFilterCount, pageFromParam, withParam, withoutFilters } from '@/utils/urlFilters';
 
 /**
  * A list's search, filters and page held in the address bar (replace, not push, so typing does not fill the Back history). After opening a
@@ -22,5 +22,16 @@ export function useUrlFilters() {
   const page = pageFromParam(params.get('page'));
   const setPage = useCallback((next: number) => set('page', next <= 1 ? '' : String(next)), [set]);
 
-  return { get, set, page, setPage };
+  /** Clears the given filters (and the page) in one step, keeping every other parameter. */
+  const reset = useCallback(
+    (keys: readonly string[]) => {
+      setParams((previous) => withoutFilters(previous, keys), { replace: true });
+    },
+    [setParams],
+  );
+
+  /** How many of the given filters hold a value now. */
+  const activeCount = (keys: readonly string[]): number => activeFilterCount(params, keys);
+
+  return { get, set, page, setPage, reset, activeCount };
 }

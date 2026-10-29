@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
+import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { XarunFormDialog } from '@/features/marketing/XarunFormDialog';
@@ -54,6 +55,9 @@ export function MarketingRecordsListPage({ type, title }: MarketingRecordsListPa
   const setPage = url.setPage;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
+  const filterKeys = ['q', 'status'] as const;
+  const filtered = debouncedSearch.trim() !== '' || status !== '';
+  const resetFilters = () => url.reset(filterKeys);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['marketing-records', { type, search: debouncedSearch, status, page }],
@@ -168,7 +172,9 @@ export function MarketingRecordsListPage({ type, title }: MarketingRecordsListPa
             placeholder={t('option.marketing.allStatuses')}
             className="w-44"
           />
+          <ResetFiltersButton count={url.activeCount(filterKeys)} onReset={resetFilters} />
         </div>
+        {data && <ListResultBar matching={data.meta.total} filtered={filtered} />}
 
         <DataTable
           columns={columns}
@@ -177,8 +183,9 @@ export function MarketingRecordsListPage({ type, title }: MarketingRecordsListPa
           error={error}
           onRetry={refetch}
           onRowClick={(record) => navigate(`/marketing/${type}/${record.id}`, { state: returnState(window.location.pathname, window.location.search, '' + (type === 'xarun' ? 'XARUN' : 'PROJECT') + '') })}
-          emptyTitle={t('warning.marketing.noRecordsFound', { type: type === 'xarun' ? 'XARUN' : 'PROJECT' })}
-          emptyDescription={t('warning.marketing.adjustSearch')}
+          emptyTitle={filtered ? t('warning.common.noMatchTitle') : t('warning.marketing.noRecordsFound', { type: type === 'xarun' ? 'XARUN' : 'PROJECT' })}
+          emptyDescription={filtered ? t('warning.common.noMatchText') : t('warning.marketing.adjustSearch')}
+          emptyAction={filtered ? <ResetFiltersAction onReset={resetFilters} /> : undefined}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

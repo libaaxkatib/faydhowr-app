@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
+import { ListResultBar, ResetFiltersAction } from '@/components/ui/ListFilterControls';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { inputClasses } from '@/components/ui/FormField';
@@ -501,6 +502,8 @@ export function EmployeesListPage({
           </div>
         )}
 
+        {data && <ListResultBar matching={data.meta.total} filtered={filterCount > 0} />}
+
         <DataTable
           columns={columns}
           data={data?.data ?? []}
@@ -508,8 +511,9 @@ export function EmployeesListPage({
           error={error}
           onRetry={refetch}
           onRowClick={(employee) => goToEmployee(employee.id)}
-          emptyTitle={t('option.employees.noEmployeesFound')}
-          emptyDescription={t('option.employees.noEmployeesFoundHint')}
+          emptyTitle={filterCount > 0 ? t('warning.common.noMatchTitle') : t('option.employees.noEmployeesFound')}
+          emptyDescription={filterCount > 0 ? t('warning.common.noMatchText') : t('option.employees.noEmployeesFoundHint')}
+          emptyAction={filterCount > 0 ? <ResetFiltersAction onReset={clearFilters} /> : undefined}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

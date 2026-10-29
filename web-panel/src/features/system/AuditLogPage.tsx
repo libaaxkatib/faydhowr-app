@@ -10,7 +10,9 @@ import { Select } from '@/components/ui/Select';
 import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
 import { Modal } from '@/components/ui/Modal';
+import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { formatDateTime } from '@/utils/formatters';
 import { adminRoleLabel } from '@/types/system';
 import { useI18n } from '@/i18n/useI18n';
@@ -39,14 +41,26 @@ function englishAction(value: string): string {
 export function AuditLogPage() {
   const { t, tValue } = useI18n();
   const actionLabel = useCallback((value: string): string => tValue('option.system.auditAction', value) ?? englishAction(value), [tValue]);
-  const [action, setAction] = useState('');
-  const [entityType, setEntityType] = useState('');
-  const [adminId, setAdminId] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [page, setPage] = useState(1);
+  // The filters and the page live in the address bar (changing one keeps the others and returns to page 1), so Back, a reload or a shared link
+  // bring the log back as it was.
+  const url = useUrlFilters();
+  const action = url.get('action');
+  const entityType = url.get('entity');
+  const adminId = url.get('admin');
+  const dateFrom = url.get('from');
+  const dateTo = url.get('to');
+  const page = url.page;
+  const setAction = (value: string) => url.set('action', value);
+  const setEntityType = (value: string) => url.set('entity', value);
+  const setAdminId = (value: string) => url.set('admin', value);
+  const setDateFrom = (value: string) => url.set('from', value);
+  const setDateTo = (value: string) => url.set('to', value);
+  const setPage = url.setPage;
+  const filterKeys = ['action', 'admin', 'entity', 'from', 'to'] as const;
   const [detail, setDetail] = useState<AuditLogEntry | null>(null);
   const debouncedEntityType = useDebouncedValue(entityType);
+  const filtered = action !== '' || adminId !== '' || debouncedEntityType.trim() !== '' || dateFrom !== '' || dateTo !== '';
+  const resetFilters = () => url.reset(filterKeys);
 
   const admins = useQuery({ queryKey: ['admins-for-audit-filter'], queryFn: () => adminsApi.list({ per_page: 100 }) });
 
@@ -187,7 +201,9 @@ export function AuditLogPage() {
             }}
             className="h-10 rounded-sm border border-border bg-surface px-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
+          <ResetFiltersButton count={url.activeCount(filterKeys)} onReset={resetFilters} />
         </div>
+        {data && <ListResultBar matching={data.meta.total} filtered={filtered} />}
 
         <DataTable
           columns={columns}
@@ -195,8 +211,9 @@ export function AuditLogPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          emptyTitle={t('warning.system.noAuditEntries')}
-          emptyDescription={t('option.system.noMatchFiltersHint')}
+          emptyTitle={filtered ? t('warning.common.noMatchTitle') : t('warning.system.noAuditEntries')}
+          emptyDescription={filtered ? t('warning.common.noMatchText') : t('option.system.noMatchFiltersHint')}
+          emptyAction={filtered ? <ResetFiltersAction onReset={resetFilters} /> : undefined}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

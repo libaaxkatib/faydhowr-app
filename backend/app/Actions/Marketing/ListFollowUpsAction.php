@@ -5,6 +5,7 @@ namespace App\Actions\Marketing;
 use App\Models\Admin;
 use App\Models\FollowUp;
 use App\Support\Marketing\MarketingScope;
+use App\Support\Marketing\MarketingSearch;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -28,6 +29,8 @@ class ListFollowUpsAction
         if (! empty($filters['assigned_admin_id'])) {
             $query->where('assigned_admin_id', $filters['assigned_admin_id']);
         }
+
+        MarketingSearch::applyToFollowUps($query, $filters['search'] ?? null);
 
         $today = CarbonImmutable::now()->toDateString();
 

@@ -23,6 +23,37 @@ export const uxAudit = defineMessages({
   'option.common.goToPage': message('Go to page', 'U gudub bogga'),
   'action.common.go': message('Go', 'Tag'),
 
+  // ---------------------------------------------------------------- search and filters (2026-10-29)
+  'action.common.clearSearch': message('Clear search', 'Nadiifi raadinta'),
+  'action.common.resetFilters': message('Reset filters', 'Nadiifi shaandhooyinka'),
+  'action.common.resetFiltersCount': message('Reset filters ({count})', 'Nadiifi shaandhooyinka ({count})'),
+  'option.common.resultsTotal': message('{count} records', '{count} diiwaan'),
+  'option.common.resultsMatching': message('{count} matching records', '{count} diiwaan oo ku habboon'),
+  'option.common.resultsFiltered': message('{count} of {total} match your search and filters', '{count} ka mid ah {total} ayaa ku habboon raadintaada iyo shaandhooyinkaaga'),
+  'warning.common.noMatchTitle': message('No records match your search or filters', 'Diiwaan ku habboon raadintaada ama shaandhooyinkaaga ma jiro'),
+  'warning.common.noMatchText': message('Change the search words, or reset the filters to see all records.', 'Beddel erayada raadinta, ama nadiifi shaandhooyinka si aad u aragto dhammaan diiwaannada.'),
+
+  'option.company.searchCompaniesPlaceholder': message('Search companies and workplaces...', 'Ku raadi shirkadaha iyo goobaha shaqada...'),
+  'option.company.allStatuses': message('All statuses', 'Dhammaan xaaladaha'),
+  'option.company.workplacesAny': message('Workplaces: any', 'Goobaha shaqada: dhammaan'),
+  'option.company.workplacesWith': message('With workplaces', 'Goobo shaqo leh'),
+  'option.company.workplacesWithout': message('Without workplaces', "Goobo shaqo la'aan"),
+  'option.company.filterByStatus': message('Filter by status', 'Ku shaandhee xaalad'),
+  'option.company.filterByWorkplaces': message('Filter by workplaces', 'Ku shaandhee goobaha shaqada'),
+
+  'option.payroll.searchLines': message('Search employee, number, company or workplace...', 'Ku raadi shaqaale, lambar, shirkad ama goob shaqo...'),
+  'option.payroll.paymentAny': message('Payment: any', 'Bixinta: dhammaan'),
+  'option.payroll.paymentPaid': message('Paid', 'La bixiyey'),
+  'option.payroll.paymentNotPaid': message('Not paid yet', 'Weli lama bixin'),
+  'warning.payroll.totalsWholeMonth': message('The totals above are for the whole month, not only the lines shown here.', 'Wadarta sare waa bishii oo dhan, ma aha kaliya khadadka halkan lagu tusay.'),
+
+  'option.marketing.searchFollowUps': message('Search follow-ups: facility, company, person, phone, location, number...', 'Ku raadi la socodka: xarun, shirkad, qof, taleefan, goob, lambar...'),
+  'option.marketing.searchMarketingStaff': message('Search by name, email or phone...', 'Ku raadi magac, iimayl ama taleefan...'),
+  'option.marketing.filterByRole': message('Filter by role', 'Ku shaandhee door'),
+  'option.marketing.filterByTeam': message('Filter by team', 'Ku shaandhee koox'),
+  'option.marketing.allRoles': message('All roles', 'Dhammaan doorarka'),
+  'option.marketing.allAccountStatuses': message('All accounts', 'Dhammaan akoonnada'),
+
   // ---------------------------------------------------------------- pages
   'warning.shell.pageNotFoundTitle': message('Page not found', 'Bogga lama helin'),
   'warning.shell.pageNotFoundText': message('Check the address, or use the menu to open a page.', 'Hubi cinwaanka, ama isticmaal liiska si aad u furto bog.'),

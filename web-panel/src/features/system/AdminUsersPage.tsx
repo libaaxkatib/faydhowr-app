@@ -12,10 +12,12 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
+import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/useToast';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useAuth } from '@/features/auth/useAuth';
 import { formatDateTime } from '@/utils/formatters';
 import { ASSIGNABLE_ADMIN_ROLES, adminRoleLabel } from '@/types/system';
@@ -34,11 +36,20 @@ export function AdminUsersPage() {
   // Viewing the list needs admins.manage, but creating, editing, deleting and resetting passwords are Super Admin only on the server.
   const canManageAdmins = isSuperAdmin;
 
-  const [search, setSearch] = useState('');
-  const [role, setRole] = useState<AdminRole | ''>('');
-  const [status, setStatus] = useState<AdminStatus | ''>('');
-  const [page, setPage] = useState(1);
+  // Search, role, status and page live in the address bar, so Back, a reload or a shared link bring the list back as it was.
+  const url = useUrlFilters();
+  const search = url.get('q');
+  const role = url.get('role') as AdminRole | '';
+  const status = url.get('status') as AdminStatus | '';
+  const page = url.page;
+  const setSearch = (value: string) => url.set('q', value);
+  const setRole = (value: AdminRole | '') => url.set('role', value);
+  const setStatus = (value: AdminStatus | '') => url.set('status', value);
+  const setPage = url.setPage;
   const debouncedSearch = useDebouncedValue(search);
+  const filterKeys = ['q', 'role', 'status'] as const;
+  const filtered = debouncedSearch.trim() !== '' || role !== '' || status !== '';
+  const resetFilters = () => url.reset(filterKeys);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Admin | undefined>(undefined);
@@ -208,7 +219,9 @@ export function AdminUsersPage() {
             placeholder={t('option.system.allStatuses')}
             className="w-40"
           />
+          <ResetFiltersButton count={url.activeCount(filterKeys)} onReset={resetFilters} />
         </div>
+        {data && <ListResultBar matching={data.meta.total} filtered={filtered} />}
 
         <DataTable
           columns={columns}
@@ -216,8 +229,9 @@ export function AdminUsersPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          emptyTitle={t('warning.system.noAdmins')}
-          emptyDescription={t('option.system.noMatchHint')}
+          emptyTitle={filtered ? t('warning.common.noMatchTitle') : t('warning.system.noAdmins')}
+          emptyDescription={filtered ? t('warning.common.noMatchText') : t('option.system.noMatchHint')}
+          emptyAction={filtered ? <ResetFiltersAction onReset={resetFilters} /> : undefined}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}
