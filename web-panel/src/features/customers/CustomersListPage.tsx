@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -16,9 +16,11 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { CustomerFormDialog } from '@/features/customers/CustomerFormDialog';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useI18n } from '@/i18n/useI18n';
 import type { MessageKey } from '@/i18n/messages';
 import { formatDate, initialsOf } from '@/utils/formatters';
+import { returnState } from '@/utils/urlFilters';
 import type { Customer, CustomerStatus } from '@/types/customer';
 
 const STATUS_OPTIONS: { value: CustomerStatus; labelKey: MessageKey }[] = [
@@ -31,9 +33,13 @@ const STATUS_OPTIONS: { value: CustomerStatus; labelKey: MessageKey }[] = [
 export function CustomersListPage() {
   const navigate = useNavigate();
   const { t, tValue } = useI18n();
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<CustomerStatus | ''>('');
-  const [page, setPage] = useState(1);
+  const url = useUrlFilters();
+  const search = url.get('q');
+  const status = url.get('status') as CustomerStatus | '';
+  const setSearch = (value: string) => url.set('q', value);
+  const setStatus = (value: CustomerStatus | '') => url.set('status', value);
+  const page = url.page;
+  const setPage = url.setPage;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
 
@@ -48,6 +54,12 @@ export function CustomersListPage() {
       }),
     placeholderData: (previous) => previous,
   });
+
+  // The detail page's breadcrumb returns to the list exactly as it was left (search, status and page).
+  const openCustomer = useCallback(
+    (id: number) => navigate(`/mobile-app/customers/${id}`, { state: returnState(window.location.pathname, window.location.search, t('nav.customers.customers')) }),
+    [navigate, t],
+  );
 
   const columns = useMemo<ColumnDef<Customer, unknown>[]>(
     () => [
@@ -94,7 +106,7 @@ export function CustomersListPage() {
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              navigate(`/mobile-app/customers/${row.original.id}`);
+              openCustomer(row.original.id);
             }}
             className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary"
           >
@@ -103,7 +115,7 @@ export function CustomersListPage() {
         ),
       },
     ],
-    [navigate, t, tValue],
+    [openCustomer, t, tValue],
   );
 
   return (
@@ -150,7 +162,7 @@ export function CustomersListPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          onRowClick={(customer) => navigate(`/mobile-app/customers/${customer.id}`)}
+          onRowClick={(customer) => openCustomer(customer.id)}
           emptyTitle={t('warning.customers.noneFound')}
           emptyDescription={t('warning.customers.adjustFilters')}
         />

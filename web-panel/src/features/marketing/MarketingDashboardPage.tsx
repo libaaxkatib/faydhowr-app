@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { marketingApi } from '@/api/marketing';
@@ -24,9 +25,9 @@ export function MarketingDashboardPage() {
         <>
           <div className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">{t('option.marketing.today')}</div>
           <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard label={t('option.marketing.todaysFollowUps')} value={data.todays_follow_ups} icon="calendar" color="bg-primary" />
+            <KpiCard label={t('option.marketing.todaysFollowUps')} value={data.todays_follow_ups} icon="calendar" color="bg-primary" to="/marketing/follow-ups" />
             <KpiCard label={t('option.marketing.newLeadsToday')} value={data.new_leads_today} icon="plus" color="bg-secondary" />
-            <KpiCard label={t('option.marketing.overdueFollowUps')} value={data.overdue_follow_ups} icon="alert-triangle" color="bg-danger" />
+            <KpiCard label={t('option.marketing.overdueFollowUps')} value={data.overdue_follow_ups} icon="alert-triangle" color="bg-danger" to="/marketing/follow-ups?tab=overdue" />
             <KpiCard label={t('option.marketing.inQuotation')} value={data.quotation} icon="file-text" color="bg-warning" />
           </div>
 
@@ -50,23 +51,35 @@ function KpiCard({
   value,
   icon,
   color,
+  to,
 }: {
   label: string;
   value: number;
   icon: 'calendar' | 'plus' | 'alert-triangle' | 'file-text' | 'megaphone' | 'briefcase' | 'check' | 'x';
   color: string;
+  /** Makes the whole card a link to the list behind the number. */
+  to?: string;
 }) {
-  return (
-    <Card className="p-5">
+  const card = (
+    <Card className={`p-5 ${to ? 'transition-colors hover:border-primary' : ''}`}>
       <div className="flex items-center gap-3">
         <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-white ${color}`}>
           <Icon name={icon} size={19} />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-medium leading-snug text-ink-muted">{label}</p>
           <p className="font-display text-xl font-bold text-ink">{formatNumber(value)}</p>
         </div>
+        {to && <Icon name="chevron-right" size={16} />}
       </div>
     </Card>
+  );
+
+  return to ? (
+    <Link to={to} className="block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+      {card}
+    </Link>
+  ) : (
+    card
   );
 }

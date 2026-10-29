@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { customersApi } from '@/api/customers';
@@ -21,6 +21,7 @@ import type { UpdatableCustomerStatus } from '@/types/customer';
 export function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const customerId = Number(id);
+  const origin = useLocation().state as { fromPath?: string } | null;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { show } = useToast();
@@ -78,7 +79,7 @@ export function CustomerDetailPage() {
         title={customer.full_name}
         breadcrumb={[
           { label: t('nav.customers.mobileApp'), to: '/dashboard' },
-          { label: t('nav.customers.customers'), to: '/mobile-app/customers' },
+          { label: t('nav.customers.customers'), to: origin?.fromPath?.startsWith('/mobile-app/customers') ? origin.fromPath : '/mobile-app/customers' },
           { label: customer.customer_number },
         ]}
         actions={

@@ -17,6 +17,12 @@ export const uxAudit = defineMessages({
   'action.training.removeParticipantNamed': message('Remove {name} from the batch', 'Ka saar {name} koox-tababarka'),
   'action.dataIssue.removeEmployeeNamed': message('Remove {name} from the list', 'Ka saar {name} liiska'),
 
+  // ---------------------------------------------------------------- page buttons under every list
+  'option.common.pagination': message('Pages', 'Bogagga'),
+  'option.common.pageNumber': message('Page {page}', 'Bogga {page}'),
+  'option.common.goToPage': message('Go to page', 'U gudub bogga'),
+  'action.common.go': message('Go', 'Tag'),
+
   // ---------------------------------------------------------------- pages
   'warning.shell.pageNotFoundTitle': message('Page not found', 'Bogga lama helin'),
   'warning.shell.pageNotFoundText': message('Check the address, or use the menu to open a page.', 'Hubi cinwaanka, ama isticmaal liiska si aad u furto bog.'),
