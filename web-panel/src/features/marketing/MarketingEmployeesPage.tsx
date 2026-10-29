@@ -111,8 +111,8 @@ export function MarketingEmployeesPage() {
         {data && shown.length > 0 && (
           <div className="divide-y divide-border">
             {shown.map((employee) => (
-              <div key={employee.id} className="flex items-center justify-between px-5 py-3.5">
-                <div>
+              <div key={employee.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3.5">
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-ink">
                     {employee.full_name}
                     {employee.status === 'inactive' && (
@@ -121,7 +121,7 @@ export function MarketingEmployeesPage() {
                   </p>
                   <p className="text-xs text-ink-muted">{employee.email}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {employee.teams && employee.teams.length > 0 ? (
                     <div className="flex flex-wrap justify-end gap-1">
                       {employee.teams.map((team) => (

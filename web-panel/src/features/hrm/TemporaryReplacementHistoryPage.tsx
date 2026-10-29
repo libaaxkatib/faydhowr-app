@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
+import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { DATE_RANGE_KEYS } from '@/utils/dateRangePreset';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useDateRangePreset } from '@/hooks/useDateRangePreset';
 import { formatDate } from '@/utils/formatters';
@@ -18,10 +21,18 @@ import { useI18n } from '@/i18n/useI18n';
 export function TemporaryReplacementHistoryPage() {
   const { t, tValue } = useI18n();
   const { preset, setPreset, from, to, setFrom, setTo, options: presetOptions } = useDateRangePreset();
-  const [clientCompanyId, setClientCompanyId] = useState('');
-  const [page, setPage] = useState(1);
+  // The filters and the page live in the address bar (changing one keeps the others and returns to page 1), so Back, a reload or a shared link bring the report back as it was.
+  const url = useUrlFilters();
+  const clientCompanyId = url.get('company');
+  const setClientCompanyId = (value: string) => url.set('company', value);
+  const page = url.page;
+  const setPage = url.setPage;
 
   const { data: companies } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list });
+
+  const filterKeys = ['company', ...DATE_RANGE_KEYS] as const;
+  const filtered = clientCompanyId !== '' || from !== '' || to !== '';
+  const resetFilters = () => url.reset(filterKeys);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['temporary-replacement-history', { clientCompanyId, from, to, page }],
@@ -149,7 +160,9 @@ export function TemporaryReplacementHistoryPage() {
             options={(companies ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
             className="w-48"
           />
+          <ResetFiltersButton count={url.activeCount(filterKeys)} onReset={resetFilters} />
         </div>
+        {data && <ListResultBar matching={data.meta.total} filtered={filtered} />}
 
         <DataTable
           columns={columns}
@@ -157,8 +170,9 @@ export function TemporaryReplacementHistoryPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          emptyTitle={t('option.pipeline.noTemporaryReplacements')}
-          emptyDescription={t('option.pipeline.replacementsEmptyDescription')}
+          emptyTitle={filtered ? t('warning.common.noMatchTitle') : t('option.pipeline.noTemporaryReplacements')}
+          emptyDescription={filtered ? t('warning.common.noMatchText') : t('option.pipeline.replacementsEmptyDescription')}
+          emptyAction={filtered ? <ResetFiltersAction onReset={resetFilters} /> : undefined}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

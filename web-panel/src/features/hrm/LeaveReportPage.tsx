@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
+import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { DATE_RANGE_KEYS } from '@/utils/dateRangePreset';
 import { useDateRangePreset } from '@/hooks/useDateRangePreset';
 import { formatDate } from '@/utils/formatters';
 import type { EmployeeLeave, LeaveType } from '@/types/employee';
@@ -25,11 +28,20 @@ const LEAVE_TYPE_OPTIONS: { value: LeaveType; label: string }[] = [
 export function LeaveReportPage() {
   const { t, tValue } = useI18n();
   const { preset, setPreset, from, to, setFrom, setTo, options: presetOptions } = useDateRangePreset();
-  const [departmentId, setDepartmentId] = useState('');
-  const [leaveType, setLeaveType] = useState<LeaveType | ''>('');
-  const [page, setPage] = useState(1);
+  // The filters and the page live in the address bar (changing one keeps the others and returns to page 1), so Back, a reload or a shared link bring the report back as it was.
+  const url = useUrlFilters();
+  const departmentId = url.get('department');
+  const leaveType = url.get('leave_type') as LeaveType | '';
+  const setDepartmentId = (value: string) => url.set('department', value);
+  const setLeaveType = (value: LeaveType | '') => url.set('leave_type', value);
+  const page = url.page;
+  const setPage = url.setPage;
 
   const { data: departments } = useQuery({ queryKey: ['departments'], queryFn: hrApi.departments.list });
+
+  const filterKeys = ['department', 'leave_type', ...DATE_RANGE_KEYS] as const;
+  const filtered = departmentId !== '' || leaveType !== '' || from !== '' || to !== '';
+  const resetFilters = () => url.reset(filterKeys);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['leave-report', { departmentId, leaveType, from, to, page }],
@@ -149,7 +161,9 @@ export function LeaveReportPage() {
             options={LEAVE_TYPE_OPTIONS.map((o) => ({ value: o.value, label: tValue('option.leaveType', o.value) ?? o.label }))}
             className="w-40"
           />
+          <ResetFiltersButton count={url.activeCount(filterKeys)} onReset={resetFilters} />
         </div>
+        {data && <ListResultBar matching={data.meta.total} filtered={filtered} />}
 
         <DataTable
           columns={columns}
@@ -157,8 +171,9 @@ export function LeaveReportPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          emptyTitle={t('option.reports.leavesEmptyTitle')}
-          emptyDescription={t('option.reports.leavesEmptyBody')}
+          emptyTitle={filtered ? t('warning.common.noMatchTitle') : t('option.reports.leavesEmptyTitle')}
+          emptyDescription={filtered ? t('warning.common.noMatchText') : t('option.reports.leavesEmptyBody')}
+          emptyAction={filtered ? <ResetFiltersAction onReset={resetFilters} /> : undefined}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

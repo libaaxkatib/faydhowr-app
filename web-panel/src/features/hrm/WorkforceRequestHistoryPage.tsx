@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/Card';
 import { Select } from '@/components/ui/Select';
 import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
+import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatDate } from '@/utils/formatters';
 import type { WorkforceRequest, WorkforceRequestStatus } from '@/types/employee';
@@ -30,11 +32,20 @@ const STATUS_TONE: Record<WorkforceRequestStatus, 'neutral' | 'warning' | 'succe
 /** docs/HRM_MARKETING_SRS.md HR Phase 6: full request history (not just open cards, unlike WorkforceRequestsPage.tsx). */
 export function WorkforceRequestHistoryPage() {
   const { t, tValue } = useI18n();
-  const [clientCompanyId, setClientCompanyId] = useState('');
-  const [status, setStatus] = useState<WorkforceRequestStatus | ''>('');
-  const [page, setPage] = useState(1);
+  // The filters and the page live in the address bar (changing one keeps the others and returns to page 1), so Back, a reload or a shared link bring the report back as it was.
+  const url = useUrlFilters();
+  const clientCompanyId = url.get('company');
+  const status = url.get('status') as WorkforceRequestStatus | '';
+  const setClientCompanyId = (value: string) => url.set('company', value);
+  const setStatus = (value: WorkforceRequestStatus | '') => url.set('status', value);
+  const page = url.page;
+  const setPage = url.setPage;
 
   const { data: companies } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list });
+
+  const filterKeys = ['company', 'status'] as const;
+  const filtered = clientCompanyId !== '' || status !== '';
+  const resetFilters = () => url.reset(filterKeys);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['workforce-request-history', { clientCompanyId, status, page }],
@@ -114,7 +125,9 @@ export function WorkforceRequestHistoryPage() {
             options={STATUS_OPTIONS.map((o) => ({ value: o.value, label: tValue('status.pipeline.workforce', o.value) ?? o.label }))}
             className="w-44"
           />
+          <ResetFiltersButton count={url.activeCount(filterKeys)} onReset={resetFilters} />
         </div>
+        {data && <ListResultBar matching={data.meta.total} filtered={filtered} />}
 
         <DataTable
           columns={columns}
@@ -122,8 +135,9 @@ export function WorkforceRequestHistoryPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          emptyTitle={t('option.pipeline.noWorkforceRequests')}
-          emptyDescription={t('option.pipeline.requestsEmptyDescription')}
+          emptyTitle={filtered ? t('warning.common.noMatchTitle') : t('option.pipeline.noWorkforceRequests')}
+          emptyDescription={filtered ? t('warning.common.noMatchText') : t('option.pipeline.requestsEmptyDescription')}
+          emptyAction={filtered ? <ResetFiltersAction onReset={resetFilters} /> : undefined}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

@@ -1,22 +1,22 @@
 import { useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
 
+import { useUrlParamUpdater } from '@/hooks/useUrlParamUpdater';
 import { activeFilterCount, pageFromParam, withParam, withoutFilters } from '@/utils/urlFilters';
 
 /**
  * A list's search, filters and page held in the address bar (replace, not push, so typing does not fill the Back history). After opening a
- * record and pressing Back, a reload or a shared link, the list returns exactly as it was left. Changing a filter returns to page 1.
+ * record and pressing Back, a reload or a shared link, the list returns exactly as it was left. Changing a filter returns to page 1, and several changes in one event (a filter, then the page) all take effect.
  */
 export function useUrlFilters() {
-  const [params, setParams] = useSearchParams();
+  const [params, update] = useUrlParamUpdater();
 
   const get = (key: string, fallback = ''): string => params.get(key) ?? fallback;
 
   const set = useCallback(
     (key: string, value: string) => {
-      setParams((previous) => withParam(previous, key, value), { replace: true });
+      update((previous) => withParam(previous, key, value));
     },
-    [setParams],
+    [update],
   );
 
   const page = pageFromParam(params.get('page'));
@@ -25,9 +25,9 @@ export function useUrlFilters() {
   /** Clears the given filters (and the page) in one step, keeping every other parameter. */
   const reset = useCallback(
     (keys: readonly string[]) => {
-      setParams((previous) => withoutFilters(previous, keys), { replace: true });
+      update((previous) => withoutFilters(previous, keys));
     },
-    [setParams],
+    [update],
   );
 
   /** How many of the given filters hold a value now. */

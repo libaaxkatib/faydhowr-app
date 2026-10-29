@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
+import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { DATE_RANGE_KEYS } from '@/utils/dateRangePreset';
 import { useDateRangePreset } from '@/hooks/useDateRangePreset';
 import { formatDate } from '@/utils/formatters';
 import type { EmployeePerformanceReview, PerformanceRating } from '@/types/employee';
@@ -25,11 +28,20 @@ const RATING_OPTIONS: { value: PerformanceRating; label: string }[] = [
 export function PerformanceReportPage() {
   const { t, tValue } = useI18n();
   const { preset, setPreset, from, to, setFrom, setTo, options: presetOptions } = useDateRangePreset();
-  const [departmentId, setDepartmentId] = useState('');
-  const [rating, setRating] = useState<PerformanceRating | ''>('');
-  const [page, setPage] = useState(1);
+  // The filters and the page live in the address bar (changing one keeps the others and returns to page 1), so Back, a reload or a shared link bring the report back as it was.
+  const url = useUrlFilters();
+  const departmentId = url.get('department');
+  const rating = url.get('rating') as PerformanceRating | '';
+  const setDepartmentId = (value: string) => url.set('department', value);
+  const setRating = (value: PerformanceRating | '') => url.set('rating', value);
+  const page = url.page;
+  const setPage = url.setPage;
 
   const { data: departments } = useQuery({ queryKey: ['departments'], queryFn: hrApi.departments.list });
+
+  const filterKeys = ['department', 'rating', ...DATE_RANGE_KEYS] as const;
+  const filtered = departmentId !== '' || rating !== '' || from !== '' || to !== '';
+  const resetFilters = () => url.reset(filterKeys);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['performance-report', { departmentId, rating, from, to, page }],
@@ -145,7 +157,9 @@ export function PerformanceReportPage() {
             options={RATING_OPTIONS.map((o) => ({ value: o.value, label: tValue('status.pipeline.rating', o.value) ?? o.label }))}
             className="w-44"
           />
+          <ResetFiltersButton count={url.activeCount(filterKeys)} onReset={resetFilters} />
         </div>
+        {data && <ListResultBar matching={data.meta.total} filtered={filtered} />}
 
         <DataTable
           columns={columns}
@@ -153,8 +167,9 @@ export function PerformanceReportPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          emptyTitle={t('option.reports.reviewsListEmptyTitle')}
-          emptyDescription={t('option.reports.reviewsListEmptyBody')}
+          emptyTitle={filtered ? t('warning.common.noMatchTitle') : t('option.reports.reviewsListEmptyTitle')}
+          emptyDescription={filtered ? t('warning.common.noMatchText') : t('option.reports.reviewsListEmptyBody')}
+          emptyAction={filtered ? <ResetFiltersAction onReset={resetFilters} /> : undefined}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

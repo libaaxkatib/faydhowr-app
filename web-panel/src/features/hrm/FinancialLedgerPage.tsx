@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
+import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { DATE_RANGE_KEYS } from '@/utils/dateRangePreset';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useDateRangePreset } from '@/hooks/useDateRangePreset';
 import { useI18n } from '@/i18n/useI18n';
@@ -36,11 +39,20 @@ const TYPE_TONE: Record<string, 'success' | 'danger' | 'warning'> = {
 export function FinancialLedgerPage() {
   const { t } = useI18n();
   const { preset, setPreset, from, to, setFrom, setTo, options: presetOptions } = useDateRangePreset();
-  const [departmentId, setDepartmentId] = useState('');
-  const [type, setType] = useState<'payment' | 'penalty' | 'advance' | ''>('');
-  const [page, setPage] = useState(1);
+  // The filters and the page live in the address bar (changing one keeps the others and returns to page 1), so Back, a reload or a shared link bring the report back as it was.
+  const url = useUrlFilters();
+  const departmentId = url.get('department');
+  const type = url.get('type') as 'payment' | 'penalty' | 'advance' | '';
+  const setDepartmentId = (value: string) => url.set('department', value);
+  const setType = (value: 'payment' | 'penalty' | 'advance' | '') => url.set('type', value);
+  const page = url.page;
+  const setPage = url.setPage;
 
   const { data: departments } = useQuery({ queryKey: ['departments'], queryFn: hrApi.departments.list });
+
+  const filterKeys = ['department', 'type', ...DATE_RANGE_KEYS] as const;
+  const filtered = departmentId !== '' || type !== '' || from !== '' || to !== '';
+  const resetFilters = () => url.reset(filterKeys);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['financial-ledger', { departmentId, type, from, to, page }],
@@ -169,7 +181,9 @@ export function FinancialLedgerPage() {
             options={typeOptions}
             className="w-40"
           />
+          <ResetFiltersButton count={url.activeCount(filterKeys)} onReset={resetFilters} />
         </div>
+        {data && <ListResultBar matching={data.meta.total} filtered={filtered} />}
 
         <DataTable
           columns={columns}
@@ -177,8 +191,9 @@ export function FinancialLedgerPage() {
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
-          emptyTitle={t('option.payroll.ledgerEmptyTitle')}
-          emptyDescription={t('option.payroll.ledgerEmptyBody')}
+          emptyTitle={filtered ? t('warning.common.noMatchTitle') : t('option.payroll.ledgerEmptyTitle')}
+          emptyDescription={filtered ? t('warning.common.noMatchText') : t('option.payroll.ledgerEmptyBody')}
+          emptyAction={filtered ? <ResetFiltersAction onReset={resetFilters} /> : undefined}
         />
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}

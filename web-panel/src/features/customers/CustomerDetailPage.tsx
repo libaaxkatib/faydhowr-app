@@ -110,7 +110,7 @@ export function CustomerDetailPage() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 [&>*]:min-w-0">
         <Card className="lg:col-span-2">
           <CardHeader>
             <h3 className="font-display text-sm font-bold text-ink">{t('option.customers.profile')}</h3>
@@ -208,7 +208,7 @@ function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-xs text-ink-faint">{label}</dt>
-      <dd className="text-ink">{value}</dd>
+      <dd className="break-words text-ink [overflow-wrap:anywhere]">{value}</dd>
     </div>
   );
 }
