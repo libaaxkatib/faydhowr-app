@@ -17,6 +17,7 @@ use App\Http\Resources\Api\V1\Admin\AdminResource;
 use App\Http\Resources\Api\V1\Admin\PermissionResource;
 use App\Models\Admin;
 use App\Support\ApiResponse;
+use App\Support\LastSuperAdminGuard;
 use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -222,6 +223,11 @@ class AdminController extends Controller
                 'Only Super Admin may manage admins.',
                 'FORBIDDEN',
                 403,
+            ),
+            LastSuperAdminGuard::CODE => ApiResponse::error(
+                'At least one active Super Admin must remain, so this account cannot be changed to another role, made inactive or deleted.',
+                'LAST_SUPER_ADMIN',
+                422,
             ),
             'SELF_DELETE_NOT_ALLOWED' => ApiResponse::error(
                 'You cannot delete your own admin account.',

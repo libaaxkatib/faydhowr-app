@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Api\V1\Admin\Hr;
 
+use App\Enums\AdminRole;
+use App\Models\Admin;
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\EmployeeAdvance;
 use App\Models\EmployeeAttendance;
@@ -11,11 +14,13 @@ use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
 use App\Models\PayrollItemDeduction;
 use App\Models\PayrollRun;
+use App\Models\Permission;
 use App\Models\TemporaryReplacement;
 use App\Models\WorkLocation;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
@@ -261,15 +266,44 @@ class PayrollLifecycleTest extends TestCase
         $this->generate($token)->assertCreated();
     }
 
-    public function test_the_reviewer_cannot_approve_their_own_review_unless_super_admin(): void
+    public function test_one_hr_manager_prepares_reviews_approves_and_finalizes_payroll_without_a_second_person(): void
+    {
+        // Owner decision 2026-10-29: the authorized HR Manager is responsible for the whole payroll; a second person is NOT required.
+        $this->permanentWith(300);
+        $hrManager = Admin::factory()->create(['role' => AdminRole::HrManager]);
+
+        foreach (['hr.view', 'hr.manage', 'hr.payroll.view', 'hr.payroll.manage', 'hr.payroll.approve'] as $key) {
+            DB::table('admin_permissions')->insert(['admin_id' => $hrManager->id, 'permission_id' => Permission::query()->where('key', $key)->value('id'), 'created_at' => now(), 'updated_at' => now()]);
+        }
+
+        $token = $hrManager->createToken('t')->plainTextToken;
+        $run = $this->generate($token)->assertCreated()->json('data.id');
+
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review")->assertOk()->assertJsonPath('data.status', 'reviewed');
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/approve")->assertOk()->assertJsonPath('data.status', 'approved');
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/finalize")->assertOk()->assertJsonPath('data.status', 'finalized');
+
+        // Who did each step, and when, is kept on the run and in the audit log.
+        $stored = PayrollRun::query()->findOrFail($run);
+        $this->assertSame([$hrManager->id, $hrManager->id, $hrManager->id], [(int) $stored->reviewed_by, (int) $stored->approved_by, (int) $stored->finalized_by]);
+        $this->assertNotNull($stored->reviewed_at);
+        $this->assertNotNull($stored->approved_at);
+        $this->assertNotNull($stored->finalized_at);
+        $this->assertGreaterThanOrEqual(3, AuditLog::query()->where('admin_id', $hrManager->id)->where('entity_type', PayrollRun::class)->where('entity_id', $run)->count());
+
+        // Finalizing is not paying: every line is still unpaid.
+        $this->assertSame(0, PayrollItem::query()->where('payroll_run_id', $run)->where('payment_status', '!=', 'unpaid')->count());
+    }
+
+    public function test_a_role_without_the_approve_permission_still_cannot_approve_or_finalize(): void
     {
         $this->permanentWith(300);
-        $both = $this->tokenWithOnly(['hr.payroll.view', 'hr.payroll.manage', 'hr.payroll.approve']);
-        $run = $this->generate($both)->assertCreated()->json('data.id');
-        $this->withToken($both)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review")->assertOk();
+        $preparer = $this->tokenWithOnly(['hr.view', 'hr.payroll.view', 'hr.payroll.manage']);
+        $run = $this->generate($preparer)->assertCreated()->json('data.id');
+        $this->withToken($preparer)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review")->assertOk();
 
-        $this->withToken($both)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/approve")
-            ->assertStatus(422)->assertJsonPath('error_code', 'APPROVER_MUST_DIFFER_FROM_REVIEWER');
+        $this->withToken($preparer)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/approve")->assertForbidden();
+        $this->withToken($preparer)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/finalize")->assertForbidden();
     }
 
     public function test_permissions_separate_viewing_preparing_and_approving(): void

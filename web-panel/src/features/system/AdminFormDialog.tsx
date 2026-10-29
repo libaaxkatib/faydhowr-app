@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
 import { ASSIGNABLE_ADMIN_ROLES, adminRoleLabel } from '@/types/system';
 import { useI18n } from '@/i18n/useI18n';
+import { withCurrentRole } from '@/utils/adminRoleOptions';
 import type { Admin, AdminRole, AdminStatus } from '@/types/admin';
 import type { CreateAdminPayload, UpdateAdminPayload } from '@/types/system';
 
@@ -35,6 +36,10 @@ export function AdminFormDialog({ isOpen, onClose, mode, admin }: AdminFormDialo
   const { show } = useToast();
   const [form, setForm] = useState(emptyForm);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+
+  // Editing an account whose role is not one of the assignable ones (a Super Admin, or a role from before the Web Panel) must still show that role instead of
+  // an empty box. It is offered only for that account, so Super Admin never becomes something that can be picked for anybody else.
+  const roleOptions = admin && mode === 'edit' ? withCurrentRole(ASSIGNABLE_ADMIN_ROLES, admin.role) : ASSIGNABLE_ADMIN_ROLES;
 
   useEffect(() => {
     if (isOpen) {
@@ -166,7 +171,7 @@ export function AdminFormDialog({ isOpen, onClose, mode, admin }: AdminFormDialo
               value={form.role}
               onChange={(event) => setForm({ ...form, role: event.target.value as AdminRole })}
               placeholder={t('option.system.selectRole')}
-              options={ASSIGNABLE_ADMIN_ROLES.map((role) => ({ value: role.value, label: adminRoleLabel(role.value, tValue) }))}
+              options={roleOptions.map((role) => ({ value: role.value, label: adminRoleLabel(role.value, tValue) }))}
             />
           </FormField>
           <FormField label={t('option.label.status')} htmlFor="admin-status" required error={fieldErrors.status?.[0]}>

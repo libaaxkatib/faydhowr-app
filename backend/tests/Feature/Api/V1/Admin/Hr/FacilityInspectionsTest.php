@@ -374,6 +374,26 @@ class FacilityInspectionsTest extends TestCase
         $this->assertNotNull($events[2]['by']);
     }
 
+    public function test_super_admin_can_view_respond_change_status_and_record_the_resolution_of_a_complaint(): void
+    {
+        [$superAdmin, $super] = $this->superAdminToken();
+        $id = $this->complain($this->alpha);
+        $url = "/api/v1/admin/hr/facility-complaints/{$id}";
+
+        $this->as($super)->getJson('/api/v1/admin/hr/facility-complaints')->assertOk()->assertJsonFragment(['id' => $id]);
+        $this->as($super)->getJson($url)->assertOk()->assertJsonPath('data.status', 'open');
+        $this->as($super)->putJson($url, ['response' => 'Supervisor visited and re-cleaned', 'responsible_person' => 'Site supervisor'])->assertOk();
+        $this->as($super)->postJson("{$url}/status", ['status' => 'in_progress', 'note' => 'Being handled'])->assertOk()->assertJsonPath('data.status', 'in_progress');
+        $this->as($super)->postJson("{$url}/status", ['status' => 'resolved', 'note' => 'Client confirmed by phone'])->assertOk()
+            ->assertJsonPath('data.status', 'resolved')->assertJsonPath('data.resolved_on', self::TODAY);
+
+        // Every step is on the history with the Super Admin's name (who) and the note (what was decided).
+        $events = $this->as($super)->getJson($url)->json('data.events');
+        $this->assertContains('status_changed', array_column($events, 'event'));
+        $this->assertContains('Client confirmed by phone', array_column($events, 'note'));
+        $this->assertContains($superAdmin->full_name, array_column($events, 'by'));
+    }
+
     public function test_satisfaction_is_recorded_only_from_explicit_feedback_and_is_never_inferred(): void
     {
         $id = $this->complain($this->alpha);

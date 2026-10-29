@@ -66,8 +66,12 @@ export class ApiClientError extends Error {
     return this.status === 403;
   }
 
+  /**
+   * A 422 that names the fields to correct. A 422 with no fields is a business rule saying no (for example "the last Super Admin cannot be
+   * deactivated"): it is not a mistake in one field, so a form must show its message instead of marking fields.
+   */
   get isValidation(): boolean {
-    return this.status === 422;
+    return this.status === 422 && Object.keys(this.rawFieldErrors ?? {}).length > 0;
   }
 }
 

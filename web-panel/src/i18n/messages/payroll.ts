@@ -6,7 +6,7 @@ import { defineMessages, message } from '../catalog.ts';
 export const payroll = defineMessages({
   // Run status explanations (the labels reuse option.payrollStatus.*)
   'status.payroll.helpDraft': message('Still being prepared. It can be regenerated.', 'Weli waa la diyaarinayaa. Dib ayaa loo samayn karaa.'),
-  'status.payroll.helpReviewed': message('Checked by one person. A different person approves it.', 'Hal qof ayaa hubiyey. Qof kale ayaa ansixiya.'),
+  'status.payroll.helpReviewed': message('Checked. Next step: approve it.', 'Waa la hubiyey. Tallaabada xigta: ansixi.'),
   'status.payroll.helpApproved': message(
     'The month is locked. It can still be reopened until it is finalized.',
     'Bisha waa la xidhay. Weli dib ayaa loo furi karaa ilaa la dhammaystiro.',
@@ -127,8 +127,8 @@ export const payroll = defineMessages({
   // Dialogs
   'confirm.payroll.approveTitle': message('Approve this payroll?', 'Ma ansixisaa mushaharkan?'),
   'confirm.payroll.approveBody': message(
-    'Approving locks {month}: salary and temporary-cover changes for that month will be refused. A different person from the reviewer must approve. You can still reopen an approved payroll before it is finalized.',
-    'Ansixintu waxay xidhaa {month}: isbeddellada mushaharka iyo beddelaadka ku-meel-gaarka ah ee bishaas waa la diidi doonaa. Waa inuu ansixiyaa qof ka duwan kii dib u eegay. Weli waad dib u furi kartaa mushahar la ansixiyey ka hor inta aan la dhammaystirin.',
+    'Approving locks {month}: salary and temporary-cover changes for that month will be refused. You can still reopen an approved payroll before it is finalized.',
+    'Ansixintu waxay xidhaa {month}: isbeddellada mushaharka iyo beddelaadka ku-meel-gaarka ah ee bishaas waa la diidi doonaa. Weli waad dib u furi kartaa mushahar la ansixiyey ka hor inta aan la dhammaystirin.',
   ),
   'confirm.payroll.theMonth': message('the month', 'bisha'),
   'confirm.payroll.finalizeTitle': message('Finalize this payroll?', 'Ma dhammaystirtaa mushaharkan?'),
@@ -196,8 +196,8 @@ export const payroll = defineMessages({
   'notify.payroll.draftReady': message('Draft payroll for {month} is ready.', 'Mushaharka qabyada ah ee {month} waa diyaar.'),
   'notify.payroll.draftFailed': message('Could not generate the payroll draft.', 'Lama samayn karin qabyada mushaharka.'),
   'notify.payroll.reviewed': message(
-    'Payroll marked as reviewed. A different person must approve it.',
-    'Mushaharka waxaa loo calaamadeeyey inuu dib loo eegay. Waa inuu ansixiyaa qof kale.',
+    'Payroll marked as reviewed. The next step is to approve it.',
+    'Mushaharka waxaa loo calaamadeeyey inuu dib loo eegay. Tallaabada xigta waa in la ansixiyo.',
   ),
   'notify.payroll.reviewFailed': message('Could not mark the payroll as reviewed.', 'Lama calaamadeyn karin mushaharka inuu dib loo eegay.'),
   'notify.payroll.approved': message('Payroll approved.', 'Mushaharka waa la ansixiyey.'),

@@ -116,6 +116,10 @@ export const serverErrors = defineMessages({
   'notify.server.invalidData': message('The given data was invalid.', 'Xogta la geliyay ma saxna.'),
   'notify.server.serverError': message('Server Error', 'Khalad ayaa ka dhacay server-ka. Fadlan mar kale isku day.'),
   'notify.server.noPermission': message('You do not have permission to perform this action.', 'Ma haysatid ogolaansho aad ku fulinayso tallaabadan.'),
+  'notify.server.lastSuperAdmin': message(
+    'At least one active Super Admin must remain, so this account cannot be changed to another role, made inactive or deleted.',
+    'Waa in uu hadho ugu yaraan hal Super Admin oo shaqeynaya, sidaa darteed akoonkan lama beddeli karo door kale, lama joojin karo, lamana tirtiri karo.',
+  ),
   'notify.server.superAdminOnly': message('This action is reserved for Super Admin.', 'Tallaabadan waxaa u gaar ah Super Admin.'),
   'notify.server.followUpBeforeInspection': message('The next follow-up cannot be before the inspection date.', 'La socodka xiga ma noqon karo mid ka horreeya taariikhda kormeerka.'),
   'notify.auth.networkError': message('Could not reach the server. Check your connection and try again.', 'Server-ka lama gaari karo. Fiiri isku xirkaaga oo mar kale isku day.'),

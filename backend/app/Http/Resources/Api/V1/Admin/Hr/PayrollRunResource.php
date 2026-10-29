@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1\Admin\Hr;
 
 use App\Support\Hr\Payroll\PayrollMoney;
+use App\Support\Hr\Payroll\PayrollRunChecks;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -26,7 +27,9 @@ class PayrollRunResource extends JsonResource
                 'adjustments' => $money('adjustment_cents'),
                 'net' => $money('net_cents'),
             ],
-            'warnings' => $totals['warnings'] ?? [],
+            // The warnings stored when the run was generated, plus (only when the lines are loaded, i.e. the single-run view) the read-only checks
+            // that look at the lines and at last month.
+            'warnings' => [...($totals['warnings'] ?? []), ...($this->relationLoaded('items') ? PayrollRunChecks::for($this->resource) : [])],
             'generated_at' => $this->generated_at?->toIso8601String(),
             'reviewed_at' => $this->reviewed_at?->toIso8601String(),
             'approved_at' => $this->approved_at?->toIso8601String(),

@@ -135,6 +135,7 @@ test('the backend sentences the panel recognises are still in the backend source
     read('app/Http/Middleware/EnsureAdminAuthentication.php'),
     read('app/Http/Middleware/EnsureAdminPermission.php'),
     read('app/Http/Middleware/EnsureSuperAdmin.php'),
+    read('app/Http/Controllers/Api/V1/Admin/AdminController.php'),
     read('app/Http/Requests/Api/V1/Admin/Hr/Facility/UpdateFacilityInspectionRequest.php'),
     read('app/Http/Requests/Api/V1/Admin/Accounting/StoreAccountingPeriodRequest.php'),
     read('app/Support/Hr/Payroll/PayrollSummaryPresenter.php'),

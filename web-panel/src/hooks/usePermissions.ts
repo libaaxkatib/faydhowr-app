@@ -16,18 +16,23 @@ import { useAuth } from '@/features/auth/useAuth';
  */
 export function usePermissions() {
   const { isSuperAdmin, status } = useAuth();
+  const { hasPermission, isLoading: permissionsLoading } = useEffectivePermissions();
+
+  // The dashboard endpoint needs `dashboard.view`. A role without it (the HR Manager, for one) would only get a 403 here on every page, so the
+  // hint is not requested at all; such a role has no module list, and the HR and Marketing gates do not use it (see utils/permissionGate.ts).
+  const mayAskDashboard = status === 'authenticated' && !permissionsLoading && hasPermission('dashboard.view');
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard', 'visible-modules'],
     queryFn: () => dashboardApi.get(),
-    enabled: status === 'authenticated',
+    enabled: mayAskDashboard,
     staleTime: 5 * 60_000,
   });
 
   const visibleModules = data?.visible_modules ?? [];
 
   return {
-    isLoading,
+    isLoading: permissionsLoading || isLoading,
     isSuperAdmin,
     /** Coarse, module-level UI hint. Never the final authority — see comment above. */
     canAccessModule: (moduleKey: string) => isSuperAdmin || visibleModules.includes(moduleKey),

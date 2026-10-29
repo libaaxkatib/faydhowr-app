@@ -54,3 +54,11 @@ test('it is still an Error with the same shape: instanceof, name, and an error w
   assert.equal(new ApiClientError(401, 'Unauthenticated.', 'UNAUTHENTICATED').isUnauthenticated, true);
   assert.equal(new ApiClientError(403, 'x').isForbidden, true);
 });
+
+test('a 422 without field errors is a refused business rule, not a form validation error', () => {
+  const rule = new ApiClientError(422, 'At least one active Super Admin must remain.', 'LAST_SUPER_ADMIN');
+  assert.equal(rule.status, 422);
+  assert.equal(rule.isValidation, false);
+  assert.equal(new ApiClientError(422, 'Invalid.', 'VALIDATION_ERROR', { phone: ['Taken.'] }).isValidation, true);
+  assert.equal(new ApiClientError(422, 'Invalid.', 'VALIDATION_ERROR', {}).isValidation, false);
+});

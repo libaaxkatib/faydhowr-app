@@ -2,7 +2,6 @@
 
 namespace App\Actions\Hr;
 
-use App\Enums\AdminRole;
 use App\Enums\AuditAction;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
@@ -13,10 +12,10 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
  * Moves a payroll run through draft -> reviewed -> approved -> finalized.
- * Each step must start from the exact previous state. The approver must be a
- * different person from the reviewer unless the approver is a Super Admin. An
- * approved run can be reopened to draft (with a reason) for correction; a
- * finalized run can never be reopened - corrections are payroll adjustments.
+ * Each step must start from the exact previous state. Owner decision (2026-10-29): the authorized HR Manager prepares, reviews, approves and
+ * finalizes payroll; a second person is NOT required, so the same person may do every step. Who did each step and when is stored on the run and in
+ * the audit log. An approved run can be reopened to draft (with a reason) for correction; a finalized run can never be reopened - corrections
+ * are payroll adjustments. Paying is a separate action on each line.
  */
 class TransitionPayrollRunAction
 {
@@ -36,10 +35,6 @@ class TransitionPayrollRunAction
     public function approve(PayrollRun $run, Admin $actor): PayrollRun
     {
         $this->require($run, PayrollRun::STATUS_REVIEWED, 'approved');
-
-        if ((int) $run->reviewed_by === $actor->id && $actor->role !== AdminRole::SuperAdmin) {
-            $this->fail('The person who reviewed this payroll cannot also approve it.', 'APPROVER_MUST_DIFFER_FROM_REVIEWER');
-        }
 
         $run->update(['status' => PayrollRun::STATUS_APPROVED, 'approved_at' => now(), 'approved_by' => $actor->id]);
         RecoveryLedger::markApplied($run);

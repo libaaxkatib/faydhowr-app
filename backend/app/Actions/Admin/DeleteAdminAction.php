@@ -6,6 +6,7 @@ use App\Enums\AdminRole;
 use App\Enums\AuditAction;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
+use App\Support\LastSuperAdminGuard;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
@@ -24,6 +25,8 @@ class DeleteAdminAction
         $deletedAdminId = $admin->id;
 
         DB::transaction(function () use ($admin): void {
+            LastSuperAdminGuard::assertOneRemains($admin->id, null, null, deleting: true);
+
             $admin = Admin::query()
                 ->whereKey($admin)
                 ->lockForUpdate()

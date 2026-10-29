@@ -58,16 +58,16 @@ export const shell = defineMessages({
   'notify.shell.passwordChangeFailed': message('Could not change password.', 'Erayga sirta ah lama beddeli karin.'),
 
   // The role shown under the admin's name in the header (keyed by the stored role)
-  'status.shell.role.super_admin': message('super admin', 'Maamule sare'),
+  'status.shell.role.super_admin': message('Super Admin', 'Maamule sare'),
   'status.shell.role.manager': message('manager', 'Maareeye'),
   'status.shell.role.sales': message('sales', 'Iibka'),
   'status.shell.role.inventory': message('inventory', 'Bakhaarka'),
   'status.shell.role.accountant': message('accountant', 'Xisaabiye'),
-  'status.shell.role.hr_manager': message('hr manager', 'Maareeyaha shaqaalaha'),
-  'status.shell.role.hr_employee': message('hr employee', 'Shaqaalaha HR'),
-  'status.shell.role.marketing_manager': message('marketing manager', 'Maareeyaha suuqgeynta'),
-  'status.shell.role.marketing_employee': message('marketing employee', 'Shaqaalaha suuqgeynta'),
-  'status.shell.role.mobile_app_manager': message('mobile app manager', 'Maareeyaha App-ka Mobaylka'),
+  'status.shell.role.hr_manager': message('HR Manager', 'Maareeyaha shaqaalaha'),
+  'status.shell.role.hr_employee': message('HR Employee', 'Shaqaalaha HR'),
+  'status.shell.role.marketing_manager': message('Marketing Manager', 'Maareeyaha suuqgeynta'),
+  'status.shell.role.marketing_employee': message('Marketing Employee', 'Shaqaalaha suuqgeynta'),
+  'status.shell.role.mobile_app_manager': message('Mobile App Manager', 'Maareeyaha App-ka Mobaylka'),
 
   // Route-level pages
   'warning.shell.accessRestricted': message('Access restricted', 'Gelitaanka waa la xaddiday'),

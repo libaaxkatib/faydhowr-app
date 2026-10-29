@@ -3,9 +3,11 @@
 namespace App\Actions\Admin;
 
 use App\Enums\AdminRole;
+use App\Enums\AdminStatus;
 use App\Enums\AuditAction;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
+use App\Support\LastSuperAdminGuard;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -28,6 +30,12 @@ class UpdateAdminAction
         }
 
         $updatedAdmin = DB::transaction(function () use ($admin, $data): Admin {
+            LastSuperAdminGuard::assertOneRemains(
+                $admin->id,
+                isset($data['role']) ? AdminRole::from($data['role']) : null,
+                isset($data['status']) ? AdminStatus::from($data['status']) : null,
+            );
+
             $admin = Admin::query()
                 ->whereKey($admin)
                 ->lockForUpdate()
