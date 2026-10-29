@@ -2,14 +2,14 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { marketingApi } from '@/api/marketing';
+import { MarketingReportCharts } from '@/features/marketing/MarketingReportCharts';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { Card, CardHeader, CardBody } from '@/components/ui/Card';
+import { Card, CardBody } from '@/components/ui/Card';
 import { Select } from '@/components/ui/Select';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { useI18n } from '@/i18n/useI18n';
 import type { MessageKey } from '@/i18n/messages';
-import { formatNumber } from '@/utils/formatters';
 import type { MarketingRecordStatus, MarketingRecordType } from '@/types/marketing';
 
 const STATUS_OPTIONS: { value: MarketingRecordStatus; label: string; labelKey: MessageKey }[] = [
@@ -25,7 +25,7 @@ const TYPE_OPTIONS: { value: MarketingRecordType; label: string }[] = [
 ];
 
 export function MarketingReportsPage() {
-  const { t, tValue } = useI18n();
+  const { t } = useI18n();
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [teamId, setTeamId] = useState('');
@@ -115,81 +115,7 @@ export function MarketingReportsPage() {
       {isLoading && <LoadingState label={t('option.reports.loading')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
 
-      {data && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.marketing.totalRecords')}</h3>
-            </CardHeader>
-            <CardBody>
-              <p className="font-display text-3xl font-bold text-ink">{formatNumber(data.total_records)}</p>
-              <p className="mt-1 text-xs text-ink-muted">{data.range.from} – {data.range.to}</p>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.marketing.byType')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {Object.entries(data.type_breakdown).map(([recordType, total]) => (
-                <div key={recordType} className="flex items-center justify-between text-sm">
-                  <span className="text-ink-muted">{recordType === 'xarun' ? 'XARUN' : 'PROJECT'}</span>
-                  <span className="font-semibold text-ink">{formatNumber(total ?? 0)}</span>
-                </div>
-              ))}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.marketing.byStatus')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {Object.entries(data.status_breakdown).map(([recordStatus, total]) => (
-                <div key={recordStatus} className="flex items-center justify-between text-sm">
-                  <span className="capitalize text-ink-muted">{tValue('status.marketing.record', recordStatus) ?? recordStatus}</span>
-                  <span className="font-semibold text-ink">{formatNumber(total ?? 0)}</span>
-                </div>
-              ))}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.marketing.teamBreakdown')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {data.team_breakdown.map((team) => (
-                <div key={team.id} className="flex items-center justify-between text-sm">
-                  <span className="text-ink-muted">{team.name}</span>
-                  <span className="font-semibold text-ink">{formatNumber(team.total)}</span>
-                </div>
-              ))}
-            </CardBody>
-          </Card>
-
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.marketing.individualEmployee')}</h3>
-            </CardHeader>
-            <CardBody>
-              {data.employee_breakdown.length === 0 ? (
-                <p className="text-sm text-ink-muted">{t('warning.marketing.noEmployeeRecords')}</p>
-              ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {data.employee_breakdown.map((employee) => (
-                    <div key={employee.admin_id} className="rounded-md border border-border p-3 text-center">
-                      <p className="font-display text-lg font-bold text-ink">{formatNumber(employee.total)}</p>
-                      <p className="text-xs text-ink-muted">{employee.admin_name}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardBody>
-          </Card>
-        </div>
-      )}
+      {data && <MarketingReportCharts data={data} />}
     </div>
   );
 }

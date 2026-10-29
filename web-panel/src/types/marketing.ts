@@ -204,4 +204,14 @@ export interface MarketingReportsSummary {
   type_breakdown: Partial<Record<MarketingRecordType, number>>;
   team_breakdown: { id: number; name: string; total: number }[];
   employee_breakdown: { admin_id: number; admin_name: string | null; total: number }[];
+  /** XARUN and PROJECT side by side: record counts by type and status (the same records as the totals). */
+  type_status_breakdown?: Partial<Record<MarketingRecordType, Partial<Record<MarketingRecordStatus, number>>>>;
+  /** The follow-ups of those records: by status, how many open ones are overdue or due today, and each person's open work. */
+  follow_up_summary?: {
+    by_status: Partial<Record<'scheduled' | 'rescheduled' | 'completed', number>>;
+    open: number;
+    overdue: number;
+    due_today: number;
+    workload: { admin_id: number | null; admin_name: string | null; open: number; overdue: number }[];
+  };
 }

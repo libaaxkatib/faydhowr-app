@@ -24,7 +24,7 @@ function block(selectorPattern: RegExp): string {
 /** Variables of one block as { 'primary': '#0E339B', ... } (only `--color-*`, channels converted back to hex). */
 function colourVariables(body: string): Record<string, string> {
   const result: Record<string, string> = {};
-  for (const [, name, r, g, b] of body.matchAll(/--color-([a-z-]+):\s*(\d{1,3})\s+(\d{1,3})\s+(\d{1,3});/g)) {
+  for (const [, name, r, g, b] of body.matchAll(/--color-([a-z0-9-]+):\s*(\d{1,3})\s+(\d{1,3})\s+(\d{1,3});/g)) {
     result[name] = '#' + [r, g, b].map((channel) => Number(channel).toString(16).padStart(2, '0')).join('').toUpperCase();
   }
 
@@ -118,9 +118,9 @@ function leafValues(group: Record<string, string | Record<string, string>>): str
 test('every colour in the Tailwind config is a theme variable that both themes define (opacity utilities keep working)', () => {
   const extend = tailwind.theme.extend;
   const values = [...leafValues(extend.colors), ...leafValues(extend.textColor), ...leafValues(extend.borderColor)];
-  assert.equal(values.length, 29, 'the config maps the full semantic palette: 20 fills, 8 text colours, 1 default border');
+  assert.equal(values.length, 36, 'the config maps the full semantic palette: 27 fills (20 interface colours + 7 report-chart colours), 8 text colours, 1 default border');
   for (const value of values) {
-    const match = value.match(/^rgb\(var\(--color-([a-z-]+)\) \/ <alpha-value>\)$/);
+    const match = value.match(/^rgb\(var\(--color-([a-z0-9-]+)\) \/ <alpha-value>\)$/);
     assert.ok(match, `not a theme variable (hard-coded colour?): ${value}`);
     assert.ok(match[1] in light, `--color-${match[1]} is missing from Light`);
     assert.ok(match[1] in dark, `--color-${match[1]} is missing from Dark`);

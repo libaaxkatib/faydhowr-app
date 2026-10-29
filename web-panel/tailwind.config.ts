@@ -43,6 +43,16 @@ export default {
           DEFAULT: color('sidebar'),
           hover: color('sidebar-hover'),
         },
+        // The seven fills of report charts (bars, ring slices): bg-chart-1 ... bg-chart-7, stroke-chart-1 ... Light and Dark values live in index.css.
+        chart: {
+          1: color('chart-1'),
+          2: color('chart-2'),
+          3: color('chart-3'),
+          4: color('chart-4'),
+          5: color('chart-5'),
+          6: color('chart-6'),
+          7: color('chart-7'),
+        },
       },
       // A bare `border` / `divide-y` (no colour class) used to fall back to Tailwind's grey #e5e7eb, which is exactly the Light border token.
       borderColor: {

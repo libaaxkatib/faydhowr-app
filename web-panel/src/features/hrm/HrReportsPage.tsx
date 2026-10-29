@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { hrApi } from '@/api/hr';
+import { HrReportCharts, type HrReportLabels } from '@/features/hrm/HrReportCharts';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Select } from '@/components/ui/Select';
@@ -10,10 +11,10 @@ import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { useDateRangePreset } from '@/hooks/useDateRangePreset';
-import { formatNumber } from '@/utils/formatters';
 import type { WorkAssignmentStatus } from '@/types/employee';
 import type { MessageKey } from '@/i18n/messages';
 import { useI18n } from '@/i18n/useI18n';
+import { titleCase } from '@/utils/chartMath';
 
 const REPORT_LINKS: { labelKey: MessageKey; to: string }[] = [
   { labelKey: 'nav.waitingAnalytics', to: '/hr/reports/waiting-analytics' },
@@ -23,12 +24,6 @@ const REPORT_LINKS: { labelKey: MessageKey; to: string }[] = [
   { labelKey: 'nav.performanceReport', to: '/hr/reports/performance-reviews' },
   { labelKey: 'nav.financialLedger', to: '/hr/reports/financial-ledger' },
   { labelKey: 'nav.payrollRollup', to: '/hr/reports/payroll-rollup' },
-];
-
-const ASSIGNMENT_STATUS_OPTIONS: { value: WorkAssignmentStatus; label: string }[] = [
-  { value: 'active', label: 'Active' },
-  { value: 'ended', label: 'Ended' },
-  { value: 'cancelled', label: 'Cancelled' },
 ];
 
 const STATUS_LABELS: Record<string, string> = {
@@ -51,6 +46,13 @@ const PIPELINE_STAGE_LABELS: Record<string, string> = {
   rejected: 'Rejected',
 };
 
+const ASSIGNMENT_STATUS_OPTIONS: { value: WorkAssignmentStatus; label: string }[] = [
+  { value: 'active', label: 'Active' },
+  { value: 'ended', label: 'Ended' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
+
 export function HrReportsPage() {
   const { t, tValue } = useI18n();
   const { preset, setPreset, from, to, setFrom, setTo, options: presetOptions } = useDateRangePreset();
@@ -72,6 +74,16 @@ export function HrReportsPage() {
         assignment_status: assignmentStatus || undefined,
       }),
   });
+
+  // The approved wording of every stored value the charts show (Somali or English as chosen); the charts only place these words.
+  const labels: HrReportLabels = {
+    status: (value) => tValue('status', value) ?? STATUS_LABELS[value] ?? value,
+    stage: (value) => tValue('status.stage', value) ?? PIPELINE_STAGE_LABELS[value] ?? value,
+    gender: (value) => tValue('option.gender', value) ?? titleCase(value),
+    attendance: (value) => tValue('option.attendance', value) ?? titleCase(value),
+    rating: (value) => tValue('status.pipeline.rating', value) ?? titleCase(value),
+    separation: (value) => tValue('option.separation', value) ?? titleCase(value),
+  };
 
   return (
     <div>
@@ -152,313 +164,7 @@ export function HrReportsPage() {
       {isLoading && <LoadingState label={t('option.reports.loading')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
 
-      {data && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.registrations')}</h3>
-            </CardHeader>
-            <CardBody>
-              <p className="font-display text-3xl font-bold text-ink">{formatNumber(data.registrations_in_range)}</p>
-              <p className="mt-1 text-xs text-ink-muted">
-                {data.range.from} – {data.range.to}
-              </p>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.byStatus')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {Object.entries(data.status_breakdown).map(([status, total]) => (
-                <div key={status} className="flex items-center justify-between text-sm">
-                  <span className="text-ink-muted">{tValue('status', status) ?? STATUS_LABELS[status] ?? status}</span>
-                  <span className="font-semibold text-ink">{formatNumber(total ?? 0)}</span>
-                </div>
-              ))}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.pipelineBreakdown')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {Object.keys(data.pipeline_breakdown).length === 0 ? (
-                <p className="text-sm text-ink-muted">{t('option.reports.pipelineEmpty')}</p>
-              ) : (
-                Object.entries(data.pipeline_breakdown).map(([stage, total]) => (
-                  <div key={stage} className="flex items-center justify-between text-sm">
-                    <span className="text-ink-muted">{tValue('status.stage', stage) ?? PIPELINE_STAGE_LABELS[stage] ?? stage}</span>
-                    <span className="font-semibold text-ink">{formatNumber(total ?? 0)}</span>
-                  </div>
-                ))
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.byCategory')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {data.category_breakdown.map((category) => (
-                <div key={category.id} className="flex items-center justify-between text-sm">
-                  <span className="text-ink-muted">{category.name}</span>
-                  <span className="font-semibold text-ink">{formatNumber(category.total)}</span>
-                </div>
-              ))}
-            </CardBody>
-          </Card>
-
-          <Card className="lg:col-span-3">
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.byDepartment')}</h3>
-            </CardHeader>
-            <CardBody>
-              {data.department_breakdown.length === 0 ? (
-                <p className="text-sm text-ink-muted">{t('option.reports.departmentsEmpty')}</p>
-              ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {data.department_breakdown.map((department) => (
-                    <div key={department.id} className="rounded-md border border-border p-3 text-center">
-                      <p className="font-display text-lg font-bold text-ink">{formatNumber(department.total)}</p>
-                      <p className="text-xs text-ink-muted">{department.name}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardBody>
-          </Card>
-
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.byWorkplace')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {data.workplace_breakdown.map((location) => (
-                <div key={location.id} className="flex items-center justify-between text-sm">
-                  <span className="text-ink-muted">
-                    {location.location_type === 'office' ? location.name : `${location.client_company_name} · ${location.name}`}
-                  </span>
-                  <span className="font-semibold text-ink">
-                    {formatNumber(location.total)}
-                    {location.capacity !== null && ` / ${location.capacity}`}
-                  </span>
-                </div>
-              ))}
-              {data.assignments_without_workplace > 0 && (
-                <div className="flex items-center justify-between border-t border-border pt-2 text-sm">
-                  <span className="text-ink-muted">{t('option.reports.noWorkplaceYet')}</span>
-                  <span className="font-semibold text-ink">{formatNumber(data.assignments_without_workplace)}</span>
-                </div>
-              )}
-            </CardBody>
-          </Card>
-
-          {data.company_salary_totals !== undefined && (
-            <Card>
-              <CardHeader>
-                <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.salaryByCompany')}</h3>
-              </CardHeader>
-              <CardBody className="space-y-2">
-                {data.company_salary_totals.length === 0 ? (
-                  <p className="text-sm text-ink-muted">{t('option.reports.salaryByCompanyEmpty')}</p>
-                ) : (
-                  data.company_salary_totals.map((company) => (
-                    <div key={company.id} className="flex items-center justify-between text-sm">
-                      <span className="text-ink-muted">{company.name}</span>
-                      <span className="font-semibold text-ink">{company.total_salary} ({company.total_assignments})</span>
-                    </div>
-                  ))
-                )}
-              </CardBody>
-            </Card>
-          )}
-
-          {data.penalty_totals_by_department !== undefined && (
-            <Card>
-              <CardHeader>
-                <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.penaltiesByDepartment')}</h3>
-              </CardHeader>
-              <CardBody className="space-y-2">
-                {data.penalty_totals_by_department.length === 0 ? (
-                  <p className="text-sm text-ink-muted">{t('option.reports.penaltiesEmpty')}</p>
-                ) : (
-                  data.penalty_totals_by_department.map((department) => (
-                    <div key={department.id} className="flex items-center justify-between text-sm">
-                      <span className="text-ink-muted">{department.name}</span>
-                      <span className="font-semibold text-ink">{department.total_deducted} ({department.total_penalties})</span>
-                    </div>
-                  ))
-                )}
-              </CardBody>
-            </Card>
-          )}
-
-          {data.advance_totals_by_department !== undefined && (
-            <Card>
-              <CardHeader>
-                <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.advancesByDepartment')}</h3>
-              </CardHeader>
-              <CardBody className="space-y-2">
-                {data.advance_totals_by_department.length === 0 ? (
-                  <p className="text-sm text-ink-muted">{t('option.reports.advancesEmpty')}</p>
-                ) : (
-                  data.advance_totals_by_department.map((department) => (
-                    <div key={department.id} className="flex items-center justify-between text-sm">
-                      <span className="text-ink-muted">{department.name}</span>
-                      <span className="font-semibold text-ink">{department.total_advanced} ({department.total_advances})</span>
-                    </div>
-                  ))
-                )}
-              </CardBody>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.waitingDuration')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              <BreakdownRow label={t('option.reports.waitingUnder7')} value={data.waiting_duration_buckets.under_7_days} />
-              <BreakdownRow label={t('option.reports.waiting7to30')} value={data.waiting_duration_buckets.seven_to_30_days} />
-              <BreakdownRow label={t('option.reports.waiting30to90')} value={data.waiting_duration_buckets.thirty_to_90_days} />
-              <BreakdownRow label={t('option.reports.waitingOver90')} value={data.waiting_duration_buckets.over_90_days} />
-              <BreakdownRow label={t('option.reports.waitingUnavailable')} value={data.waiting_duration_buckets.unavailable} />
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.waitingByCategory')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {data.waiting_by_category.length === 0 ? (
-                <p className="text-sm text-ink-muted">{t('option.reports.waitingByCategoryEmpty')}</p>
-              ) : (
-                data.waiting_by_category.map((category) => <BreakdownRow key={category.id} label={category.name} value={category.total} />)
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.requestsByCompany')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {data.workforce_requests_by_company.length === 0 ? (
-                <p className="text-sm text-ink-muted">{t('option.reports.requestsEmpty')}</p>
-              ) : (
-                data.workforce_requests_by_company.map((company) => <BreakdownRow key={company.name} label={company.name} value={company.total} />)
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.activeByGender')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {Object.keys(data.active_by_gender).length === 0 ? (
-                <p className="text-sm text-ink-muted">{t('option.reports.activeByGenderEmpty')}</p>
-              ) : (
-                Object.entries(data.active_by_gender).map(([gender, total]) => (
-                  <BreakdownRow key={gender} label={tValue('option.gender', gender) ?? gender} value={total ?? 0} capitalize />
-                ))
-              )}
-            </CardBody>
-          </Card>
-
-          {data.replacement_totals_by_company !== undefined && (
-            <Card>
-              <CardHeader>
-                <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.replacementsByCompany')}</h3>
-              </CardHeader>
-              <CardBody className="space-y-2">
-                {data.replacement_totals_by_company.length === 0 ? (
-                  <p className="text-sm text-ink-muted">{t('option.reports.replacementsEmpty')}</p>
-                ) : (
-                  data.replacement_totals_by_company.map((company) => (
-                    <div key={company.name} className="flex items-center justify-between text-sm">
-                      <span className="text-ink-muted">{company.name}</span>
-                      <span className="font-semibold text-ink">{company.total_paid} ({company.total_replacements})</span>
-                    </div>
-                  ))
-                )}
-              </CardBody>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.separationsRehires')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {Object.keys(data.separation_reason_breakdown).length === 0 ? (
-                <p className="text-sm text-ink-muted">{t('option.reports.separationsEmpty')}</p>
-              ) : (
-                Object.entries(data.separation_reason_breakdown).map(([reason, total]) => (
-                  <BreakdownRow key={reason} label={tValue('option.separation', reason) ?? reason.replace(/_/g, ' ')} value={total ?? 0} capitalize />
-                ))
-              )}
-              <BreakdownRow label={t('option.reports.rehiredInRange')} value={data.rehire_count_in_range} />
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.supervisorOffice')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              <BreakdownRow label={t('option.reports.nominatedSupervisors')} value={data.supervisors_since_range} />
-              {data.office_staff_by_department.map((department) => (
-                <BreakdownRow key={department.id} label={t('option.reports.officeDepartment', { name: department.name })} value={department.total} />
-              ))}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.attendanceBreakdown')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {Object.keys(data.attendance_breakdown).length === 0 ? (
-                <p className="text-sm text-ink-muted">{t('option.reports.attendanceEmpty')}</p>
-              ) : (
-                Object.entries(data.attendance_breakdown).map(([status, total]) => (
-                  <BreakdownRow key={status} label={tValue('option.attendance', status) ?? status} value={total ?? 0} capitalize />
-                ))
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.reviewsByRating')}</h3>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {Object.keys(data.reviews_by_rating).length === 0 ? (
-                <p className="text-sm text-ink-muted">{t('option.reports.reviewsEmpty')}</p>
-              ) : (
-                Object.entries(data.reviews_by_rating).map(([rating, total]) => (
-                  <BreakdownRow key={rating} label={tValue('status.pipeline.rating', rating) ?? rating.replace(/_/g, ' ')} value={total ?? 0} capitalize />
-                ))
-              )}
-            </CardBody>
-          </Card>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BreakdownRow({ label, value, capitalize = false }: { label: string; value: number; capitalize?: boolean }) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <span className={`text-ink-muted ${capitalize ? 'capitalize' : ''}`}>{label}</span>
-      <span className="font-semibold text-ink">{formatNumber(value)}</span>
+      {data && <HrReportCharts data={data} labels={labels} />}
     </div>
   );
 }
