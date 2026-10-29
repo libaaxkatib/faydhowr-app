@@ -41,9 +41,9 @@ test('the date range of the report pages is read from and written to the address
 // changed a filter and then called setPage(1) lost the filter - the search box would not take typing. Every change goes through the composing updater.
 test('address-bar changes compose: the hooks never call react-router\'s functional setSearchParams directly', () => {
   const updater = read('../hooks/useUrlParamUpdater.ts');
-  assert.ok(updater.includes('pending = { from: shown.toString(), next }'), 'each change starts from the result of the one before it, across hook instances');
+  assert.ok(updater.includes('pending = applyChange(rendered.current, pending, change)'), 'each change starts from the result of the one before it, across hook instances');
   assert.ok(updater.includes('pending = null'), 'and forgets it once the router has rendered the new address');
-  assert.ok(updater.includes('setParams(next, { replace: true })'), 'it passes a value, not a function of stale parameters');
+  assert.ok(updater.includes('setParams(pending.next, { replace: true })'), 'it passes a value, not a function of stale parameters');
   for (const hook of ['useUrlFilters', 'useDateRangePreset']) {
     const source = read(`../hooks/${hook}.ts`);
     assert.ok(source.includes('useUrlParamUpdater()'), hook);

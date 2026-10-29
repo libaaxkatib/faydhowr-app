@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
+import { applyChange, type PendingChange } from '@/utils/urlParamCompose';
+
 // The change made in the current event that the router has not rendered yet. It is shared by every hook instance on the page, because a handler can
 // change the date range (one hook) and then the page number (another) in the same event.
-let pending: { from: string; next: URLSearchParams } | null = null;
+let pending: PendingChange | null = null;
 
 /**
  * The address-bar parameters and a way to change them that composes. react-router's own functional `setSearchParams` hands every updater the parameters of
@@ -23,11 +25,8 @@ export function useUrlParamUpdater(): [URLSearchParams, (update: (previous: URLS
 
   const update = useCallback(
     (change: (previous: URLSearchParams) => URLSearchParams) => {
-      const shown = rendered.current;
-      const base = pending !== null && pending.from === shown.toString() ? pending.next : shown;
-      const next = change(base);
-      pending = { from: shown.toString(), next };
-      setParams(next, { replace: true });
+      pending = applyChange(rendered.current, pending, change);
+      setParams(pending.next, { replace: true });
     },
     [setParams],
   );

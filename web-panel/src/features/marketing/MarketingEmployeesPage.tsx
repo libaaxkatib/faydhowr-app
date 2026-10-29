@@ -113,13 +113,13 @@ export function MarketingEmployeesPage() {
             {shown.map((employee) => (
               <div key={employee.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3.5">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink">
+                  <p className="break-words text-sm font-medium text-ink [overflow-wrap:anywhere]">
                     {employee.full_name}
                     {employee.status === 'inactive' && (
                       <span className="ml-2 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-danger">{t('status.inactive')}</span>
                     )}
                   </p>
-                  <p className="text-xs text-ink-muted">{employee.email}</p>
+                  <p className="break-words text-xs text-ink-muted [overflow-wrap:anywhere]">{employee.email}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {employee.teams && employee.teams.length > 0 ? (
