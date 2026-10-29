@@ -27,6 +27,7 @@ const EXPECTED: Record<DashboardCardKey, string> = {
   approved: '/hr/employees?status=approved',
   supervisor_pool: '/hr/supervisor-pool',
   active_replacements: '/hr/temporary-replacements?status=active',
+  expired_replacements: '/hr/temporary-replacements?status=expired',
   office_staff: '/hr/office-staff',
   client_company_employees: '/hr/employees?client_company_only=true',
   open_workforce_requests: '/hr/workforce-requests?status=open',
@@ -40,7 +41,7 @@ for (const [key, expected] of Object.entries(EXPECTED)) {
 }
 
 test('every card has a destination and none is left out of the table', () => {
-  assert.equal(Object.keys(EXPECTED).length, 13);
+  assert.equal(Object.keys(EXPECTED).length, 14);
   for (const key of Object.keys(EXPECTED)) {
     assert.ok(dashboardCardTo(key as DashboardCardKey, NOW).startsWith('/hr/'));
   }
@@ -96,6 +97,7 @@ test('Workforce Requests: open means open + partially filled, fulfilled means fu
 test('Temporary Replacements: the Active Replacements card is read back as active', () => {
   assert.equal(parseReplacementStatus(dashboardCardTo('active_replacements', NOW).split('?')[1]), 'active');
   assert.equal(parseReplacementStatus('status=ended'), 'ended');
+  assert.equal(parseReplacementStatus(dashboardCardTo('expired_replacements', NOW).split('?')[1]), 'expired');
   assert.equal(parseReplacementStatus('status=open'), null);
   assert.equal(parseReplacementStatus(''), null);
 });

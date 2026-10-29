@@ -70,9 +70,9 @@ class TemporaryCoverConflictTest extends TestCase
         ]);
     }
 
-    private function end(string $token, TemporaryReplacement $cover, string $date): TestResponse
+    private function end(string $token, TemporaryReplacement $cover, string $date, bool $confirmExtension = false): TestResponse
     {
-        return $this->withToken($token)->patchJson("/api/v1/admin/hr/temporary-replacements/{$cover->id}/end", ['end_date' => $date]);
+        return $this->withToken($token)->patchJson("/api/v1/admin/hr/temporary-replacements/{$cover->id}/end", ['end_date' => $date] + ($confirmExtension ? ['confirm_extension' => true] : []));
     }
 
     private function saved(string $token, EmployeeWorkAssignment $position, Employee $temp, string $start, ?string $end = null): TemporaryReplacement
@@ -221,7 +221,10 @@ class TemporaryCoverConflictTest extends TestCase
         $this->saved($token, $position, $this->temporary(), '2026-09-21', '2026-09-30');
 
         // The cover being edited is never compared with itself: extending into free days works...
-        $this->end($token, $first, '2026-09-15')->assertOk();
+        // (a last day later than the recorded end lengthens the cover, so it is only accepted once the caller confirms the extension)
+        $this->end($token, $first, '2026-09-15')->assertStatus(422)->assertJsonPath('error_code', 'EXTENSION_CONFIRMATION_REQUIRED');
+        $this->assertSame('2026-09-10', $first->fresh()->end_date->toDateString());
+        $this->end($token, $first, '2026-09-15', true)->assertOk();
         $this->assertSame('2026-09-15', $first->fresh()->end_date->toDateString());
     }
 
@@ -236,7 +239,7 @@ class TemporaryCoverConflictTest extends TestCase
         $this->assertSame('2026-09-10', $first->fresh()->end_date->toDateString(), 'nothing was changed');
         $this->assertSame('active', $first->fresh()->status->value);
 
-        $this->end($token, $first, '2026-09-20')->assertOk();
+        $this->end($token, $first, '2026-09-20', true)->assertOk();
         // Shortening is always allowed: it cannot create an overlap.
         $this->end($token, $second, '2026-09-25')->assertOk();
     }

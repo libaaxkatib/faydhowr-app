@@ -18,7 +18,7 @@ export type WorkforceRequestStatusValue = (typeof WORKFORCE_REQUEST_STATUS_VALUE
 /** Dashboard "Open" = open + partially filled, exactly as GetHrDashboardAction counts it. */
 export const OPEN_REQUEST_STATUSES: readonly WorkforceRequestStatusValue[] = ['open', 'partially_filled'];
 
-export const REPLACEMENT_STATUS_VALUES = ['active', 'ended'] as const;
+export const REPLACEMENT_STATUS_VALUES = ['active', 'ended', 'expired'] as const;
 export type ReplacementStatusValue = (typeof REPLACEMENT_STATUS_VALUES)[number];
 
 export const NEW_APPLICANT_WINDOW_DAYS = 30;
@@ -33,6 +33,7 @@ export type DashboardCardKey =
   | 'approved'
   | 'supervisor_pool'
   | 'active_replacements'
+  | 'expired_replacements'
   | 'office_staff'
   | 'client_company_employees'
   | 'open_workforce_requests'
@@ -72,6 +73,8 @@ export function dashboardCardTo(key: DashboardCardKey, now: Date = new Date()): 
       return '/hr/supervisor-pool'; // already locked to is_supervisor=true
     case 'active_replacements':
       return withQuery('/hr/temporary-replacements', { status: 'active' });
+    case 'expired_replacements':
+      return withQuery('/hr/temporary-replacements', { status: 'expired' });
     case 'office_staff':
       return '/hr/office-staff'; // already locked to office_only=true
     case 'client_company_employees':

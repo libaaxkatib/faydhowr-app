@@ -39,6 +39,47 @@ class CreateTemporaryReplacementAction
             );
         }
 
+        $this->assertEmployeeCanCover($workAssignment, $replacementEmployee);
+
+        return DB::transaction(function () use ($workAssignment, $replacementEmployee, $data, $actor) {
+            // Two people saving at the same moment must not both pass the overlap check: the position and the person are locked, in this order, until the cover is saved.
+            EmployeeWorkAssignment::query()->whereKey($workAssignment->id)->lockForUpdate()->first();
+            Employee::query()->whereKey($replacementEmployee->id)->lockForUpdate()->first();
+
+            // U12 / U1 (docs/HR_PAYROLL_RULES.md): refused when it overlaps another Temporary cover of the position or of the person, or the person's own assignment.
+            CoverConflicts::assertFree(
+                $workAssignment,
+                $replacementEmployee,
+                CarbonImmutable::parse($data['start_date'])->toDateString(),
+                empty($data['end_date']) ? null : CarbonImmutable::parse($data['end_date'])->toDateString(),
+            );
+
+            $replacement = TemporaryReplacement::query()->create([
+                ...$data,
+                'currency' => $data['currency'] ?? 'USD',
+                'work_assignment_id' => $workAssignment->id,
+                'replacement_employee_id' => $replacementEmployee->id,
+                'status' => TemporaryReplacementStatus::Active,
+                'created_by' => $actor->id,
+            ]);
+
+            event(AuditEvent::record(
+                action: AuditAction::Create,
+                admin: $actor,
+                description: "Employee '{$replacementEmployee->full_name}' recorded as a temporary replacement for work assignment #{$workAssignment->id}.",
+                entityType: TemporaryReplacement::class,
+                entityId: $replacement->id,
+            ));
+
+            return $replacement->load('workAssignment.employee', 'workAssignment.workLocation.clientCompany', 'workAssignment.clientCompany', 'replacementEmployee', 'createdBy', 'payments.paidBy');
+        });
+    }
+
+    /**
+     * The rules every Temporary employee must meet to cover a position (used when a cover is created and when its Temporary employee is corrected).
+     */
+    public function assertEmployeeCanCover(EmployeeWorkAssignment $workAssignment, Employee $replacementEmployee): void
+    {
         if ($replacementEmployee->status !== EmployeeStatus::Active) {
             throw new HttpResponseException(
                 ApiResponse::error(
@@ -80,38 +121,5 @@ class CreateTemporaryReplacementAction
                 ),
             );
         }
-
-        return DB::transaction(function () use ($workAssignment, $replacementEmployee, $data, $actor) {
-            // Two people saving at the same moment must not both pass the overlap check: the position and the person are locked, in this order, until the cover is saved.
-            EmployeeWorkAssignment::query()->whereKey($workAssignment->id)->lockForUpdate()->first();
-            Employee::query()->whereKey($replacementEmployee->id)->lockForUpdate()->first();
-
-            // U12 / U1 (docs/HR_PAYROLL_RULES.md): refused when it overlaps another Temporary cover of the position or of the person, or the person's own assignment.
-            CoverConflicts::assertFree(
-                $workAssignment,
-                $replacementEmployee,
-                CarbonImmutable::parse($data['start_date'])->toDateString(),
-                empty($data['end_date']) ? null : CarbonImmutable::parse($data['end_date'])->toDateString(),
-            );
-
-            $replacement = TemporaryReplacement::query()->create([
-                ...$data,
-                'currency' => $data['currency'] ?? 'USD',
-                'work_assignment_id' => $workAssignment->id,
-                'replacement_employee_id' => $replacementEmployee->id,
-                'status' => TemporaryReplacementStatus::Active,
-                'created_by' => $actor->id,
-            ]);
-
-            event(AuditEvent::record(
-                action: AuditAction::Create,
-                admin: $actor,
-                description: "Employee '{$replacementEmployee->full_name}' recorded as a temporary replacement for work assignment #{$workAssignment->id}.",
-                entityType: TemporaryReplacement::class,
-                entityId: $replacement->id,
-            ));
-
-            return $replacement->load('workAssignment.employee', 'workAssignment.workLocation.clientCompany', 'workAssignment.clientCompany', 'replacementEmployee', 'createdBy', 'payments.paidBy');
-        });
     }
 }

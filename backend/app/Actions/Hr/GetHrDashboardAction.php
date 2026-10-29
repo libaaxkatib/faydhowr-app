@@ -16,6 +16,7 @@ use App\Models\EmployeePayment;
 use App\Models\EmployeePenalty;
 use App\Models\TemporaryReplacement;
 use App\Models\WorkforceRequest;
+use App\Support\Hr\Facility\FacilityCalendar;
 use Carbon\CarbonImmutable;
 
 /**
@@ -89,8 +90,15 @@ class GetHrDashboardAction
                 ->whereIn('status', [WorkforceRequestStatus::Open, WorkforceRequestStatus::PartiallyFilled])
                 ->count(),
             'supervisor_pool_count' => Employee::query()->where('is_supervisor', true)->count(),
+            // Covers that are still running (or not started yet). A cover whose end date has passed but was never closed is counted apart, below, so this card stays true.
             'active_temporary_replacements' => TemporaryReplacement::query()
                 ->where('status', TemporaryReplacementStatus::Active)
+                ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', FacilityCalendar::today()->toDateString()))
+                ->count(),
+            'expired_temporary_replacements' => TemporaryReplacement::query()
+                ->where('status', TemporaryReplacementStatus::Active)
+                ->whereNotNull('end_date')
+                ->whereDate('end_date', '<', FacilityCalendar::today()->toDateString())
                 ->count(),
             'office_staff_count' => Employee::query()
                 ->whereHas('activeWorkAssignments.workLocation', fn ($q) => $q->where('location_type', 'office'))

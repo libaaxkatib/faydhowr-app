@@ -2,6 +2,10 @@
 
 namespace App\Http\Resources\Api\V1\Admin\Hr;
 
+use App\Enums\TemporaryReplacementStatus;
+use App\Support\Hr\Facility\FacilityCalendar;
+use App\Support\Hr\ReplacementVersion;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -9,6 +13,16 @@ class TemporaryReplacementResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $today = FacilityCalendar::today()->toDateString();
+        $endDate = $this->end_date?->toDateString();
+        $expired = $this->status === TemporaryReplacementStatus::Active && $endDate !== null && $endDate < $today;
+        $lifecycle = match (true) {
+            $this->status === TemporaryReplacementStatus::Ended => 'ended',
+            $expired => 'expired',
+            $this->start_date->toDateString() > $today => 'scheduled',
+            default => 'running',
+        };
+
         $totalPaid = $this->whenLoaded('payments', fn () => number_format((float) $this->payments->sum('amount'), 2, '.', ''), '0.00');
 
         return [
@@ -24,7 +38,14 @@ class TemporaryReplacementResource extends JsonResource
             'replacement_employee_id' => $this->replacement_employee_id,
             'replacement_employee_name' => $this->whenLoaded('replacementEmployee', fn () => $this->replacementEmployee?->full_name),
             'start_date' => $this->start_date?->toDateString(),
-            'end_date' => $this->end_date?->toDateString(),
+            'end_date' => $endDate,
+            // The end date the cover was planned to have when it was ended earlier (kept by N10); null when it was not ended early.
+            'planned_end_date' => $this->planned_end_date?->toDateString(),
+            // Worked out from the dates and today in Mogadishu, never stored: scheduled | running | expired (active, but its end date has passed) | ended.
+            'lifecycle' => $lifecycle,
+            'is_expired' => $expired,
+            'days_overdue' => $expired ? (int) abs(CarbonImmutable::parse($endDate)->diffInDays(CarbonImmutable::parse($today))) : 0,
+            'version' => ReplacementVersion::of($this->resource),
             'daily_rate' => $this->daily_rate,
             'currency' => $this->currency,
             'reason' => $this->reason,

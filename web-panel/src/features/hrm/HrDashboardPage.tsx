@@ -38,6 +38,7 @@ export function HrDashboardPage() {
             <KpiCard label={t('status.approved')} value={data.approved} icon="shield" color="bg-teal-600" to={dashboardCardTo('approved', now)} />
             <KpiCard label={t('nav.supervisorPool')} value={data.supervisor_pool_count} icon="shield" color="bg-primary" to={dashboardCardTo('supervisor_pool', now)} />
             <KpiCard label={t('option.hr.kpiActiveReplacements')} value={data.active_temporary_replacements} icon="refresh" color="bg-warning" to={dashboardCardTo('active_replacements', now)} />
+            <KpiCard label={t('option.hr.kpiExpiredReplacements')} value={data.expired_temporary_replacements} icon="refresh" color="bg-danger" to={dashboardCardTo('expired_replacements', now)} />
             <KpiCard label={t('nav.officeStaff')} value={data.office_staff_count} icon="users" color="bg-secondary" to={dashboardCardTo('office_staff', now)} />
             <KpiCard
               label={t('option.hr.kpiClientCompanyEmployees')}

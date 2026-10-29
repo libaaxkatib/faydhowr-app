@@ -20,13 +20,16 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { parseReplacementStatus } from '@/utils/hrDashboardLinks';
+import { matchesStatusFilter } from '@/utils/replacementChange';
 import { assignmentLabel, describeDailyRate, expandDateRange, friendlyErrorMessage, localMonth, localToday } from '@/utils/hrHelpers';
-import type { EmploymentType, TemporaryReplacement, TemporaryReplacementWorkday, TemporaryReplacementWorkdayStatus } from '@/types/employee';
+import type { TemporaryReplacement, TemporaryReplacementWorkday, TemporaryReplacementWorkdayStatus } from '@/types/employee';
 import { Msg } from '@/i18n/Msg';
+import type { MessageKey } from '@/i18n/messages';
+import { EditReplacementModal, EndReplacementModal, ReplacementHistoryModal } from './ReplacementChangeDialogs';
+import { EmployeePicker } from './ReplacementEmployeePicker';
 import { useI18n } from '@/i18n/useI18n';
 
 /**
@@ -36,6 +39,14 @@ import { useI18n } from '@/i18n/useI18n';
  * employee's salary, only for days HR has verified, and (once approved) deducted
  * once from the covered employee's pay. Payments are still a manual ledger.
  */
+/** The badge of a cover: its lifecycle as the server works it out (an Active cover past its end date reads "Expired — Needs Closing"). */
+const LIFECYCLE_LABEL: Record<TemporaryReplacement['lifecycle'], MessageKey> = {
+  scheduled: 'status.pipeline.replacement.scheduled',
+  running: 'status.pipeline.replacement.active',
+  expired: 'status.pipeline.replacement.expired',
+  ended: 'status.pipeline.replacement.ended',
+};
+
 export function TemporaryReplacementsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -45,23 +56,31 @@ export function TemporaryReplacementsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [payingFor, setPayingFor] = useState<TemporaryReplacement | null>(null);
   const [ending, setEnding] = useState<TemporaryReplacement | null>(null);
+  const [editing, setEditing] = useState<TemporaryReplacement | null>(null);
+  const [historyOf, setHistoryOf] = useState<TemporaryReplacement | null>(null);
+  const [closing, setClosing] = useState<TemporaryReplacement | null>(null);
   const [workdaysForId, setWorkdaysForId] = useState<number | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['temporary-replacements'], queryFn: hrApi.temporaryReplacements.list });
   const workdaysFor = data?.find((replacement) => replacement.id === workdaysForId) ?? null;
   // The HR dashboard's Active Replacements card links here with ?status=active.
   const statusFilter = parseReplacementStatus(searchParams);
-  const visibleReplacements = data && statusFilter ? data.filter((replacement) => replacement.status === statusFilter) : data;
+  // "Active" = running or not started yet; "Expired" = still open although its end date has passed (the server works the lifecycle out in Mogadishu time).
+  const visibleReplacements = data && statusFilter ? data.filter((replacement) => matchesStatusFilter(statusFilter, replacement.lifecycle)) : data;
   const statusFilterWord = statusFilter ? tValue('status.pipeline.replacement', statusFilter)?.toLowerCase() ?? statusFilter : '';
 
-  const endMutation = useMutation({
-    mutationFn: ({ id, endDate }: { id: number; endDate: string }) => hrApi.temporaryReplacements.end(id, { end_date: endDate }),
+  const closeMutation = useMutation({
+    mutationFn: (id: number) => hrApi.temporaryReplacements.close(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['temporary-replacements'] });
-      show(t('notify.pipeline.coverageEnded'));
-      setEnding(null);
+      queryClient.invalidateQueries({ queryKey: ['hr-dashboard'] });
+      show(t('notify.pipeline.replacementClosed'));
+      setClosing(null);
     },
-    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.couldNotEndCoverage')), 'error'),
+    onError: (err) => {
+      setClosing(null);
+      show(friendlyErrorMessage(err, t('notify.pipeline.couldNotClose')), 'error');
+    },
   });
 
   const paymentMutation = useMutation({
@@ -129,9 +148,9 @@ export function TemporaryReplacementsPage() {
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <StatusBadge
-                    status={replacement.status}
-                    label={tValue('status.pipeline.replacement', replacement.status)}
-                    tone={replacement.status === 'active' ? 'warning' : 'neutral'}
+                    status={replacement.lifecycle}
+                    label={t(LIFECYCLE_LABEL[replacement.lifecycle])}
+                    tone={replacement.lifecycle === 'expired' ? 'danger' : replacement.lifecycle === 'running' ? 'warning' : replacement.lifecycle === 'scheduled' ? 'info' : 'neutral'}
                   />
                   <StatusBadge
                     status={replacement.approved ? 'approved' : 'awaiting-approval'}
@@ -149,9 +168,14 @@ export function TemporaryReplacementsPage() {
                 <span className="text-ink">{t('option.pipeline.temporaryEmployeeName', { name: replacement.replacement_employee_name ?? '' })}</span>
               </button>
 
-              <p className="mb-3 text-xs text-ink-faint">
+              <p className="mb-1 text-xs text-ink-faint">
                 {formatDate(replacement.start_date)} → {replacement.end_date ? formatDate(replacement.end_date) : t('option.pipeline.ongoing')}
               </p>
+              {replacement.planned_end_date && <p className="mb-1 text-xs text-ink-faint">{t('option.pipeline.plannedEndWas', { date: formatDate(replacement.planned_end_date) })}</p>}
+              {replacement.created_by && <p className="mb-3 text-xs text-ink-faint">{t('option.pipeline.recordedBy', { name: replacement.created_by })}</p>}
+              {replacement.is_expired && (
+                <p role="status" className="mb-3 rounded-sm bg-danger-soft px-2.5 py-1.5 text-xs text-ink">{t('warning.pipeline.expiredNotice', { days: replacement.days_overdue })}</p>
+              )}
 
               {replacement.reason && <p className="mb-3 text-xs italic text-ink-faint">{replacement.reason}</p>}
 
@@ -178,12 +202,23 @@ export function TemporaryReplacementsPage() {
                   <Button size="sm" variant="outline" onClick={() => setPayingFor(replacement)}>
                     {t('action.recordPayment')}
                   </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditing(replacement)}>
+                    {t('action.edit')}
+                  </Button>
+                  {replacement.is_expired && (
+                    <Button size="sm" onClick={() => setClosing(replacement)}>
+                      {t('action.pipeline.closeExpired')}
+                    </Button>
+                  )}
                   {replacement.status === 'active' && (
                     <Button size="sm" variant="ghost" onClick={() => setEnding(replacement)}>
                       {t('action.endCoverage')}
                     </Button>
                   )}
                 </PermissionGate>
+                <Button size="sm" variant="ghost" onClick={() => setHistoryOf(replacement)}>
+                  {t('action.pipeline.history')}
+                </Button>
               </div>
             </Card>
           ))}
@@ -214,79 +249,36 @@ export function TemporaryReplacementsPage() {
         <EndReplacementModal
           replacement={ending}
           onClose={() => setEnding(null)}
-          onConfirm={(endDate) => endMutation.mutate({ id: ending.id, endDate })}
-          isLoading={endMutation.isPending}
+          onEnded={() => {
+            queryClient.invalidateQueries({ queryKey: ['temporary-replacements'] });
+            queryClient.invalidateQueries({ queryKey: ['hr-dashboard'] });
+            setEnding(null);
+          }}
         />
       )}
-    </div>
-  );
-}
 
-/**
- * Searchable list of Active employees of one employment type. The list endpoint
- * has no employment-type filter, so the type is filtered here after searching.
- */
-function EmployeePicker({
-  id,
-  employmentType,
-  value,
-  onChange,
-  excludeId,
-  placeholder,
-}: {
-  id: string;
-  employmentType: EmploymentType;
-  value: string;
-  onChange: (employeeId: string) => void;
-  excludeId?: string;
-  placeholder: string;
-}) {
-  const { t } = useI18n();
-  const [search, setSearch] = useState('');
-  const [selectedLabel, setSelectedLabel] = useState('');
-  const debouncedSearch = useDebouncedValue(search, 350);
+      {editing && (
+        <EditReplacementModal
+          replacement={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ['temporary-replacements'] });
+            queryClient.invalidateQueries({ queryKey: ['hr-dashboard'] });
+            setEditing(null);
+          }}
+        />
+      )}
 
-  const { data, isFetching } = useQuery({
-    queryKey: ['employees', { status: 'active', for: 'replacement-picker', search: debouncedSearch }],
-    queryFn: () => hrApi.employees.list({ status: 'active', search: debouncedSearch || undefined, per_page: 100 }),
-  });
+      {historyOf && <ReplacementHistoryModal replacement={historyOf} onClose={() => setHistoryOf(null)} />}
 
-  const options = (data?.data ?? [])
-    .filter((employee) => employee.employment_type === employmentType && String(employee.id) !== excludeId)
-    .map((employee) => ({ value: String(employee.id), label: `${employee.full_name} (${employee.employee_number})` }));
-
-  // Keep the chosen person visible even after the search box narrows the list to someone else.
-  if (value !== '' && selectedLabel !== '' && !options.some((option) => option.value === value)) {
-    options.unshift({ value, label: selectedLabel });
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <input
-        type="search"
-        className={inputClasses}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={t('option.pipeline.searchEmployeesPlaceholder')}
-        aria-label={t('option.pipeline.searchEmployees')}
-      />
-      <Select
-        id={id}
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value);
-          setSelectedLabel(options.find((option) => option.value === e.target.value)?.label ?? '');
-        }}
-        placeholder={
-          isFetching
-            ? t('option.label.searching')
-            : options.length === 0
-              ? employmentType === 'permanent'
-                ? t('option.pipeline.noPermanentEmployeesFound')
-                : t('option.pipeline.noTemporaryEmployeesFound')
-              : placeholder
-        }
-        options={options}
+      <ConfirmDialog
+        isOpen={closing !== null}
+        title={t('confirm.pipeline.closeTitle')}
+        description={closing ? t('confirm.pipeline.closeBody', { end: closing.end_date ? formatDate(closing.end_date) : '' }) : ''}
+        confirmLabel={t('action.pipeline.closeReplacementConfirm')}
+        isLoading={closeMutation.isPending}
+        onConfirm={() => closing && closeMutation.mutate(closing.id)}
+        onCancel={() => setClosing(null)}
       />
     </div>
   );
@@ -873,37 +865,3 @@ function RecordPaymentModal({
   );
 }
 
-function EndReplacementModal({
-  replacement,
-  onClose,
-  onConfirm,
-  isLoading,
-}: {
-  replacement: TemporaryReplacement;
-  onClose: () => void;
-  onConfirm: (endDate: string) => void;
-  isLoading: boolean;
-}) {
-  const { t } = useI18n();
-  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
-
-  return (
-    <Modal
-      isOpen
-      onClose={onClose}
-      title={t('action.endCoverage')}
-      size="sm"
-      footer={
-        <>
-          <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
-          <Button variant="danger" size="sm" isLoading={isLoading} onClick={() => onConfirm(endDate)}>{t('action.endCoverage')}</Button>
-        </>
-      }
-    >
-      <p className="mb-3 text-sm text-ink-muted">{replacement.replacement_employee_name}</p>
-      <FormField label={t('option.pipeline.endDate')} htmlFor="tr-end-date" required>
-        <input id="tr-end-date" type="date" className={inputClasses} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-      </FormField>
-    </Modal>
-  );
-}

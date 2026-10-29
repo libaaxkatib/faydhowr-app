@@ -1204,6 +1204,10 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.view', 'throttle:admi
         ->name('api.v1.admin.hr.workforce-requests.candidates');
     Route::get('v1/admin/hr/temporary-replacements', [AdminTemporaryReplacementController::class, 'index'])
         ->name('api.v1.admin.hr.temporary-replacements.index');
+    // Who changed what, when and why on one cover (created, corrected, ended, closed, approved).
+    Route::get('v1/admin/hr/temporary-replacements/{temporaryReplacement}/history', [AdminTemporaryReplacementController::class, 'history'])
+        ->whereNumber('temporaryReplacement')
+        ->name('api.v1.admin.hr.temporary-replacements.history');
     Route::get('v1/admin/hr/temporary-replacements/{temporaryReplacement}/workdays', [AdminTemporaryReplacementWorkdayController::class, 'index'])
         ->whereNumber('temporaryReplacement')
         ->name('api.v1.admin.hr.temporary-replacements.workdays.index');
@@ -1455,6 +1459,18 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::patch('v1/admin/hr/temporary-replacements/{temporaryReplacement}/end', [AdminTemporaryReplacementController::class, 'end'])
         ->whereNumber('temporaryReplacement')
         ->name('api.v1.admin.hr.temporary-replacements.end');
+    // Corrections (start/end date, Temporary employee, reason, notes) with a written reason; never the covered assignment or a payment.
+    Route::patch('v1/admin/hr/temporary-replacements/{temporaryReplacement}', [AdminTemporaryReplacementController::class, 'update'])
+        ->whereNumber('temporaryReplacement')
+        ->name('api.v1.admin.hr.temporary-replacements.update');
+    // Read-only preview of what a change of the dates would do (days, cost per month, closed payroll months), shared by Edit and End Coverage.
+    Route::get('v1/admin/hr/temporary-replacements/{temporaryReplacement}/change-preview', [AdminTemporaryReplacementController::class, 'changePreview'])
+        ->whereNumber('temporaryReplacement')
+        ->name('api.v1.admin.hr.temporary-replacements.change-preview');
+    // Closes a cover whose end date has passed without changing any date.
+    Route::patch('v1/admin/hr/temporary-replacements/{temporaryReplacement}/close', [AdminTemporaryReplacementController::class, 'close'])
+        ->whereNumber('temporaryReplacement')
+        ->name('api.v1.admin.hr.temporary-replacements.close');
     Route::post('v1/admin/hr/temporary-replacements/{temporaryReplacement}/payments', [AdminTemporaryReplacementController::class, 'addPayment'])
         ->whereNumber('temporaryReplacement')
         ->name('api.v1.admin.hr.temporary-replacements.payments.store');

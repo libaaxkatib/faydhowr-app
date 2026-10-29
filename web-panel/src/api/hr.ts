@@ -19,6 +19,9 @@ import type {
   DuplicateCheckParams,
   DuplicateEmployeeMatch,
   EndTemporaryReplacementPayload,
+  ReplacementChangePreview,
+  ReplacementHistoryEntry,
+  UpdateTemporaryReplacementPayload,
   Employee,
   EmployeeCategory,
   EmployeeContract,
@@ -300,6 +303,17 @@ export const hrApi = {
       apiRequest<{ conflict: CoverConflict | null }>('admin/hr/temporary-replacements/conflict-check', { query: params }),
     end: (id: number, payload: EndTemporaryReplacementPayload) =>
       apiRequest<TemporaryReplacement>(`admin/hr/temporary-replacements/${id}/end`, { method: 'PATCH', body: payload }),
+    /** Corrects the start/end date, the Temporary employee, the reason or the notes (never the covered assignment, the status or a payment). */
+    update: (id: number, payload: UpdateTemporaryReplacementPayload) =>
+      apiRequest<TemporaryReplacement>(`admin/hr/temporary-replacements/${id}`, { method: 'PATCH', body: payload }),
+    /** What a change of dates would do (days, cost per month, closed payroll months), without saving anything. An omitted date keeps today's value; an empty end_date means no end. */
+    changePreview: (id: number, params: { start_date?: string; end_date?: string | null; replacement_employee_id?: number }) =>
+      apiRequest<ReplacementChangePreview>(`admin/hr/temporary-replacements/${id}/change-preview`, {
+        query: { start_date: params.start_date, end_date: params.end_date === undefined ? undefined : (params.end_date ?? ''), replacement_employee_id: params.replacement_employee_id },
+      }),
+    /** Closes a cover whose end date has passed, keeping its dates exactly as recorded. */
+    close: (id: number) => apiRequest<TemporaryReplacement>(`admin/hr/temporary-replacements/${id}/close`, { method: 'PATCH' }),
+    history: (id: number) => apiRequest<ReplacementHistoryEntry[]>(`admin/hr/temporary-replacements/${id}/history`),
     addPayment: (id: number, payload: RecordTemporaryReplacementPaymentPayload) =>
       apiRequest<TemporaryReplacement & { payment_check: PaymentCheck | null }>(`admin/hr/temporary-replacements/${id}/payments`, { method: 'POST', body: payload }),
     /** The payment expected up to `through` (default today): every calendar day of the cover, minus what was already paid. Payroll viewers only. */

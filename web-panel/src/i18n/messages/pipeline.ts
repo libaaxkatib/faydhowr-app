@@ -192,8 +192,8 @@ export const pipeline = defineMessages({
   ),
   'confirm.pipeline.voidTitle': message('Void this day', 'Ka noqo maalintan'),
   'confirm.pipeline.voidBody': message(
-    '{date} will no longer be charged. The day stays in the list for the record.',
-    '{date} mar dambe lama xisaabin doono. Maalintu waxay ku hadhaysaa liiska si diiwaanka loogu hayo.',
+    '{date} will be marked as void in the attendance record. This does not change the cost of the cover, which follows its start and end dates. The day stays in the list for the record.',
+    '{date} waxaa lagu calaamadayn doonaa mid la buriyay diiwaanka joogitaanka. Tani ma beddesho kharashka beddelaadda, kaas oo raaca taariikhaha bilowga iyo dhammaadka. Maalintu waxay ku hadhaysaa liiska si diiwaanka loogu hayo.',
   ),
 
   // Notices that explain what an action does
@@ -215,8 +215,8 @@ export const pipeline = defineMessages({
     'Waxaa la muujinayaa beddelaadyada {status} oo keliya ({shown} ka mid ah {total}).',
   ),
   'warning.pipeline.createReplacementNotice': message(
-    "A Temporary employee covers a Permanent employee's assignment. You do not enter a daily rate: the cost is worked out from the covered employee's salary divided by the days in the month, and only for days you verify.",
-    'Shaqaale ku-meel-gaar ah ayaa bedelaya qoondaynta shaqaale joogto ah. Ma gelinayso qiimaha maalinlaha ah: kharashka waxaa laga xisaabiyaa mushaharka shaqaalaha la bedelay oo loo qaybiyo maalmaha bisha, mana lagu xisaabiyaa maalmaha aad hubiso oo keliya.',
+    "A Temporary employee covers a Permanent employee's position. You do not enter a daily rate: the cost is the covered employee's monthly salary divided by the days of the month, for every calendar day from the first to the last day of the cover (both included). Once approved, it is deducted once from the Permanent employee's pay. Check the dates carefully.",
+    'Shaqaale ku-meel-gaar ah ayaa bedelaya booska shaqaale joogto ah. Ma gelinayso qiimaha maalinlaha ah: kharashka waa mushaharka bille ee shaqaalaha la bedelay oo loo qaybiyo maalmaha bisha, maalin kasta oo kalandar ah laga bilaabo maalinta ugu horreysa ilaa tan ugu dambaysa ee beddelaadda (labaduba waa ku jiraan). Marka la ansixiyo, mar keliya ayaa laga jarayaa mushaharka shaqaalaha joogtada ah. Fadlan taariikhaha si fiican u hubi.',
   ),
   // Corrected for the coverage-period rule (U8): the amount follows the days the cover existed; the attendance days below are only a record.
   'warning.pipeline.workdaysNotice': message(
@@ -228,8 +228,8 @@ export const pipeline = defineMessages({
     'Maalmaha liiska ku jira dhammaantood si wadajir ah ayaa loo hubiyaa: haddii mid aan la ogolayn, midkoodna lama keydinayo. Maalmaha aan weli dhicin lama diiwaangelin karo.',
   ),
   'warning.pipeline.unverifiedDays': message(
-    '{count} day(s) are not verified yet, so they are not charged.',
-    '{count} maalin weli lama hubin, sidaas darteed lama xisaabinayo.',
+    '{count} attendance day(s) are not verified yet. This does not change the cost.',
+    '{count} maalin oo joogitaan ah weli lama hubin. Tani ma beddesho kharashka.',
   ),
   'warning.pipeline.outsideDays': message(
     '{count} day(s) fall outside this month or the cover dates and are not counted.',
@@ -274,13 +274,13 @@ export const pipeline = defineMessages({
   'notify.pipeline.couldNotCreateReplacement': message('Could not create temporary replacement.', 'Beddelaadka ku-meel-gaarka ah lama sameyn karin.'),
   'notify.pipeline.daysRecordedVerified': message('{count} day(s) recorded and verified.', '{count} maalin waa la diiwaangeliyey oo la hubiyey.'),
   'notify.pipeline.daysRecorded': message(
-    '{count} day(s) recorded. They are charged only after they are verified.',
-    '{count} maalin waa la diiwaangeliyey. Waxaa la xisaabinayaa kaliya marka la hubiyo.',
+    '{count} day(s) recorded in the attendance record. The cost does not depend on them: it follows the start and end dates of the cover.',
+    '{count} maalin waa lagu diiwaangeliyey diiwaanka joogitaanka. Kharashku kuma xirna: wuxuu raacaa taariikhaha bilowga iyo dhammaadka beddelaadda.',
   ),
   'notify.pipeline.couldNotRecordDays': message('Could not record the days. Nothing was saved.', 'Maalmaha lama diiwaangelin karin. Waxba lama keydin.'),
   'notify.pipeline.dayVerified': message('Day verified.', 'Maalinta waa la hubiyey.'),
   'notify.pipeline.couldNotVerifyDay': message('Could not verify the day.', 'Maalinta lama hubin karin.'),
-  'notify.pipeline.dayVoided': message('Day voided. It will not be charged.', 'Maalinta waa laga noqday. Lama xisaabin doono.'),
+  'notify.pipeline.dayVoided': message('Day voided in the attendance record. The cost of the cover is not changed.', 'Maalinta waa laga noqday diiwaanka joogitaanka. Kharashka beddelaadda lama beddelin.'),
   'notify.pipeline.couldNotVoidDay': message('Could not void the day.', 'Maalinta lama ka noqon karin.'),
   'notify.pipeline.replacementApproved': message(
     'Replacement approved. Its cost will be deducted from the covered employee in payroll.',

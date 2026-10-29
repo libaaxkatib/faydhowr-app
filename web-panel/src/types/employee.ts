@@ -1,3 +1,5 @@
+import type { CoverConflict } from '@/utils/coverConflict';
+
 export type EmployeeStatus = 'applicant' | 'recruitment' | 'practical' | 'waiting' | 'approved' | 'active' | 'inactive';
 export type EmployeeGender = 'male' | 'female';
 
@@ -434,6 +436,7 @@ export interface EmployeeHistoricalCompletion {
 }
 
 export type TemporaryReplacementStatus = 'active' | 'ended';
+export type TemporaryReplacementLifecycle = 'scheduled' | 'running' | 'expired' | 'ended';
 
 export interface TemporaryReplacementPayment {
   id: number;
@@ -459,6 +462,14 @@ export interface TemporaryReplacement {
   replacement_employee_name: string | null;
   start_date: string;
   end_date: string | null;
+  /** The end date the cover was planned to have, kept when it was ended earlier; null when it was not ended early. */
+  planned_end_date: string | null;
+  /** Worked out by the server from the dates and today in Mogadishu: scheduled | running | expired (active, end date passed) | ended. */
+  lifecycle: TemporaryReplacementLifecycle;
+  is_expired: boolean;
+  days_overdue: number;
+  /** Sent back with a correction so two people cannot overwrite each other. */
+  version: string;
   /** Legacy: the rate is now derived from the covered employee's salary, so this may be null. */
   daily_rate: string | null;
   currency: string | null;
@@ -527,6 +538,71 @@ export interface TemporaryReplacementCost {
 export interface EndTemporaryReplacementPayload {
   end_date: string;
   notes?: string | null;
+  /** Confirms that a last day later than the recorded end lengthens the cover. */
+  confirm_extension?: boolean;
+  /** Closed payroll only: a Super Admin's written reason. */
+  reason?: string | null;
+  version?: string;
+}
+
+/** The fields a correction can carry; the covered assignment, the status, the approval and the payments are not among them. */
+export interface UpdateTemporaryReplacementPayload {
+  start_date?: string;
+  end_date?: string | null;
+  replacement_employee_id?: number;
+  reason?: string | null;
+  notes?: string | null;
+  change_reason: string;
+  version: string;
+}
+
+export interface ReplacementPreviewMonth {
+  period: string;
+  locked: boolean;
+  days_before: number;
+  days_after: number;
+  changed: boolean;
+  cost_before_cents?: number | null;
+  cost_after_cents?: number | null;
+}
+
+/** What a change of dates would do, worked out by the server without saving anything. Money fields only come for people who may see payroll. */
+export interface ReplacementChangePreview {
+  old: { start_date: string; end_date: string | null };
+  new: { start_date: string; end_date: string | null };
+  today: string;
+  days_before: number;
+  days_after: number;
+  days_added: number;
+  days_removed: number;
+  added_dates: string[];
+  extends_end: boolean;
+  increases_cost: boolean;
+  months: ReplacementPreviewMonth[];
+  touches_locked_period: boolean;
+  changes_locked_period: boolean;
+  locked_periods_changed: string[];
+  cost_before_cents?: number;
+  cost_after_cents?: number;
+  cost_delta_cents?: number;
+  errors: { code: string; message: string }[];
+  conflict: CoverConflict | null;
+  employee_locked_by_records: boolean;
+  requires_super_admin: boolean;
+  requires_reason_for_closed_payroll: boolean;
+  approval_will_be_cleared: boolean;
+  is_approved: boolean;
+  sees_money: boolean;
+  version: string;
+}
+
+export interface ReplacementHistoryEntry {
+  id: number;
+  action: string;
+  description: string;
+  by: string | null;
+  at: string | null;
+  details: Record<string, unknown>;
 }
 
 export interface RecordTemporaryReplacementPaymentPayload {
@@ -948,6 +1024,8 @@ export interface HrDashboardData {
   open_workforce_requests: number;
   supervisor_pool_count: number;
   active_temporary_replacements: number;
+  /** Covers that are still Active but whose end date has passed ("Expired - Needs Closing"). */
+  expired_temporary_replacements: number;
   office_staff_count: number;
   attendance_marked_today: number;
   present_today: number;

@@ -19,6 +19,11 @@ class EndTemporaryReplacementRequest extends FormRequest
         return [
             'end_date' => ['required', 'date'],
             'notes' => ['nullable', 'string'],
+            // The caller confirms that a last day later than the recorded end lengthens the cover (the screen shows the old and new dates and the cost first).
+            'confirm_extension' => ['nullable', 'boolean'],
+            // Closed payroll only: a Super Admin's written reason for the correction.
+            'reason' => ['nullable', 'string', 'max:1000'],
+            'version' => ['nullable', 'string', 'max:64'],
         ];
     }
 
