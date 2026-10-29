@@ -101,10 +101,10 @@ class Rc6PermissionMatrixTest extends TestCase
         $this->assertSame(401, $this->httpStatus(null, $method, $uri, $body), "anonymous must get 401 on {$method} {$uri}");
     }
 
-    public function test_the_policy_switch_is_visible_to_hr_viewers_and_changeable_by_the_super_admin_and_the_hr_manager(): void
+    public function test_the_policy_switch_is_visible_to_hr_viewers_and_changeable_only_by_the_super_admin(): void
     {
         $this->assertMatrix('GET', '/api/v1/admin/hr/policies', ['super_admin', 'hr_manager', 'hr_viewer', 'hr_reports_only', 'payroll_viewer', 'payroll_manager_wrong_role']);
-        $this->assertMatrix('PUT', '/api/v1/admin/hr/policies/multi_company_assignments', ['super_admin', 'hr_manager'], ['enabled' => false, 'reason' => 'Matrix test, no change']);
+        $this->assertMatrix('PUT', '/api/v1/admin/hr/policies/multi_company_assignments', ['super_admin'], ['enabled' => false, 'reason' => 'Matrix test, no change']);
     }
 
     public function test_the_company_employee_screen_needs_hr_view_and_its_actions_need_hr_manage(): void

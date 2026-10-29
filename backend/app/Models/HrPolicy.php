@@ -18,8 +18,9 @@ class HrPolicy extends Model
         self::MULTI_COMPANY_ASSIGNMENTS => [
             'label' => 'Allow one employee to work for more than one company',
             'description' => 'Off: an employee can hold one assignment at a time. On: an employee may hold assignments at different companies at the same time; each keeps its own company, position, dates, salary and history.',
-            // Owner decision (Phase 2): a routine HR switch, so the HR Manager may change it as well as the Super Admin. Its value is never changed by code.
-            'changeable_by' => [AdminRole::SuperAdmin, AdminRole::HrManager],
+            // Owner decision 2026-10-29: only the Super Admin manages this switch; the HR Manager does not see it and the server refuses the HR
+            // Manager's change (this replaces the Phase 2 decision that let the HR Manager switch it). Its value is never changed by code.
+            'changeable_by' => [AdminRole::SuperAdmin],
         ],
     ];
 

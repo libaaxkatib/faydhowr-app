@@ -8,9 +8,11 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/useToast';
+import { useAuth } from '@/features/auth/useAuth';
 import { useI18n } from '@/i18n/useI18n';
 import { localizeServerMessage } from '@/i18n/serverMessages';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
+import { multiCompanyPolicyCardVisible } from '@/utils/policyCardVisibility';
 
 interface HrPolicy {
   key: string;
@@ -30,19 +32,22 @@ interface HrPoliciesResponse {
 }
 
 /**
- * Shows whether one employee may work for more than one company at the same time. Everyone who can view HR sees the state; the Super Admin
- * and the HR Manager get the switch (the server says so through can_change and refuses anyone else). Every change asks for a reason, which is
+ * Shows whether one employee may work for more than one company at the same time. Roles that may view HR see the state, except the HR Manager, who
+ * is not shown this card at all; only the Super Admin gets the switch (the server says so through can_change and refuses anyone else). Every change asks for a reason, which is
  * kept in the audit history together with who changed it and when - the state is never changed silently.
  */
 export function MultiCompanyPolicyCard() {
   const queryClient = useQueryClient();
   const { show } = useToast();
   const { t, language } = useI18n();
+  const { admin } = useAuth();
+  // Not shown to the HR Manager (owner decision 2026-10-29); the setting itself is unchanged and stays with the Super Admin.
+  const visible = multiCompanyPolicyCardVisible(admin?.role);
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const { data } = useQuery({ queryKey: ['hr-policies'], queryFn: () => apiRequest<HrPoliciesResponse>('admin/hr/policies') });
+  const { data } = useQuery({ queryKey: ['hr-policies'], queryFn: () => apiRequest<HrPoliciesResponse>('admin/hr/policies'), enabled: visible });
   const policy = data?.policies.find((p) => p.key === 'multi_company_assignments');
 
   const mutation = useMutation({
@@ -57,7 +62,7 @@ export function MultiCompanyPolicyCard() {
     onError: (e) => setError(friendlyErrorMessage(e, t('notify.company.couldNotChangePolicy'))),
   });
 
-  if (!policy) return null;
+  if (!visible || !policy) return null;
 
   const target = !policy.enabled;
   const reasonOk = reason.trim().length >= 5;

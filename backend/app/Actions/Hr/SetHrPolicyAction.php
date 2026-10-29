@@ -2,7 +2,6 @@
 
 namespace App\Actions\Hr;
 
-use App\Enums\AdminRole;
 use App\Enums\AuditAction;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
@@ -12,18 +11,14 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Turns an HR policy on or off. Only the roles the policy lists in HrPolicy::CATALOG may change it (the Super Admin and, for the
- * multi-company policy, the HR Manager) - re-checked here, not only by the route. A reason is required, a no-op is
+ * Turns an HR policy on or off. Only the roles the policy lists in HrPolicy::CATALOG may change it - today only the Super Admin (owner decision
+ * 2026-10-29: the HR Manager neither sees nor changes the multi-company switch) - re-checked here, not only by the route. A reason is required, a no-op is
  * refused so the audit trail only holds real changes, and every change is audited with the old and new value and the reason.
  */
 class SetHrPolicyAction
 {
     public function handle(Admin $actor, string $key, bool $enabled, string $reason): HrPolicy
     {
-        if (! in_array($actor->role, [AdminRole::SuperAdmin, AdminRole::HrManager], true)) {
-            throw new HttpResponseException(ApiResponse::error('Only the Super Admin or the HR Manager can change this policy.', 'FORBIDDEN', 403));
-        }
-
         if (! array_key_exists($key, HrPolicy::CATALOG)) {
             throw new HttpResponseException(ApiResponse::error('Unknown policy.', 'HR_POLICY_NOT_FOUND', 404));
         }

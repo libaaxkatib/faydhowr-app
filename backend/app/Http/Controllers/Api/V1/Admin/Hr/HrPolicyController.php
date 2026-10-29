@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin\Hr;
 
 use App\Actions\Hr\SetHrPolicyAction;
+use App\Enums\AdminRole;
 use App\Enums\WorkAssignmentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\EmployeeWorkAssignment;
@@ -17,6 +18,12 @@ class HrPolicyController extends Controller
     public function index(Request $request): JsonResponse
     {
         $role = $request->user()->role;
+
+        // Owner decision 2026-10-29: the multi-company switch is not shown to the HR Manager at all - not its state, who changed it, or the count of
+        // employees it concerns. (The rule it controls is still applied by the assignment actions; only the settings card is withheld.)
+        if ($role === AdminRole::HrManager) {
+            return ApiResponse::success('HR policies retrieved successfully.', ['policies' => [], 'employees_with_concurrent_assignments' => 0]);
+        }
 
         $rows = HrPolicy::query()->with('changedBy')->get()->keyBy('key');
 

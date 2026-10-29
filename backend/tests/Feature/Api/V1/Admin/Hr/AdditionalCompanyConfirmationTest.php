@@ -27,6 +27,9 @@ class AdditionalCompanyConfirmationTest extends TestCase
 
     private string $hr;
 
+    /** Only the Super Admin switches the multi-company policy (owner decision 2026-10-29); the HR Manager then works under whichever state it is in. */
+    private string $super;
+
     private Position $position;
 
     protected function setUp(): void
@@ -36,6 +39,7 @@ class AdditionalCompanyConfirmationTest extends TestCase
         $this->b = $this->makeCompany('Beta School');
         $this->position = Position::query()->create(['name' => 'Cleaner']);
         $this->hr = $this->tokenForRoleWith(AdminRole::HrManager, ['hr.view', 'hr.manage']);
+        [, $this->super] = $this->superAdminToken();
     }
 
     private function as(string $token): static
@@ -54,7 +58,7 @@ class AdditionalCompanyConfirmationTest extends TestCase
     {
         $employee = $this->makeEmployee();
         $first = $this->makeAssignment($employee, $this->a, null, 300, '2026-01-01');
-        $this->as($this->hr)->putJson('/api/v1/admin/hr/policies/'.HrPolicy::MULTI_COMPANY_ASSIGNMENTS, ['enabled' => true, 'reason' => 'A cleaner works two sites'])->assertOk();
+        $this->as($this->super)->putJson('/api/v1/admin/hr/policies/'.HrPolicy::MULTI_COMPANY_ASSIGNMENTS, ['enabled' => true, 'reason' => 'A cleaner works two sites'])->assertOk();
         $url = "/api/v1/admin/hr/employees/{$employee->id}/work-assignments";
 
         $r = $this->as($this->hr)->postJson($url, $this->body())->assertUnprocessable()->assertJsonPath('error_code', 'ADDITIONAL_COMPANY_CONFIRMATION_REQUIRED');
@@ -85,7 +89,7 @@ class AdditionalCompanyConfirmationTest extends TestCase
 
     public function test_no_confirmation_is_asked_for_a_first_company_or_when_there_is_no_overlap(): void
     {
-        $this->as($this->hr)->putJson('/api/v1/admin/hr/policies/'.HrPolicy::MULTI_COMPANY_ASSIGNMENTS, ['enabled' => true, 'reason' => 'A cleaner works two sites'])->assertOk();
+        $this->as($this->super)->putJson('/api/v1/admin/hr/policies/'.HrPolicy::MULTI_COMPANY_ASSIGNMENTS, ['enabled' => true, 'reason' => 'A cleaner works two sites'])->assertOk();
         $fresh = $this->makeEmployee();
         $this->as($this->hr)->postJson("/api/v1/admin/hr/employees/{$fresh->id}/work-assignments", $this->body())->assertCreated();
 

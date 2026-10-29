@@ -88,16 +88,21 @@ class Phase2HrAccessTest extends TestCase
 
     // ------------------------------------------------------------------ F: HR Manager and the policy switch
 
-    public function test_the_hr_manager_can_switch_the_multi_company_policy_and_it_is_audited(): void
+    public function test_only_the_super_admin_can_switch_the_multi_company_policy_and_it_is_audited_while_the_hr_manager_is_refused(): void
     {
         $url = '/api/v1/admin/hr/policies/'.HrPolicy::MULTI_COMPANY_ASSIGNMENTS;
         $hrManager = $this->tokenForRoleWith(AdminRole::HrManager, ['hr.view', 'hr.manage']);
+        [, $super] = $this->superAdminToken();
 
         $this->assertFalse(HrPolicy::isEnabled(HrPolicy::MULTI_COMPANY_ASSIGNMENTS), 'nothing switches it by itself');
 
-        $this->as($hrManager)->putJson($url, ['enabled' => true, 'reason' => 'A cleaner works two sites'])->assertOk();
+        // Owner decision 2026-10-29: the HR Manager neither sees nor changes this switch.
+        $this->as($hrManager)->putJson($url, ['enabled' => true, 'reason' => 'A cleaner works two sites'])->assertForbidden();
+        $this->assertFalse(HrPolicy::isEnabled(HrPolicy::MULTI_COMPANY_ASSIGNMENTS));
+
+        $this->as($super)->putJson($url, ['enabled' => true, 'reason' => 'A cleaner works two sites'])->assertOk();
         $this->assertTrue(HrPolicy::isEnabled(HrPolicy::MULTI_COMPANY_ASSIGNMENTS));
-        $this->as($hrManager)->putJson($url, ['enabled' => false, 'reason' => 'Back to one company each'])->assertOk();
+        $this->as($super)->putJson($url, ['enabled' => false, 'reason' => 'Back to one company each'])->assertOk();
         $this->assertFalse(HrPolicy::isEnabled(HrPolicy::MULTI_COMPANY_ASSIGNMENTS));
 
         $logs = AuditLog::query()->where('entity_type', HrPolicy::class)->orderBy('id')->get();
@@ -130,7 +135,7 @@ class Phase2HrAccessTest extends TestCase
         $viewer = $this->tokenForRoleWith(AdminRole::Sales, ['hr.view']);
         [, $super] = $this->superAdminToken();
 
-        $this->assertTrue($this->as($hrManager)->getJson('/api/v1/admin/hr/policies')->assertOk()->json('data.policies.0.can_change'));
+        $this->assertSame([], $this->as($hrManager)->getJson('/api/v1/admin/hr/policies')->assertOk()->json('data.policies'), 'the HR Manager is not shown the setting (owner decision 2026-10-29)');
         $this->assertTrue($this->as($super)->getJson('/api/v1/admin/hr/policies')->json('data.policies.0.can_change'));
         $this->assertFalse($this->as($viewer)->getJson('/api/v1/admin/hr/policies')->json('data.policies.0.can_change'));
     }
