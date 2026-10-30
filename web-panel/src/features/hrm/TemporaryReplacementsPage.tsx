@@ -69,9 +69,16 @@ export function TemporaryReplacementsPage() {
   const visibleReplacements = data && statusFilter ? data.filter((replacement) => matchesStatusFilter(statusFilter, replacement.lifecycle)) : data;
   const statusFilterWord = statusFilter ? tValue('status.pipeline.replacement', statusFilter)?.toLowerCase() ?? statusFilter : '';
 
+  // The days and cost shown in "Workdays & cost" are cached for 30 seconds; a successful edit, end or close changes them, so they are refetched at once.
+  const refreshCoverFigures = (id: number) => {
+    queryClient.invalidateQueries({ queryKey: ['replacement-workdays', id] });
+    queryClient.invalidateQueries({ queryKey: ['replacement-cost', id] });
+  };
+
   const closeMutation = useMutation({
     mutationFn: (id: number) => hrApi.temporaryReplacements.close(id),
-    onSuccess: () => {
+    onSuccess: (_closed, id) => {
+      refreshCoverFigures(id);
       queryClient.invalidateQueries({ queryKey: ['temporary-replacements'] });
       queryClient.invalidateQueries({ queryKey: ['hr-dashboard'] });
       show(t('notify.pipeline.replacementClosed'));
@@ -250,6 +257,7 @@ export function TemporaryReplacementsPage() {
           replacement={ending}
           onClose={() => setEnding(null)}
           onEnded={() => {
+            refreshCoverFigures(ending.id);
             queryClient.invalidateQueries({ queryKey: ['temporary-replacements'] });
             queryClient.invalidateQueries({ queryKey: ['hr-dashboard'] });
             setEnding(null);
@@ -262,6 +270,7 @@ export function TemporaryReplacementsPage() {
           replacement={editing}
           onClose={() => setEditing(null)}
           onSaved={() => {
+            refreshCoverFigures(editing.id);
             queryClient.invalidateQueries({ queryKey: ['temporary-replacements'] });
             queryClient.invalidateQueries({ queryKey: ['hr-dashboard'] });
             setEditing(null);
