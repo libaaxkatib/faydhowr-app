@@ -1,0 +1,76 @@
+# Web server of the panel (Railway builds web-panel/ with Railpack, which serves the built site with Caddy and uses THIS file instead of its own default).
+#
+# It is Railpack 0.43.0's default Caddyfile (core/providers/node/Caddyfile.template, with the SPA index fallback on) plus ONE addition: the Cache-Control
+# block below. Everything else - port, health route, security header, Server header removal, compression, file lookup and the fallback to /index.html -
+# is unchanged. The site is built into dist/ by Vite and Railpack copies it to /app/dist.
+#
+# If the build output folder ever changes (vite.config build.outDir), change `root` too.
+
+# global options
+{
+	admin off
+	persist_config off
+	auto_https off
+
+	log {
+		format json
+	}
+
+	servers {
+		trusted_proxies static private_ranges 100.0.0.0/8 # trust railway's proxy
+	}
+}
+
+# site block, listens on the $PORT environment variable, automatically assigned by railway
+:{$PORT:80} {
+	log {
+		format json
+	}
+
+	respond /health 200
+
+	# Security headers
+	header {
+		# Prevent some browsers from MIME-sniffing a response away from the declared Content-Type
+		X-Content-Type-Options "nosniff"
+		# Remove Server header
+		-Server
+	}
+
+	# Browser caching. With no Cache-Control a browser guesses how long a file stays fresh (a share of its age), so a visitor could keep running the
+	# previous release's page - and so its JavaScript - for hours after a deploy.
+	#  - Files in /assets/ carry a content hash in their name (index-<hash>.js, index-<hash>.css, ...): a changed file is a new URL, so they can be kept
+	#    for a year without checking.
+	#  - Everything else (index.html, every page route that falls back to it, and any /assets/ URL that does not exist and so also falls back to the page)
+	#    is kept but must be checked with the server before each use: a cheap "304 Not Modified" while unchanged, the new release as soon as there is one.
+	# The two matchers cannot both match, and an /assets/ URL that is missing never gets the long lifetime (that would pin a page under a script URL).
+	@hashed_asset {
+		path /assets/*
+		file
+	}
+	header @hashed_asset Cache-Control "public, max-age=31536000, immutable"
+
+	@everything_else not {
+		path /assets/*
+		file
+	}
+	header @everything_else Cache-Control "no-cache"
+
+	# serve from the 'dist' folder (Vite builds into the 'dist' folder)
+	root * /app/dist
+
+	# Handle static files
+	file_server {
+		hide .git
+		hide .env*
+	}
+
+	# Compression with more formats
+	encode {
+		gzip
+		zstd
+	}
+
+	# match against direct against HTML file matches, folder-level index.html, and fallback to root index.html (single page app)
+	try_files {path} {path}.html {path}/index.html /index.html
+}
