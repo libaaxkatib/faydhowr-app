@@ -1537,7 +1537,7 @@ Five proposed messages described the older payroll rule ("only verified days are
 | `option.label.companyGuri` |  |  | Company / Guri | Shirkad / Guri | proposed | DeepCleaningOverview.tsx, FacilityComplaintsPage.tsx, FacilityInspectionsPage.tsx, FacilityReportPage.tsx |  |
 | `option.label.allCompanies` |  |  | All companies | Dhammaan shirkadaha | proposed | HrReportsPage.tsx, PayrollRollupPage.tsx |  |
 | `option.label.reasonColon` |  |  | Reason: | Sabab: | proposed | companyEmployees/HistoryDialog.tsx, EmployeeDetailPage.tsx |  |
-| `option.label.employeeId` |  |  | Employee ID | Aqoonsiga shaqaalaha | proposed | companyEmployees/EmployeePicker.tsx, CompanyEmployeesPage.tsx |  |
+| `option.label.employeeId` |  |  | Employee ID | Aqoonsiga shaqaalaha | proposed | companyEmployees/EmployeePicker.tsx, CompanyEmployeesPage.tsx, ReplacesNote.tsx |  |
 | `option.reports.title` |  |  | HR Reports | Warbixinnada Maamulka shaqaalaha | proposed | HrReportsPage.tsx |  |
 | `option.reports.dateFrom` |  |  | Date from | Taariikhda laga bilaabo | proposed | FacilityReportPage.tsx, FinancialLedgerPage.tsx, HrReportsPage.tsx, LeaveReportPage.tsx, PerformanceReportPage.tsx, TemporaryReplacementHistoryPage.tsx, +2 more |  |
 | `option.reports.dateTo` |  |  | Date to | Taariikhda ilaa | proposed | FacilityReportPage.tsx, FinancialLedgerPage.tsx, HrReportsPage.tsx, LeaveReportPage.tsx, PerformanceReportPage.tsx, TemporaryReplacementHistoryPage.tsx, +2 more |  |
@@ -2251,8 +2251,8 @@ Five proposed messages described the older payroll rule ("only verified days are
 | `option.pipeline.employeesShown` |  |  | Showing {shown} of {total}. Type a name, number or ID to narrow the list. | Waxaa la muujinayaa {shown} ka mid ah {total}. Ku qor magac, lambar ama ID si aad u yarayso liiska. | proposed | ReplacementEmployeePicker.tsx |  |
 | `option.pipeline.showMoreEmployees` |  |  | Show more | Muuji intaa ka badan | proposed | ReplacementEmployeePicker.tsx |  |
 | `option.pipeline.registrationNotComplete` |  |  | registration not complete | diiwaangelintu ma dhammaystirna | proposed | ReplacementEmployeePicker.tsx |  |
-| `option.company.replacesLabel` |  |  | Replaces: | Wuxuu bedelay: | proposed | CompanyEmployeesPage.tsx |  |
-| `option.company.replacesNotRecorded` |  |  | Replaced employee not recorded | Qofka la bedelay lama diiwaangelin | proposed | CompanyEmployeesPage.tsx |  |
+| `option.company.replacesLabel` |  |  | Replaces: | Wuxuu bedelay: | proposed | CompanyEmployeesPage.tsx, ReplacesNote.tsx |  |
+| `option.company.replacesNotRecorded` |  |  | Replaced employee not recorded | Qofka la bedelay lama diiwaangelin | proposed | CompanyEmployeesPage.tsx, ReplacesNote.tsx |  |
 
 ## Warnings, notices and empty states (281)
 

@@ -25,6 +25,18 @@ class WorkAssignmentResource extends JsonResource
                 fn () => $this->clientCompany?->name ?? $this->workLocation?->clientCompany?->name,
             ),
             'replaces_assignment_id' => $this->replaces_assignment_id,
+            // Only where the caller loaded BOTH the replaced assignment and its employee (the employee detail), so no other response changes and nothing is
+            // queried here. The identity is exactly what the recorded link points at, never inferred; with no link the key is absent and
+            // `replaces_assignment_id` is null.
+            'replaces' => $this->when(
+                $this->relationLoaded('replaces') && $this->replaces !== null && $this->replaces->relationLoaded('employee'),
+                fn () => [
+                    'assignment_id' => $this->replaces->id,
+                    'employee_id' => $this->replaces->employee_id,
+                    'employee_number' => $this->replaces->employee?->employee_number,
+                    'full_name' => $this->replaces->employee?->full_name,
+                ],
+            ),
             'succession_gap_days' => $this->when(
                 $this->relationLoaded('replaces') && $this->replaces?->end_date !== null,
                 fn () => PositionSuccession::gapDays($this->replaces->end_date, $this->start_date),

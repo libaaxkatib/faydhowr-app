@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { hrApi } from '@/api/hr';
+import { ReplacesNote } from '@/features/hrm/ReplacesNote';
 import { useI18n } from '@/i18n/useI18n';
 import { localizeServerMessage } from '@/i18n/serverMessages';
 import type { MessageKey } from '@/i18n/messages';
@@ -758,6 +759,7 @@ export function EmployeeDetailPage() {
                       <p className="text-sm font-medium text-ink">{assignmentLabel(assignment)}</p>
                       <StatusBadge status={assignment.status} label={tValue('status', assignment.status)} tone="success" />
                     </div>
+                    <ReplacesNote assignment={assignment} />
                     {isWorkplaceMissing(assignment) && (
                       <p className="mt-1 text-xs italic text-warning">{t('option.workplaceNotSet')}</p>
                     )}
@@ -811,6 +813,7 @@ export function EmployeeDetailPage() {
                   .map((assignment) => (
                     <div key={assignment.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
                       <p className="text-sm text-ink">{assignmentLabel(assignment)}</p>
+                      <ReplacesNote assignment={assignment} />
                       <p className="mt-1 text-xs text-ink-faint">
                         {formatDate(assignment.start_date)} → {assignment.end_date ? formatDate(assignment.end_date) : t('option.employeeDetail.present')}
                       </p>

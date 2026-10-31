@@ -20,9 +20,12 @@ class GetEmployeeAction
             'activeWorkAssignments.workLocation.clientCompany',
             'activeWorkAssignments.clientCompany',
             'activeWorkAssignments.position',
+            // Who a Replacement took the position over from (the recorded `replaces_assignment_id` link and that assignment's employee).
+            'activeWorkAssignments.replaces.employee',
             'workAssignments.workLocation.clientCompany',
             'workAssignments.clientCompany',
             'workAssignments.position',
+            'workAssignments.replaces.employee',
             'guarantor.verifiedBy',
             'guarantor.createdBy',
             'currentContract.signedDocument',

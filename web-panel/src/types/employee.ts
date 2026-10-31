@@ -283,6 +283,8 @@ export interface WorkAssignment {
   replaces_assignment_id?: number | null;
   /** Calendar days nobody was paid between the previous employee's last day and this start (0 = back to back). */
   succession_gap_days?: number;
+  /** The employee of the assignment named by `replaces_assignment_id`, on the employee detail only; absent when there is no recorded link. */
+  replaces?: { assignment_id: number; employee_id: number; employee_number: string | null; full_name: string | null } | null;
   position_id: number | null;
   position_name: string | null;
   /** Day or night shift of this assignment; null = not recorded. */
