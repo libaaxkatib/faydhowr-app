@@ -180,6 +180,19 @@ export function friendlyErrorMessage(error: unknown, fallback: string): string {
   return typeof message === 'string' && message.length > 0 ? message : fallback;
 }
 
+/** `fetch` rejects with a TypeError when no answer arrives (Chrome "Failed to fetch", Firefox "NetworkError...", Safari "Load failed"). */
+export function isNetworkFailure(failure: unknown): boolean {
+  return failure instanceof TypeError && /fetch|network|load failed/i.test(failure.message);
+}
+
+/**
+ * What to tell HR when "Generate / refresh draft" fails. When no answer arrived at all, the browser's own "Failed to fetch" says nothing useful and
+ * hides whether the draft was saved, so say what is true: a draft is saved only when it is complete (all or nothing), the list is refreshed, try again.
+ */
+export function draftFailureMessage(error: unknown, fallback: string): string {
+  return isNetworkFailure(error) ? tNow('notify.payroll.draftNoAnswer') : friendlyErrorMessage(error, fallback);
+}
+
 export interface DuplicateMatchLike {
   id: number;
   employee_number: string;

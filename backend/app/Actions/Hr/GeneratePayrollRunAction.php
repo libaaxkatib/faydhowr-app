@@ -57,7 +57,8 @@ class GeneratePayrollRunAction
 
             $itemIds = $run->items()->pluck('id');
             PayrollAdjustment::query()->whereIn('applied_in_item_id', $itemIds)->update(['status' => 'pending', 'applied_in_item_id' => null]);
-            PayrollItem::query()->whereIn('id', $itemIds)->each(fn (PayrollItem $item) => $item->deductions()->delete());
+            // One statement for every line (it was one per line: a query-by-query delete of ~300 lines costs seconds on production's network).
+            PayrollItemDeduction::query()->whereIn('payroll_item_id', $itemIds)->delete();
             $run->items()->delete();
 
             $result = $this->calculator->calculate($period);

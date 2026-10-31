@@ -1,12 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { setActiveLanguage } from '../i18n/active.ts';
+import { ApiClientError } from '../api/client.ts';
+
 import {
   assignmentLabel,
   describeDailyRate,
+  draftFailureMessage,
   duplicateMatchesFromError,
   expandDateRange,
   friendlyErrorMessage,
+  isNetworkFailure,
   isWorkplaceMissing,
   localToday,
   nextMonth,
@@ -78,4 +83,30 @@ test('friendlyErrorMessage shows the in-use refusal for a position or department
   assert.equal(friendlyErrorMessage({ status: 422, code: 'POSITION_IN_USE', message: position }, 'Could not delete the position. Please try again.'), position);
   assert.equal(friendlyErrorMessage({ status: 422, code: 'DEPARTMENT_IN_USE', message: department }, 'Could not delete the department. Please try again.'), department);
   assert.equal(friendlyErrorMessage(new TypeError(''), 'Could not delete the position. Please try again.'), 'Could not delete the position. Please try again.');
+});
+
+test('a Generate / refresh draft failure with no answer says what is true instead of the raw browser text "Failed to fetch"', () => {
+  for (const raw of ['Failed to fetch', 'NetworkError when attempting to fetch resource.', 'Load failed']) {
+    const failure = new TypeError(raw);
+    assert.equal(isNetworkFailure(failure), true);
+    setActiveLanguage('en');
+    const english = draftFailureMessage(failure, 'fallback');
+    assert.doesNotMatch(english, /failed to fetch|load failed|networkerror/i);
+    assert.match(english, /did not answer/i);
+    assert.match(english, /saved only when it is complete/i);
+    assert.match(english, /try again/i);
+    setActiveLanguage('so');
+    assert.match(draftFailureMessage(failure, 'fallback'), /Server-ku ma jawaabin/);
+  }
+  setActiveLanguage('en');
+});
+
+test('the other draft failures keep the server wording, and a TypeError that is not a network failure is not mistaken for one', () => {
+  setActiveLanguage('en');
+  assert.equal(isNetworkFailure(new TypeError('x is not a function')), false);
+  assert.equal(isNetworkFailure(new Error('Failed to fetch')), false);
+  assert.equal(isNetworkFailure(new ApiClientError(504, 'Request failed (504).')), false);
+  assert.equal(draftFailureMessage(new ApiClientError(504, 'Request failed (504).'), 'fallback'), 'Request failed (504).');
+  assert.equal(draftFailureMessage(new ApiClientError(422, 'Payroll for 2026-10 is approved.', 'SOMETHING_NEW'), 'fallback'), 'Payroll for 2026-10 is approved.');
+  assert.equal(draftFailureMessage({}, 'Could not generate the payroll draft.'), 'Could not generate the payroll draft.');
 });

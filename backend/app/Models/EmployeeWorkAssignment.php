@@ -108,7 +108,19 @@ class EmployeeWorkAssignment extends Model
      */
     public function monthlySalaryPeriods(): array
     {
-        $rows = $this->salaryHistories()->get()->values();
+        return $this->monthlySalaryPeriodsFrom($this->salaryHistories()->get());
+    }
+
+    /**
+     * The same periods, built from salary-history rows the caller has already loaded (in `effective_from` order) - the payroll run loads the rows of every
+     * assignment at once instead of one query each. Same rules, same refusals.
+     *
+     * @param  iterable<int, AssignmentSalaryHistory>  $histories
+     * @return list<array{from: string, to: ?string, monthly_cents: int}>
+     */
+    public function monthlySalaryPeriodsFrom(iterable $histories): array
+    {
+        $rows = collect($histories)->values();
         $periods = [];
 
         foreach ($rows as $index => $row) {

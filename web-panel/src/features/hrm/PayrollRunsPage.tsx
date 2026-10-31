@@ -26,7 +26,7 @@ import { useI18n } from '@/i18n/useI18n';
 import { TABLE_SCROLL_CLASS } from '@/components/ui/TableScroll';
 import type { MessageKey } from '@/i18n/messages';
 import { formatCurrency, formatDate } from '@/utils/formatters';
-import { friendlyErrorMessage, localMonth, localToday, nextMonth } from '@/utils/hrHelpers';
+import { draftFailureMessage, friendlyErrorMessage, localMonth, localToday, nextMonth } from '@/utils/hrHelpers';
 import { PayrollCorrectionsPanel } from '@/features/hrm/PayrollCorrectionsPanel';
 import { useAuth } from '@/features/auth/useAuth';
 import { canVoidPayrollPayment, validateWriteOffReason } from '@/utils/payrollCorrections';
@@ -136,7 +136,11 @@ export function PayrollRunsPage() {
       refresh(created.id);
       show(t('notify.payroll.draftReady', { month: monthLabel(created.period) }));
     },
-    onError: (err) => show(friendlyErrorMessage(err, t('notify.payroll.draftFailed')), 'error'),
+    onError: (err) => {
+      // Whatever happened on the way, show what is really saved now (a draft is stored only when it is complete).
+      refresh();
+      show(draftFailureMessage(err, t('notify.payroll.draftFailed')), 'error');
+    },
   });
 
   const reviewMutation = useMutation({

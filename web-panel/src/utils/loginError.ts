@@ -4,11 +4,7 @@
 
 import { ApiClientError } from '../api/client.ts';
 import { tNow } from '../i18n/active.ts';
-
-/** `fetch` rejects with a TypeError when the server cannot be reached (Chrome "Failed to fetch", Firefox "NetworkError...", Safari "Load failed"). */
-function isNetworkFailure(failure: unknown): boolean {
-  return failure instanceof TypeError && /fetch|network|load failed/i.test(failure.message);
-}
+import { isNetworkFailure } from './hrHelpers.ts';
 
 export function describeLoginFailure(failure: unknown): string {
   if (failure instanceof ApiClientError) {

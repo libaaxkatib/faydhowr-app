@@ -48,7 +48,23 @@ class PayrollRunCalculator
      * @param  list<int>|null  $employeeIds  limit the calculation to these employees (used by the per-employee summary); null = everyone. Period-wide orphan warnings are only produced for a full run.
      * @return array{items: list<array<string, mixed>>, warnings: list<string>, totals: array<string, int>}
      */
-    public function calculate(string $period, ?array $employeeIds = null, bool $withRecovery = true): array
+    public function calculate(string $period, ?array $employeeIds = null, bool $withRecovery = true, bool $batched = true): array
+    {
+        try {
+            return $this->compute($period, $employeeIds, $withRecovery, $batched);
+        } finally {
+            $this->inputs = null;
+        }
+    }
+
+    /**
+     * The inputs of the calculation in progress, read once for every assignment (see PayrollInputs). null = ask the database for each assignment on its
+     * own, the way the calculation always worked: `$batched = false` keeps that path available so a test can prove both give exactly the same lines.
+     */
+    private ?PayrollInputs $inputs = null;
+
+    /** @return array{items: list<array<string, mixed>>, warnings: list<string>, totals: array<string, int>} */
+    private function compute(string $period, ?array $employeeIds, bool $withRecovery, bool $batched): array
     {
         [$first, $daysInMonth] = ProrationCalculator::month($period);
         $last = $first->modify('+'.($daysInMonth - 1).' days');
@@ -58,13 +74,15 @@ class PayrollRunCalculator
         $absenceCharged = [];
 
         $assignments = EmployeeWorkAssignment::query()
-            ->with(['employee', 'workLocation', 'clientCompany', 'workLocation.clientCompany'])
+            ->with(['employee', 'workLocation', 'clientCompany', 'workLocation.clientCompany', ...($batched ? ['salaryHistories'] : [])])
             ->where('status', '!=', WorkAssignmentStatus::Cancelled)
             ->when($employeeIds !== null, fn ($q) => $q->whereIn('employee_id', $employeeIds === [] ? [0] : $employeeIds))
             ->whereDate('start_date', '<=', $last->format('Y-m-d'))
             ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $first->format('Y-m-d')))
             ->orderBy('id')
             ->get();
+
+        $this->inputs = $batched ? PayrollInputs::load($period, $assignments, $first, $last) : null;
 
         // Lines that share one position (Permanent -> Replacement -> returned Permanent) are rounded together so their cents add up.
         $reconciled = $this->reconciledChainGross($period, $assignments);
@@ -86,7 +104,7 @@ class PayrollRunCalculator
             }
 
             try {
-                $salary = new SalaryTimeline($assignment->monthlySalaryPeriods());
+                $salary = new SalaryTimeline($this->salaryPeriodsOf($assignment));
                 $gross = $this->proration->monthlyGross(
                     $period,
                     $salary,
@@ -120,7 +138,11 @@ class PayrollRunCalculator
             $pendingReplacements = [];
             $coveredDates = [];
 
-            foreach (TemporaryReplacement::query()->with('replacementEmployee')->where('work_assignment_id', $assignment->id)->get() as $replacement) {
+            $covers = $this->inputs?->hasAssignment($assignment->id)
+                ? $this->inputs->covers($assignment->id)
+                : TemporaryReplacement::query()->with('replacementEmployee')->where('work_assignment_id', $assignment->id)->get();
+
+            foreach ($covers as $replacement) {
                 $cost = $this->replacementCosts->forPeriod($replacement, $period);
 
                 $this->warnAboutNonChargeableDays($assignment, $replacement, $cost, $warnings);
@@ -181,9 +203,11 @@ class PayrollRunCalculator
 
             $replacementCents = (int) collect($deductions)->where('kind', PayrollItemDeduction::KIND_REPLACEMENT)->sum('amount_cents');
             $otherCents = (int) collect($deductions)->where('kind', '!=', PayrollItemDeduction::KIND_REPLACEMENT)->sum('amount_cents');
-            $pending = PayrollAdjustment::query()
-                ->where('applies_in_period', $period)->where('status', 'pending')
-                ->whereHas('item', fn ($q) => $q->where('work_assignment_id', $assignment->id))->get();
+            $pending = $this->inputs?->hasAssignment($assignment->id)
+                ? $this->inputs->pendingAdjustments($assignment->id)
+                : PayrollAdjustment::query()
+                    ->where('applies_in_period', $period)->where('status', 'pending')
+                    ->whereHas('item', fn ($q) => $q->where('work_assignment_id', $assignment->id))->get();
             $adjustmentCents = (int) $pending->sum('amount_cents');
 
             $company = $assignment->clientCompany ?? $assignment->workLocation?->clientCompany;
@@ -255,6 +279,10 @@ class PayrollRunCalculator
      */
     private function replacementRanges(EmployeeWorkAssignment $assignment): array
     {
+        if ($this->inputs?->hasAssignment($assignment->id)) {
+            return $this->inputs->replacementRanges($assignment->id);
+        }
+
         return EmployeeWorkAssignment::query()
             ->where('replaces_assignment_id', $assignment->id)
             ->where('assignment_type', AssignmentType::Replacement->value)
@@ -341,7 +369,20 @@ class PayrollRunCalculator
      */
     private function chainOf(EmployeeWorkAssignment $assignment): Collection
     {
+        // Known to be alone (nobody replaces it, it replaces nobody): the walk would only confirm that, one query per assignment.
+        if ($this->inputs?->isInNoChain($assignment)) {
+            return new Collection([$assignment->id => $assignment]);
+        }
+
         return AssignmentChain::members($assignment);
+    }
+
+    /** Salary periods of an assignment: from the rows loaded with the run, or (not batched) from its own query. */
+    private function salaryPeriodsOf(EmployeeWorkAssignment $assignment): array
+    {
+        return $this->inputs !== null && $assignment->relationLoaded('salaryHistories')
+            ? $assignment->monthlySalaryPeriodsFrom($assignment->salaryHistories)
+            : $assignment->monthlySalaryPeriods();
     }
 
     /**
@@ -472,9 +513,11 @@ class PayrollRunCalculator
     {
         $result = null;
 
-        $predecessor = $assignment->replaces_assignment_id !== null
-            ? EmployeeWorkAssignment::query()->find($assignment->replaces_assignment_id)
-            : null;
+        $predecessor = match (true) {
+            $assignment->replaces_assignment_id === null => null,
+            (bool) $this->inputs?->hasAssignment($assignment->id) => $this->inputs->predecessor($assignment),
+            default => EmployeeWorkAssignment::query()->find($assignment->replaces_assignment_id),
+        };
 
         if ($predecessor !== null && $predecessor->status !== WorkAssignmentStatus::Cancelled) {
             if ($predecessor->end_date === null || $assignment->start_date->lte($predecessor->end_date)) {
@@ -497,11 +540,13 @@ class PayrollRunCalculator
             }
         }
 
-        $successor = EmployeeWorkAssignment::query()
-            ->where('replaces_assignment_id', $assignment->id)
-            ->where('status', '!=', WorkAssignmentStatus::Cancelled)
-            ->orderBy('start_date')
-            ->first();
+        $successor = $this->inputs?->hasAssignment($assignment->id)
+            ? $this->inputs->successor($assignment->id)
+            : EmployeeWorkAssignment::query()
+                ->where('replaces_assignment_id', $assignment->id)
+                ->where('status', '!=', WorkAssignmentStatus::Cancelled)
+                ->orderBy('start_date')
+                ->first();
 
         if ($successor !== null) {
             $result = ($result ?? []) + ['successor_assignment_id' => $successor->id, 'successor_start_date' => $successor->start_date->toDateString()];
@@ -609,7 +654,11 @@ class PayrollRunCalculator
      */
     private function addPenaltiesAndAdvances(int $employeeId, string $period, array &$deductions, array &$warnings): void
     {
-        foreach (EmployeePenalty::query()->where('employee_id', $employeeId)->where('payroll_period', $period)->get() as $penalty) {
+        $penalties = $this->inputs?->hasEmployee($employeeId)
+            ? $this->inputs->penalties($employeeId)
+            : EmployeePenalty::query()->where('employee_id', $employeeId)->where('payroll_period', $period)->get();
+
+        foreach ($penalties as $penalty) {
             if ($penalty->currency !== PayrollMoney::CURRENCY) {
                 $warnings[] = "Penalty #{$penalty->id} is in {$penalty->currency}, not USD; it was not deducted.";
 
@@ -623,7 +672,11 @@ class PayrollRunCalculator
             ];
         }
 
-        foreach (EmployeeAdvance::query()->where('employee_id', $employeeId)->where('payroll_period', $period)->get() as $advance) {
+        $advances = $this->inputs?->hasEmployee($employeeId)
+            ? $this->inputs->advances($employeeId)
+            : EmployeeAdvance::query()->where('employee_id', $employeeId)->where('payroll_period', $period)->get();
+
+        foreach ($advances as $advance) {
             if ($advance->currency !== PayrollMoney::CURRENCY) {
                 $warnings[] = "Advance #{$advance->id} is in {$advance->currency}, not USD; it was not deducted.";
 
@@ -659,13 +712,15 @@ class PayrollRunCalculator
         $windowEnd = $assignment->end_date !== null && $assignment->end_date->lt($last) ? CarbonImmutable::parse($assignment->end_date) : CarbonImmutable::parse($last);
         $counted = [];
 
-        $leaves = EmployeeLeave::query()
-            ->where('employee_id', $assignment->employee_id)
-            ->where('leave_type', LeaveType::Unpaid)
-            ->whereDate('start_date', '<=', $last->format('Y-m-d'))
-            ->whereDate('end_date', '>=', $first->format('Y-m-d'))
-            ->orderBy('id')
-            ->get();
+        $leaves = $this->inputs?->hasEmployee($assignment->employee_id)
+            ? $this->inputs->unpaidLeaves($assignment->employee_id)
+            : EmployeeLeave::query()
+                ->where('employee_id', $assignment->employee_id)
+                ->where('leave_type', LeaveType::Unpaid)
+                ->whereDate('start_date', '<=', $last->format('Y-m-d'))
+                ->whereDate('end_date', '>=', $first->format('Y-m-d'))
+                ->orderBy('id')
+                ->get();
 
         foreach ($leaves as $leave) {
             $from = $leave->start_date->gt($windowStart) ? CarbonImmutable::parse($leave->start_date) : $windowStart;
@@ -723,11 +778,13 @@ class PayrollRunCalculator
      */
     private function addAbsence(EmployeeWorkAssignment $assignment, SalaryTimeline $salary, \DateTimeImmutable $first, \DateTimeImmutable $last, int $daysInMonth, array &$deductions, array $skipDates = [], array $coveredByReplacement = [], ?array &$charged = null): void
     {
-        $absences = EmployeeAttendance::query()
-            ->where('employee_id', $assignment->employee_id)
-            ->where('status', AttendanceStatus::Absent)
-            ->whereDate('date', '>=', $first->format('Y-m-d'))->whereDate('date', '<=', $last->format('Y-m-d'))
-            ->get();
+        $absences = $this->inputs?->hasEmployee($assignment->employee_id)
+            ? $this->inputs->absences($assignment->employee_id)
+            : EmployeeAttendance::query()
+                ->where('employee_id', $assignment->employee_id)
+                ->where('status', AttendanceStatus::Absent)
+                ->whereDate('date', '>=', $first->format('Y-m-d'))->whereDate('date', '<=', $last->format('Y-m-d'))
+                ->get();
 
         $numerator = 0;
         $dates = [];
