@@ -132,6 +132,25 @@ export const replacementFixes = defineMessages({
   'option.pipeline.showMoreEmployees': message('Show more', 'Muuji intaa ka badan'),
   'option.pipeline.registrationNotComplete': message('registration not complete', 'diiwaangelintu ma dhammaystirna'),
 
+  // ---------------------------------------------------------------- the pickers find ANY employee and say who cannot be chosen (2026-10-31)
+  'option.pipeline.noEmployeeMatchesSearch': message('No employee matches this search', 'Wax shaqaale ah oo raadintan ku habboon lama helin'),
+  'option.pipeline.searchFindsAnyoneTemporary': message(
+    'Search finds any employee. Only an Active, registered Temporary employee can be chosen; the others are shown in grey with the reason.',
+    'Raadintu waxay heshaa shaqaale kasta. Kaliya shaqaale ku-meel-gaar ah oo Active ah oo diiwaangelintiisa dhammaystiran ayaa la dooran karaa; kuwa kale waa la muujiyaa oo sababta ayaa lagu qoraa.',
+  ),
+  'option.pipeline.searchFindsAnyonePermanent': message(
+    'Search finds any employee. Only an Active Permanent employee can be covered; the others are shown in grey with the reason.',
+    'Raadintu waxay heshaa shaqaale kasta. Kaliya shaqaale joogto ah oo Active ah ayaa la bedeli karaa; kuwa kale waa la muujiyaa oo sababta ayaa lagu qoraa.',
+  ),
+  'option.pipeline.foundNoneChoosable': message(
+    'Found {count} on this page, but none of them can be chosen. Open the list to see why.',
+    'Waxaa la helay {count} bogga, laakiin midkoodna lama dooran karo. Fur liiska si aad u aragto sababta.',
+  ),
+  'option.pipeline.cannotChoose.notTemporary': message('not a Temporary employee', 'ma aha shaqaale ku-meel-gaar ah'),
+  'option.pipeline.cannotChoose.isTemporary': message('a Temporary employee (cannot be covered)', 'waa shaqaale ku-meel-gaar ah (lama bedeli karo)'),
+  'option.pipeline.cannotChoose.notActive': message('not Active ({status})', 'ma aha Active ({status})'),
+  'option.pipeline.cannotChoose.coveredPerson': message('the employee being covered', 'shaqaalaha la bedelayo'),
+
   // ---------------------------------------------------------------- company employee list: who a Replacement replaces (2026-10-31)
   'option.company.replacesLabel': message('Replaces:', 'Wuxuu bedelay:'),
   'option.company.replacesNotRecorded': message('Replaced employee not recorded', 'Qofka la bedelay lama diiwaangelin'),
