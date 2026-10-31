@@ -260,3 +260,30 @@ test('the sign-in logo is the white wordmark in Dark Mode only: Light Mode and t
   // The wordmark that is 1.65:1 in Dark (dark blue on the page colour) is what makes the white treatment necessary.
   assert.ok(contrast('#103090', dark['surface-muted']) < 2, 'the logo blue is too dim on the Dark page');
 });
+
+test('the "Replaced employee not recorded" note is readable in Light and exactly the approved colour in Dark', () => {
+  const lightRule = css.match(/\n {2}\.muted-note\s*\{\s*color:\s*rgb\(var\(--color-([a-z-]+)\)\);\s*\}/);
+  const darkRule = css.match(/:root\[data-theme='dark'\]\s+\.muted-note\s*\{\s*color:\s*rgb\(var\(--color-([a-z-]+)\)\);\s*\}/);
+  assert.ok(lightRule && darkRule, 'both rules exist');
+
+  // Light: the muted text colour on the white card the company list sits on (the faint grey was 2.56:1 there).
+  assert.equal(lightRule[1], 'ink-muted-text');
+  assert.ok(contrast(light['ink-muted-text'], light['surface']) >= 4.5, 'Light: at least WCAG AA on the card');
+  assert.ok(contrast(light['ink-faint-text'], light['surface']) < 3, 'and the faint grey it replaces really was too light');
+
+  // Dark: unchanged - still the faint colour it always had, still above AA on the Dark card.
+  assert.equal(darkRule[1], 'ink-faint-text');
+  assert.equal(dark['ink-faint-text'], '#8C99B2');
+  assert.ok(contrast(dark['ink-faint-text'], dark['surface']) >= 4.5, 'Dark: at least WCAG AA on the card');
+
+  // It is secondary in both themes: never as strong as the primary text.
+  assert.ok(contrast(light['ink-muted-text'], light['surface']) < contrast(light['ink-text'], light['surface']));
+  assert.ok(contrast(dark['ink-faint-text'], dark['surface']) < contrast(dark['ink-text'], dark['surface']));
+
+  // The message uses it, and no other style on that line sets a colour of its own.
+  const page = readFileSync(new URL('../features/hrm/CompanyEmployeesPage.tsx', import.meta.url), 'utf8');
+  const span = page.match(/<span className="([^"]*)" data-testid="replaces-missing">/);
+  assert.ok(span, 'the fallback element exists');
+  assert.match(span[1], /\bmuted-note\b/);
+  assert.doesNotMatch(span[1], /\btext-ink-faint\b/);
+});

@@ -302,7 +302,7 @@ function EmployeeRow({ row, showPayroll, canManage, onEdit, onReplace, onReturn,
           </span>
         )}
         {replaced.kind === 'missing' && (
-          <span className="mt-1 block text-xs text-ink-faint" data-testid="replaces-missing">{t('option.company.replacesNotRecorded')}</span>
+          <span className="mt-1 block text-xs muted-note" data-testid="replaces-missing">{t('option.company.replacesNotRecorded')}</span>
         )}
         {row.needs_correction && (
           <span role="note" data-testid="needs-correction" title={row.needs_correction_reason ?? undefined} className="mt-1 block text-xs text-danger">

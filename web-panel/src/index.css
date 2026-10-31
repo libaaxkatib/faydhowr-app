@@ -133,6 +133,16 @@
     color: rgb(var(--color-ink-faint-text));
   }
 
+  /* A short sentence that must stay secondary but readable ("Replaced employee not recorded"). The faint text colour is a placeholder grey: 2.56:1 on a
+     white Light card, below WCAG AA for text, so Light uses the muted text colour (4.83:1). Dark keeps exactly the faint colour it always had (6.04:1). */
+  .muted-note {
+    color: rgb(var(--color-ink-muted-text));
+  }
+
+  :root[data-theme='dark'] .muted-note {
+    color: rgb(var(--color-ink-faint-text));
+  }
+
   /* Dark Mode only: the sidebar group labels (white at 40%) are 3.78:1 on the darker Dark sidebar; 60% reaches WCAG AA. Light is unchanged. */
   :root[data-theme='dark'] .sidebar-group-label {
     color: rgb(255 255 255 / 0.6);
