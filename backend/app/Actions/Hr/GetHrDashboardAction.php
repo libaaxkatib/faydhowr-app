@@ -28,8 +28,11 @@ class GetHrDashboardAction
     public function handle(): array
     {
         $now = CarbonImmutable::now();
+        // The month is a half-open interval: its first day is in, the first day of the NEXT month is out. A closed range "first day .. last day" drops a
+        // row stored as "<last day> 00:00:00" (SQLite keeps the date cast with its time, which sorts after the plain "<last day>" string) and would
+        // drop any time on the last day; the half-open end counts every instant of the month exactly once, whatever the month's length.
         $monthStart = $now->startOfMonth()->toDateString();
-        $monthEnd = $now->endOfMonth()->toDateString();
+        $nextMonthStart = $now->startOfMonth()->addMonth()->toDateString();
 
         $statusCounts = Employee::query()
             ->selectRaw('status, count(*) as total')
@@ -125,13 +128,13 @@ class GetHrDashboardAction
                 ->whereHas('activeWorkAssignments', fn ($q) => $q->whereNotNull('client_company_id'))
                 ->count(),
             'month_payments_total' => (string) EmployeePayment::query()
-                ->whereBetween('payment_date', [$monthStart, $monthEnd])
+                ->where('payment_date', '>=', $monthStart)->where('payment_date', '<', $nextMonthStart)
                 ->sum('amount'),
             'month_penalties_total' => (string) EmployeePenalty::query()
-                ->whereBetween('penalty_date', [$monthStart, $monthEnd])
+                ->where('penalty_date', '>=', $monthStart)->where('penalty_date', '<', $nextMonthStart)
                 ->sum('deduction_amount'),
             'month_advances_total' => (string) EmployeeAdvance::query()
-                ->whereBetween('advance_date', [$monthStart, $monthEnd])
+                ->where('advance_date', '>=', $monthStart)->where('advance_date', '<', $nextMonthStart)
                 ->sum('amount'),
         ];
     }
