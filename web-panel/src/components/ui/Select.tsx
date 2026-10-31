@@ -5,6 +5,8 @@ import { withCallerWidth } from '@/components/ui/selectClasses';
 interface SelectOption {
   value: string;
   label: string;
+  /** Shown but not selectable. */
+  disabled?: boolean;
 }
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
@@ -21,7 +23,7 @@ export function Select({ options, placeholder, className = '', ...rest }: Select
     <select className={`${base} ${className}`} aria-label={name} {...rest}>
       {placeholder && <option value="">{placeholder}</option>}
       {options.map((option) => (
-        <option key={option.value} value={option.value}>
+        <option key={option.value} value={option.value} disabled={option.disabled}>
           {option.label}
         </option>
       ))}

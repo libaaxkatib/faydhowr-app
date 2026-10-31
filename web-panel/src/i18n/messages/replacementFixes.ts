@@ -125,4 +125,14 @@ export const replacementFixes = defineMessages({
   'option.pipeline.historyEvent.closed': message('Closed after the end date', 'La xidhay kadib taariikhda dhammaadka'),
   'option.pipeline.historyEvent.approved': message('Cost approved', 'Kharashka waa la ansixiyay'),
   'option.pipeline.historyEvent.other': message('Updated', 'La cusboonaysiiyay'),
+
+  // ---------------------------------------------------------------- employee pickers of the New / Correct replacement forms (2026-10-31)
+  'option.pipeline.searchEmployeesByIdPlaceholder': message('Type a name, employee number or ID to search', 'Ku qor magac, lambarka shaqaalaha ama ID si aad u raadiso'),
+  'option.pipeline.employeesShown': message('Showing {shown} of {total}. Type a name, number or ID to narrow the list.', 'Waxaa la muujinayaa {shown} ka mid ah {total}. Ku qor magac, lambar ama ID si aad u yarayso liiska.'),
+  'option.pipeline.showMoreEmployees': message('Show more', 'Muuji intaa ka badan'),
+  'option.pipeline.registrationNotComplete': message('registration not complete', 'diiwaangelintu ma dhammaystirna'),
+
+  // ---------------------------------------------------------------- company employee list: who a Replacement replaces (2026-10-31)
+  'option.company.replacesLabel': message('Replaces:', 'Wuxuu bedelay:'),
+  'option.company.replacesNotRecorded': message('Replaced employee not recorded', 'Qofka la bedelay lama diiwaangelin'),
 });

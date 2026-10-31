@@ -917,6 +917,10 @@ export interface Employee {
 
 export interface ListEmployeesParams {
   search?: string;
+  /** true = a number typed in `search` also matches the database ID (the Temporary replacement pickers). */
+  search_by_id?: boolean;
+  /** Permanent or Temporary, filtered on the server. */
+  employment_type?: EmploymentType;
   status?: EmployeeStatus;
   pipeline_stage?: EmployeePipelineStage;
   employee_category_id?: number;

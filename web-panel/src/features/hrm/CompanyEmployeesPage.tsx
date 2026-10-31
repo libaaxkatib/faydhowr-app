@@ -20,6 +20,7 @@ import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { useI18n } from '@/i18n/useI18n';
 import { formatDate } from '@/utils/formatters';
+import { replacedEmployeeDisplay } from '@/utils/replacedEmployee';
 import {
   ASSIGNMENT_TYPE_OPTIONS,
   assignmentShiftLabel,
@@ -277,6 +278,7 @@ function EmployeeRow({ row, showPayroll, canManage, onEdit, onReplace, onReturn,
   const open = row.status === 'active';
   const canReturn = open && row.assignment_type === 'replacement' && row.replaces_assignment_id !== null;
   const calc = row.payroll?.calculated ?? null;
+  const replaced = replacedEmployeeDisplay(row);
 
   return (
     <tr className="align-top">
@@ -292,6 +294,16 @@ function EmployeeRow({ row, showPayroll, canManage, onEdit, onReplace, onReturn,
       <td className="px-3 py-3 text-ink">{row.position_name ?? <span className="text-ink-faint">—</span>}</td>
       <td className="px-3 py-3">
         <StatusBadge status={row.assignment_type} label={assignmentTypeLabel(row.assignment_type)} tone={row.assignment_type === 'replacement' ? 'warning' : 'neutral'} />
+        {replaced.kind === 'linked' && (
+          <span className="mt-1 block text-xs text-ink-muted" data-testid="replaces-line">
+            {t('option.company.replacesLabel')}{' '}
+            <Link to={`/hr/employees/${replaced.employeeId}`} className="font-medium text-ink hover:text-primary hover:underline">{replaced.name ?? `${t('option.label.employeeId')} ${replaced.employeeId}`}</Link>
+            {replaced.number !== null && ` (${replaced.number})`}
+          </span>
+        )}
+        {replaced.kind === 'missing' && (
+          <span className="mt-1 block text-xs text-ink-faint" data-testid="replaces-missing">{t('option.company.replacesNotRecorded')}</span>
+        )}
         {row.needs_correction && (
           <span role="note" data-testid="needs-correction" title={row.needs_correction_reason ?? undefined} className="mt-1 block text-xs text-danger">
             {t('warning.company.needsCorrection')}

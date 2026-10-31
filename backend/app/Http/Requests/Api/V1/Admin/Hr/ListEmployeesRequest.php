@@ -53,6 +53,10 @@ class ListEmployeesRequest extends FormRequest
             $this->merge(['archived' => filter_var($this->query('archived'), FILTER_VALIDATE_BOOLEAN)]);
         }
 
+        if ($this->has('search_by_id')) {
+            $this->merge(['search_by_id' => filter_var($this->query('search_by_id'), FILTER_VALIDATE_BOOLEAN)]);
+        }
+
         if ($this->has('historical_rejected')) {
             $this->merge(['historical_rejected' => filter_var($this->query('historical_rejected'), FILTER_VALIDATE_BOOLEAN)]);
         }
@@ -62,7 +66,11 @@ class ListEmployeesRequest extends FormRequest
     {
         return [
             'search' => ['sometimes', 'string', 'max:150'],
+            // true = a number typed in `search` also matches the employee's database ID (the pickers; other lists search name, phone and number only).
+            'search_by_id' => ['sometimes', 'boolean'],
             'status' => ['sometimes', Rule::in(EmployeeStatus::values())],
+            // The Permanent / Temporary classification (a person without one counts as Permanent, the default). Used by the Temporary replacement pickers.
+            'employment_type' => ['sometimes', Rule::in(['permanent', 'temporary'])],
             'pipeline_stage' => ['sometimes', Rule::in(EmployeePipelineStage::values())],
             'employee_category_id' => ['sometimes', 'integer', 'exists:employee_categories,id'],
             'department_id' => ['sometimes', 'integer', 'exists:departments,id'],

@@ -32,13 +32,24 @@ class ListEmployeesAction
 
         if (! empty($filters['search'])) {
             $search = '%'.mb_strtolower($filters['search']).'%';
-            $query->where(function ($q) use ($search) {
+            $term = trim((string) $filters['search']);
+            $query->where(function ($q) use ($search, $term, $filters) {
                 // LOWER(...) LIKE, not ILIKE: portable across Postgres (production) and
                 // SQLite (the test suite's DB driver) rather than a Postgres-only operator.
                 $q->whereRaw('LOWER(full_name) LIKE ?', [$search])
                     ->orWhereRaw('LOWER(phone) LIKE ?', [$search])
                     ->orWhereRaw('LOWER(employee_number) LIKE ?', [$search]);
+
+                // Only where the caller asks for it (the pickers): an exact match on the database ID. Every other list searches as before.
+                if (! empty($filters['search_by_id']) && ctype_digit($term)) {
+                    $q->orWhere('id', (int) $term);
+                }
             });
+        }
+
+        if (! empty($filters['employment_type'])) {
+            // 'permanent' or 'temporary' (validated); the column is never empty - it defaults to permanent.
+            $query->where('employment_type', $filters['employment_type']);
         }
 
         if (! empty($filters['status'])) {
@@ -135,8 +146,16 @@ class ListEmployeesAction
             $query->whereDate('joining_date', '<=', $filters['joining_date_to']);
         }
 
+        // The pickers (search_by_id): the person whose ID or employee number is exactly what was typed comes first, wherever they would sort otherwise.
+        if (! empty($filters['search']) && ! empty($filters['search_by_id'])) {
+            $term = trim((string) $filters['search']);
+            $query->orderByRaw('CASE WHEN '.(ctype_digit($term) ? 'id = ? OR ' : '').'LOWER(employee_number) = ? THEN 0 ELSE 1 END', [...(ctype_digit($term) ? [(int) $term] : []), mb_strtolower($term)]);
+        }
+
+        // `id` breaks ties between people with the same (or no) application date, so a page boundary never repeats or skips anyone.
         return $query
             ->orderByDesc('application_date')
+            ->orderByDesc('id')
             ->paginate((int) ($filters['per_page'] ?? 15), page: (int) ($filters['page'] ?? 1));
     }
 }
