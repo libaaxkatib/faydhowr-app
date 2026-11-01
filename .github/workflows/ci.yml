@@ -66,3 +66,45 @@ jobs:
 
       - name: Run test suite (SQLite in-memory)
         run: php artisan test
+
+  web-panel:
+    name: Lint & Test (Web panel)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: web-panel
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web-panel/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check (tsc)
+        run: npm run typecheck
+
+      - name: Lint (ESLint, zero warnings)
+        if: ${{ !cancelled() }}
+        run: npm run lint
+
+      - name: Unit tests (includes Somali register and locked-161 checks)
+        if: ${{ !cancelled() }}
+        run: npm test
+
+      - name: Untranslated-text scan (i18n)
+        if: ${{ !cancelled() }}
+        run: npm run i18n:scan
+
+      - name: Production build (Vite)
+        if: ${{ !cancelled() }}
+        run: npx vite build

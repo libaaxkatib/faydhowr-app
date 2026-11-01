@@ -197,7 +197,7 @@ export const payroll = defineMessages({
   'notify.payroll.draftFailed': message('Could not generate the payroll draft.', 'Lama samayn karin qabyada mushaharka.'),
   'notify.payroll.draftNoAnswer': message(
     'The server did not answer, so the draft could not be confirmed. A draft is saved only when it is complete, and the list has been refreshed to show what is saved. Wait a minute and try again; if it keeps happening, tell the system administrator.',
-    'Server-ku ma jawaabin, sidaa darteed qabyada lama xaqiijin karo. Qabyadu waxay la keydiyaa oo keliya marka ay dhammaato, liiskana waa la cusboonaysiiyey si uu u muujiyo wixii la keydiyey. Hal daqiiqo sug oo mar kale isku day; haddii ay sii socoto, u sheeg maamulaha nidaamka.',
+    'Server-ku ma jawaabin, sidaa darteed qabyada lama xaqiijin karo. Qabyada waxaa la keydiyaa oo keliya marka ay si buuxda u dhammaato, liiskana waa la cusboonaysiiyey si uu u muujiyo wixii la keydiyey. Hal daqiiqo sug oo mar kale isku day; haddii ay sii socoto, u sheeg maamulaha nidaamka.',
   ),
   'notify.payroll.reviewed': message(
     'Payroll marked as reviewed. The next step is to approve it.',
