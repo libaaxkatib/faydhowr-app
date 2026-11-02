@@ -1621,7 +1621,7 @@ Five proposed messages described the older payroll rule ("only verified days are
 | `option.payroll.previewMonth` |  |  | Payroll month | Bisha mushaharka | proposed | PaymentListPreviewDialog.tsx |  |
 | `option.payroll.previewRows` |  |  | Payment-list rows | Safafka liiska lacag-bixinta | proposed | PaymentListPreviewDialog.tsx |  |
 | `option.payroll.previewPermanentTotal` |  |  | Permanent total | Wadarta Joogtada | proposed | PaymentListPreviewDialog.tsx |  |
-| `option.payroll.previewTemporaryTotal` |  |  | Temporary total | Wadarta Ku-meel-gaarka | proposed | PaymentListPreviewDialog.tsx |  |
+| `option.payroll.previewTemporaryTotal` |  |  | Temporary / Replacement total | Wadarta Ku-meel-gaarka / Beddelaadka | proposed | PaymentListPreviewDialog.tsx |  |
 | `option.payroll.previewCombinedTotal` |  |  | Combined total | Wadarta isku-darka | proposed | PaymentListPreviewDialog.tsx |  |
 | `option.payroll.previewMissingNumbers` |  |  | Rows with no payment number | Safafka aan lahayn lambarka lacag-bixinta | proposed | PaymentListPreviewDialog.tsx |  |
 | `option.payroll.loadingPreview` |  |  | Loading the preview… | Hordhaca waa la soo raraya… | proposed | PaymentListPreviewDialog.tsx |  |

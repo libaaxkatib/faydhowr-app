@@ -2,6 +2,7 @@
 
 namespace App\Support\Hr\Payroll;
 
+use App\Enums\AssignmentType;
 use App\Enums\EmployeeStatus;
 use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
@@ -65,6 +66,8 @@ class MonthlyPaymentReportBuilder
 
     public const FLAG_COVER_OVERLAP = 'Overlaps another cover recorded before the no-overlap rule: correct the dates';
 
+    public const FLAG_COVERED_UNKNOWN = 'This Replacement does not record which Permanent employee it covers';
+
     public function __construct(
         private readonly PayrollPeriodView $periodView = new PayrollPeriodView,
         private readonly TemporaryExpectedPayment $temporaryPayments = new TemporaryExpectedPayment,
@@ -111,11 +114,26 @@ class MonthlyPaymentReportBuilder
 
         $rows = [];
         $companyTotals = [];
+        $replacementLines = [];
 
         foreach ($lines as $line) {
             $employee = $employees->get($line['employee_id']);
             $assignment = $assignments->get($line['work_assignment_id']);
             [$companyName, $categoryLabel] = $this->companyOf($assignment);
+
+            // Company totals count every payroll line (Permanent and Replacement alike), so they still add up to the payroll total.
+            $companyTotals[$companyName] ??= ['company' => $companyName, 'category' => $categoryLabel, 'employee_ids' => [], 'net_cents' => 0];
+            $companyTotals[$companyName]['employee_ids'][(int) $line['employee_id']] = true;
+            $companyTotals[$companyName]['net_cents'] += (int) $line['net_cents'];
+
+            // A Replacement's line is paid to the Replacement, not to the Permanent they covered, and may belong to someone who also holds a Permanent
+            // assignment: it is never merged into that person's Permanent row. It gets a row of its own (see replacementRows).
+            if ($assignment?->assignment_type === AssignmentType::Replacement) {
+                $replacementLines[] = $line;
+
+                continue;
+            }
+
             $salaryCents = $this->monthlySalaryCents($assignment, $monthStart, $monthEnd);
             $deductions = (int) $line['replacement_deduction_cents'] + (int) $line['other_deduction_cents'];
             $key = (int) $line['employee_id'];
@@ -156,17 +174,16 @@ class MonthlyPaymentReportBuilder
             $row['paid_cents'] += ($paymentStatusByAssignment[$line['work_assignment_id']] ?? null) === 'paid' ? (int) $line['net_cents'] : 0;
             $row['company_missing'] = $row['company_missing'] || $companyName === self::CATEGORY_UNASSIGNED;
             $rows[$key] = $row;
-
-            $companyTotals[$companyName] ??= ['company' => $companyName, 'category' => $categoryLabel, 'employee_ids' => [], 'net_cents' => 0];
-            $companyTotals[$companyName]['employee_ids'][$key] = true;
-            $companyTotals[$companyName]['net_cents'] += (int) $line['net_cents'];
         }
 
         $rows = array_map(fn (array $row): array => $this->finishRow($row, $view), array_values($rows));
         usort($rows, fn (array $a, array $b): int => [$a['company'], $a['employee_name'], $a['employee_number']] <=> [$b['company'], $b['employee_name'], $b['employee_number']]);
 
+        // Replacement workers are paid through rows of their own: they are in the payroll even when they hold no Permanent row.
+        $replacementRows = $this->replacementRows($replacementLines, $assignments, $employees, $paymentStatusByAssignment, $view, $monthStart, $monthEnd, $rows);
+
         // A company list is about that company's people only; the active-but-unassigned list belongs to the all-company report.
-        $notInPayroll = $clientCompanyId === null ? $this->employeesNotInPayroll($period, $monthStart, $monthEnd, array_column($rows, 'employee_id')) : [];
+        $notInPayroll = $clientCompanyId === null ? $this->employeesNotInPayroll($period, $monthStart, $monthEnd, array_column([...$rows, ...$replacementRows], 'employee_id')) : [];
 
         // Temporary workers: one row per cover with days in the month, placed beneath the covered Permanent. They are not payroll lines, so every
         // count and total above stays the Permanent employees' own; the Temporary figures are reported next to them.
@@ -178,12 +195,12 @@ class MonthlyPaymentReportBuilder
             'source' => $view['source'],
             'is_estimate' => $view['is_estimate'],
             'run_status' => $view['run_status'],
-            'rows' => $this->withTemporaryRows($rows, $temporaryRows),
+            'rows' => $this->withTemporaryRows($rows, [...$temporaryRows, ...$replacementRows]),
             'not_in_payroll' => $notInPayroll,
             'warnings' => $view['warnings'],
             'summary' => [
-                ...$this->summary($rows, $companyTotals, $notInPayroll, $view),
-                ...$this->temporarySummary($temporaryRows, $lines, $rows),
+                ...$this->summary($rows, $replacementRows, $companyTotals, $notInPayroll, $view),
+                ...$this->temporarySummary($temporaryRows, $replacementRows, $lines, $rows),
                 'company_filter' => $clientCompanyId !== null,
             ],
         ];
@@ -313,6 +330,129 @@ class MonthlyPaymentReportBuilder
         return $rows;
     }
 
+    /**
+     * One row per Replacement assignment that has a payroll line in the month (a Replacement takes over a position and is paid as a normal pay line at
+     * the covered Permanent's salary, A8). The row names the Replacement, their own payment number, the Permanent whose position they hold (found from
+     * the recorded `replaces_assignment_id`, never from names) and the dates of their assignment, and sits beneath that Permanent like a Temporary's.
+     * The amount is the payroll line's net payable, untouched: nothing is recalculated here, so the Permanent's pay line (which already excludes the
+     * days the Replacement holds) and this one never pay the same day twice.
+     *
+     * @param  list<array<string, mixed>>  $replacementLines  the payroll lines of Replacement assignments
+     * @param  Collection<int, EmployeeWorkAssignment>  $assignments
+     * @param  Collection<int, Employee>  $employees
+     * @param  array<int, ?string>  $paymentStatusByAssignment
+     * @param  array<string, mixed>  $view
+     * @param  list<array<string, mixed>>  $permanentRows
+     * @return list<array<string, mixed>>
+     */
+    private function replacementRows(array $replacementLines, Collection $assignments, Collection $employees, array $paymentStatusByAssignment, array $view, \DateTimeImmutable $monthStart, \DateTimeImmutable $monthEnd, array $permanentRows): array
+    {
+        $listed = array_flip(array_column($permanentRows, 'employee_id'));
+        $recorded = $view['source'] === PayrollPeriodView::SOURCE_STORED && $view['run_status'] === PayrollRun::STATUS_FINALIZED;
+        $rows = [];
+
+        foreach ($replacementLines as $line) {
+            $assignment = $assignments->get($line['work_assignment_id']);
+            $employee = $employees->get($line['employee_id']);
+            $covered = $assignment === null ? null : $this->coveredPermanent($assignment);
+            $holder = $covered?->employee;
+            [$companyName, $categoryLabel] = $this->companyOf($assignment);
+            $payment = $employee !== null ? PaymentNumber::resolve($employee) : ['number' => null, 'label' => PaymentNumber::LABEL_MISSING, 'from_phone' => false, 'needs_review' => false];
+            $salaryCents = $this->monthlySalaryCents($assignment, $monthStart, $monthEnd);
+            $isListed = $holder !== null && isset($listed[$holder->id]);
+            $net = (int) $line['net_cents'];
+            $status = $paymentStatusByAssignment[$line['work_assignment_id']] ?? null;
+            $paid = $recorded && $status === 'paid' ? $net : 0;
+            $flags = [];
+
+            if ($payment['number'] === null) {
+                $flags[] = self::FLAG_NO_PAYMENT_NUMBER;
+            }
+            if ($payment['needs_review']) {
+                $flags[] = self::FLAG_REGISTER_MISMATCH;
+            }
+            if ($salaryCents === null || $salaryCents <= 0 || (int) $line['gross_cents'] <= 0) {
+                $flags[] = self::FLAG_NO_SALARY;
+            }
+            if ($companyName === self::CATEGORY_UNASSIGNED) {
+                $flags[] = self::FLAG_NO_COMPANY;
+            }
+            if ($holder === null) {
+                $flags[] = self::FLAG_COVERED_UNKNOWN;
+            } elseif (! $isListed) {
+                $flags[] = self::FLAG_PERMANENT_NOT_LISTED;
+            }
+
+            $rows[] = [
+                'row_type' => 'replacement',
+                'type' => 'Replacement',
+                'employee_id' => (int) $line['employee_id'],
+                'employee_number' => $employee?->employee_number ?? $line['employee_number'],
+                'employee_name' => $employee?->full_name ?? $line['employee_name'],
+                'assignment_id' => (int) $line['work_assignment_id'],
+                'cover_id' => null,
+                'linked_employee_id' => $holder?->id,
+                'linked_employee_number' => $holder?->employee_number,
+                'linked_employee_name' => $holder?->full_name,
+                'linked_listed' => $isListed,
+                'company' => $companyName,
+                'category' => $categoryLabel,
+                'monthly_salary_cents' => $salaryCents,
+                'covered_salary_cents' => $salaryCents,
+                'eligible_days' => (int) $line['eligible_days'],
+                'days_in_month' => (int) $line['days_in_month'],
+                'gross_cents' => (int) $line['gross_cents'],
+                'deductions_cents' => (int) $line['replacement_deduction_cents'] + (int) $line['other_deduction_cents'],
+                'adjustment_cents' => (int) $line['adjustment_cents'],
+                'net_cents' => $net,
+                'cover_from' => $assignment?->start_date->toDateString(),
+                'cover_through' => $assignment?->end_date?->toDateString(),
+                'cover_open_ended' => $assignment?->end_date === null,
+                'planned_end_date' => null,
+                'approved' => true,
+                'permanent_deduction_cents' => 0,
+                'accrued_cents' => $net,
+                // As for a Permanent's line: what was paid is only a recorded fact once the run is finalized; before that it is "not recorded".
+                'paid_cents' => $recorded ? $paid : null,
+                'balance_cents' => $recorded ? $net - $paid : null,
+                'payment_account' => $payment['number'],
+                'payment_account_source' => $payment['label'],
+                'payment_from_phone' => $payment['from_phone'],
+                'payment_status' => $this->paymentStatus([$status], $view),
+                'flags' => $flags,
+            ];
+        }
+
+        usort($rows, fn (array $a, array $b): int => [$a['cover_from'], $a['assignment_id']] <=> [$b['cover_from'], $b['assignment_id']]);
+
+        return $rows;
+    }
+
+    /**
+     * The Permanent assignment a Replacement holds the position of: follow `replaces_assignment_id` back through earlier Replacements to the first
+     * assignment that is not itself a Replacement. null when the Replacement records nobody (the row then says so).
+     */
+    private function coveredPermanent(EmployeeWorkAssignment $assignment): ?EmployeeWorkAssignment
+    {
+        $current = $assignment;
+
+        for ($hops = 0; $hops < 10 && $current->replaces_assignment_id !== null; $hops++) {
+            $parent = EmployeeWorkAssignment::query()->with('employee')->find($current->replaces_assignment_id);
+
+            if ($parent === null) {
+                return null;
+            }
+
+            if ($parent->assignment_type !== AssignmentType::Replacement) {
+                return $parent;
+            }
+
+            $current = $parent;
+        }
+
+        return null;
+    }
+
     /** Whether a Temporary has been paid what the cover has earned up to the end of the month. This one IS recorded (cover payments are their own records). */
     private function temporaryPaymentStatus(?int $accrued, int $paid): string
     {
@@ -338,8 +478,14 @@ class MonthlyPaymentReportBuilder
         $byPermanent = [];
 
         foreach ($temporaryRows as $row) {
-            $byPermanent[$row['linked_employee_id']][] = $row;
+            $byPermanent[(int) $row['linked_employee_id']][] = $row;
         }
+
+        // Several workers under one Permanent: in the order they took over (Temporary covers and Replacements together).
+        foreach ($byPermanent as &$group) {
+            usort($group, fn (array $a, array $b): int => [$a['cover_from'], $a['cover_id'] ?? $a['assignment_id'] ?? 0] <=> [$b['cover_from'], $b['cover_id'] ?? $b['assignment_id'] ?? 0]);
+        }
+        unset($group);
 
         $merged = [];
 
@@ -354,7 +500,8 @@ class MonthlyPaymentReportBuilder
         }
 
         $orphans = array_merge([], ...array_values($byPermanent));
-        usort($orphans, fn (array $a, array $b): int => [$a['company'], $a['linked_employee_name'], $a['cover_from'], $a['cover_id']] <=> [$b['company'], $b['linked_employee_name'], $b['cover_from'], $b['cover_id']]);
+        $orphanKey = fn (array $r): array => [$r['company'], (string) $r['linked_employee_name'], $r['cover_from'], $r['cover_id'] ?? $r['assignment_id'] ?? 0];
+        usort($orphans, fn (array $a, array $b): int => $orphanKey($a) <=> $orphanKey($b));
 
         return [...$merged, ...$orphans];
     }
@@ -364,13 +511,16 @@ class MonthlyPaymentReportBuilder
      * Permanent employees' lines for them (the two are the same calculation; they differ only by covers not yet approved or days already unpaid leave).
      *
      * @param  list<array<string, mixed>>  $temporaryRows
-     * @param  Collection<int, array<string, mixed>>  $lines  the payroll lines of the listed Permanent employees
+     * @param  list<array<string, mixed>>  $replacementRows
+     * @param  Collection<int, array<string, mixed>>  $lines  the payroll lines of the listed employees
      * @param  list<array<string, mixed>>  $permanentRows
      * @return array<string, mixed>
      */
-    private function temporarySummary(array $temporaryRows, Collection $lines, array $permanentRows): array
+    private function temporarySummary(array $temporaryRows, array $replacementRows, Collection $lines, array $permanentRows): array
     {
         $earned = array_sum(array_column($temporaryRows, 'net_cents'));
+        $replacementTotal = array_sum(array_column($replacementRows, 'net_cents'));
+        $permanentTotal = array_sum(array_column($permanentRows, 'net_cents'));
         $coverDeductions = array_sum(array_column($temporaryRows, 'permanent_deduction_cents'));
         $lineDeductions = (int) $lines->sum('replacement_deduction_cents');
         $balances = array_filter(array_column($temporaryRows, 'balance_cents'), fn ($v): bool => $v !== null);
@@ -386,7 +536,14 @@ class MonthlyPaymentReportBuilder
             // The two deduction figures are the same calculation; they agree to the cent unless a cover or leave changed after an approved run was stored.
             'temporary_deductions_reconcile' => $coverDeductions === $lineDeductions,
             'temporary_not_deducted_cents' => $earned - $coverDeductions,
-            'total_with_temporary_cents' => array_sum(array_column($permanentRows, 'net_cents')) + $earned,
+            // The three kinds of worker, kept apart: Permanent employees' own rows, Replacements (payroll lines of their own) and Temporary covers.
+            'permanent_total_cents' => $permanentTotal,
+            'replacement_count' => count($replacementRows),
+            'replacement_employee_count' => count(array_unique(array_column($replacementRows, 'employee_id'))),
+            'replacement_total_cents' => $replacementTotal,
+            'temporary_replacement_total_cents' => $earned + $replacementTotal,
+            // Permanent + Replacement + Temporary: every person's amount once. It equals total_net_cents (all payroll lines) + the Temporary covers.
+            'total_with_temporary_cents' => $permanentTotal + $replacementTotal + $earned,
         ];
     }
 
@@ -552,14 +709,18 @@ class MonthlyPaymentReportBuilder
     }
 
     /**
-     * @param  list<array<string, mixed>>  $rows
+     * @param  list<array<string, mixed>>  $permanentRows
+     * @param  list<array<string, mixed>>  $replacementRows
      * @param  array<string, array<string, mixed>>  $companyTotals
      * @param  list<array<string, mixed>>  $notInPayroll
      * @param  array<string, mixed>  $view
      * @return array<string, mixed>
      */
-    private function summary(array $rows, array $companyTotals, array $notInPayroll, array $view): array
+    private function summary(array $permanentRows, array $replacementRows, array $companyTotals, array $notInPayroll, array $view): array
     {
+        // The payroll lines of the month: Permanent rows and Replacement rows. The employee count is the Permanent employees' own.
+        $rows = [...$permanentRows, ...$replacementRows];
+
         $byCompany = array_values(array_map(fn (array $c): array => [
             'company' => $c['company'],
             'category' => $c['category'],
@@ -586,7 +747,7 @@ class MonthlyPaymentReportBuilder
         $count = fn (string $flag): int => count(array_filter($rows, fn (array $r): bool => in_array($flag, $r['flags'], true)));
 
         return [
-            'employee_count' => count($rows),
+            'employee_count' => count($permanentRows),
             'total_net_cents' => array_sum(array_column($rows, 'net_cents')),
             'total_gross_cents' => array_sum(array_column($rows, 'gross_cents')),
             'total_deductions_cents' => array_sum(array_column($rows, 'deductions_cents')),

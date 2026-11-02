@@ -54,7 +54,8 @@ class MonthlyPaymentReportController extends Controller
         }
 
         $summary = $report['summary'];
-        $temporaryCount = (int) ($summary['temporary_cover_count'] ?? 0);
+        $replacementCount = (int) ($summary['replacement_count'] ?? 0);
+        $temporaryCount = (int) ($summary['temporary_cover_count'] ?? 0) + $replacementCount;
 
         return ApiResponse::success('Payment list preview retrieved successfully.', [
             'period' => $period,
@@ -64,8 +65,9 @@ class MonthlyPaymentReportController extends Controller
             'row_count' => count($report['rows']),
             'permanent_count' => (int) $summary['employee_count'],
             'temporary_count' => $temporaryCount,
-            'permanent_total' => PayrollMoney::format((int) $summary['total_net_cents']),
-            'temporary_total' => PayrollMoney::format((int) ($summary['temporary_total_cents'] ?? 0)),
+            // Permanent employees' own rows; the second figure is every Temporary cover and every Replacement worker (rows of their own, never the Permanent's).
+            'permanent_total' => PayrollMoney::format((int) ($summary['permanent_total_cents'] ?? $summary['total_net_cents'])),
+            'temporary_total' => PayrollMoney::format((int) ($summary['temporary_replacement_total_cents'] ?? $summary['temporary_total_cents'] ?? 0)),
             'combined_total' => PayrollMoney::format((int) ($summary['total_with_temporary_cents'] ?? $summary['total_net_cents'])),
             // The same rule as the workbook's blank, highlighted NUMBER cells (every row of the Payment list sheet, Temporary rows included).
             'missing_payment_number_count' => count(array_filter($report['rows'], fn (array $row): bool => $row['payment_account'] === null)),
@@ -100,7 +102,7 @@ class MonthlyPaymentReportController extends Controller
         $path = tempnam(sys_get_temp_dir(), 'payment-list').'.xlsx';
         $exporter->write($report, $path);
 
-        $rows = $report['summary']['employee_count'] + ($report['summary']['temporary_cover_count'] ?? 0);
+        $rows = count($report['rows']);
 
         event(AuditEvent::record(
             action: AuditAction::Export,
@@ -110,7 +112,7 @@ class MonthlyPaymentReportController extends Controller
                 : "Downloaded the monthly payment list for {$company->name}, {$period} ({$report['summary']['employee_count']} employees).",
             entityType: $company === null ? null : ClientCompany::class,
             entityId: $company?->id,
-            metadata: ['period' => $period, 'employee_count' => $report['summary']['employee_count'], 'temporary_cover_count' => $report['summary']['temporary_cover_count'] ?? 0, 'rows' => $rows, 'source' => $report['source'], 'client_company_id' => $company?->id, 'scope' => $company === null ? 'all' : strtolower($kind)],
+            metadata: ['period' => $period, 'employee_count' => $report['summary']['employee_count'], 'temporary_cover_count' => $report['summary']['temporary_cover_count'] ?? 0, 'replacement_count' => $report['summary']['replacement_count'] ?? 0, 'rows' => $rows, 'source' => $report['source'], 'client_company_id' => $company?->id, 'scope' => $company === null ? 'all' : strtolower($kind)],
         ));
 
         $suffix = $company === null ? '' : '-'.(Str::slug($company->name) ?: 'company-'.$company->id);

@@ -171,6 +171,26 @@ final class MonthlyPaymentReportExporter
             }
         }
 
+        if (($s['replacement_count'] ?? 0) > 0) {
+            $row += 2;
+            $this->text($ws, "A{$row}", 'Replacement workers (a payroll line of their own, listed beneath the Permanent employee whose position they hold)');
+            $ws->getStyle("A{$row}")->getFont()->setBold(true)->setSize(12);
+            foreach ([
+                ['Replacement assignments with days in this month', $s['replacement_count']],
+                ['Replacement workers', $s['replacement_employee_count']],
+                ['Permanent employees total (USD)', $this->usd($s['permanent_total_cents'])],
+                ['Replacement workers total (USD)', $this->usd($s['replacement_total_cents'])],
+                ['Temporary workers total (USD)', $this->usd($s['temporary_total_cents'])],
+                ['Combined total: Permanent + Replacement + Temporary (USD)', $this->usd($s['total_with_temporary_cents'])],
+            ] as [$label, $value]) {
+                $row++;
+                $this->text($ws, "A{$row}", (string) $label);
+                $ws->getStyle("A{$row}")->getFont()->setBold(true);
+                is_float($value) ? $this->money($ws, "B{$row}", $value) : $this->cell($ws, "B{$row}", $value);
+                $ws->getStyle("B{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+            }
+        }
+
         $this->text($ws, 'F'.($first - 1), 'An employee with two assignments is counted once in the employee total; their amount is split by company in the company table, so the company rows still add up to the total payment amount.');
 
         if ($report['warnings'] !== []) {
@@ -204,14 +224,15 @@ final class MonthlyPaymentReportExporter
         $ws->setTitle('Payment list');
         $this->text($ws, 'A1', "Payment list - {$report['period']} (USD)".(($report['filter_label'] ?? null) !== null ? ' - '.$report['filter_label'] : '').($report['is_estimate'] ? ' - ESTIMATE' : ''));
         $ws->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-        $this->text($ws, 'A2', "A Temporary worker's row sits directly beneath the Permanent employee they covered. NUMBER is the number the salary is sent to. Permanent and Temporary totals are separate.");
+        $this->text($ws, 'A2', "A Temporary or Replacement worker's row sits directly beneath the Permanent employee whose position they covered, with their own NUMBER, amount and cover period. NUMBER is the number the money is sent to. Permanent, Replacement and Temporary totals are separate.");
         $this->header($ws, 4, self::PAYMENT_LIST_HEADERS);
 
         $rowNumber = 5;
         $missingNumbers = 0;
 
         foreach ($report['rows'] as $r) {
-            $temporary = ($r['row_type'] ?? 'permanent') === 'temporary';
+            // A Temporary cover or a Replacement: a worker of their own, listed beneath the Permanent whose position they covered.
+            $temporary = ($r['row_type'] ?? 'permanent') !== 'permanent';
 
             $this->text($ws, "A{$rowNumber}", ($temporary ? "\u{21B3} " : '').(string) $r['employee_name']);
 
@@ -227,8 +248,8 @@ final class MonthlyPaymentReportExporter
             $this->text($ws, "C{$rowNumber}", (string) $r['company']);
             $this->text($ws, "D{$rowNumber}", (string) $r['type']);
             $this->dollars($ws, "E{$rowNumber}", $this->usd($r['net_cents']));
-            $this->text($ws, "F{$rowNumber}", $temporary ? 'Temporary' : 'Permanent');
-            $this->text($ws, "G{$rowNumber}", $temporary ? (string) $r['linked_employee_name'] : "\u{2014}");
+            $this->text($ws, "F{$rowNumber}", $temporary ? (string) $r['type'] : 'Permanent');
+            $this->text($ws, "G{$rowNumber}", $temporary ? $this->linkedLabel($r) : "\u{2014}");
             $this->text($ws, "H{$rowNumber}", $temporary ? $this->coverPeriod($r['cover_from'], $r['cover_through'], (bool) $r['cover_open_ended']) : "\u{2014}");
 
             if ($r['paid_cents'] === null || $r['balance_cents'] === null) {
@@ -264,7 +285,8 @@ final class MonthlyPaymentReportExporter
         // Separate totals, written below the table: the Permanent employees' pay, the Temporary workers' pay, and the two together.
         $totalRow = $last + 2;
         $totals = [
-            [$s['company_filter'] ? 'Permanent employees total (this record)' : 'Permanent employees total', $s['total_net_cents']],
+            [$s['company_filter'] ? 'Permanent employees total (this record)' : 'Permanent employees total', $s['permanent_total_cents'] ?? $s['total_net_cents']],
+            ['Replacement workers total (their own rows; not in the Permanent total)', $s['replacement_total_cents'] ?? 0],
             ['Temporary workers total (not included in the Permanent total)', $s['temporary_total_cents'] ?? 0],
             ['Combined total', $s['total_with_temporary_cents'] ?? $s['total_net_cents']],
         ];
@@ -286,7 +308,17 @@ final class MonthlyPaymentReportExporter
         }
     }
 
-    /** "Oct 1-10", "Sep 28-Oct 3", "Dec 28, 2026-Jan 3, 2027"; an open cover ends in "ongoing". */
+    /** The covered Permanent employee; "Not recorded" when a Replacement names nobody (the row's Data checks say so too). */
+    private function linkedLabel(array $r): string
+    {
+        if (($r['linked_employee_name'] ?? null) === null) {
+            return 'Not recorded';
+        }
+
+        return (string) $r['linked_employee_name'];
+    }
+
+    /** "Oct 1-10", "Oct 12", "Sep 28-Oct 3", "Dec 28, 2026-Jan 3, 2027"; an open cover ends in "ongoing". */
     private function coverPeriod(string $from, ?string $through, bool $open): string
     {
         $start = new \DateTimeImmutable($from);
@@ -299,6 +331,7 @@ final class MonthlyPaymentReportExporter
         $end = new \DateTimeImmutable($through);
 
         return match (true) {
+            $start == $end => $start->format('M j'),
             $start->format('Y') !== $end->format('Y') => $start->format('M j, Y').$dash.$end->format('M j, Y'),
             $start->format('n') === $end->format('n') => $start->format('M j').$dash.$end->format('j'),
             default => $start->format('M j').$dash.$end->format('M j'),
@@ -322,14 +355,14 @@ final class MonthlyPaymentReportExporter
 
         $coveredBy = [];
         foreach ($report['rows'] as $r) {
-            if (($r['row_type'] ?? 'permanent') === 'temporary') {
-                $coveredBy[$r['linked_employee_id']][] = $r['employee_number'].' '.$r['employee_name'];
+            if (($r['row_type'] ?? 'permanent') !== 'permanent') {
+                $coveredBy[$r['linked_employee_id']][] = $r['employee_number'].' '.$r['employee_name'].($r['row_type'] === 'replacement' ? ' (Replacement)' : '');
             }
         }
 
         $rowNumber = 5;
         foreach ($report['rows'] as $r) {
-            if (($r['row_type'] ?? 'permanent') === 'temporary') {
+            if (($r['row_type'] ?? 'permanent') !== 'permanent') {
                 $this->temporaryRow($ws, $rowNumber, $r);
                 $rowNumber++;
 
@@ -367,20 +400,27 @@ final class MonthlyPaymentReportExporter
         $ws->setAutoFilter("A4:U{$last}");
         $ws->freezePane('D5');
 
-        // The total of what is listed (for a company list: that company's total). Written below the filtered table, as a number.
+        // The total of the Permanent and Replacement rows (for a company list: that company's total), written below the filtered table as a number.
+        // A Replacement's amount is split out of it on its own line, and the Temporary workers (no payroll line) are totalled separately beneath.
+        $s = $report['summary'];
         $totalRow = $last + 2;
-        $this->text($ws, "A{$totalRow}", $report['summary']['company_filter'] ? 'Company total' : 'Total');
-        $this->money($ws, "M{$totalRow}", $this->usd($report['summary']['total_net_cents']));
-        $ws->getStyle("A{$totalRow}:M{$totalRow}")->getFont()->setBold(true);
+        $lines = [[$s['company_filter'] ? 'Company total' : 'Total', $s['total_net_cents']]];
 
-        // Temporary workers are not in the total above (they have no payroll line): their own total, and the two together, are written under it.
-        if (($report['summary']['temporary_cover_count'] ?? 0) > 0) {
-            $this->text($ws, 'A'.($totalRow + 1), 'Temporary workers total (not included in the total above)');
-            $this->money($ws, 'M'.($totalRow + 1), $this->usd($report['summary']['temporary_total_cents']));
-            $this->text($ws, 'A'.($totalRow + 2), $report['summary']['company_filter'] ? 'Company total including Temporary workers' : 'Total including Temporary workers');
-            $this->money($ws, 'M'.($totalRow + 2), $this->usd($report['summary']['total_with_temporary_cents']));
-            $ws->getStyle('A'.($totalRow + 1).':M'.($totalRow + 2))->getFont()->setBold(true);
+        if (($s['replacement_count'] ?? 0) > 0) {
+            $lines[] = ['Permanent employees total (in the total above)', $s['permanent_total_cents']];
+            $lines[] = ['Replacement workers total (in the total above)', $s['replacement_total_cents']];
         }
+
+        if (($s['temporary_cover_count'] ?? 0) > 0) {
+            $lines[] = ['Temporary workers total (not included in the total above)', $s['temporary_total_cents']];
+            $lines[] = [$s['company_filter'] ? 'Company total including Temporary workers' : 'Total including Temporary workers', $s['total_with_temporary_cents']];
+        }
+
+        foreach ($lines as $offset => [$label, $cents]) {
+            $this->text($ws, 'A'.($totalRow + $offset), $label);
+            $this->money($ws, 'M'.($totalRow + $offset), $this->usd($cents));
+        }
+        $ws->getStyle("A{$totalRow}:M".($totalRow + count($lines) - 1))->getFont()->setBold(true);
 
         foreach (['A' => 16, 'B' => 32, 'C' => 26, 'D' => 34, 'E' => 30, 'F' => 20, 'G' => 18, 'H' => 11, 'I' => 13, 'J' => 16, 'K' => 16, 'L' => 16, 'M' => 20, 'N' => 34, 'O' => 46, 'P' => 14, 'Q' => 12, 'R' => 44, 'S' => 28, 'T' => 18, 'U' => 16] as $col => $width) {
             $ws->getColumnDimension($col)->setWidth($width);
@@ -396,27 +436,37 @@ final class MonthlyPaymentReportExporter
      */
     private function temporaryRow(Worksheet $ws, int $rowNumber, array $r): void
     {
+        $replacement = ($r['row_type'] ?? '') === 'replacement';
+
         $this->text($ws, "A{$rowNumber}", (string) $r['employee_number']);
         $this->text($ws, "B{$rowNumber}", (string) $r['employee_name']);
         $r['payment_account'] === null ? $this->missing($ws, "C{$rowNumber}") : $this->text($ws, "C{$rowNumber}", $r['payment_account']);
         $this->text($ws, "D{$rowNumber}", (string) $r['payment_account_source']);
         $this->text($ws, "E{$rowNumber}", (string) $r['company']);
         $this->text($ws, "F{$rowNumber}", (string) $r['category']);
-        $this->text($ws, "G{$rowNumber}", 'n/a (Temporary)');
+        // A Replacement is calculated on the covered Permanent's salary (their own row repeats that salary); a Temporary has no salary of their own.
+        $replacement && $r['monthly_salary_cents'] !== null
+            ? $this->money($ws, "G{$rowNumber}", $this->usd($r['monthly_salary_cents']))
+            : $this->text($ws, "G{$rowNumber}", $replacement ? 'Missing' : 'n/a (Temporary)');
         $this->cell($ws, "H{$rowNumber}", $r['eligible_days']);
         $this->cell($ws, "I{$rowNumber}", $r['days_in_month']);
         $this->money($ws, "J{$rowNumber}", $this->usd($r['gross_cents']));
-        $this->money($ws, "K{$rowNumber}", 0.0);
-        $this->money($ws, "L{$rowNumber}", 0.0);
+        $this->money($ws, "K{$rowNumber}", $this->usd($r['deductions_cents']));
+        $this->money($ws, "L{$rowNumber}", $this->usd($r['adjustment_cents']));
         $this->money($ws, "M{$rowNumber}", $this->usd($r['net_cents']));
         $this->text($ws, "N{$rowNumber}", (string) $r['payment_status']);
         $this->text($ws, "O{$rowNumber}", $r['flags'] === [] ? 'OK' : implode('; ', $r['flags']));
         $this->text($ws, "P{$rowNumber}", (string) $r['employee_id']);
-        $this->text($ws, "Q{$rowNumber}", 'Temporary');
-        $this->text($ws, "R{$rowNumber}", 'Covers: '.$r['linked_employee_number'].' '.$r['linked_employee_name']);
+        $this->text($ws, "Q{$rowNumber}", (string) $r['type']);
+        $this->text($ws, "R{$rowNumber}", 'Covers: '.($r['linked_employee_name'] === null ? 'Not recorded' : $r['linked_employee_number'].' '.$r['linked_employee_name']));
         $this->text($ws, "S{$rowNumber}", $r['cover_from'].' to '.($r['cover_open_ended'] ? 'open' : (string) $r['cover_through']).($r['planned_end_date'] !== null ? ' (planned end '.$r['planned_end_date'].')' : ''));
-        $this->money($ws, "T{$rowNumber}", $this->usd($r['paid_cents']));
-        $r['balance_cents'] === null ? $this->missing($ws, "U{$rowNumber}") : $this->money($ws, "U{$rowNumber}", $this->usd($r['balance_cents']));
+        $r['paid_cents'] === null ? $this->text($ws, "T{$rowNumber}", 'Not recorded') : $this->money($ws, "T{$rowNumber}", $this->usd($r['paid_cents']));
+        // A Temporary with no balance has no covered salary to calculate on (said plainly); a Replacement's is "Not recorded" until the month is finalized.
+        match (true) {
+            $r['balance_cents'] !== null => $this->money($ws, "U{$rowNumber}", $this->usd($r['balance_cents'])),
+            $replacement => $this->text($ws, "U{$rowNumber}", 'Not recorded'),
+            default => $this->missing($ws, "U{$rowNumber}"),
+        };
 
         $this->fill($ws, "A{$rowNumber}:N{$rowNumber}", self::TEMPORARY_FILL);
         $this->fill($ws, "P{$rowNumber}:U{$rowNumber}", self::TEMPORARY_FILL);
@@ -424,9 +474,6 @@ final class MonthlyPaymentReportExporter
         $ws->getStyle("B{$rowNumber}")->getAlignment()->setIndent(1);
         if ($r['payment_account'] === null) {
             $this->missing($ws, "C{$rowNumber}");
-        }
-        if ($r['balance_cents'] === null) {
-            $this->missing($ws, "U{$rowNumber}");
         }
     }
 

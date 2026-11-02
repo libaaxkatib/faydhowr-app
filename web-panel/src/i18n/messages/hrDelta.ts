@@ -38,7 +38,7 @@ export const hrDelta = defineMessages({
   'option.payroll.previewMonth': message('Payroll month', 'Bisha mushaharka'),
   'option.payroll.previewRows': message('Payment-list rows', 'Safafka liiska lacag-bixinta'),
   'option.payroll.previewPermanentTotal': message('Permanent total', 'Wadarta Joogtada'),
-  'option.payroll.previewTemporaryTotal': message('Temporary total', 'Wadarta Ku-meel-gaarka'),
+  'option.payroll.previewTemporaryTotal': message('Temporary / Replacement total', 'Wadarta Ku-meel-gaarka / Beddelaadka'),
   'option.payroll.previewCombinedTotal': message('Combined total', 'Wadarta isku-darka'),
   'option.payroll.previewMissingNumbers': message('Rows with no payment number', 'Safafka aan lahayn lambarka lacag-bixinta'),
   'option.payroll.loadingPreview': message('Loading the preview…', 'Hordhaca waa la soo raraya…'),
