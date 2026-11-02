@@ -935,7 +935,8 @@ final class AssignmentRecovery
     /** @return list<array<string, string>> */
     private function successorBlockers(EmployeeWorkAssignment $a): array
     {
-        $ids = EmployeeWorkAssignment::query()->where('replaces_assignment_id', $a->id)->where('status', '!=', WorkAssignmentStatus::Cancelled)->pluck('id')->all();
+        // The same definition as the Replace / Stop / edit paths: the Replacements of finished cover cycles are history, not someone who takes over.
+        $ids = PositionSuccession::successorsOf($a)->pluck('id')->all();
 
         return $ids === [] ? [] : [$this->b('SUCCESSOR_EXISTS', 'Assignment(s) #'.implode(', #', $ids).' take over this one. Reopening it would pay two people for the same position and day: retire or end those first (Replace / Return / Stop on the company page), then reopen.', '/hr/companies/'.$a->client_company_id.'/employees')];
     }

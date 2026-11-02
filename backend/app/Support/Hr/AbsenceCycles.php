@@ -10,6 +10,7 @@ use App\Models\AssignmentCycleEvent;
 use App\Models\EmployeeWorkAssignment;
 use App\Support\ApiResponse;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Collection;
 
@@ -32,6 +33,25 @@ final class AbsenceCycles
     public static function open(EmployeeWorkAssignment $assignment): ?AssignmentAbsence
     {
         return AssignmentAbsence::query()->where('work_assignment_id', $assignment->id)->whereNull('returned_on')->orderByDesc('id')->first();
+    }
+
+    /**
+     * The Replacement assignments of FINISHED cover cycles: each was recorded (replacement_started event) in an absence whose holder has RETURNED. They
+     * covered days that are over and no longer hold the position, so they are history, not a successor. This is the one definition every succession check
+     * uses (PermanentSuccession::isRequired, PositionSuccession::successorsOf and through it the Replace / Stop / edit paths and the Recovery Center).
+     *
+     * Deliberately NOT in it: a Replacement of an absence that was ended while the holder was away (terminated, never returned: the cover keeps the
+     * position), a Replacement of a cycle still open, and a Replacement with no cycle record at all (older data).
+     *
+     * @return Builder<AssignmentCycleEvent>
+     */
+    public static function finishedCycleReplacementIds(): Builder
+    {
+        return AssignmentCycleEvent::query()
+            ->select('replacement_assignment_id')
+            ->where('event_type', AssignmentCycleEvent::REPLACEMENT_STARTED)
+            ->whereNotNull('replacement_assignment_id')
+            ->whereIn('absence_id', AssignmentAbsence::query()->select('id')->whereNotNull('returned_on'));
     }
 
     /** The absence a Replacement was recorded in (its replacement_started event), whatever its state. */

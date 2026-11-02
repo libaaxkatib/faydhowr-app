@@ -7,6 +7,7 @@ use App\Enums\WorkAssignmentStatus;
 use App\Models\EmployeeWorkAssignment;
 use App\Support\ApiResponse;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
@@ -47,10 +48,9 @@ final class PositionSuccession
             self::fail('The assignment being replaced is still open. Record the separation (or end that assignment) first so its last paid day is known.', 'SUCCESSION_PREDECESSOR_STILL_OPEN');
         }
 
-        // While the holder is away only a Replacement that is still working blocks another; the ended ones of earlier cycles are history.
-        $taken = EmployeeWorkAssignment::query()
-            ->where('replaces_assignment_id', $predecessor->id)
-            ->when($absence === null, fn ($q) => $q->where('status', '!=', WorkAssignmentStatus::Cancelled), fn ($q) => $q->where('status', WorkAssignmentStatus::Active))
+        // While the holder is away only a Replacement that is still working blocks another; once the assignment has an end date, every successor blocks
+        // except the Replacements of FINISHED cover cycles (the holder came back): those are history (see successorsOf).
+        $taken = self::successorsOf($predecessor, holderAway: $absence !== null)
             ->when($ignoreSuccessorId, fn ($q) => $q->where('id', '!=', $ignoreSuccessorId))
             ->exists();
 
@@ -59,6 +59,24 @@ final class PositionSuccession
         }
 
         self::assertNoOverlap($predecessor->end_date ?? $absence->last_working_day, $successorStart);
+    }
+
+    /**
+     * The assignments that count as taking over $predecessor (the "someone already takes over this assignment" rule). Cancelled ones never count.
+     *  - holder away (open absence): only a Replacement that is still Active counts;
+     *  - otherwise: every non-cancelled successor counts - a Permanent successor, a Replacement still working, a cover kept because the holder was ended
+     *    while away, a Replacement with no cycle record - EXCEPT a Replacement of a finished cover cycle that has ended (AbsenceCycles::
+     *    finishedCycleReplacementIds): its holder returned, so it is history. One that is still Active always counts.
+     *
+     * @return Builder<EmployeeWorkAssignment>
+     */
+    public static function successorsOf(EmployeeWorkAssignment $predecessor, bool $holderAway = false): Builder
+    {
+        return EmployeeWorkAssignment::query()
+            ->where('replaces_assignment_id', $predecessor->id)
+            ->when($holderAway, fn ($q) => $q->where('status', WorkAssignmentStatus::Active), fn ($q) => $q
+                ->where('status', '!=', WorkAssignmentStatus::Cancelled)
+                ->where(fn ($w) => $w->whereNotIn('id', AbsenceCycles::finishedCycleReplacementIds())->orWhere('status', WorkAssignmentStatus::Active)));
     }
 
     /** The predecessor's last paid day must be strictly before the successor's first. */
