@@ -26,6 +26,7 @@ import { theme } from './theme.ts';
 import { reportsVisual } from './reportsVisual.ts';
 import { replacementFixes } from './replacementFixes.ts';
 import { replacementCycles } from './replacementCycles.ts';
+import { passwordVisibility } from './passwordVisibility.ts';
 import { uxAudit } from './uxAudit.ts';
 import { status } from './status.ts';
 import { system } from './system.ts';
@@ -33,7 +34,7 @@ import { effectiveCatalogue } from '../overrides.ts';
 import { translate, translatePlural, translateValue, type Params } from '../translate.ts';
 import type { Language } from '../language.ts';
 
-export const AREAS = { nav, status, action, option, common, errors, employeeDetail, employees, pipeline, payroll, company, imports, facility, labels, reports, hrDelta, hrMore, ownerWarnings, system, marketing, customers, shell, serverErrors, theme, uxAudit, reportsVisual, replacementFixes, replacementCycles } as const;
+export const AREAS = { nav, status, action, option, common, errors, employeeDetail, employees, pipeline, payroll, company, imports, facility, labels, reports, hrDelta, hrMore, ownerWarnings, system, marketing, customers, shell, serverErrors, theme, uxAudit, reportsVisual, replacementFixes, replacementCycles, passwordVisibility } as const;
 
 export const CATALOGUE = {
   ...nav,
@@ -64,6 +65,7 @@ export const CATALOGUE = {
   ...reportsVisual,
   ...replacementFixes,
   ...replacementCycles,
+  ...passwordVisibility,
 } as const;
 
 export type MessageKey = keyof typeof CATALOGUE;

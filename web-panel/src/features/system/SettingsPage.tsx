@@ -10,6 +10,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { FormField, inputClasses } from '@/components/ui/FormField';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -111,7 +112,16 @@ function FieldInput({ category, field, value, onChange, disabled, error }: Field
     );
   }
 
-  const inputType = field.type === 'password' ? 'password' : field.type === 'number' ? 'number' : field.type === 'time' ? 'time' : 'text';
+  const inputType = field.type === 'number' ? 'number' : field.type === 'time' ? 'time' : 'text';
+
+  // A stored secret is never sent back to the panel, so the eye only shows what the Super Admin has just typed.
+  if (field.type === 'password') {
+    return (
+      <FormField label={label} htmlFor={id} hint={hint} error={error}>
+        <PasswordInput id={id} disabled={disabled} className={inputClasses} value={value == null ? '' : String(value)} placeholder="••••••••" onChange={(event) => onChange(event.target.value)} />
+      </FormField>
+    );
+  }
 
   return (
     <FormField label={label} htmlFor={id} hint={hint} error={error}>
@@ -121,7 +131,6 @@ function FieldInput({ category, field, value, onChange, disabled, error }: Field
         disabled={disabled}
         className={inputClasses}
         value={value == null ? '' : String(value)}
-        placeholder={field.type === 'password' ? '••••••••' : undefined}
         onChange={(event) => onChange(field.type === 'number' ? (event.target.value === '' ? '' : Number(event.target.value)) : event.target.value)}
       />
     </FormField>

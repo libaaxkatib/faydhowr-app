@@ -5,6 +5,7 @@ import { adminsApi } from '@/api/admins';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { FormField, inputClasses } from '@/components/ui/FormField';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
@@ -151,9 +152,8 @@ export function AdminFormDialog({ isOpen, onClose, mode, admin }: AdminFormDialo
 
         {mode === 'create' && (
           <FormField label={t('option.system.temporaryPassword')} htmlFor="admin-password" required hint={t('warning.system.passwordHint')} error={fieldErrors.password?.[0]}>
-            <input
+            <PasswordInput
               id="admin-password"
-              type="password"
               required
               minLength={8}
               className={inputClasses}

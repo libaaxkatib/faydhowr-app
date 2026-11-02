@@ -5,6 +5,7 @@ import { adminsApi } from '@/api/admins';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { FormField, inputClasses } from '@/components/ui/FormField';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useToast } from '@/components/ui/useToast';
 import { useI18n } from '@/i18n/useI18n';
 import { ApiClientError } from '@/api/client';
@@ -82,9 +83,8 @@ export function ChangePasswordDialog({ isOpen, onClose }: ChangePasswordDialogPr
     >
       <form onSubmit={handleSubmit}>
         <FormField label={t('option.shell.currentPassword')} htmlFor="current-password" required error={fieldErrors.current_password?.[0]}>
-          <input
+          <PasswordInput
             id="current-password"
-            type="password"
             required
             className={inputClasses}
             value={currentPassword}
@@ -92,9 +92,8 @@ export function ChangePasswordDialog({ isOpen, onClose }: ChangePasswordDialogPr
           />
         </FormField>
         <FormField label={t('option.shell.newPassword')} htmlFor="new-password" required hint={t('option.shell.minEightChars')} error={fieldErrors.password?.[0]}>
-          <input
+          <PasswordInput
             id="new-password"
-            type="password"
             required
             minLength={8}
             className={inputClasses}
@@ -108,9 +107,8 @@ export function ChangePasswordDialog({ isOpen, onClose }: ChangePasswordDialogPr
           required
           error={fieldErrors.password_confirmation?.[0]}
         >
-          <input
+          <PasswordInput
             id="new-password-confirm"
-            type="password"
             required
             minLength={8}
             className={inputClasses}

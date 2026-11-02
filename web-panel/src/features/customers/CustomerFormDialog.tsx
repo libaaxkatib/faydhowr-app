@@ -5,6 +5,7 @@ import { customersApi } from '@/api/customers';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { FormField, inputClasses } from '@/components/ui/FormField';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
@@ -148,9 +149,8 @@ export function CustomerFormDialog({ isOpen, onClose, mode, customer }: Customer
 
         {mode === 'create' && (
           <FormField label={t('option.customers.temporaryPassword')} htmlFor="password" required hint={t('option.shell.minEightChars')} error={fieldErrors.password?.[0]}>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               required
               minLength={8}
               className={inputClasses}

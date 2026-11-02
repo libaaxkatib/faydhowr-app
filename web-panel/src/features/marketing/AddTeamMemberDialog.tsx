@@ -6,6 +6,7 @@ import { ApiClientError } from '@/api/client';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { FormField, inputClasses } from '@/components/ui/FormField';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { useI18n } from '@/i18n/useI18n';
@@ -105,7 +106,7 @@ export function AddTeamMemberDialog({ isOpen, onClose, teams }: AddTeamMemberDia
           </FormField>
         </div>
         <FormField label={t('option.marketing.initialPassword')} htmlFor="member-password" required error={error('password')} hint={t('warning.marketing.passwordHint', { min: MIN_PASSWORD_LENGTH })}>
-          <input id="member-password" type="password" autoComplete="new-password" className={inputClasses} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
+          <PasswordInput id="member-password" autoComplete="new-password" className={inputClasses} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
         </FormField>
         <p className="text-xs text-ink-muted">{t('warning.marketing.accountCreatedNote')}</p>
       </form>

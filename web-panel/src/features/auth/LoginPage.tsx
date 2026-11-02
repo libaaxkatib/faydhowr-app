@@ -5,6 +5,7 @@ import { useAuth } from '@/features/auth/useAuth';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/Button';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { useI18n } from '@/i18n/useI18n';
 import { describeLoginFailure } from '@/utils/loginError';
@@ -70,9 +71,8 @@ export function LoginPage() {
             <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-ink">
               {t('option.shell.password')}
             </label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               required
               autoComplete="current-password"
               value={password}

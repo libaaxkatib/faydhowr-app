@@ -5,6 +5,7 @@ import { adminsApi } from '@/api/admins';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { FormField, inputClasses } from '@/components/ui/FormField';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
 import { useI18n } from '@/i18n/useI18n';
@@ -82,9 +83,8 @@ export function ResetPasswordDialog({ isOpen, onClose, admin }: ResetPasswordDia
           {t('warning.system.resetPasswordIntro', { name: admin?.full_name ?? t('option.system.thisAdmin') })}
         </p>
         <FormField label={t('option.system.newPassword')} htmlFor="reset-password" required hint={t('warning.system.newPasswordHint')} error={fieldErrors.password?.[0]}>
-          <input
+          <PasswordInput
             id="reset-password"
-            type="password"
             required
             minLength={8}
             className={inputClasses}
@@ -93,9 +93,8 @@ export function ResetPasswordDialog({ isOpen, onClose, admin }: ResetPasswordDia
           />
         </FormField>
         <FormField label={t('option.system.confirmNewPassword')} htmlFor="reset-password-confirm" required error={fieldErrors.password_confirmation?.[0]}>
-          <input
+          <PasswordInput
             id="reset-password-confirm"
-            type="password"
             required
             minLength={8}
             className={inputClasses}
