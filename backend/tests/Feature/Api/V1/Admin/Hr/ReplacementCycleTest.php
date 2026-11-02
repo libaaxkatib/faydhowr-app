@@ -2,12 +2,19 @@
 
 namespace Tests\Feature\Api\V1\Admin\Hr;
 
+use App\Models\Admin;
 use App\Models\AssignmentAbsence;
+use App\Models\AssignmentCycleEvent;
 use App\Models\ClientCompany;
 use App\Models\Employee;
+use App\Models\EmployeeAttendance;
+use App\Models\EmployeeLeave;
+use App\Models\EmployeeSeparation;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
+use App\Models\PayrollRun;
 use App\Models\Position;
+use App\Models\TemporaryReplacement;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\HrFixtures;
@@ -586,7 +593,7 @@ class ReplacementCycleTest extends TestCase
         $this->assertSame([['last_working_day' => '2026-10-11', 'absent_from' => '2026-10-12', 'returned_on' => '2026-10-12', 'terminated_on' => null]], $this->absences($original), 'a zero-day absence: the holder was never away for payroll');
         $this->assertSame(
             ['absence_started', 'replacement_started', 'cover_cancelled'],
-            \App\Models\AssignmentCycleEvent::query()->where('work_assignment_id', $original->id)->orderBy('id')->pluck('event_type')->all(),
+            AssignmentCycleEvent::query()->where('work_assignment_id', $original->id)->orderBy('id')->pluck('event_type')->all(),
         );
 
         // All 31 days are the holder's again; nothing is lost, and nothing is paid to the cancelled cover.
@@ -646,7 +653,7 @@ class ReplacementCycleTest extends TestCase
         $this->assertSame(1, AssignmentAbsence::query()->where('work_assignment_id', $original->id)->count(), 'one absence, not a new one');
         $this->assertSame(
             ['absence_started', 'replacement_started', 'replacement_ended', 'replacement_started'],
-            \App\Models\AssignmentCycleEvent::query()->where('work_assignment_id', $original->id)->orderBy('id')->pluck('event_type')->all(),
+            AssignmentCycleEvent::query()->where('work_assignment_id', $original->id)->orderBy('id')->pluck('event_type')->all(),
         );
 
         $return = $this->giveBack($secondId, '2026-10-25')->assertOk();
@@ -682,8 +689,8 @@ class ReplacementCycleTest extends TestCase
         $employeeId = $original->employee_id;
 
         // Away Oct 12-20: an approved unpaid leave (14-16) and an absent mark (18) on days the holder is not paid for anyway.
-        \App\Models\EmployeeLeave::query()->create(['employee_id' => $employeeId, 'leave_type' => 'unpaid', 'approval_status' => 'approved', 'start_date' => '2026-10-14', 'end_date' => '2026-10-16', 'recorded_by' => \App\Models\Admin::factory()->create()->id, 'decided_by' => \App\Models\Admin::factory()->create()->id, 'decided_at' => now()]);
-        \App\Models\EmployeeAttendance::query()->create(['employee_id' => $employeeId, 'date' => '2026-10-18', 'status' => 'absent']);
+        EmployeeLeave::query()->create(['employee_id' => $employeeId, 'leave_type' => 'unpaid', 'approval_status' => 'approved', 'start_date' => '2026-10-14', 'end_date' => '2026-10-16', 'recorded_by' => Admin::factory()->create()->id, 'decided_by' => Admin::factory()->create()->id, 'decided_at' => now()]);
+        EmployeeAttendance::query()->create(['employee_id' => $employeeId, 'date' => '2026-10-18', 'status' => 'absent']);
 
         $line = $this->october()[$original->id];
         $this->assertSame(22000, $line->gross_cents, 'Oct 1-11 and 21-31 = 22 days');
@@ -691,7 +698,7 @@ class ReplacementCycleTest extends TestCase
         $this->assertSame(22000, $line->net_cents);
 
         // The same mark on a day the holder does work (Oct 25) still costs one day.
-        \App\Models\EmployeeAttendance::query()->create(['employee_id' => $employeeId, 'date' => '2026-10-25', 'status' => 'absent']);
+        EmployeeAttendance::query()->create(['employee_id' => $employeeId, 'date' => '2026-10-25', 'status' => 'absent']);
         $line = $this->october()[$original->id];
         $this->assertSame(1000, $line->other_deduction_cents);
         $this->assertSame(21000, $line->net_cents);
@@ -706,7 +713,7 @@ class ReplacementCycleTest extends TestCase
 
         $cover = function (string $from, string $to) use ($original): void {
             $temp = $this->makeEmployee('active', 'temporary');
-            \App\Models\TemporaryReplacement::query()->create([
+            TemporaryReplacement::query()->create([
                 'work_assignment_id' => $original->id, 'replacement_employee_id' => $temp->id, 'start_date' => $from, 'end_date' => $to,
                 'currency' => 'USD', 'status' => 'active', 'approved_at' => now(),
             ]);
@@ -724,7 +731,7 @@ class ReplacementCycleTest extends TestCase
         $this->replace($original, null, '2026-10-11', '2026-10-15')->assertOk();
         $this->october();
 
-        $warnings = \App\Models\PayrollRun::query()->where('period', '2026-10')->firstOrFail()->totals['warnings'] ?? [];
+        $warnings = PayrollRun::query()->where('period', '2026-10')->firstOrFail()->totals['warnings'] ?? [];
         $this->assertNotEmpty(array_filter($warnings, fn (string $w): bool => str_contains($w, 'no Replacement works the position on 3 day(s) of 2026-10') && str_contains($w, 'nobody is paid')), json_encode($warnings));
     }
 
@@ -758,7 +765,7 @@ class ReplacementCycleTest extends TestCase
     public function test_separation_details_are_shown_to_candidate_searchers_only_when_they_can_act_on_them(): void
     {
         $inactive = $this->makeEmployee('inactive');
-        \App\Models\EmployeeSeparation::query()->create(['employee_id' => $inactive->id, 'reason' => 'other', 'separation_date' => '2026-09-15', 'rehire_eligible' => false, 'notes' => 'x', 'separated_by' => \App\Models\Admin::query()->value('id')]);
+        EmployeeSeparation::query()->create(['employee_id' => $inactive->id, 'reason' => 'other', 'separation_date' => '2026-09-15', 'rehire_eligible' => false, 'notes' => 'x', 'separated_by' => Admin::query()->value('id')]);
         $find = fn (string $token): array => collect($this->as($token)->getJson($this->url('employee-candidates').'?q='.$inactive->employee_number)->assertOk()->json('data'))->firstWhere('id', $inactive->id);
 
         $this->assertFalse($find($this->admin)['rehire_eligible']);

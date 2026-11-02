@@ -11,6 +11,7 @@ use App\Models\EmployeeWorkAssignment;
 use App\Support\ApiResponse;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Collection;
 
 /**
  * Replacement cycles (see the assignment_absences migration). The ORIGINAL Permanent assignment is never replaced while its holder is away: it stays
@@ -130,9 +131,9 @@ final class AbsenceCycles
     /**
      * The Replacements working at the position right now: non-cancelled Replacement-type successors that have not ended.
      *
-     * @return \Illuminate\Support\Collection<int, EmployeeWorkAssignment>
+     * @return Collection<int, EmployeeWorkAssignment>
      */
-    public static function workingReplacements(EmployeeWorkAssignment $assignment): \Illuminate\Support\Collection
+    public static function workingReplacements(EmployeeWorkAssignment $assignment): Collection
     {
         return EmployeeWorkAssignment::query()
             ->with('employee')

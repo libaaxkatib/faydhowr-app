@@ -8,6 +8,7 @@ use App\Enums\AssignmentType;
 use App\Enums\AuditAction;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
+use App\Models\AssignmentAbsence;
 use App\Models\AssignmentCycleEvent;
 use App\Models\ClientCompany;
 use App\Models\Employee;
@@ -43,7 +44,7 @@ class ReplaceCompanyEmployeeAction
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array{original: EmployeeWorkAssignment, replacement: EmployeeWorkAssignment, absence?: \App\Models\AssignmentAbsence}
+     * @return array{original: EmployeeWorkAssignment, replacement: EmployeeWorkAssignment, absence?: AssignmentAbsence}
      */
     public function handle(ClientCompany $company, EmployeeWorkAssignment $original, array $data, Admin $actor): array
     {
