@@ -23,6 +23,9 @@ class AssignmentCycleEvent extends Model
     /** The cover was cancelled as an entry made by mistake: the absence is closed with zero days, as if the holder had never been away. */
     public const COVER_CANCELLED = 'cover_cancelled';
 
+    /** A Super Admin Recovery Center correction moved the last working day and/or the return date (details hold before, after and the reason). */
+    public const WINDOW_CORRECTED = 'window_corrected';
+
     protected function casts(): array
     {
         return [

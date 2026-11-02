@@ -79,6 +79,7 @@ use App\Http\Controllers\Api\V1\Admin\Payments\PaymentController as AdminPayment
 use App\Http\Controllers\Api\V1\Admin\PermissionController;
 use App\Http\Controllers\Api\V1\Admin\Quotations\QuotationController as AdminQuotationController;
 use App\Http\Controllers\Api\V1\Admin\Reconciliation\DataIssueController;
+use App\Http\Controllers\Api\V1\Admin\Recovery\RecoveryController;
 use App\Http\Controllers\Api\V1\Admin\Reports\BookingReportController;
 use App\Http\Controllers\Api\V1\Admin\Reports\BookingReportSummaryController;
 use App\Http\Controllers\Api\V1\Admin\Reports\CustomerReportController;
@@ -1849,4 +1850,19 @@ Route::prefix('v1/admin/i18n')
         Route::delete('overrides/{key}', [TranslationOverrideController::class, 'destroy'])
             ->middleware('super_admin')
             ->name('api.v1.admin.i18n.overrides.destroy');
+    });
+
+// Super Admin Recovery Center (HR first): previewed, reasoned, idempotent, audited corrections of assignment history. Reserved for Super Admin by the
+// super_admin middleware (role check independent of the permission tables); the apply action checks the role again.
+Route::prefix('v1/admin/recovery')
+    ->middleware(['auth:sanctum', 'admin', 'super_admin', 'throttle:admin-operations'])
+    ->group(function (): void {
+        Route::get('workflows', [RecoveryController::class, 'workflows'])->name('api.v1.admin.recovery.workflows');
+        Route::get('assignments', [RecoveryController::class, 'assignments'])->name('api.v1.admin.recovery.assignments');
+        Route::get('assignments/{assignment}', [RecoveryController::class, 'inspect'])->whereNumber('assignment')->name('api.v1.admin.recovery.inspect');
+        Route::get('payroll-preview', [RecoveryController::class, 'payrollPreview'])->name('api.v1.admin.recovery.payroll-preview');
+        Route::post('preview', [RecoveryController::class, 'preview'])->name('api.v1.admin.recovery.preview');
+        Route::post('apply', [RecoveryController::class, 'apply'])->name('api.v1.admin.recovery.apply');
+        Route::get('corrections', [RecoveryController::class, 'corrections'])->name('api.v1.admin.recovery.corrections');
+        Route::get('errors', [RecoveryController::class, 'errors'])->name('api.v1.admin.recovery.errors');
     });
