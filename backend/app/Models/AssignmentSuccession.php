@@ -30,7 +30,11 @@ class AssignmentSuccession extends Model
 {
     public const TYPE_TEMPORARY = 'temporary';
 
+    /** A person who was on the HR Waiting List when chosen. Kept as its own value so earlier records and clients stay valid. */
     public const TYPE_WAITING_LIST = 'waiting_list';
+
+    /** Any other person in the HR system, chosen by HR (any status, any category). The Waiting List is no longer a requirement. */
+    public const TYPE_PERSON = 'person';
 
     public const TRIGGER_STOP = 'stop';
 
@@ -43,7 +47,7 @@ class AssignmentSuccession extends Model
     /** @return list<string> */
     public static function types(): array
     {
-        return [self::TYPE_TEMPORARY, self::TYPE_WAITING_LIST];
+        return [self::TYPE_TEMPORARY, self::TYPE_PERSON, self::TYPE_WAITING_LIST];
     }
 
     protected function casts(): array

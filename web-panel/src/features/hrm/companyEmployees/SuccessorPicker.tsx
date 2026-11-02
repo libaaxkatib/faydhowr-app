@@ -9,10 +9,11 @@ import { formatDate } from '@/utils/formatters';
 import { EMPTY_SUCCESSOR, effectiveStart, type SuccessorDraft } from '@/utils/successor';
 
 /**
- * The replacement choice that is required when a Permanent assignment is removed (docs/HR_PAYROLL_RULES.md N1-N3). Exactly two kinds are offered:
- * a Temporary employee who has been covering this very position, or a person from the HR Waiting List. Nobody is preselected. A Temporary becomes
- * Permanent as soon as this is saved (the record shows it at once) and inherits the departing salary automatically; a Waiting List person is appointed
- * through the normal status workflow and needs the salary HR agrees. Pay and the assignment begin on the EFFECTIVE DATE, which is included: it defaults to
+ * The replacement choice that is required when a Permanent assignment is removed (docs/HR_PAYROLL_RULES.md N1-N3, amended 2026-11-02). Two kinds are
+ * offered: a Temporary employee who has been covering this very position, or ANY other person in the HR system, found by name or employee number (the
+ * Waiting List is only a suggestion, not a requirement). Nobody is preselected. A Temporary becomes Permanent as soon as this is saved and inherits the
+ * departing salary automatically; any other person needs the salary HR agrees, and if they have not completed the registration steps the appointment still
+ * goes ahead and is recorded for the HR compliance report. Pay and the assignment begin on the EFFECTIVE DATE, which is included: it defaults to
  * the day after the last day, can be set later, and is never moved by the system.
  */
 export function SuccessorPicker({
@@ -31,9 +32,10 @@ export function SuccessorPicker({
   error?: string;
   idPrefix?: string;
 }) {
-  const { t } = useI18n();
+  const { t, tValue } = useI18n();
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
+  const [chosen, setChosen] = useState<{ id: number; label: string } | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(search.trim()), 300);
@@ -47,6 +49,19 @@ export function SuccessorPicker({
   });
 
   const choose = (type: SuccessorDraft['type']) => onChange({ ...EMPTY_SUCCESSOR, type, effectiveDate: value.effectiveDate, salaryCurrency: value.salaryCurrency || 'USD' });
+  // A search shows everyone who matches; before anything is typed the Waiting List is offered as a shortlist (a suggestion, not a requirement).
+  const personOptions = (debounced === '' ? (options.data?.waiting_list ?? []).map((w) => ({ value: String(w.employee_id), label: `${w.name} (${w.employee_number})` })) : (options.data?.people ?? []).map((p) => ({
+    value: String(p.employee_id),
+    label: t('option.hr.successorPersonLabel', {
+      name: p.name,
+      number: p.employee_number,
+      status: tValue('status', p.status) ?? p.status,
+      type: tValue('option.employmentType', p.employment_type) ?? p.employment_type,
+      details: [p.category, p.phone_hint, p.current_assignments.length > 0 ? t('option.hr.successorWorksAt', { places: p.current_assignments.join(', ') }) : null].filter(Boolean).map((x) => `, ${x}`).join(''),
+    }),
+  })));
+  // The person already chosen stays in the list while the search term changes (the select would otherwise go blank and lose the choice).
+  const shownOptions = chosen !== null && value.employeeId === chosen.id && !personOptions.some((o) => o.value === String(chosen.id)) ? [{ value: String(chosen.id), label: chosen.label }, ...personOptions] : personOptions;
   const start = effectiveStart(lastDay, value);
   const startText = start !== '' ? formatDate(start) : t('option.hr.dayAfterLastDay');
 
@@ -63,7 +78,7 @@ export function SuccessorPicker({
           {t('option.hr.successorTemporaryChoice')}
         </label>
         <label className="flex items-center gap-2">
-          <input type="radio" name={`${idPrefix}-type`} checked={value.type === 'waiting_list'} onChange={() => choose('waiting_list')} />
+          <input type="radio" name={`${idPrefix}-type`} checked={value.type === 'person' || value.type === 'waiting_list'} onChange={() => choose('person')} />
           {t('option.hr.successorWaitingChoice')}
         </label>
       </div>
@@ -90,7 +105,7 @@ export function SuccessorPicker({
         </FormField>
       )}
 
-      {value.type === 'waiting_list' && (
+      {(value.type === 'person' || value.type === 'waiting_list') && (
         <>
           <FormField label={t('option.hr.searchWaitingList')} htmlFor={`${idPrefix}-search`} hint={t('option.hr.typeNameOrNumber')}>
             <input id={`${idPrefix}-search`} className={inputClasses} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('option.hr.nameOrEmployeeNumber')} autoComplete="off" />
@@ -99,11 +114,17 @@ export function SuccessorPicker({
             <Select
               id={`${idPrefix}-waiting`}
               value={value.employeeId === null ? '' : String(value.employeeId)}
-              onChange={(e) => onChange({ ...value, employeeId: e.target.value === '' ? null : Number(e.target.value) })}
+              onChange={(e) => {
+                const id = e.target.value === '' ? null : Number(e.target.value);
+                setChosen(id === null ? null : { id, label: personOptions.find((o) => o.value === e.target.value)?.label ?? String(id) });
+                onChange({ ...value, employeeId: id });
+              }}
               placeholder={options.isLoading ? t('option.label.loading') : t('option.hr.choosePerson')}
-              options={(options.data?.waiting_list ?? []).map((w) => ({ value: String(w.employee_id), label: `${w.name} (${w.employee_number})` }))}
+              options={shownOptions}
             />
           </FormField>
+          {debounced === '' && personOptions.length > 0 && <p className="-mt-2 mb-3 text-xs text-ink-faint">{t('option.hr.successorShortlist')}</p>}
+          {debounced !== '' && !options.isLoading && personOptions.length === 0 && <p className="-mt-2 mb-3 text-xs text-ink-muted">{t('option.hr.successorNoPeople')}</p>}
           <div className="grid grid-cols-2 gap-3">
             <FormField label={t('option.hr.agreedSalaryPerMonth')} htmlFor={`${idPrefix}-salary`} required>
               <input id={`${idPrefix}-salary`} type="number" min="0" step="0.01" className={inputClasses} value={value.salaryAmount} onChange={(e) => onChange({ ...value, salaryAmount: e.target.value })} />

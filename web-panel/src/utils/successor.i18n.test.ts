@@ -8,13 +8,13 @@ import { EMPTY_SUCCESSOR, toSuccessorPayload, validateSuccessor, type SuccessorD
 const temporary: SuccessorDraft = { ...EMPTY_SUCCESSOR, type: 'temporary', employeeId: 7 };
 
 test('replacement-choice messages are English by default, with the same wording as before', () => {
-  assert.equal(validateSuccessor(EMPTY_SUCCESSOR), 'Choose who takes over this Permanent position: a Temporary employee who has been covering it, or a person from the HR Waiting List.');
+  assert.equal(validateSuccessor(EMPTY_SUCCESSOR), 'Choose who takes over this Permanent position: a Temporary employee who has been covering it, or any other person in the HR system.');
   assert.equal(validateSuccessor({ ...temporary, effectiveDate: '2026-13-45x' }), 'Enter the effective date of the replacement as a valid date.');
   assert.equal(
     validateSuccessor({ ...temporary, effectiveDate: '2026-10-20' }, '2026-10-25'),
     'The effective date (2026-10-20) must be after the last paid day (2026-10-25). Both days are included, so one day cannot be paid to two people.',
   );
-  assert.equal(validateSuccessor({ ...EMPTY_SUCCESSOR, type: 'waiting_list', employeeId: 9 }), 'Enter the salary agreed for the person from the Waiting List.');
+  assert.equal(validateSuccessor({ ...EMPTY_SUCCESSOR, type: 'waiting_list', employeeId: 9 }), 'Enter the salary agreed for the person chosen.');
   assert.equal(
     validateSuccessor({ ...EMPTY_SUCCESSOR, type: 'waiting_list', employeeId: 9, salaryAmount: '500', salaryCurrency: 'US' }),
     'Enter the salary currency (for example USD).',

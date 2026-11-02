@@ -1203,15 +1203,16 @@ export interface PayrollRollupResult {
 
 // ---- Permanent succession (docs/HR_PAYROLL_RULES.md N1-N3) and Temporary expected payment (N5, N9-N11) -------------------------------
 
-/** The replacement HR/Management chooses when a Permanent assignment is removed. Only these two kinds exist. */
-export type SuccessorType = 'temporary' | 'waiting_list';
+/** The replacement HR/Management chooses when a Permanent assignment is removed: a covering Temporary, or any other person in the HR system. */
+/** 'person' = any other person in the HR system (owner decision 2026-11-02); 'waiting_list' is still accepted and recorded when the person really was Waiting. */
+export type SuccessorType = 'temporary' | 'person' | 'waiting_list';
 
 export interface SuccessorPayload {
   type: SuccessorType;
   employee_id: number;
   /** First day of the replacement's Permanent assignment and salary, INCLUDED. Omitted: the day after the last paid day. Never shifted. */
   effective_date?: string;
-  /** Waiting List only: the salary HR agrees. A Temporary inherits the departing salary automatically. */
+  /** Any person other than a covering Temporary: the salary HR agrees. A Temporary inherits the departing salary automatically. */
   salary_amount?: number;
   salary_currency?: string;
 }
@@ -1222,6 +1223,21 @@ export interface SuccessorOptions {
   recorded: { type: SuccessorType; employee_id: number; effective_date: string } | null;
   temporary: { employee_id: number; employee_number: string; name: string; cover_id: number; cover_start_date: string; cover_end_date: string | null }[];
   waiting_list: { employee_id: number; employee_number: string; name: string; waiting_since: string | null }[];
+  /** Anyone found by the search term (name or employee number); empty until something is typed. */
+  people: SuccessorPerson[];
+}
+
+export interface SuccessorPerson {
+  employee_id: number;
+  employee_number: string;
+  name: string;
+  status: string;
+  employment_type: string;
+  category: string | null;
+  /** Only the last three characters, enough to tell two people with the same name apart. */
+  phone_hint: string | null;
+  current_assignments: string[];
+  waiting_since: string | null;
 }
 
 export interface TemporaryExpectedPaymentMonth {

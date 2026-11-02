@@ -96,7 +96,7 @@ class PermanentSuccessionTest extends TestCase
         $this->assertSame('active', $permanent->fresh()->status->value);
     }
 
-    public function test_only_a_temporary_who_covered_the_position_or_a_waiting_list_person_can_be_chosen(): void
+    public function test_a_temporary_must_have_covered_the_position_but_any_other_person_may_be_chosen(): void
     {
         [, $token] = $this->superAdminToken();
         [$permanent, $a] = $this->position();
@@ -113,9 +113,7 @@ class PermanentSuccessionTest extends TestCase
         $this->stop($token, $a, '2026-10-15', $this->temporaryChoice($otherPermanent))->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSOR_NOT_TEMPORARY');
         // A Temporary who never covered THIS position.
         $this->stop($token, $a, '2026-10-15', $this->temporaryChoice($strangerTemp))->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSOR_NOT_COVERING');
-        // An employee who is not on the Waiting List.
-        $this->stop($token, $a, '2026-10-15', ['type' => 'waiting_list', 'employee_id' => $activeNotWaiting->id, 'salary_amount' => 200, 'salary_currency' => 'USD'])
-            ->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSOR_NOT_WAITING');
+        // (Not being on the Waiting List is NOT a refusal any more: see AnyPersonSuccessorTest.)
         // Nobody replaces themselves.
         $this->stop($token, $a, '2026-10-15', ['type' => 'waiting_list', 'employee_id' => $permanent->id, 'salary_amount' => 200, 'salary_currency' => 'USD'])
             ->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSOR_SAME_EMPLOYEE');
@@ -339,19 +337,21 @@ class PermanentSuccessionTest extends TestCase
         $this->assertSame('waiting', $waiting->fresh()->status->value);
     }
 
-    public function test_an_incomplete_registration_is_refused_and_nothing_is_left_behind(): void
+    public function test_an_incomplete_registration_is_appointed_as_a_recorded_exception_and_never_silently_blocked(): void
     {
         $hr = $this->tokenWithOnly(['hr.view', 'hr.manage']);
         [, $a] = $this->position();
         $waiting = $this->makeEmployee('waiting');
         DB::table('employees')->where('id', $waiting->id)->update(['registration_origin' => 'new']);
 
-        $this->stop($hr, $a, '2026-10-15', ['type' => 'waiting_list', 'employee_id' => $waiting->id, 'salary_amount' => 200, 'salary_currency' => 'USD'])->assertStatus(422);
+        $this->stop($hr, $a, '2026-10-15', ['type' => 'waiting_list', 'employee_id' => $waiting->id, 'salary_amount' => 200, 'salary_currency' => 'USD'])->assertOk();
 
-        $this->assertUntouched($a);
-        $this->assertSame('waiting', $waiting->fresh()->status->value);
-        $this->assertSame(0, EmployeeStatusHistory::query()->where('employee_id', $waiting->id)->where('to_status', 'active')->count());
-        $this->assertSame(0, EmployeeWorkAssignment::query()->where('employee_id', $waiting->id)->count());
+        // HR's choice is honoured; what was not complete is RECORDED (history row, reason, audit) for the compliance report - not blocked.
+        $this->assertSame('active', $waiting->fresh()->status->value);
+        $row = EmployeeStatusHistory::query()->where('employee_id', $waiting->id)->where('to_status', 'active')->firstOrFail();
+        $this->assertSame('successor_appointment_exception', $row->source);
+        $this->assertStringContainsString('Guarantor verified', (string) $row->override_reason);
+        $this->assertSame(1, EmployeeWorkAssignment::query()->where('employee_id', $waiting->id)->count());
     }
 
     public function test_a_failure_late_in_the_workflow_undoes_the_ending_and_the_appointment(): void

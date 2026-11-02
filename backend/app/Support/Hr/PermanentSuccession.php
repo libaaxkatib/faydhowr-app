@@ -16,6 +16,8 @@ use App\Models\AssignmentAbsence;
 use App\Models\AssignmentCycleEvent;
 use App\Models\AssignmentSuccession;
 use App\Models\Employee;
+use App\Models\EmployeeSeparation;
+use App\Models\EmployeeStatusHistory;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\TemporaryReplacement;
 use App\Support\ApiResponse;
@@ -29,10 +31,14 @@ use Illuminate\Support\Facades\DB;
  *
  *   temporary     an existing Temporary employee who has been covering that very assignment. He or she keeps the same employee record and becomes
  *                 Permanent; the new Permanent assignment inherits the departing Permanent's salary (nothing is typed or confirmed);
- *   waiting_list  a person on the HR Waiting List. The existing rules apply unchanged: the status change Waiting -> Active goes through
- *                 UpdateEmployeeStatusAction (a new registration that has not completed the registration workflow is refused there exactly as
- *                 anywhere else), the new Permanent assignment goes through CreateWorkAssignmentAction, and the salary is the one HR enters
- *                 (the existing rule for a Permanent successor; it is never assumed to be inherited).
+ *   person        ANY other person in the HR system (owner decision 2026-11-02: the Waiting List is no longer required; 'waiting_list' is still accepted
+ *                 and recorded when the person really was Waiting). The status change to Active goes through UpdateEmployeeStatusAction first. When
+ *                 that normal path refuses (the person's status is not one step from Active, or a new registration has not completed the
+ *                 registration workflow) the appointment is NOT blocked: it is made as a RECORDED EXCEPTION (status history source
+ *                 successor_appointment_exception with the reason and what was missing, an audit event, and the actor), which the HR compliance
+ *                 report then shows for follow-up. Protections that remain: an unknown person, the departing employee themself, a person separated as NOT
+ *                 eligible for rehire, and every check of CreateWorkAssignmentAction (overlapping shifts, capacity, company rules). The new Permanent
+ *                 assignment goes through CreateWorkAssignmentAction and the salary is the one HR enters (never assumed to be inherited).
  *
  * The new Permanent assignment starts on the EFFECTIVE DATE HR selects, INCLUSIVE (U9): that day is part of the new salary calculation and is never
  * shifted. When none is given it is the day after the departing assignment's last paid day. It must be after that last paid day (the end date is the
@@ -98,7 +104,7 @@ final class PermanentSuccession
 
         if ($choice === null || $choice === [] || empty($choice['type']) || empty($choice['employee_id'])) {
             self::fail(
-                'Choose who takes over this Permanent position before it is removed: a Temporary employee who has been covering it, or a person from the HR Waiting List.',
+                'Choose who takes over this Permanent position before it is removed: a Temporary employee who has been covering it, or any other person in the HR system.',
                 'SUCCESSOR_REQUIRED',
                 ['assignment_id' => $assignment->id],
             );
@@ -116,7 +122,7 @@ final class PermanentSuccession
         $type = (string) $choice['type'];
 
         if (! in_array($type, AssignmentSuccession::types(), true)) {
-            self::fail('The replacement must be a Temporary employee who covered this position or a person from the HR Waiting List.', 'SUCCESSOR_TYPE_INVALID');
+            self::fail('The replacement must be a Temporary employee who covered this position or another person in the HR system.', 'SUCCESSOR_TYPE_INVALID');
         }
 
         if ($lastDay->lt(CarbonImmutable::parse($assignment->start_date)->startOfDay())) {
@@ -164,7 +170,7 @@ final class PermanentSuccession
                 ->first();
 
             if ($cover === null) {
-                self::fail("{$employee->full_name} ({$employee->employee_number}) has not been covering this position. Choose a Temporary employee who has, or a person from the Waiting List.", 'SUCCESSOR_NOT_COVERING');
+                self::fail("{$employee->full_name} ({$employee->employee_number}) has not been covering this position. Choose a Temporary employee who has, or choose them as another person in the HR system.", 'SUCCESSOR_NOT_COVERING');
             }
 
             $salary = self::departingSalary($assignment, $lastDay);
@@ -173,15 +179,17 @@ final class PermanentSuccession
                 self::fail('The departing assignment has no salary to inherit.', 'SUCCESSOR_NO_SALARY_TO_INHERIT');
             }
         } else {
-            if ($employee->status !== EmployeeStatus::Waiting) {
-                self::fail("{$employee->full_name} ({$employee->employee_number}) is not on the HR Waiting List (status: {$employee->status->value}).", 'SUCCESSOR_NOT_WAITING');
+            // Any person may be chosen: the Waiting List is not required, and neither is a particular status or category. The one protection kept here is
+            // an existing recorded rule: a person whose latest separation says NOT eligible for rehire is not brought back through this workflow.
+            if ($employee->status === EmployeeStatus::Inactive && EmployeeSeparation::query()->where('employee_id', $employee->id)->latest('id')->value('rehire_eligible') === false) {
+                self::fail("{$employee->full_name} ({$employee->employee_number}) was separated and recorded as not eligible for rehire, so the person cannot be appointed here.", 'SUCCESSOR_NOT_REHIRE_ELIGIBLE');
             }
 
             $amount = $choice['salary_amount'] ?? null;
             $currency = strtoupper((string) ($choice['salary_currency'] ?? ''));
 
             if (! is_numeric($amount) || (float) $amount <= 0 || strlen($currency) !== 3) {
-                self::fail('A person from the Waiting List needs the salary HR agrees for the position (amount and currency).', 'SUCCESSOR_SALARY_REQUIRED');
+                self::fail('The person chosen needs the salary HR agrees for the position (amount and currency).', 'SUCCESSOR_SALARY_REQUIRED');
             }
 
             $frequency = (string) ($choice['salary_frequency'] ?? SalaryFrequency::Monthly->value);
@@ -191,6 +199,11 @@ final class PermanentSuccession
             }
 
             $salary = ['amount' => number_format((float) $amount, 2, '.', ''), 'currency' => $currency, 'frequency' => $frequency, 'source' => 'entered'];
+        }
+
+        // The record says what the person actually was: Waiting List, or any other person (which includes a requested 'waiting_list' for someone who is not Waiting).
+        if ($type !== AssignmentSuccession::TYPE_TEMPORARY) {
+            $type = $employee->status === EmployeeStatus::Waiting ? AssignmentSuccession::TYPE_WAITING_LIST : AssignmentSuccession::TYPE_PERSON;
         }
 
         return [
@@ -238,6 +251,7 @@ final class PermanentSuccession
             $typeFrom = $employee->employment_type;
             $typeTo = $typeFrom;
             $endedCovers = [];
+            $appointmentException = null;
 
             if ($plan['type'] === AssignmentSuccession::TYPE_TEMPORARY) {
                 // The cover on the departing position ends with it; the person keeps one employee record and becomes Permanent.
@@ -256,13 +270,7 @@ final class PermanentSuccession
                 $employee->update(['employment_type' => 'permanent']);
                 $typeTo = 'permanent';
             } else {
-                // The existing status workflow decides whether this person may become Active (registration workflow, permissions, history).
-                app(UpdateEmployeeStatusAction::class)->handle(
-                    $employee,
-                    EmployeeStatus::Active,
-                    "Appointed from the HR Waiting List to take over assignment #{$departing->id} from {$plan['start']->toDateString()}.",
-                    $actor,
-                );
+                $appointmentException = self::appoint($employee, $departing, $plan, $actor);
                 $employee->refresh();
             }
 
@@ -277,7 +285,11 @@ final class PermanentSuccession
                 'salary_amount' => $plan['salary']['amount'],
                 'salary_currency' => $plan['salary']['currency'],
                 'salary_frequency' => $plan['salary']['frequency'],
-                'notes' => "Takes over assignment #{$departing->id} (".($plan['type'] === AssignmentSuccession::TYPE_TEMPORARY ? 'Temporary employee who covered the position' : 'HR Waiting List').').',
+                'notes' => "Takes over assignment #{$departing->id} (".match ($plan['type']) {
+                    AssignmentSuccession::TYPE_TEMPORARY => 'Temporary employee who covered the position',
+                    AssignmentSuccession::TYPE_WAITING_LIST => 'HR Waiting List',
+                    default => 'person chosen by HR',
+                }.').',
                 'correction_reason' => $correctionReason,
             ], $actor);
 
@@ -321,6 +333,7 @@ final class PermanentSuccession
                     'new_salary' => ['amount' => $plan['salary']['amount'], 'currency' => $plan['salary']['currency'], 'frequency' => $plan['salary']['frequency'], 'source' => $plan['salary']['source']],
                     'temporary_replacement_id' => $plan['cover']?->id,
                     'temporary_replacements_ended' => $endedCovers,
+                    'appointment_exception' => $appointmentException,
                 ],
             ));
 
@@ -346,6 +359,75 @@ final class PermanentSuccession
 
             return $row;
         });
+    }
+
+    /**
+     * Makes the chosen person Active. The normal status workflow is tried first (lifecycle guard, registration workflow, history, audit). When it refuses,
+     * HR's choice is still honoured as a RECORDED EXCEPTION - never silently, never blocked: the status history row (source
+     * successor_appointment_exception) carries the reason, what the person was and what was still missing, the audit log carries an event, and the HR
+     * compliance report lists the person until the missing steps are completed. Returns that record, or null when the normal path sufficed.
+     *
+     * @param  array{type: string, start: CarbonImmutable}  $plan
+     * @return array{from_status: string, missing: list<string>, reason: string}|null
+     */
+    private static function appoint(Employee $employee, EmployeeWorkAssignment $departing, array $plan, Admin $actor): ?array
+    {
+        if ($employee->status === EmployeeStatus::Active) {
+            return null;
+        }
+
+        $note = "Appointed to take over assignment #{$departing->id} from {$plan['start']->toDateString()}.";
+
+        try {
+            app(UpdateEmployeeStatusAction::class)->handle($employee, EmployeeStatus::Active, $note, $actor);
+
+            return null;
+        } catch (HttpResponseException) {
+            // The normal path refused (not one step from Active, or the registration workflow is incomplete). The appointment goes on, recorded below.
+        }
+
+        $workflow = new EmployeeRegistrationWorkflow;
+        $locked = Employee::query()->whereKey($employee->id)->lockForUpdate()->firstOrFail();
+        $from = $locked->status;
+        $missing = $workflow->appliesTo($locked) ? $workflow->missing($locked) : [];
+        $reason = "Appointed by HR as the successor of assignment #{$departing->id} (effective {$plan['start']->toDateString()}) while the person was '{$from->value}'"
+            .($missing === [] ? '' : ' and these registration steps were not complete: '.implode(', ', $missing)).'. Recorded for follow-up in the HR compliance report.';
+        $stage = $locked->pipeline_stage;
+
+        $locked->update([
+            'status' => EmployeeStatus::Active,
+            'pipeline_stage' => null,
+            'waiting_since' => $from === EmployeeStatus::Waiting ? null : $locked->waiting_since,
+        ]);
+
+        EmployeeStatusHistory::query()->create([
+            'employee_id' => $locked->id,
+            'from_status' => $from,
+            'to_status' => EmployeeStatus::Active,
+            'changed_by' => $actor->id,
+            'note' => trim($note.($stage === null ? '' : " Pipeline stage '{$stage->label()}' cleared because the person is now Active (the stage is kept here as history).")),
+            'override_reason' => $reason,
+            'source' => EmployeeRegistrationWorkflow::SOURCE_SUCCESSOR_EXCEPTION,
+        ]);
+
+        event(AuditEvent::record(
+            action: AuditAction::Update,
+            admin: $actor,
+            description: "Employee '{$locked->full_name}' ({$locked->employee_number}) appointed as successor while '{$from->value}': recorded for HR compliance follow-up.",
+            entityType: Employee::class,
+            entityId: $locked->id,
+            metadata: [
+                'event' => 'successor_appointment_exception',
+                'from_status' => $from->value,
+                'to_status' => EmployeeStatus::Active->value,
+                'registration_steps_missing' => $missing,
+                'departing_assignment_id' => $departing->id,
+                'effective_date' => $plan['start']->toDateString(),
+                'reason' => $reason,
+            ],
+        ));
+
+        return ['from_status' => $from->value, 'missing' => $missing, 'reason' => $reason];
     }
 
     /** @param  array<string, mixed>|null  $errors */

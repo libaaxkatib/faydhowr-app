@@ -89,12 +89,18 @@ final class EmployeeRegistrationWorkflow
         return $this->missing($employee) === [];
     }
 
-    /** A Super Admin override with a reason was recorded that moved this person past the workflow. */
+    /** The status-history source of an appointment made through the successor workflow before the registration steps were complete (always with its reason). */
+    public const SOURCE_SUCCESSOR_EXCEPTION = 'successor_appointment_exception';
+
+    /**
+     * A recorded exception moved this person past the workflow: a Super Admin override with a reason, or an appointment made by HR through the successor
+     * workflow (the owner's rule: HR may appoint any person; what was not complete is recorded and shown in the HR compliance report, not silently blocked).
+     */
     public function isExempted(Employee $employee): bool
     {
         return EmployeeStatusHistory::query()
             ->where('employee_id', $employee->id)
-            ->where('source', 'override')
+            ->whereIn('source', ['override', self::SOURCE_SUCCESSOR_EXCEPTION])
             ->whereNotNull('override_reason')
             ->whereIn('to_status', array_map(fn (EmployeeStatus $s): string => $s->value, self::PROTECTED_STATUSES))
             ->exists();

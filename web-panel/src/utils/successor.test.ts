@@ -11,7 +11,7 @@ test('only a Permanent assignment needs a replacement choice', () => {
 });
 
 test('a removal without a choice is not complete', () => {
-  assert.match(validateSuccessor(EMPTY_SUCCESSOR) ?? '', /Temporary employee.*Waiting List/);
+  assert.match(validateSuccessor(EMPTY_SUCCESSOR) ?? '', /Temporary employee.*any other person in the HR system/);
   assert.equal(toSuccessorPayload(EMPTY_SUCCESSOR), null);
   assert.notEqual(validateSuccessor({ ...EMPTY_SUCCESSOR, type: 'temporary' }), null, 'a type without a person is incomplete');
 });
@@ -28,6 +28,14 @@ test('a Waiting List person needs the salary HR agrees, with a three-letter curr
   assert.match(validateSuccessor({ ...base, salaryAmount: '0' }) ?? '', /salary/);
   assert.match(validateSuccessor({ ...base, salaryAmount: '250', salaryCurrency: 'US' }) ?? '', /currency/);
   assert.deepEqual(toSuccessorPayload({ ...base, salaryAmount: '250', salaryCurrency: 'usd' }), { type: 'waiting_list', employee_id: 7, salary_amount: 250, salary_currency: 'USD' });
+});
+
+test('any other person in the HR system is chosen with the salary HR agrees, and is sent as a person', () => {
+  const base = { ...EMPTY_SUCCESSOR, type: 'person' as const, employeeId: 31 };
+  assert.match(validateSuccessor(base) ?? '', /salary/);
+  assert.equal(validateSuccessor({ ...base, salaryAmount: '180', salaryCurrency: 'USD' }), null, 'no Waiting List requirement: only the salary and currency');
+  assert.deepEqual(toSuccessorPayload({ ...base, salaryAmount: '180', salaryCurrency: 'usd', effectiveDate: '2026-10-20' }), { type: 'person', employee_id: 31, effective_date: '2026-10-20', salary_amount: 180, salary_currency: 'USD' });
+  assert.equal(toSuccessorPayload({ ...base, employeeId: null, salaryAmount: '180' }), null, 'nobody is picked automatically');
 });
 
 test('the new Permanent assignment starts the day AFTER the last paid day, across month, year and leap boundaries', () => {

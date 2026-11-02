@@ -11,7 +11,7 @@ export interface SuccessorDraft {
   employeeId: number | null;
   /** First day of the replacement's Permanent assignment and salary, INCLUDED (YYYY-MM-DD). Empty = the day after the last paid day. */
   effectiveDate: string;
-  /** Waiting List only: the salary HR agrees (a Temporary inherits the departing salary automatically). */
+  /** Any person who is not a covering Temporary: the salary HR agrees (a Temporary inherits the departing salary automatically). */
   salaryAmount: string;
   salaryCurrency: string;
 }
@@ -54,7 +54,7 @@ export function validateSuccessor(draft: SuccessorDraft, lastDay?: string): stri
     }
   }
 
-  if (draft.type === 'waiting_list') {
+  if (draft.type !== 'temporary') {
     const amount = Number(draft.salaryAmount);
     if (draft.salaryAmount.trim() === '' || !Number.isFinite(amount) || amount <= 0) return tNow('validation.hr.successorSalary');
     if (!/^[A-Za-z]{3}$/.test(draft.salaryCurrency.trim())) return tNow('validation.hr.successorCurrency');
@@ -71,7 +71,7 @@ export function toSuccessorPayload(draft: SuccessorDraft, lastDay?: string): Suc
 
   if (draft.type === 'temporary') return { type: 'temporary', employee_id: draft.employeeId, ...effective };
 
-  return { type: 'waiting_list', employee_id: draft.employeeId, ...effective, salary_amount: Number(draft.salaryAmount), salary_currency: draft.salaryCurrency.trim().toUpperCase() };
+  return { type: draft.type, employee_id: draft.employeeId, ...effective, salary_amount: Number(draft.salaryAmount), salary_currency: draft.salaryCurrency.trim().toUpperCase() };
 }
 
 /** Separation: one choice per open Permanent assignment; returns the assignment ids that still have none (or an invalid one). */

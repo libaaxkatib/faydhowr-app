@@ -12,8 +12,8 @@ export const hrDelta = defineMessages({
     'Shaqaale ku-meel-gaar ah oo jagada buuxiyey (isla markiiba waxaa loo muujinayaa Joogto; qoondayn Joogto ah iyo isla mushaharka laga bilaabo {date})',
   ),
   'confirm.company.stopSummaryWaitingTakes': message(
-    'A person from the HR Waiting List (appointed; assigned from {date})',
-    'Qof ka mid ah Liiska Sugitaanka HR (la magacaabay; la qoondeeyey laga bilaabo {date})',
+    'Another person chosen by HR (appointed; assigned from {date})',
+    'Qof kale oo HR doortay (la magacaabay; la qoondeeyey laga bilaabo {date})',
   ),
 
   // ---- Payroll corrections: settlement date
