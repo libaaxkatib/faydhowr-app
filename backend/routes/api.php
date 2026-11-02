@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\V1\Admin\Hr\AssignmentSuccessorOptionsController;
 use App\Http\Controllers\Api\V1\Admin\Hr\ClientCompanyAgreementController as AdminClientCompanyAgreementController;
 use App\Http\Controllers\Api\V1\Admin\Hr\ClientCompanyController as AdminClientCompanyController;
 use App\Http\Controllers\Api\V1\Admin\Hr\CompanyEmployeeController as AdminCompanyEmployeeController;
+use App\Http\Controllers\Api\V1\Admin\Hr\ComplianceController as AdminComplianceController;
 use App\Http\Controllers\Api\V1\Admin\Hr\DepartmentController as AdminDepartmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeAttendanceController as AdminEmployeeAttendanceController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeCategoryController as AdminEmployeeCategoryController;
@@ -1865,4 +1866,14 @@ Route::prefix('v1/admin/recovery')
         Route::post('apply', [RecoveryController::class, 'apply'])->name('api.v1.admin.recovery.apply');
         Route::get('corrections', [RecoveryController::class, 'corrections'])->name('api.v1.admin.recovery.corrections');
         Route::get('errors', [RecoveryController::class, 'errors'])->name('api.v1.admin.recovery.errors');
+    });
+
+// HR compliance and accountability report (HR Manager and Super Admin; the controller checks the role as well). Reading needs hr.reports.view,
+// recording a follow-up needs hr.manage too. Nothing here changes an employee, assignment or payroll record.
+Route::prefix('v1/admin/hr/compliance')
+    ->middleware(['auth:sanctum', 'admin', 'permission:hr.reports.view', 'throttle:admin-operations'])
+    ->group(function (): void {
+        Route::get('findings', [AdminComplianceController::class, 'index'])->name('api.v1.admin.hr.compliance.index');
+        Route::get('findings/{finding}', [AdminComplianceController::class, 'show'])->whereNumber('finding')->name('api.v1.admin.hr.compliance.show');
+        Route::patch('findings/{finding}', [AdminComplianceController::class, 'update'])->whereNumber('finding')->middleware('permission:hr.manage')->name('api.v1.admin.hr.compliance.update');
     });

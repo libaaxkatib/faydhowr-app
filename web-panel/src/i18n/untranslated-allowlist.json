@@ -896,6 +896,11 @@
   },
   {
     "file": "layouts/nav.config.ts",
+    "text": "HR Compliance & Accountability",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
     "text": "Audit Log",
     "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
   },

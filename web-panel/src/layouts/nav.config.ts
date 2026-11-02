@@ -78,6 +78,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Waiting Analytics', labelKey: 'nav.waitingAnalytics', to: '/hr/reports/waiting-analytics', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Workforce Request History', labelKey: 'nav.workforceRequestHistory', to: '/hr/reports/workforce-requests', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Temporary Replacement History', labelKey: 'nav.temporaryReplacementHistory', to: '/hr/reports/temporary-replacements', icon: 'bar-chart', permission: 'hr.reports.view', alsoPermission: 'hr.view' },
+      { label: 'HR Compliance & Accountability', labelKey: 'nav.complianceReport', to: '/hr/reports/compliance', icon: 'shield', permission: 'hr.reports.view', alsoPermission: 'hr.view' },
       { label: 'Leave Report', labelKey: 'nav.leaveReport', to: '/hr/reports/leaves', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Performance Report', labelKey: 'nav.performanceReport', to: '/hr/reports/performance-reviews', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Financial Ledger', labelKey: 'nav.financialLedger', to: '/hr/reports/financial-ledger', icon: 'bar-chart', permission: 'hr.reports.view', alsoPermission: 'hr.view' },

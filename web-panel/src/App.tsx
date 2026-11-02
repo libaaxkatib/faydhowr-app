@@ -26,6 +26,7 @@ import { AttendancePage } from '@/features/hrm/AttendancePage';
 import { WaitingAnalyticsPage } from '@/features/hrm/WaitingAnalyticsPage';
 import { WorkforceRequestHistoryPage } from '@/features/hrm/WorkforceRequestHistoryPage';
 import { TemporaryReplacementHistoryPage } from '@/features/hrm/TemporaryReplacementHistoryPage';
+import { ComplianceReportPage } from '@/features/hrm/ComplianceReportPage';
 import { LeaveReportPage } from '@/features/hrm/LeaveReportPage';
 import { PerformanceReportPage } from '@/features/hrm/PerformanceReportPage';
 import { FinancialLedgerPage } from '@/features/hrm/FinancialLedgerPage';
@@ -177,6 +178,7 @@ export default function App() {
         <Route path="/hr/reports/waiting-analytics" element={<RequirePermission permission="hr.reports.view"><WaitingAnalyticsPage /></RequirePermission>} />
         <Route path="/hr/reports/workforce-requests" element={<RequirePermission permission="hr.reports.view"><WorkforceRequestHistoryPage /></RequirePermission>} />
         <Route path="/hr/reports/temporary-replacements" element={<RequirePermission permission="hr.reports.view"><RequirePermission permission="hr.view"><TemporaryReplacementHistoryPage /></RequirePermission></RequirePermission>} />
+        <Route path="/hr/reports/compliance" element={<RequirePermission permission="hr.reports.view"><RequirePermission permission="hr.view"><ComplianceReportPage /></RequirePermission></RequirePermission>} />
         <Route path="/hr/reports/leaves" element={<RequirePermission permission="hr.reports.view"><LeaveReportPage /></RequirePermission>} />
         <Route path="/hr/reports/performance-reviews" element={<RequirePermission permission="hr.reports.view"><PerformanceReportPage /></RequirePermission>} />
         <Route path="/hr/reports/financial-ledger" element={<RequirePermission permission="hr.reports.view"><RequirePermission permission="hr.view"><FinancialLedgerPage /></RequirePermission></RequirePermission>} />
