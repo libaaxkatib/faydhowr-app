@@ -142,7 +142,7 @@ export interface CompanyChainEntry {
 }
 
 export interface CompanyCycleEvent {
-  event_type: 'absence_started' | 'replacement_started' | 'replacement_ended' | 'returned' | 'original_terminated' | 'cover_cancelled';
+  event_type: 'absence_started' | 'replacement_started' | 'replacement_ended' | 'returned' | 'original_terminated' | 'cover_cancelled' | 'window_corrected';
   event_date: string;
   replacement_assignment_id: number | null;
   by: string | null;

@@ -126,6 +126,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Roles & Permissions', labelKey: 'nav.shell.rolesPermissions', to: '/system/roles', icon: 'shield', permission: 'roles.manage' },
       { label: 'Settings', labelKey: 'nav.shell.settings', to: '/system/settings', icon: 'settings', permission: 'settings.view' },
       { label: 'Translations', labelKey: 'nav.shell.translations', to: '/system/translations', icon: 'message-circle', superAdminOnly: true },
+      { label: 'Recovery Center', labelKey: 'nav.recovery.center', to: '/system/recovery', icon: 'refresh', superAdminOnly: true },
       { label: 'Audit Log', labelKey: 'nav.shell.auditLog', to: '/system/audit-log', icon: 'list', permission: 'admins.manage' },
       { label: 'Data Issues & Reconciliation', labelKey: 'nav.shell.dataIssues', to: '/system/data-issues', icon: 'alert-triangle', permission: 'reconciliation.view' },
     ],

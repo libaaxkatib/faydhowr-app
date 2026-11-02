@@ -37,6 +37,7 @@ export const replacementCycles = defineMessages({
   'option.company.cycleEvent.returned': message('Returned to the same assignment', 'Wuxuu ku soo laabtay isla qoondaynta'),
   'option.company.cycleEvent.original_terminated': message('Assignment ended while away', 'Qoondaynta waxay dhammaatay isagoo maqan'),
   'option.company.cycleEvent.cover_cancelled': message('Cover cancelled (entered by mistake)', 'Beddelaadka waa la joojiyey (wuxuu ahaa khalad)'),
+  'option.company.cycleEvent.window_corrected': message('Dates corrected by Super Admin', 'Taariikhaha waxaa hagaajiyey Super Admin'),
   'option.company.cycleCancelled': message('last cover cancelled; the absence was closed', 'Beddelaadkii ugu dambeeyay waa la joojiyey; maqnaanshaha waa la xidhay'),
 
   // ---------------------------------------------------------------- Return when the original assignment is still open (the new cycle model)

@@ -19,6 +19,7 @@ const CYCLE_EVENT_KEYS: Record<CompanyCycleEvent['event_type'], MessageKey> = {
   returned: 'option.company.cycleEvent.returned',
   original_terminated: 'option.company.cycleEvent.original_terminated',
   cover_cancelled: 'option.company.cycleEvent.cover_cancelled',
+  window_corrected: 'option.company.cycleEvent.window_corrected',
 };
 
 interface HistoryDialogProps {

@@ -48,6 +48,7 @@ import { RolesPermissionsPage } from '@/features/system/RolesPermissionsPage';
 import { SettingsPage } from '@/features/system/SettingsPage';
 import { AuditLogPage } from '@/features/system/AuditLogPage';
 import { TranslationsPage } from '@/features/system/TranslationsPage';
+import { RecoveryCenterPage } from '@/features/system/recovery/RecoveryCenterPage';
 import { RequireSuperAdmin } from '@/features/auth/RequireSuperAdmin';
 import { DashboardGate } from '@/features/dashboard/DashboardGate';
 import { NotFoundPage } from '@/features/shell/NotFoundPage';
@@ -211,6 +212,7 @@ export default function App() {
         <Route path="/system/roles" element={<RequirePermission permission="roles.manage"><RolesPermissionsPage /></RequirePermission>} />
         <Route path="/system/settings" element={<RequirePermission permission="settings.view"><SettingsPage /></RequirePermission>} />
         <Route path="/system/translations" element={<RequireSuperAdmin><TranslationsPage /></RequireSuperAdmin>} />
+        <Route path="/system/recovery" element={<RequireSuperAdmin><RecoveryCenterPage /></RequireSuperAdmin>} />
         <Route path="/system/audit-log" element={<RequirePermission permission="admins.manage"><AuditLogPage /></RequirePermission>} />
         <Route path="/system/data-issues" element={<RequirePermission permission="reconciliation.view"><ReconciliationListPage /></RequirePermission>} />
         <Route path="/system/data-issues/:id" element={<RequirePermission permission="reconciliation.view"><ReconciliationDetailPage /></RequirePermission>} />

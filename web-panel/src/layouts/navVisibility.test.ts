@@ -162,8 +162,8 @@ test('the sidebar lists Human Resources, Marketing, Mobile App Management, Syste
 
   // Only the order of the groups changed: every group still has all of its items and destinations.
   const sizes = Object.fromEntries(NAV_GROUPS.map((g) => [g.label, g.items.length]));
-  assert.deepEqual(sizes, { Marketing: 8, 'Human Resources': 37, 'Mobile App Management': 13, System: 6 });
-  assert.equal(new Set(NAV_GROUPS.flatMap((g) => g.items.map((i) => `${g.label}|${i.label}|${i.to}`))).size, 64);
+  assert.deepEqual(sizes, { Marketing: 8, 'Human Resources': 37, 'Mobile App Management': 13, System: 7 });
+  assert.equal(new Set(NAV_GROUPS.flatMap((g) => g.items.map((i) => `${g.label}|${i.label}|${i.to}`))).size, 65);
 
   // Permission visibility is unchanged: an HR Manager still sees only Human Resources, a Mobile App Manager only the Mobile App group.
   assert.deepEqual(groupLabels(permissionSetOf(['hr.view']), false), ['Human Resources']);
