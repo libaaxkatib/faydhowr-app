@@ -2,6 +2,7 @@
 
 namespace App\Actions\Hr\CompanyEmployees;
 
+use App\Models\AssignmentAbsence;
 use App\Models\AuditLog;
 use App\Models\ClientCompany;
 use App\Models\EmployeeWorkAssignment;
@@ -79,6 +80,40 @@ class ListCompanyEmployeeHistoryAction
             'replaces_assignment_id' => $a->replaces_assignment_id,
         ])->all();
 
-        return ['events' => $events, 'chain' => $chain];
+        return ['events' => $events, 'chain' => $chain, 'cycles' => $this->cycles($assignments->pluck('id')->all())];
+    }
+
+    /**
+     * The Replacement cycles of these assignments: each absence of an original assignment (which keeps its id across all of them) with the events
+     * written for it, in the order they happened.
+     *
+     * @param  list<int>  $assignmentIds
+     * @return list<array<string, mixed>>
+     */
+    private function cycles(array $assignmentIds): array
+    {
+        return AssignmentAbsence::query()
+            ->with(['events.admin'])
+            ->whereIn('work_assignment_id', $assignmentIds)
+            ->orderBy('absent_from')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (AssignmentAbsence $absence): array => [
+                'id' => $absence->id,
+                'assignment_id' => $absence->work_assignment_id,
+                'last_working_day' => $absence->last_working_day->toDateString(),
+                'absent_from' => $absence->absent_from->toDateString(),
+                'returned_on' => $absence->returned_on?->toDateString(),
+                'terminated_on' => $absence->terminated_on?->toDateString(),
+                'events' => $absence->events->map(fn ($e): array => [
+                    'event_type' => $e->event_type,
+                    'event_date' => $e->event_date->toDateString(),
+                    'replacement_assignment_id' => $e->replacement_assignment_id,
+                    'by' => $e->admin?->full_name,
+                    'at' => $e->created_at?->toIso8601String(),
+                    'details' => $e->details,
+                ])->values()->all(),
+            ])
+            ->all();
     }
 }

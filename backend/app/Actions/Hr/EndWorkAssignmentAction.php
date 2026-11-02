@@ -8,6 +8,7 @@ use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\AssignmentSuccession;
 use App\Models\EmployeeWorkAssignment;
+use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\Payroll\ClosedPayrollCorrection;
 use App\Support\Hr\PermanentSuccession;
@@ -33,9 +34,17 @@ class EndWorkAssignmentAction
         $old = $assignment->end_date?->toDateString();
         $new = CarbonImmutable::parse($data['end_date'])->toDateString();
 
+        // A Replacement covering an away holder leaves only through Return or a swap (which pass `cycle_managed` and record the cycle's events).
+        if (($data['cycle_managed'] ?? false) !== true) {
+            AbsenceCycles::assertNotBound($assignment, 'Ending this assignment');
+        }
+
         $plan = ($data['succession_handled'] ?? false) === true
             ? null
             : PermanentSuccession::demand($assignment, $data['successor'] ?? null, CarbonImmutable::parse($new)->startOfDay());
+
+        // The holder may be ended while away (a Replacement may be working). That never ends the Replacement; HR confirms it first (AbsenceCycles).
+        $absence = AbsenceCycles::assertTerminationAllowed($assignment, CarbonImmutable::parse($new)->startOfDay(), ($data['confirm_replacement_continues'] ?? false) === true);
 
         return $this->corrections->run(
             $actor,
@@ -45,8 +54,12 @@ class EndWorkAssignmentAction
             CarbonImmutable::parse($old === null ? $new : min($old, $new))->addDay()->toDateString(),
             $data['correction_reason'] ?? null,
             ['assignment_id' => $assignment->id, 'old' => ['end_date' => $old], 'new' => ['end_date' => $new]],
-            fn (): EmployeeWorkAssignment => DB::transaction(function () use ($assignment, $data, $actor, $plan): EmployeeWorkAssignment {
+            fn (): EmployeeWorkAssignment => DB::transaction(function () use ($assignment, $data, $actor, $plan, $absence, $new): EmployeeWorkAssignment {
                 $ended = $this->end($assignment, $data, $actor);
+
+                if ($absence !== null) {
+                    AbsenceCycles::recordTermination($absence, CarbonImmutable::parse($new)->startOfDay(), $actor);
+                }
 
                 if ($plan !== null) {
                     PermanentSuccession::complete($assignment->refresh(), $plan, $actor, $data['succession_trigger'] ?? AssignmentSuccession::TRIGGER_END, $data['correction_reason'] ?? null);

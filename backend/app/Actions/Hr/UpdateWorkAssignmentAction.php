@@ -14,6 +14,7 @@ use App\Models\AssignmentSuccession;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\WorkLocation;
 use App\Support\ApiResponse;
+use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\CompanyLocationResolver;
 use App\Support\Hr\ConcurrentAssignmentGuard;
@@ -50,6 +51,17 @@ class UpdateWorkAssignmentAction
     public function handle(EmployeeWorkAssignment $assignment, array $data, Admin $actor): EmployeeWorkAssignment
     {
         $this->guardTypeAndInheritedSalary($assignment, $data);
+
+        // Ending a holder who is away needs the explicit Stop / End step, which asks HR to confirm what happens to the Replacement and writes the cycle's
+        // event; a plain edit of the end date must not skip that.
+        if (! empty($data['end_date']) && $assignment->end_date === null && AbsenceCycles::open($assignment) !== null) {
+            $this->fail('This assignment\'s holder is away. End it with Stop Employee (or End assignment) so the Replacement who is working can be confirmed; editing the end date here would skip that.', 'USE_STOP_FOR_ABSENT_ASSIGNMENT');
+        }
+
+        // A Replacement covering an away holder cannot be ended or made Permanent by editing it (the absence would be left open).
+        if ((isset($data['assignment_type']) && $data['assignment_type'] !== AssignmentType::Replacement->value) || ! empty($data['end_date'])) {
+            AbsenceCycles::assertNotBound($assignment, 'Ending this Replacement or making it Permanent by editing it');
+        }
 
         $plan = $this->successionPlan($assignment, $data);
         $earliest = $this->earliestPayrollDate($assignment, $data);

@@ -22,6 +22,8 @@ class StopCompanyAssignmentRequest extends FormRequest
             'end_date' => ['required', 'date'],
             'reason' => ['required', 'string', 'min:3', 'max:500'],
             'correction_reason' => ['nullable', 'string', 'max:500'],
+            // Ending an assignment whose holder is away while a Replacement is working: HR confirms the Replacement carries on (AbsenceCycles).
+            'confirm_replacement_continues' => ['sometimes', 'boolean'],
             // Required by the action for an open Permanent position (docs/HR_PAYROLL_RULES.md N1): a Temporary who covered it, or a Waiting List person.
             ...SuccessorRules::for('successor'),
         ];

@@ -371,11 +371,18 @@ class OwnerDecisionsFinalTest extends TestCase
 
     public function test_an_assignment_edited_from_replacement_back_to_permanent_is_audited_and_never_converted_silently(): void
     {
-        [, $temp, $replacement] = $this->confirmedTemporaryReplacement();
+        [$original, $temp, $replacement] = $this->confirmedTemporaryReplacement();
 
         // Nothing converts it by itself: the type stays until somebody changes it, explicitly.
         $this->assertSame('replacement', $replacement->fresh()->assignment_type->value);
 
+        // While the holder is only away, this Replacement covers them: making it Permanent now would put two Permanent holders on one position.
+        $this->as($this->super)->putJson("/api/v1/admin/hr/work-assignments/{$replacement->id}", ['assignment_type' => 'permanent'])
+            ->assertUnprocessable()->assertJsonPath('error_code', 'REPLACEMENT_COVERS_AN_ABSENCE');
+        $this->assertSame('replacement', $replacement->fresh()->assignment_type->value);
+
+        // End the holder first (the Replacement keeps working, after the confirmation); then the type can be corrected, explicitly.
+        $this->as($this->super)->patchJson("/api/v1/admin/hr/work-assignments/{$original->id}/end", ['end_date' => '2026-09-15', 'confirm_replacement_continues' => true])->assertOk();
         $this->as($this->super)->putJson("/api/v1/admin/hr/work-assignments/{$replacement->id}", ['assignment_type' => 'permanent'])->assertOk();
 
         $resolved = AuditLog::query()->where('entity_type', EmployeeWorkAssignment::class)->where('entity_id', $replacement->id)->get()->first(fn ($l) => ($l->metadata['event'] ?? null) === 'temporary_registered_as_replacement_resolved');

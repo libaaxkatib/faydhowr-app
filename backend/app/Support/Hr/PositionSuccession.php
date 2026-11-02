@@ -2,6 +2,7 @@
 
 namespace App\Support\Hr;
 
+use App\Enums\AssignmentType;
 use App\Enums\WorkAssignmentStatus;
 use App\Models\EmployeeWorkAssignment;
 use App\Support\ApiResponse;
@@ -39,13 +40,17 @@ final class PositionSuccession
             self::fail('An employee cannot take over their own assignment.', 'SUCCESSION_SAME_EMPLOYEE');
         }
 
-        if ($predecessor->end_date === null) {
+        // A Permanent assignment whose holder is away stays open (replacement cycles): its last paid day is the last working day of the open absence.
+        $absence = $predecessor->end_date === null ? AbsenceCycles::open($predecessor) : null;
+
+        if ($predecessor->end_date === null && $absence === null) {
             self::fail('The assignment being replaced is still open. Record the separation (or end that assignment) first so its last paid day is known.', 'SUCCESSION_PREDECESSOR_STILL_OPEN');
         }
 
+        // While the holder is away only a Replacement that is still working blocks another; the ended ones of earlier cycles are history.
         $taken = EmployeeWorkAssignment::query()
             ->where('replaces_assignment_id', $predecessor->id)
-            ->where('status', '!=', WorkAssignmentStatus::Cancelled)
+            ->when($absence === null, fn ($q) => $q->where('status', '!=', WorkAssignmentStatus::Cancelled), fn ($q) => $q->where('status', WorkAssignmentStatus::Active))
             ->when($ignoreSuccessorId, fn ($q) => $q->where('id', '!=', $ignoreSuccessorId))
             ->exists();
 
@@ -53,7 +58,7 @@ final class PositionSuccession
             self::fail('Another employee already takes over this assignment.', 'SUCCESSION_ALREADY_REPLACED');
         }
 
-        self::assertNoOverlap($predecessor->end_date, $successorStart);
+        self::assertNoOverlap($predecessor->end_date ?? $absence->last_working_day, $successorStart);
     }
 
     /** The predecessor's last paid day must be strictly before the successor's first. */
@@ -76,14 +81,22 @@ final class PositionSuccession
      */
     public static function assertEndKeepsSuccessorClear(EmployeeWorkAssignment $assignment, CarbonImmutable $newLastDay): void
     {
-        $successor = EmployeeWorkAssignment::query()
+        $successors = EmployeeWorkAssignment::query()
             ->where('replaces_assignment_id', $assignment->id)
             ->where('status', '!=', WorkAssignmentStatus::Cancelled)
             ->orderBy('start_date')
-            ->first();
+            ->get();
 
-        if ($successor !== null) {
+        foreach ($successors as $successor) {
+            // A Replacement that took over while the holder was away does not overlap the holder's last paid day: the days it holds are not paid to the
+            // holder (the absence window). Ending the holder's assignment later therefore leaves it untouched.
+            if ($successor->assignment_type === AssignmentType::Replacement && AbsenceCycles::isAwayOn($assignment, $successor->start_date)) {
+                continue;
+            }
+
             self::assertNoOverlap($newLastDay, CarbonImmutable::parse($successor->start_date));
+
+            return;
         }
     }
 

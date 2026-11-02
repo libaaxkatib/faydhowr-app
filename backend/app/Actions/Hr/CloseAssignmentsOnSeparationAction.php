@@ -13,6 +13,7 @@ use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
 use App\Models\TemporaryReplacement;
 use App\Support\ApiResponse;
+use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\PermanentSuccession;
 use App\Support\Hr\PositionSuccession;
 use Carbon\CarbonImmutable;
@@ -46,7 +47,7 @@ class CloseAssignmentsOnSeparationAction
     /**
      * @return array{assignments: list<array<string, mixed>>, replacements_ended: list<int>, finalized_payroll_after_separation: list<string>}
      */
-    public function handle(Employee $employee, string $separationDate, Admin $actor, array $choices = [], ?string $correctionReason = null): array
+    public function handle(Employee $employee, string $separationDate, Admin $actor, array $choices = [], ?string $correctionReason = null, bool $confirmReplacementContinues = false): array
     {
         $date = CarbonImmutable::parse($separationDate)->startOfDay();
         $closed = [];
@@ -57,6 +58,13 @@ class CloseAssignmentsOnSeparationAction
             ->where('status', WorkAssignmentStatus::Active)
             ->orderBy('id')
             ->get();
+
+        // A Replacement who is covering a holder that is away cannot simply be separated: the absence would stay open with nobody covering the position.
+        foreach ($open as $assignment) {
+            if (! $assignment->start_date->gt($date)) {
+                AbsenceCycles::assertNotBound($assignment, "Separating {$employee->full_name}");
+            }
+        }
 
         // docs/HR_PAYROLL_RULES.md N1: every open PERMANENT assignment that really ends here needs its replacement choice. All the missing ones are
         // reported together, before anything is closed (an assignment that has not started yet is cancelled, not removed, and needs none).
@@ -93,6 +101,9 @@ class CloseAssignmentsOnSeparationAction
                 $newEnd = $assignment->end_date !== null && $assignment->end_date->lt($date) ? CarbonImmutable::parse($assignment->end_date) : $date;
             }
 
+            // A holder who is away may be separated; a working Replacement is left as it is, after HR confirmed that (AbsenceCycles).
+            $absence = $assignment->start_date->gt($date) ? null : AbsenceCycles::assertTerminationAllowed($assignment, $newEnd, $confirmReplacementContinues);
+
             // The leaver is paid through this day; a successor already starting on or before it would be paid for the same day.
             PositionSuccession::assertEndKeepsSuccessorClear($assignment, $newEnd);
             // An assignment that had not started yet (and could not be cancelled) is not a position in service: no choice is demanded for it.
@@ -103,6 +114,10 @@ class CloseAssignmentsOnSeparationAction
                 'end_date' => $newEnd->toDateString(),
                 'notes' => trim(($assignment->notes ? $assignment->notes."\n" : '').$note),
             ]);
+
+            if ($absence !== null) {
+                AbsenceCycles::recordTermination($absence, $newEnd, $actor);
+            }
 
             $closed[] = ['id' => $assignment->id, 'action' => 'ended', 'previous_end_date' => $previousEnd, 'new_end_date' => $newEnd->toDateString()];
             $closedWindows[$assignment->id] = $newEnd;

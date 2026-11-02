@@ -21,6 +21,7 @@ class EndWorkAssignmentRequest extends FormRequest
             'end_date' => ['required', 'date'],
             'note' => ['nullable', 'string'],
             'correction_reason' => ['nullable', 'string', 'max:500'],
+            'confirm_replacement_continues' => ['sometimes', 'boolean'],
             ...SuccessorRules::for('successor'),
         ];
     }

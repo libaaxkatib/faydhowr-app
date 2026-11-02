@@ -79,6 +79,12 @@ class EmployeeWorkAssignment extends Model
         return $this->hasMany(self::class, 'replaces_assignment_id');
     }
 
+    /** The absences of this assignment's holder (replacement cycles): the assignment stays open and keeps its id across all of them. */
+    public function absences(): HasMany
+    {
+        return $this->hasMany(AssignmentAbsence::class, 'work_assignment_id')->orderBy('absent_from');
+    }
+
     public function position(): BelongsTo
     {
         return $this->belongsTo(Position::class);

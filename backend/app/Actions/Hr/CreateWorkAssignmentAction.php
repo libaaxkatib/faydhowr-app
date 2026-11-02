@@ -15,6 +15,7 @@ use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\WorkLocation;
 use App\Support\ApiResponse;
+use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\CompanyLocationResolver;
 use App\Support\Hr\ConcurrentAssignmentGuard;
@@ -198,8 +199,9 @@ class CreateWorkAssignmentAction
                 metadata: [
                     ...($predecessor === null ? [] : [
                         'replaces_assignment_id' => $predecessor->id,
-                        'predecessor_last_paid_day' => $predecessor->end_date->toDateString(),
-                        'uncovered_gap_days' => PositionSuccession::gapDays($predecessor->end_date, $assignment->start_date),
+                        // An open assignment whose holder is away (replacement cycles) is paid through the last working day of the absence.
+                        'predecessor_last_paid_day' => ($predecessor->end_date ?? AbsenceCycles::open($predecessor)?->last_working_day)?->toDateString(),
+                        'uncovered_gap_days' => PositionSuccession::gapDays($predecessor->end_date ?? AbsenceCycles::open($predecessor)?->last_working_day ?? $assignment->start_date, $assignment->start_date),
                     ]),
                     ...(isset($data['salary_basis']) ? ['salary_basis' => $data['salary_basis']] : []),
                     ...(isset($data['shift']) ? ['shift' => $data['shift']] : []),
@@ -225,6 +227,14 @@ class CreateWorkAssignmentAction
         $predecessor = EmployeeWorkAssignment::query()->lockForUpdate()->findOrFail($data['replaces_assignment_id']);
 
         PositionSuccession::assertCanFollow($predecessor, $employee->id, CarbonImmutable::parse($data['start_date']));
+
+        // A holder who is away is covered through Replace Employee, which records the cycle's events; a bare assignment would leave them out and
+        // the cover could then never be returned from.
+        $away = ($data['cycle_managed'] ?? false) === true ? null : AbsenceCycles::open($predecessor);
+
+        if ($away !== null && $away->terminated_on === null) {
+            $this->fail('This assignment\'s holder is away. Record the cover with Replace Employee (so the absence and the Replacement are linked), not as a separate new assignment.', 'USE_REPLACE_EMPLOYEE_FOR_ABSENT_ASSIGNMENT');
+        }
 
         if ($companyId !== null && $predecessor->client_company_id !== null && $predecessor->client_company_id !== $companyId) {
             $this->fail('The assignment being replaced belongs to a different company.', 'SUCCESSION_DIFFERENT_COMPANY');
@@ -267,7 +277,10 @@ class CreateWorkAssignmentAction
             return;
         }
 
-        $activeCount = $workLocation->workAssignments()->where('status', WorkAssignmentStatus::Active)->count();
+        // An assignment whose holder is away (an open absence) does not hold a seat: its Replacement does.
+        $activeCount = $workLocation->workAssignments()->where('status', WorkAssignmentStatus::Active)
+            ->whereDoesntHave('absences', fn ($q) => $q->whereNull('returned_on')->whereNull('terminated_on'))
+            ->count();
         $overriding = $actor->role === AdminRole::SuperAdmin && ($data['override_capacity'] ?? false) === true;
 
         if ($activeCount >= $workLocation->capacity && ! $overriding) {

@@ -532,15 +532,17 @@ class CompanyEmployeeManagementTest extends TestCase
         $this->assertSame('ended', $replacement->status->value);
         $this->assertSame('2026-10-20', $replacement->end_date->toDateString());
         $returned = EmployeeWorkAssignment::query()->findOrFail($result->json('data.returned.id'));
+        $this->assertSame($a->id, $returned->id, 'the original assignment resumes under its own id');
         $this->assertSame($original->id, $returned->employee_id);
-        $this->assertSame('2026-10-21', $returned->start_date->toDateString());
+        $this->assertSame('2026-01-01', $returned->start_date->toDateString(), 'its start date is not rewritten');
         $this->assertSame('permanent', $returned->assignment_type->value);
-        $this->assertSame($replacementId, $returned->replaces_assignment_id);
+        $this->assertSame($replacementId, EmployeeWorkAssignment::query()->where('replaces_assignment_id', $a->id)->value('id'));
         $this->assertSame('300.00', (string) $returned->salary_amount, 'the salary HR confirmed in the request');
         $this->assertSame($this->cleaner->id, $returned->position_id);
 
-        $this->assertSame('ended', $a->fresh()->status->value, "the original's first assignment is kept as history");
-        $this->assertSame(3, EmployeeWorkAssignment::query()->where('client_company_id', $this->company->id)->count());
+        $this->assertSame('active', $a->fresh()->status->value, 'the original assignment was never ended');
+        $this->assertNull($a->fresh()->end_date);
+        $this->assertSame(2, EmployeeWorkAssignment::query()->where('client_company_id', $this->company->id)->count(), 'no new Permanent row');
         $this->assertSame('active', $stand->fresh()->status->value, "the replacement employee's record is not touched");
     }
 
@@ -609,7 +611,8 @@ class CompanyEmployeeManagementTest extends TestCase
         $this->assertContains('returned', $events);
         $this->assertNotContains('stopped', $events, "another company's stop is not in this company's history");
         $this->assertNotEmpty($history['events'][0]['by']);
-        $this->assertSame(3, count($history['chain']));
+        $this->assertSame(2, count($history['chain']), 'the original (kept open) and its Replacement');
+        $this->assertSame(1, count($history['cycles']), 'the absence and return are one cycle of the original assignment');
         $chain = collect($history['chain'])->keyBy('assignment_id');
         $this->assertSame($a->id, $chain[$replacementId]['replaces_assignment_id']);
     }
@@ -625,6 +628,6 @@ class CompanyEmployeeManagementTest extends TestCase
         $item = PayrollItem::query()->where('work_assignment_id', $a->id)->sole();
         $this->assertSame(30000, (int) $item->net_cents);
         $this->assertSame('2026-09', $item->period);
-        $this->assertSame(3, EmployeeWorkAssignment::query()->where('client_company_id', $this->company->id)->count(), 'original, replacement and returned original: nothing was deleted');
+        $this->assertSame(2, EmployeeWorkAssignment::query()->where('client_company_id', $this->company->id)->count(), 'the original and its replacement: nothing was deleted or duplicated');
     }
 }

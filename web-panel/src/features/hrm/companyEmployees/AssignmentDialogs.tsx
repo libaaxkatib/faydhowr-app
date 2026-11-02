@@ -23,6 +23,7 @@ import {
   dayBefore,
   isCorrectionReasonRequired,
   isTemporaryWorker,
+  returnsToSameAssignment,
   SHIFT_OPTIONS,
   startDateChangeWarning,
   validateAssignForm,
@@ -628,6 +629,8 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
   }, [row]);
 
   const original = history?.chain.find((entry) => entry.assignment_id === row?.replaces_assignment_id);
+  // The original is still open (its holder was away): the person comes back to the same assignment id, no new Permanent assignment is created.
+  const sameAssignment = returnsToSameAssignment(original);
 
   const mutation = useMutation({
     mutationFn: () => companyEmployeesApi.returnOriginal(companyId, row!.assignment_id, {
@@ -703,7 +706,7 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
                 <input id="return-notes" className={inputClasses} value={notes} onChange={(event) => setNotes(event.target.value)} />
               </FormField>
               <CorrectionReasonField visible={state.needsCorrection} value={correctionReason} onChange={setCorrectionReason} error={errors.correction_reason} />
-              <p className="text-xs text-ink-muted">{t('confirm.company.returnFooterNote')}</p>
+              <p className="text-xs text-ink-muted" data-testid="return-footer-note">{t(sameAssignment ? 'confirm.company.returnFooterNoteSame' : 'confirm.company.returnFooterNote')}</p>
             </form>
           )}
           {step === 'review' && (
@@ -712,7 +715,10 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
               <Summary
                 rows={[
                   [t('confirm.company.assignmentOfName', { name: row.full_name ?? '' }), t('confirm.company.endsOn', { date: formatDate(dayBefore(returnDate)) })],
-                  [original ? `${original.employee_name}` : t('confirm.company.summaryOriginalEmployee'), t('confirm.company.startsAgainAsPermanent', { date: formatDate(returnDate) })],
+                  [
+                    original ? `${original.employee_name}` : t('confirm.company.summaryOriginalEmployee'),
+                    sameAssignment && original ? t('confirm.company.returnsToSameAssignment', { id: original.assignment_id, date: formatDate(returnDate) }) : t('confirm.company.startsAgainAsPermanent', { date: formatDate(returnDate) }),
+                  ],
                   [t('confirm.company.confirmedSalary'), money(amount, currency)],
                 ]}
               />
@@ -738,14 +744,21 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
   const [endDate, setEndDate] = useState(today());
   const [reason, setReason] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
-  const [errors, setErrors] = useState<{ end_date?: string; reason?: string; correction_reason?: string; successor?: string }>({});
+  const [errors, setErrors] = useState<{ end_date?: string; reason?: string; correction_reason?: string; successor?: string; away_confirm?: string }>({});
   const [confirming, setConfirming] = useState(false);
   // A Permanent position cannot be left without a replacement (docs/HR_PAYROLL_RULES.md N1).
   const [successor, setSuccessor] = useState<SuccessorDraft>(EMPTY_SUCCESSOR);
-  const askSuccessor = row !== null && needsSuccessor(row.assignment_type);
+  // The holder is away and a Replacement works the position: the position already has someone, so no successor is asked for; HR must confirm that the
+  // Replacement is NOT ended by this (Option B: the holder may be ended without waiting for the return).
+  const [serverDemandsConfirm, setServerDemandsConfirm] = useState(false);
+  const [confirmContinues, setConfirmContinues] = useState(false);
+  const awayStop = row !== null && ((row.away !== null && row.away.terminated_on === null) || serverDemandsConfirm);
+  const askSuccessor = row !== null && needsSuccessor(row.assignment_type) && !awayStop;
 
   useEffect(() => {
     if (row) {
+      setServerDemandsConfirm(false);
+      setConfirmContinues(false);
       setEndDate(today() < row.start_date ? row.start_date : today());
       setCorrectionReason('');
       setReason('');
@@ -758,10 +771,12 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
   }, [row]);
 
   const mutation = useMutation({
-    mutationFn: () => companyEmployeesApi.stop(companyId, row!.assignment_id, { end_date: endDate, reason: reason.trim(), ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}), ...(askSuccessor ? { successor: toSuccessorPayload(successor, endDate) ?? undefined } : {}) }),
+    mutationFn: () => companyEmployeesApi.stop(companyId, row!.assignment_id, { end_date: endDate, reason: reason.trim(), ...(state.needsCorrection ? { correction_reason: correctionReason.trim() } : {}), ...(askSuccessor ? { successor: toSuccessorPayload(successor, endDate) ?? undefined } : {}), ...(awayStop && confirmContinues ? { confirm_replacement_continues: true } : {}) }),
     onSuccess: () => state.succeeded(t('notify.company.assignmentStopped'), onClose),
     onError: (e) => {
       state.failed(e);
+      // The server knows something the list did not (a Replacement started meanwhile): show the same warning and ask for the same confirmation.
+      if (e instanceof ApiClientError && e.code === 'REPLACEMENT_CONTINUES_CONFIRMATION_REQUIRED') setServerDemandsConfirm(true);
       setConfirming(false);
     },
   });
@@ -769,7 +784,8 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
   const submit = (event: FormEvent) => {
     event.preventDefault();
     state.reset();
-    const found: { end_date?: string; reason?: string; correction_reason?: string; successor?: string } = validateStopForm(endDate, reason, row?.start_date ?? '');
+    const found: { end_date?: string; reason?: string; correction_reason?: string; successor?: string; away_confirm?: string } = validateStopForm(endDate, reason, row?.start_date ?? '');
+    if (awayStop && !confirmContinues) found.away_confirm = t('validation.company.awayStopConfirm');
     const needed = correctionError(state, correctionReason, t);
     if (needed) found.correction_reason = needed;
     if (askSuccessor) {
@@ -812,11 +828,21 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
             <input id="stop-reason" className={inputClasses} value={reason} onChange={(event) => setReason(event.target.value)} />
           </FormField>
           {askSuccessor && <SuccessorPicker assignmentId={row.assignment_id} lastDay={endDate} value={successor} onChange={setSuccessor} error={errors.successor ?? state.serverFields.successor?.[0]} idPrefix="stop-successor" />}
+          {awayStop && (
+            <div role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs text-warning" data-testid="away-stop-warning">
+              <p className="mb-1.5">{t('warning.company.awayStop', { date: formatDate(row.away?.absent_from ?? endDate) })}</p>
+              <label className="flex items-start gap-2">
+                <input type="checkbox" id="stop-confirm-continues" className="mt-0.5" checked={confirmContinues} onChange={(event) => setConfirmContinues(event.target.checked)} />
+                {t('confirm.company.awayStopConfirm')}
+              </label>
+              {errors.away_confirm && <p className="mt-1 text-danger">{errors.away_confirm}</p>}
+            </div>
+          )}
           <CorrectionReasonField visible={state.needsCorrection} value={correctionReason} onChange={setCorrectionReason} error={errors.correction_reason} />
         </form>
       )}
       {row && confirming && (
-        <Summary rows={[[t('confirm.company.stopSummaryEmployee'), `${row.full_name} (${row.employee_number})`], [t('confirm.company.summaryCompany'), companyName], [t('confirm.company.stopSummaryLastDay'), formatDate(endDate)], [t('confirm.company.reason'), reason.trim()], ...(askSuccessor ? [[t('confirm.company.stopSummaryReplacement'), successor.type === 'temporary' ? t('confirm.company.stopSummaryTemporaryTakes', { date: formatDate(effectiveStart(endDate, successor)) }) : t('confirm.company.stopSummaryWaitingTakes', { date: formatDate(effectiveStart(endDate, successor)) })] as [string, string]] : []), [t('confirm.company.stopSummaryHrStatus'), t('confirm.company.stopSummaryNotChanged')]]} />
+        <Summary rows={[[t('confirm.company.stopSummaryEmployee'), `${row.full_name} (${row.employee_number})`], [t('confirm.company.summaryCompany'), companyName], [t('confirm.company.stopSummaryLastDay'), formatDate(endDate)], [t('confirm.company.reason'), reason.trim()], ...(askSuccessor ? [[t('confirm.company.stopSummaryReplacement'), successor.type === 'temporary' ? t('confirm.company.stopSummaryTemporaryTakes', { date: formatDate(effectiveStart(endDate, successor)) }) : t('confirm.company.stopSummaryWaitingTakes', { date: formatDate(effectiveStart(endDate, successor)) })] as [string, string]] : []), ...(awayStop ? [[t('confirm.company.stopSummaryReplacement'), t('confirm.company.stopSummaryReplacementContinues')] as [string, string]] : []), [t('confirm.company.stopSummaryHrStatus'), t('confirm.company.stopSummaryNotChanged')]]} />
       )}
     </Modal>
   );

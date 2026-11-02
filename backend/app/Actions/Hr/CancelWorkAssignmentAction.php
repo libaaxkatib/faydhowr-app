@@ -10,8 +10,10 @@ use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
 use App\Models\TemporaryReplacement;
 use App\Support\ApiResponse;
+use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\UnresolvedTemporaryReplacements;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Cancels an assignment that was created by mistake, keeping the row and the
@@ -29,6 +31,9 @@ class CancelWorkAssignmentAction
             $this->fail('This assignment is already cancelled.', 'WORK_ASSIGNMENT_ALREADY_CANCELLED');
         }
 
+        // A cover cancelled as a mistake also closes the absence it was recorded in (with zero days), so the holder is not left "away" with nobody.
+        $coveredAbsence = AbsenceCycles::boundAbsence($assignment);
+
         if (PayrollItem::query()->where('work_assignment_id', $assignment->id)->exists()) {
             $this->fail('This assignment already appears in payroll; end it instead and correct pay with a payroll adjustment.', 'WORK_ASSIGNMENT_HAS_PAYROLL');
         }
@@ -39,10 +44,16 @@ class CancelWorkAssignmentAction
 
         $wasUnresolved = UnresolvedTemporaryReplacements::isUnresolved($assignment);
 
-        $assignment->update([
-            'status' => WorkAssignmentStatus::Cancelled,
-            'notes' => trim(($assignment->notes ? $assignment->notes."\n" : '').'Cancelled: '.$reason),
-        ]);
+        DB::transaction(function () use ($assignment, $reason, $coveredAbsence, $actor): void {
+            $assignment->update([
+                'status' => WorkAssignmentStatus::Cancelled,
+                'notes' => trim(($assignment->notes ? $assignment->notes."\n" : '').'Cancelled: '.$reason),
+            ]);
+
+            if ($coveredAbsence !== null) {
+                AbsenceCycles::cancelCover($coveredAbsence, $assignment, $actor, $reason);
+            }
+        });
 
         event(AuditEvent::record(
             action: AuditAction::Cancel,

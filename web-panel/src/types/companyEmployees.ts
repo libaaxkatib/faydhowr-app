@@ -48,6 +48,10 @@ export interface CompanyEmployeeRow {
   also_assigned_at: { assignment_id: number; company_id: number | null; company_name: string | null }[];
   salary: CompanyEmployeeSalary;
   salary_changed_in_period: boolean;
+  /** The holder is away (an open absence): the assignment stays open under this id and a Replacement works the position. null = not away. */
+  away: { absence_id: number; last_working_day: string; absent_from: string; terminated_on: string | null } | null;
+  /** Days of the selected month this assignment is not paid because its holder is away. */
+  away_days_in_period: number;
   payable_days: number;
   days_in_month: number;
   attendance: { recorded: number; present: number; late: number; absent: number };
@@ -95,6 +99,12 @@ export interface CompanyEmployeeCandidate {
   already_here: boolean;
   eligible: boolean;
   ineligible_reason: string | null;
+  /** How this person could be made Active from the picker: 'status' (Waiting / Approved) or 'rehire' (separated); null = not offered here. */
+  activation?: 'status' | 'rehire' | null;
+  /** True only when the signed-in user may do that step AND the HR rules allow it; the server checks again when it is done. */
+  can_activate?: boolean;
+  /** Advice from the separation record: false = HR marked "not recommended for rehire". */
+  rehire_eligible?: boolean | null;
 }
 
 export interface CompanyEmployeeFilters {
@@ -131,9 +141,30 @@ export interface CompanyChainEntry {
   replaces_assignment_id: number | null;
 }
 
+export interface CompanyCycleEvent {
+  event_type: 'absence_started' | 'replacement_started' | 'replacement_ended' | 'returned' | 'original_terminated' | 'cover_cancelled';
+  event_date: string;
+  replacement_assignment_id: number | null;
+  by: string | null;
+  at: string | null;
+  details: Record<string, unknown> | null;
+}
+
+/** One absence of an original assignment (which keeps its id across all of them) with the events written for it. */
+export interface CompanyCycle {
+  id: number;
+  assignment_id: number;
+  last_working_day: string;
+  absent_from: string;
+  returned_on: string | null;
+  terminated_on: string | null;
+  events: CompanyCycleEvent[];
+}
+
 export interface CompanyHistory {
   events: CompanyHistoryEvent[];
   chain: CompanyChainEntry[];
+  cycles: CompanyCycle[];
 }
 
 export interface AssignmentPayload {

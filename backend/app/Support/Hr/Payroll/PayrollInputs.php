@@ -6,6 +6,7 @@ use App\Enums\AssignmentType;
 use App\Enums\AttendanceStatus;
 use App\Enums\LeaveType;
 use App\Enums\WorkAssignmentStatus;
+use App\Models\AssignmentAbsence;
 use App\Models\EmployeeAdvance;
 use App\Models\EmployeeAttendance;
 use App\Models\EmployeeLeave;
@@ -13,6 +14,7 @@ use App\Models\EmployeePenalty;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollAdjustment;
 use App\Models\TemporaryReplacement;
+use App\Support\Hr\AbsenceCycles;
 use Illuminate\Support\Collection;
 
 /**
@@ -40,6 +42,9 @@ final class PayrollInputs
 
     /** @var array<int, list<array{0: string, 1: ?string}>> replaced assignment id => the date ranges its Replacements hold */
     private array $ranges = [];
+
+    /** @var array<int, list<array{0: string, 1: ?string}>> assignment id => the days its holder is away (replacement cycles), as inclusive ranges */
+    private array $absenceWindows = [];
 
     /** @var array<int, EmployeeWorkAssignment|null> assignment id => its earliest non-cancelled successor */
     private array $successors = [];
@@ -114,6 +119,15 @@ final class PayrollInputs
             }
         }
 
+        // The absence windows (replacement cycles) of the assignments being calculated and of the ones they replace: the replaced one is not paid for them.
+        foreach (array_chunk(array_values(array_unique([...$assignmentIds, ...$replacedIds])), self::CHUNK) as $chunk) {
+            $rows = AssignmentAbsence::query()->whereIn('work_assignment_id', $chunk)->orderBy('absent_from')->orderBy('id')->get();
+
+            foreach ($rows->groupBy('work_assignment_id') as $id => $group) {
+                $self->absenceWindows[(int) $id] = AbsenceCycles::rangesOf($group);
+            }
+        }
+
         foreach (array_chunk($assignmentIds, self::CHUNK) as $chunk) {
             foreach (TemporaryReplacement::query()->with('replacementEmployee')->whereIn('work_assignment_id', $chunk)->orderBy('id')->get()->groupBy('work_assignment_id') as $id => $group) {
                 $self->covers[(int) $id] = $group->values();
@@ -178,10 +192,45 @@ final class PayrollInputs
         return isset($this->employeeIds[$employeeId]);
     }
 
-    /** @return list<array{0: string, 1: ?string}> */
+    /**
+     * The days of an assignment that are NOT paid to it: those its Replacements hold, and those its holder is away. They may overlap each other (the
+     * proration counts a day once whichever  ranges contain it), and a gap day sits in the absence only.
+     *
+     * @return list<array{0: string, 1: ?string}>
+     */
     public function replacementRanges(int $assignmentId): array
     {
+        return [...($this->ranges[$assignmentId] ?? []), ...($this->absenceWindows[$assignmentId] ?? [])];
+    }
+
+    /**
+     * Only the days Replacements hold, and only the absence windows: payroll compares the two to find the days nobody covers.
+     *
+     * @return list<array{0: string, 1: ?string}>
+     */
+    public function coverRangesOf(int $assignmentId): array
+    {
         return $this->ranges[$assignmentId] ?? [];
+    }
+
+    /** @return list<array{0: string, 1: ?string}> */
+    public function absenceWindowsOf(int $assignmentId): array
+    {
+        return $this->absenceWindows[$assignmentId] ?? [];
+    }
+
+    /**
+     * True when $day falls inside one of the assignment's absence windows.
+     */
+    public function isAwayOn(int $assignmentId, string $day): bool
+    {
+        foreach ($this->absenceWindows[$assignmentId] ?? [] as [$from, $to]) {
+            if ($day >= $from && ($to === null || $day <= $to)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @return Collection<int, TemporaryReplacement> */

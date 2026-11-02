@@ -78,6 +78,14 @@ export function dayBefore(date: string): string {
   return prior.toISOString().slice(0, 10);
 }
 
+/**
+ * Whether a Return resumes the ORIGINAL assignment (it is still open because its holder was only away: the Replacement cycle model) rather than
+ * starting a new Permanent assignment (data recorded before that model, where the original had already been ended). The server decides the same way.
+ */
+export function returnsToSameAssignment(original: { status: string; end_date: string | null } | undefined): boolean {
+  return original !== undefined && original.end_date === null && original.status === 'active';
+}
+
 // ---------------------------------------------------------------- money (never mixed across currencies)
 
 export function formatMoney(amount: number, currency: string): string {
@@ -150,7 +158,8 @@ export function validateReplaceForm(f: ReplaceForm, originalStart: string, origi
   const lastDay = f.original_last_day || (f.replacement_date ? dayBefore(f.replacement_date) : '');
   if (f.replacement_date !== '' && lastDay !== '') {
     if (lastDay >= f.replacement_date) errors.original_last_day = tNow('validation.company.lastDayBeforeReplacement');
-    else if (lastDay < originalStart) errors.replacement_date = tNow('validation.company.replacementAfterStart', { date: originalStart });
+    // The value being compared with the assignment's start is the last WORKING day, so the message sits under that field (not under the replacement date).
+    else if (lastDay < originalStart) errors.original_last_day = tNow('validation.company.lastDayBeforeAssignmentStart', { date: originalStart });
   }
   return errors;
 }

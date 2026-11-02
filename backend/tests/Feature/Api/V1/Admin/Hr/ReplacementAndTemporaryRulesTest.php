@@ -337,25 +337,29 @@ class ReplacementAndTemporaryRulesTest extends TestCase
 
     public function test_cent_remainders_go_to_the_last_line_of_the_position_so_the_total_reconciles(): void
     {
-        // Three people hold one 100.00 position for 10 days each of a 30-day month: 33.33 + 33.33 + 33.34 = 100.00.
+        // One 100.00 position of a 30-day month: the original holds it 16 days (Sept 1-10, 18, 26-30) and two Replacements 7 days each (11-17 and 19-25).
+        // 53.33 + 23.33 + 23.33 = 99.99: the missing cent goes to the last line of the position.
         $original = $this->makeAssignment($this->makeEmployee(), $this->company, null, 100, '2026-09-01');
-        $replacementId = $this->replace($original, $this->makeEmployee(), ['replacement_date' => '2026-09-11'])->assertOk()->json('data.replacement.id');
-        $returnedId = $this->returnTo(EmployeeWorkAssignment::query()->findOrFail($replacementId), '2026-09-21', ['salary_amount' => 100])->assertOk()->json('data.returned.id');
+        $firstId = $this->replace($original, $this->makeEmployee(), ['replacement_date' => '2026-09-11'])->assertOk()->json('data.replacement.id');
+        $this->returnTo(EmployeeWorkAssignment::query()->findOrFail($firstId), '2026-09-18', ['salary_amount' => 100])->assertOk();
+        $secondId = $this->replace($original, $this->makeEmployee(), ['replacement_date' => '2026-09-19', 'original_last_day' => '2026-09-18'])->assertOk()->json('data.replacement.id');
+        $this->returnTo(EmployeeWorkAssignment::query()->findOrFail($secondId), '2026-09-26', ['salary_amount' => 100])->assertOk();
 
         $this->generate();
         $lines = $this->lines();
 
-        $this->assertSame(3333, (int) $lines[$original->id]->gross_cents);
-        $this->assertSame(3333, (int) $lines[$replacementId]->gross_cents);
-        $this->assertSame(3334, (int) $lines[$returnedId]->gross_cents, 'the remainder goes to the last line of the position (latest start date)');
+        $this->assertSame(16, (int) $lines[$original->id]->eligible_days);
+        $this->assertSame(5333, (int) $lines[$original->id]->gross_cents);
+        $this->assertSame(2333, (int) $lines[$firstId]->gross_cents);
+        $this->assertSame(2334, (int) $lines[$secondId]->gross_cents, 'the remainder goes to the last line of the position (latest start date)');
         $this->assertSame(10000, (int) PayrollItem::query()->where('period', '2026-09')->sum('gross_cents'), 'the three lines add up to exactly the position amount');
-        $this->assertSame(1, $lines[$returnedId]->calc_snapshot['rounding_remainder_cents']);
+        $this->assertSame(1, $lines[$secondId]->calc_snapshot['rounding_remainder_cents']);
         $this->assertSame(0, $lines[$original->id]->calc_snapshot['rounding_remainder_cents']);
     }
 
     // ------------------------------------------------------------------ returning Permanent employee
 
-    public function test_a_returning_permanent_employee_gets_a_new_permanent_assignment_and_all_history_is_kept(): void
+    public function test_a_returning_permanent_employee_resumes_the_same_assignment_and_all_history_is_kept(): void
     {
         $originalEmployee = $this->makeEmployee();
         $original = $this->makeAssignment($originalEmployee, $this->company, null, 300, '2026-01-01');
@@ -363,18 +367,19 @@ class ReplacementAndTemporaryRulesTest extends TestCase
 
         $returnedId = $this->returnTo(EmployeeWorkAssignment::query()->findOrFail($replacementId), '2026-09-21')->assertOk()->json('data.returned.id');
 
+        $this->assertSame($original->id, $returnedId, 'the person comes back to the SAME assignment: no new Permanent row');
         $returned = EmployeeWorkAssignment::query()->findOrFail($returnedId);
         $this->assertSame('permanent', $returned->assignment_type->value);
         $this->assertSame($originalEmployee->id, $returned->employee_id);
-        $this->assertSame($replacementId, $returned->replaces_assignment_id);
-        $this->assertSame('2026-09-21', $returned->start_date->toDateString());
+        $this->assertSame('active', $returned->status->value);
+        $this->assertNull($returned->end_date);
 
         $replacement = EmployeeWorkAssignment::query()->findOrFail($replacementId);
+        $this->assertSame($original->id, $replacement->replaces_assignment_id);
         $this->assertSame('2026-09-20', $replacement->end_date->toDateString(), "the Replacement's final covered day is the day before the return");
         $this->assertSame('ended', $replacement->status->value);
 
-        $this->assertSame(3, EmployeeWorkAssignment::query()->count(), 'original, Replacement and returned assignment are all kept');
-        $this->assertSame('2026-09-09', $original->fresh()->end_date->toDateString());
+        $this->assertSame(2, EmployeeWorkAssignment::query()->count(), 'the original and the Replacement: nothing is duplicated and nothing is deleted');
         $this->assertSame(1, $original->fresh()->salaryHistories()->count(), 'the original Permanent salary history is not overwritten');
     }
 
@@ -394,10 +399,11 @@ class ReplacementAndTemporaryRulesTest extends TestCase
         $this->assertSame(2, EmployeeWorkAssignment::query()->count());
         $this->assertSame('active', EmployeeWorkAssignment::query()->findOrFail($replacementId)->status->value);
 
-        // HR edits the proposal: the new Permanent assignment carries the edited salary and the audit keeps both values.
+        // HR edits the proposal: the same assignment gets the edited salary from the return date (the old row is kept) and the audit keeps both values.
         $returnedId = $this->returnTo(EmployeeWorkAssignment::query()->findOrFail($replacementId), '2026-09-21', ['salary_amount' => 320])->assertOk()->json('data.returned.id');
-        $this->assertSame('320.00', (string) EmployeeWorkAssignment::query()->findOrFail($returnedId)->salary_amount);
-        $log = AuditLog::query()->where('entity_id', $replacementId)->get()->first(fn ($l) => ($l->metadata['event'] ?? null) === 'returned');
+        $this->assertSame($original->id, $returnedId);
+        $this->assertSame(['300.00', '320.00'], $original->salaryHistories()->get()->map(fn ($h) => (string) $h->amount)->all());
+        $log = AuditLog::query()->where('entity_id', $original->id)->get()->first(fn ($l) => ($l->metadata['event'] ?? null) === 'returned');
         $this->assertSame('300.00', $log->metadata['previous_salary']['amount']);
         $this->assertSame('320.00', $log->metadata['confirmed_salary']['amount']);
     }

@@ -44,7 +44,10 @@ test('form checks keep their English text and speak Somali on a Somali HR screen
   assert.match(inSomali(() => validateStopForm('2026-09-01', 'enough', '2026-10-01').end_date ?? ''), /2026-10-01/);
   assert.match(inSomali(() => validateReturnForm('2026-10-01', '2026-10-01', { amount: '', currency: '', confirmed: false }).return_date ?? ''), /2026-10-01/);
   const replace = { replacement_employee_id: 3 as const, replacement_date: '2026-09-01', original_last_day: '', assignment_type: 'permanent' as const, position_id: 1 as const, salary_amount: '100', salary_currency: 'USD' };
-  assert.match(inSomali(() => validateReplaceForm(replace, '2026-10-01', 9).replacement_date ?? ''), /2026-10-01/);
+  // The value compared with the assignment's start is the last WORKING day (here the day before the replacement date), so the message sits under that field.
+  assert.match(inSomali(() => validateReplaceForm(replace, '2026-10-01', 9).original_last_day ?? ''), /2026-10-01/);
+  assert.equal(validateReplaceForm(replace, '2026-10-01', 9).replacement_date, undefined);
+  assert.equal(inSomali(() => validateReplaceForm(replace, '2026-10-01', 9).original_last_day), CATALOGUE['validation.company.lastDayBeforeAssignmentStart'].so.replace('{date}', '2026-10-01'));
 });
 
 test('the start-date warning is translated with its dates in place', () => {

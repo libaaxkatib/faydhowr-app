@@ -420,7 +420,10 @@ class OwnerDecisionsUpdateTest extends TestCase
 
         $this->assertSame('400.00', (string) $first->fresh()->salary_amount, 'the first Replacement ended on 9 October: a change in October reaches the whole month, and it was active in October');
         $this->assertSame('400.00', (string) $second->fresh()->salary_amount);
-        $this->assertSame('300.00', (string) $returned->fresh()->salary_amount, 'the returned Permanent has a salary of their own');
+        // With the Replacement cycles the person returns to the SAME assignment (no new Permanent row), so this is the original assignment and the
+        // raise effective 25 October is simply its salary from that day.
+        $this->assertSame($original->id, $returned->id, 'the holder comes back to their own assignment, whichever Replacement was working');
+        $this->assertSame('400.00', (string) $returned->fresh()->salary_amount);
     }
 
     public function test_a_closed_month_is_never_rewritten_when_the_permanent_salary_changes_and_a_correction_needs_a_super_admin(): void

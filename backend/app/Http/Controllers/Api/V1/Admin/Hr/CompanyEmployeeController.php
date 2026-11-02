@@ -19,6 +19,7 @@ use App\Http\Requests\Api\V1\Admin\Hr\CompanyEmployees\ReplaceCompanyEmployeeReq
 use App\Http\Requests\Api\V1\Admin\Hr\CompanyEmployees\ReturnCompanyEmployeeRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\CompanyEmployees\StopCompanyAssignmentRequest;
 use App\Http\Resources\Api\V1\Admin\Hr\WorkAssignmentResource;
+use App\Models\AssignmentAbsence;
 use App\Models\ClientCompany;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\WorkLocation;
@@ -44,9 +45,12 @@ class CompanyEmployeeController extends Controller
         return ApiResponse::success('Company employees retrieved successfully.', $action->handle($clientCompany, $period, $request->validated(), $withPayroll));
     }
 
-    public function candidates(Request $request, ClientCompany $clientCompany, SearchCompanyEmployeeCandidatesAction $action): JsonResponse
+    public function candidates(Request $request, ClientCompany $clientCompany, SearchCompanyEmployeeCandidatesAction $action, AdminPermissionResolver $permissions): JsonResponse
     {
-        return ApiResponse::success('Employees retrieved successfully.', $action->handle($clientCompany, (string) $request->query('q', '')));
+        // Whether the person searching may activate someone from the picker is the same permission the Activate / Rehire endpoints themselves demand.
+        $canActivate = $permissions->has($request->user(), AdminPermission::HrManage->value, $request);
+
+        return ApiResponse::success('Employees retrieved successfully.', $action->handle($clientCompany, (string) $request->query('q', ''), $canActivate));
     }
 
     public function history(Request $request, ClientCompany $clientCompany, ListCompanyEmployeeHistoryAction $action): JsonResponse
@@ -85,7 +89,21 @@ class CompanyEmployeeController extends Controller
         return ApiResponse::success('Employee replaced.', [
             'original' => new WorkAssignmentResource($result['original']),
             'replacement' => new WorkAssignmentResource($result['replacement']),
+            'absence' => isset($result['absence']) ? $this->absenceSummary($result['absence']) : null,
         ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function absenceSummary(AssignmentAbsence $absence): array
+    {
+        return [
+            'id' => $absence->id,
+            'assignment_id' => $absence->work_assignment_id,
+            'last_working_day' => $absence->last_working_day->toDateString(),
+            'absent_from' => $absence->absent_from->toDateString(),
+            'returned_on' => $absence->returned_on?->toDateString(),
+            'terminated_on' => $absence->terminated_on?->toDateString(),
+        ];
     }
 
     public function returnEmployee(ReturnCompanyEmployeeRequest $request, ClientCompany $clientCompany, EmployeeWorkAssignment $workAssignment, ReturnCompanyEmployeeAction $action): JsonResponse
@@ -97,6 +115,7 @@ class CompanyEmployeeController extends Controller
         return ApiResponse::success('Original employee returned.', [
             'replacement' => new WorkAssignmentResource($result['replacement']),
             'returned' => new WorkAssignmentResource($result['returned']),
+            'absence' => isset($result['absence']) ? $this->absenceSummary($result['absence']) : null,
         ]);
     }
 

@@ -12,6 +12,8 @@ use App\Enums\TemporaryReplacementStatus;
 use App\Enums\WorkAssignmentStatus;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
+use App\Models\AssignmentAbsence;
+use App\Models\AssignmentCycleEvent;
 use App\Models\AssignmentSuccession;
 use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
@@ -61,9 +63,18 @@ final class PermanentSuccession
             return false;
         }
 
+        // A Replacement of a FINISHED cycle (its holder came back) is history, not the next holder: it does not resolve the position. One that is
+        // still working, or that covers a holder who was ended while away (the Replacement keeps the position), does.
+        $finishedCycleCovers = AssignmentCycleEvent::query()
+            ->select('replacement_assignment_id')
+            ->where('event_type', AssignmentCycleEvent::REPLACEMENT_STARTED)
+            ->whereNotNull('replacement_assignment_id')
+            ->whereIn('absence_id', AssignmentAbsence::query()->select('id')->whereNotNull('returned_on'));
+
         return ! EmployeeWorkAssignment::query()
             ->where('replaces_assignment_id', $assignment->id)
             ->where('status', '!=', WorkAssignmentStatus::Cancelled)
+            ->whereNotIn('id', $finishedCycleCovers)
             ->exists();
     }
 

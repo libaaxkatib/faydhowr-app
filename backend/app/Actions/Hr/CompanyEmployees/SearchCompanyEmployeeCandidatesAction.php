@@ -6,6 +6,7 @@ use App\Enums\EmployeeStatus;
 use App\Enums\WorkAssignmentStatus;
 use App\Models\ClientCompany;
 use App\Models\Employee;
+use App\Models\EmployeeSeparation;
 use App\Support\Hr\ConcurrentAssignmentGuard;
 use App\Support\Hr\EmployeeRegistrationWorkflow;
 
@@ -21,7 +22,7 @@ class SearchCompanyEmployeeCandidatesAction
     public const LIMIT = 15;
 
     /** @return list<array<string, mixed>> */
-    public function handle(ClientCompany $company, string $term): array
+    public function handle(ClientCompany $company, string $term, bool $canActivate = false): array
     {
         $term = trim($term);
 
@@ -54,13 +55,13 @@ class SearchCompanyEmployeeCandidatesAction
                 default => 2,
             })
             ->take(self::LIMIT)
-            ->map(fn (Employee $e): array => $this->candidate($e, $company))
+            ->map(fn (Employee $e): array => $this->candidate($e, $company, $canActivate))
             ->values()
             ->all();
     }
 
     /** @return array<string, mixed> */
-    private function candidate(Employee $e, ClientCompany $company): array
+    private function candidate(Employee $e, ClientCompany $company, bool $canActivate): array
     {
         $active = $e->workAssignments;
         $here = $active->contains(fn ($a): bool => (int) $a->client_company_id === (int) $company->id);
@@ -87,6 +88,32 @@ class SearchCompanyEmployeeCandidatesAction
             'already_here' => $here,
             'eligible' => $reason === null,
             'ineligible_reason' => $reason,
+            ...$this->activation($e, $canActivate),
+        ];
+    }
+
+    /**
+     * Whether the picker may offer an in-place Activate for this person, and by which existing HR step:
+     *   - a Waiting or Approved employee: the normal status change to Active ('status');
+     *   - a separated (Inactive) employee: the Rehire step ('rehire'); a Rehire-not-eligible mark on the latest separation is advice shown to HR, as in HR.
+     * Nobody earlier in the pipeline (applicant, recruitment, practical) is offered: that needs a Super Admin override in HR, not a shortcut here. A new
+     * registration whose workflow is incomplete is refused exactly as the HR step itself would refuse it. The endpoints re-check everything on the server.
+     *
+     * @return array{activation: ?string, can_activate: bool, rehire_eligible: ?bool}
+     */
+    private function activation(Employee $e, bool $canActivate): array
+    {
+        $step = match ($e->status) {
+            EmployeeStatus::Waiting, EmployeeStatus::Approved => 'status',
+            EmployeeStatus::Inactive => 'rehire',
+            default => null,
+        };
+
+        return [
+            'activation' => $step,
+            'can_activate' => $canActivate && $step !== null && ! $e->trashed() && ! (new EmployeeRegistrationWorkflow)->blocks($e),
+            // Separation data is shown only to someone who can act on it (hr.manage), not to every viewer who merely searches.
+            'rehire_eligible' => $step === 'rehire' && $canActivate ? EmployeeSeparation::query()->where('employee_id', $e->id)->latest('id')->value('rehire_eligible') : null,
         ];
     }
 }

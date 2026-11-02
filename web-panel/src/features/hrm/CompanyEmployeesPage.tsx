@@ -304,6 +304,12 @@ function EmployeeRow({ row, showPayroll, canManage, onEdit, onReplace, onReturn,
         {replaced.kind === 'missing' && (
           <span className="mt-1 block text-xs muted-note" data-testid="replaces-missing">{t('option.company.replacesNotRecorded')}</span>
         )}
+        {row.away !== null && (
+          <span role="note" data-testid="away-note" className="mt-1 block text-xs text-warning" title={t('option.company.awayCovered')}>
+            {t('option.company.awayFrom', { date: formatDate(row.away.absent_from) })}
+            {row.away.terminated_on !== null && ` · ${t('option.company.awayEnded', { date: formatDate(row.away.terminated_on) })}`}
+          </span>
+        )}
         {row.needs_correction && (
           <span role="note" data-testid="needs-correction" title={row.needs_correction_reason ?? undefined} className="mt-1 block text-xs text-danger">
             {t('warning.company.needsCorrection')}
@@ -353,7 +359,8 @@ function EmployeeRow({ row, showPayroll, canManage, onEdit, onReplace, onReturn,
             label={t('action.company.moreActionsFor', { name: row.full_name ?? '' })}
             items={[
               { label: t('action.history'), ariaLabel: t('action.company.historyOf', { name: row.full_name ?? '' }), onClick: () => onHistory(row) },
-              ...(canManage && open ? [{ label: t('action.replace'), ariaLabel: t('confirm.company.replaceTitle', { name: row.full_name ?? '' }), onClick: () => onReplace(row) }] : []),
+              // A holder who is already away has its Replacement; another one is recorded by returning or ending that cover first.
+              ...(canManage && open && row.away === null ? [{ label: t('action.replace'), ariaLabel: t('confirm.company.replaceTitle', { name: row.full_name ?? '' }), onClick: () => onReplace(row) }] : []),
               ...(canManage && canReturn ? [{ label: t('action.returnOriginal'), ariaLabel: t('action.company.returnOriginalFor', { name: row.full_name ?? '' }), onClick: () => onReturn(row) }] : []),
               ...(canManage && open ? [{ label: t('action.stop'), ariaLabel: t('confirm.company.stopTitle', { name: row.full_name ?? '' }), onClick: () => onStop(row), danger: true }] : []),
             ]}

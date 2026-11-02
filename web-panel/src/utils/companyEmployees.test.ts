@@ -9,6 +9,7 @@ import {
   isCorrectionReasonRequired,
   isTemporaryWorker,
   isValidPeriod,
+  returnsToSameAssignment,
   shiftPeriod,
   startDateChangeWarning,
   totalsByCurrency,
@@ -63,7 +64,27 @@ test('replace: not yourself, a sensible last day, nothing before the assignment 
   assert.deepEqual(validateReplaceForm(replace, '2026-01-01', 1), {});
   assert.ok(validateReplaceForm({ ...replace, replacement_employee_id: 1 }, '2026-01-01', 1).replacement_employee_id);
   assert.ok(validateReplaceForm({ ...replace, original_last_day: '2026-10-16' }, '2026-01-01', 1).original_last_day);
-  assert.ok(validateReplaceForm({ ...replace, replacement_date: '2025-12-31' }, '2026-01-01', 1).replacement_date);
+  const early = validateReplaceForm({ ...replace, replacement_date: '2025-12-31' }, '2026-01-01', 1);
+  assert.ok(early.original_last_day, 'the last working day is what is before the assignment started, so the message belongs to that field');
+  assert.equal(early.replacement_date, undefined);
+});
+
+test('replace: last working day Oct 11, Replacement from Oct 12 on an assignment that started Oct 1 is accepted', () => {
+  const october = { ...replace, original_last_day: '2026-10-11', replacement_date: '2026-10-12', assignment_type: 'replacement' as const, salary_amount: '', salary_currency: '' };
+  assert.deepEqual(validateReplaceForm(october, '2026-10-01', 1), {});
+  // The same dates on a row that starts Oct 13 are refused - and the message names the last working day, not the Replacement date.
+  const refused = validateReplaceForm(october, '2026-10-13', 1);
+  assert.ok(refused.original_last_day);
+  assert.equal(refused.replacement_date, undefined);
+  // A last working day on the very first day of the assignment is allowed.
+  assert.deepEqual(validateReplaceForm({ ...october, original_last_day: '2026-10-01', replacement_date: '2026-10-02' }, '2026-10-01', 1), {});
+});
+
+test('a Return resumes the same assignment only while the original is still open; older data (original already ended) gets a new Permanent one', () => {
+  assert.equal(returnsToSameAssignment({ status: 'active', end_date: null }), true);
+  assert.equal(returnsToSameAssignment({ status: 'ended', end_date: '2026-10-11' }), false, 'the production shape #272 -> #297 -> #298');
+  assert.equal(returnsToSameAssignment({ status: 'active', end_date: '2026-10-31' }), false);
+  assert.equal(returnsToSameAssignment(undefined), false, 'unknown (history still loading): never claim the same assignment');
 });
 
 const salary = { amount: '300', currency: 'USD', confirmed: true };

@@ -11,8 +11,10 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 
 /**
- * The original employee returns on this date as a NEW Permanent assignment. The salary is never assumed unchanged: HR must send the
- * salary they confirm or edit (the screen proposes the previous one).
+ * The original employee returns on this date. When the assignment was kept open during the absence (every Replacement recorded since the replacement
+ * cycles) the SAME assignment resumes; an older Replacement whose original was already ended still gets a new Permanent assignment. Either way the
+ * salary is never assumed unchanged: HR must send the salary they confirm or edit (the screen proposes the previous one). On the same assignment an
+ * edited salary becomes an ordinary salary change from the return date.
  */
 class ReturnCompanyEmployeeRequest extends FormRequest
 {

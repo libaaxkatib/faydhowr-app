@@ -9,6 +9,7 @@ use App\Models\Admin;
 use App\Models\AssignmentSuccession;
 use App\Models\ClientCompany;
 use App\Models\EmployeeWorkAssignment;
+use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\CompanyEmployees\CompanyAssignmentGuard;
 use App\Support\Hr\Payroll\ClosedPayrollCorrection;
@@ -42,6 +43,9 @@ class StopCompanyAssignmentAction
 
         $assignment->loadMissing('employee');
 
+        // Ending a holder who is away: a working Replacement is not touched, but HR must see that and confirm (before anything else is checked or written).
+        AbsenceCycles::assertTerminationAllowed($assignment, $lastDay, ($data['confirm_replacement_continues'] ?? false) === true);
+
         // N1: validated before anything is written; the chosen replacement's pay is part of the change for the closed-payroll check.
         $plan = PermanentSuccession::demand($assignment, $data['successor'] ?? null, $lastDay);
 
@@ -57,6 +61,7 @@ class StopCompanyAssignmentAction
                 'end_date' => $lastDay->toDateString(),
                 'note' => "Stopped: {$reason}",
                 'successor' => $data['successor'] ?? null,
+                'confirm_replacement_continues' => $data['confirm_replacement_continues'] ?? false,
                 'succession_trigger' => AssignmentSuccession::TRIGGER_STOP,
             ], $actor);
 

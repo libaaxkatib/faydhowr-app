@@ -27,6 +27,8 @@ class MarkEmployeeSeparatedRequest extends FormRequest
             'notes' => ['nullable', 'string'],
             // Needed only when the replacement's start falls in an approved or finalized payroll month (a Super Admin correction).
             'correction_reason' => ['nullable', 'string', 'max:500'],
+            // Separating a holder who is away while a Replacement is working: HR confirms the Replacement carries on (AbsenceCycles).
+            'confirm_replacement_continues' => ['sometimes', 'boolean'],
             // One replacement choice per open Permanent assignment (docs/HR_PAYROLL_RULES.md N1).
             'successors' => ['sometimes', 'nullable', 'array'],
             'successors.*.assignment_id' => ['required', 'integer', 'exists:employee_work_assignments,id'],

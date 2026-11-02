@@ -2,8 +2,12 @@
 
 namespace App\Support\Hr\Payroll;
 
+use App\Enums\AssignmentType;
 use App\Enums\LeaveType;
+use App\Enums\WorkAssignmentStatus;
 use App\Models\EmployeeLeave;
+use App\Models\EmployeeWorkAssignment;
+use App\Support\Hr\AbsenceCycles;
 use App\Models\TemporaryReplacement;
 use App\Models\TemporaryReplacementWorkday;
 use App\Support\ApiResponse;
@@ -50,6 +54,12 @@ class ReplacementCostService
         $declared = array_filter(CoveragePeriod::declaredDates($replacement, $monthEnd), fn (string $iso): bool => str_starts_with($iso, $period.'-'));
         $cut = array_values(array_filter($declared, fn (string $iso): bool => ! isset($inMonth[$iso])));
 
+        // Days the covered assignment is not paid anyway - a Replacement holds them, or its holder is away - cannot be charged to it either. The
+        // Temporary's own entitlement (above) is unchanged; only the deduction from the covered assignment skips them, and they are listed.
+        $held = $this->heldElsewhere($assignment);
+        $chargeable = $held === [] ? $inMonth : array_filter($inMonth, fn ($monthly, $iso): bool => ! $this->within((string) $iso, $held), ARRAY_FILTER_USE_BOTH);
+        $cut = array_values(array_unique([...$cut, ...array_keys(array_diff_key($inMonth, $chargeable))]));
+
         $result = $this->calculator->monthlyCost($period, $salary, [
             'replacement_id' => $replacement->id,
             'start_date' => $replacement->start_date->toDateString(),
@@ -57,7 +67,7 @@ class ReplacementCostService
             'assignment_start' => $assignment->start_date->toDateString(),
             'assignment_end' => $assignment->end_date?->toDateString(),
             'unpaid_leave_dates' => $this->approvedUnpaidLeaveDates($assignment->employee_id, $period),
-            'workdays' => array_map(fn (string $iso): array => ['date' => $iso, 'verified' => true], array_keys($inMonth)),
+            'workdays' => array_map(fn (string $iso): array => ['date' => $iso, 'verified' => true], array_keys($chargeable)),
         ]);
 
         $result['not_chargeable']['outside_assignment'] = array_values(array_unique([...$result['not_chargeable']['outside_assignment'], ...$cut]));
@@ -80,6 +90,40 @@ class ReplacementCostService
                 'actual_end_date' => $replacement->end_date?->toDateString(),
             ],
         ]);
+    }
+
+    /**
+     * The days an assignment is not paid because a Replacement holds them or its holder is away, as inclusive [from, to|null] ranges.
+     *
+     * @return list<array{0: string, 1: ?string}>
+     */
+    private function heldElsewhere(EmployeeWorkAssignment $assignment): array
+    {
+        $windows = AbsenceCycles::excludedRanges($assignment);
+
+        if ($windows === []) {
+            return [];
+        }
+
+        return [...EmployeeWorkAssignment::query()
+            ->where('replaces_assignment_id', $assignment->id)
+            ->where('assignment_type', AssignmentType::Replacement->value)
+            ->where('status', '!=', WorkAssignmentStatus::Cancelled)
+            ->get()
+            ->map(fn (EmployeeWorkAssignment $successor): array => [$successor->start_date->toDateString(), $successor->end_date?->toDateString()])
+            ->all(), ...$windows];
+    }
+
+    /** @param  list<array{0: string, 1: ?string}>  $ranges */
+    private function within(string $iso, array $ranges): bool
+    {
+        foreach ($ranges as [$from, $to]) {
+            if ($iso >= $from && ($to === null || $iso <= $to)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

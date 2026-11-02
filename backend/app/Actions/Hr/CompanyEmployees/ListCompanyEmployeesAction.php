@@ -10,6 +10,7 @@ use App\Models\EmployeeAttendance;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
 use App\Support\Hr\Payroll\PayrollMoney;
+use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\Payroll\PayrollPeriodView;
 use App\Support\Hr\UnresolvedTemporaryReplacements;
 use Carbon\CarbonImmutable;
@@ -47,7 +48,7 @@ class ListCompanyEmployeesAction
         $daysInMonth = (int) $monthStart->daysInMonth;
 
         $assignments = EmployeeWorkAssignment::query()
-            ->with(['employee', 'position', 'salaryHistories', 'workLocation', 'replaces.employee'])
+            ->with(['employee', 'position', 'salaryHistories', 'workLocation', 'replaces.employee', 'absences'])
             ->where('client_company_id', $company->id)
             ->where('status', '!=', WorkAssignmentStatus::Cancelled)
             ->whereDate('start_date', '<=', $monthEnd->toDateString())
@@ -99,6 +100,27 @@ class ListCompanyEmployeesAction
         $to = $a->end_date !== null && $a->end_date->lessThan($monthEnd) ? CarbonImmutable::parse($a->end_date) : $monthEnd;
         $payableDays = $to->gte($from) ? (int) $from->diffInDays($to) + 1 : 0;
 
+        // Days the holder is away (replacement cycles) are not payable to this assignment: the Replacement holds them, or nobody does (a gap).
+        $awayRanges = AbsenceCycles::rangesOf($a->absences);
+        $awayDays = 0;
+        $awayOnMonthEnd = false;
+
+        for ($day = $from; $day->lte($to); $day = $day->addDay()) {
+            $iso = $day->toDateString();
+
+            foreach ($awayRanges as [$rangeFrom, $rangeTo]) {
+                if ($iso >= $rangeFrom && ($rangeTo === null || $iso <= $rangeTo)) {
+                    $awayDays++;
+                    $awayOnMonthEnd = $iso === $monthEnd->toDateString() ? true : $awayOnMonthEnd;
+
+                    break;
+                }
+            }
+        }
+
+        $payableDays -= $awayDays;
+        $openAbsence = $a->absences->first(fn ($absence): bool => $absence->returned_on === null);
+
         $inWindow = $marks->filter(fn (EmployeeAttendance $m): bool => $m->date->toDateString() >= $from->toDateString() && $m->date->toDateString() <= $to->toDateString());
         $count = fn (AttendanceStatus $s): int => $inWindow->filter(fn (EmployeeAttendance $m): bool => $m->status === $s)->count();
 
@@ -136,7 +158,15 @@ class ListCompanyEmployeesAction
             'salary_changed_in_period' => $changedInPeriod,
             // Whether this assignment still holds the position on the month's last day. A replaced employee and their replacement
             // both appear in the month they overlap, but the position's agreed salary is counted once, for the one who holds it.
-            'holds_position_at_month_end' => $a->end_date === null || $a->end_date->toDateString() >= $monthEnd->toDateString(),
+            'holds_position_at_month_end' => ($a->end_date === null || $a->end_date->toDateString() >= $monthEnd->toDateString()) && ! $awayOnMonthEnd,
+            // The holder is away (an open absence): the assignment stays open under this id and a Replacement works the position.
+            'away' => $openAbsence === null ? null : [
+                'absence_id' => $openAbsence->id,
+                'last_working_day' => $openAbsence->last_working_day->toDateString(),
+                'absent_from' => $openAbsence->absent_from->toDateString(),
+                'terminated_on' => $openAbsence->terminated_on?->toDateString(),
+            ],
+            'away_days_in_period' => $awayDays,
             'payable_days' => $payableDays,
             'days_in_month' => $daysInMonth,
             'attendance' => [

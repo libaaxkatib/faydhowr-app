@@ -242,7 +242,7 @@ export const company = defineMessages({
     'Previous salary: {salary}. It is only a proposal: change it if the salary is different now.',
     'Mushaharkii hore: {salary}. Waa soo jeedin keliya: beddel haddii mushaharku hadda yahay mid kale.',
   ),
-  'confirm.company.returnSalaryChecked': message('I checked this salary for the new Permanent assignment', 'Waan hubiyey mushaharkan qoondaynta Joogto ah ee cusub'),
+  'confirm.company.returnSalaryChecked': message('I checked this salary', 'Waan hubiyey mushaharkan'),
   'confirm.company.returnFooterNote': message(
     "The original employee gets a NEW Permanent assignment with their original position and the salary you confirm above. The Replacement's assignment ends the day before the return date and everything is kept in the history.",
     'Shaqaalihii asalka ahaa wuxuu helayaa qoondayn Joogto ah oo CUSUB oo leh jagadiisii asalka ahayd iyo mushaharka aad kor ku xaqiijisay. Qoondaynta Beddelaadku waxay dhammaanaysaa maalinta ka horeysa taariikhda soo noqoshada, wax walbana taariikhda ayay ku hadhayaan.',

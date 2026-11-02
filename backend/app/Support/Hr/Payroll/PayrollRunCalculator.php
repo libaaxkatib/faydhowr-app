@@ -18,6 +18,7 @@ use App\Models\PayrollCorrectionTransaction;
 use App\Models\PayrollItemDeduction;
 use App\Models\PayrollRecoveryDeduction;
 use App\Models\TemporaryReplacement;
+use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\EmploymentTypeChange;
 use App\Support\Hr\PositionSuccession;
@@ -103,6 +104,10 @@ class PayrollRunCalculator
                 continue;
             }
 
+            // The days someone else holds (a Replacement) or that the holder is away: not paid to this assignment, so nothing else (unpaid leave, an
+            // absent mark, a Temporary cover's cost) may be taken from this assignment for them either.
+            $heldElsewhere = $this->replacementRanges($assignment);
+
             try {
                 $salary = new SalaryTimeline($this->salaryPeriodsOf($assignment));
                 $gross = $this->proration->monthlyGross(
@@ -110,7 +115,7 @@ class PayrollRunCalculator
                     $salary,
                     $assignment->start_date->toDateString(),
                     $assignment->end_date?->toDateString(),
-                    $this->replacementRanges($assignment),
+                    $heldElsewhere,
                 );
             } catch (\RuntimeException $e) {
                 $warnings[] = "Assignment #{$assignment->id} ({$employee->employee_number}): {$e->getMessage()}";
@@ -118,6 +123,8 @@ class PayrollRunCalculator
 
                 continue;
             }
+
+            $this->warnAboutUncoveredAbsence($assignment, $first, $last, $period, $warnings);
 
             if ($employee->status->value !== 'active' && $assignment->status === WorkAssignmentStatus::Active && $gross['eligible_days'] > 0) {
                 $warnings[] = "Employee {$employee->employee_number} is {$employee->status->value} but still has an open assignment (#{$assignment->id}) in {$period}; they were included. End the assignment if employment ended.";
@@ -197,9 +204,9 @@ class PayrollRunCalculator
             }
 
             $pendingLeaves = [];
-            $leaveDates = $this->addUnpaidLeave($assignment, $salary, $first, $last, $daysInMonth, $deductions, $pendingLeaves, $warnings);
+            $leaveDates = $this->addUnpaidLeave($assignment, $salary, $first, $last, $daysInMonth, $deductions, $pendingLeaves, $warnings, $heldElsewhere);
 
-            $this->addAbsence($assignment, $salary, $first, $last, $daysInMonth, $deductions, $leaveDates, $coveredDates, $absenceCharged[$employee->id]);
+            $this->addAbsence($assignment, $salary, $first, $last, $daysInMonth, $deductions, $leaveDates, $coveredDates, $absenceCharged[$employee->id], $heldElsewhere);
 
             $replacementCents = (int) collect($deductions)->where('kind', PayrollItemDeduction::KIND_REPLACEMENT)->sum('amount_cents');
             $otherCents = (int) collect($deductions)->where('kind', '!=', PayrollItemDeduction::KIND_REPLACEMENT)->sum('amount_cents');
@@ -283,13 +290,74 @@ class PayrollRunCalculator
             return $this->inputs->replacementRanges($assignment->id);
         }
 
-        return EmployeeWorkAssignment::query()
+        return [...EmployeeWorkAssignment::query()
             ->where('replaces_assignment_id', $assignment->id)
             ->where('assignment_type', AssignmentType::Replacement->value)
             ->where('status', '!=', WorkAssignmentStatus::Cancelled)
             ->get()
             ->map(fn (EmployeeWorkAssignment $successor): array => [$successor->start_date->toDateString(), $successor->end_date?->toDateString()])
-            ->all();
+            ->all(), ...AbsenceCycles::excludedRanges($assignment)];
+    }
+
+    /**
+     * @param  list<array{0: string, 1: ?string}>  $ranges  inclusive date ranges, an open end is null
+     */
+    private static function withinRanges(string $iso, array $ranges): bool
+    {
+        foreach ($ranges as [$from, $to]) {
+            if ($iso >= $from && ($to === null || $iso <= $to)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Days of this month on which the holder of $assignment is away and no Replacement works the position. Nobody is paid for them (the holder is
+     * away, the Replacement is not there), so they are reported - also when a Replacement left and the absence is still open.
+     *
+     * @param  list<string>  $warnings
+     */
+    private function warnAboutUncoveredAbsence(EmployeeWorkAssignment $assignment, \DateTimeImmutable $first, \DateTimeImmutable $last, string $period, array &$warnings): void
+    {
+        if ($this->inputs?->hasAssignment($assignment->id)) {
+            $windows = $this->inputs->absenceWindowsOf($assignment->id);
+            $covers = $this->inputs->coverRangesOf($assignment->id);
+        } else {
+            $windows = AbsenceCycles::excludedRanges($assignment);
+            $covers = $windows === [] ? [] : EmployeeWorkAssignment::query()
+                ->where('replaces_assignment_id', $assignment->id)
+                ->where('assignment_type', AssignmentType::Replacement->value)
+                ->where('status', '!=', WorkAssignmentStatus::Cancelled)
+                ->get()
+                ->map(fn (EmployeeWorkAssignment $successor): array => [$successor->start_date->toDateString(), $successor->end_date?->toDateString()])
+                ->all();
+        }
+
+        if ($windows === []) {
+            return;
+        }
+
+        $start = $assignment->start_date->toDateString();
+        $end = $assignment->end_date?->toDateString();
+        $uncovered = [];
+
+        for ($day = $first; $day <= $last; $day = $day->modify('+1 day')) {
+            $iso = $day->format('Y-m-d');
+
+            if ($iso < $start || ($end !== null && $iso > $end)) {
+                continue;
+            }
+
+            if (self::withinRanges($iso, $windows) && ! self::withinRanges($iso, $covers)) {
+                $uncovered[] = $iso;
+            }
+        }
+
+        if ($uncovered !== []) {
+            $warnings[] = 'Assignment #'.$assignment->id.': its holder is away and no Replacement works the position on '.count($uncovered).' day(s) of '.$period.' (first '.$uncovered[0].', last '.end($uncovered).'); nobody is paid for those days.';
+        }
     }
 
     /**
@@ -519,7 +587,24 @@ class PayrollRunCalculator
             default => EmployeeWorkAssignment::query()->find($assignment->replaces_assignment_id),
         };
 
-        if ($predecessor !== null && $predecessor->status !== WorkAssignmentStatus::Cancelled) {
+        // A Replacement that took over while the holder was away (replacement cycles) is not an overlap: the days it holds are inside the holder's absence
+        // window, which payroll does not pay to the holder. Whether the holder's assignment is still open or was ended meanwhile does not change that.
+        $takesOverAnAbsence = $predecessor !== null
+            && $assignment->assignment_type === AssignmentType::Replacement
+            && ($this->inputs?->hasAssignment($predecessor->id) || $this->inputs?->hasAssignment($assignment->id)
+                ? $this->inputs->isAwayOn($predecessor->id, $assignment->start_date->toDateString())
+                : AbsenceCycles::isAwayOn($predecessor, $assignment->start_date));
+
+        if ($predecessor !== null && $predecessor->status !== WorkAssignmentStatus::Cancelled && $takesOverAnAbsence) {
+            $lastWorked = $predecessor->end_date;
+            $result = ['replaces_assignment_id' => $predecessor->id, 'overlap' => false, 'covers_absence' => true];
+
+            // The holder was ended while away and the Replacement is still working: say so, so the open position is not forgotten.
+            if ($lastWorked !== null && $assignment->status === WorkAssignmentStatus::Active && ($assignment->end_date === null || $assignment->end_date->gt($lastWorked))) {
+                $warnings[] = "Replacement #{$assignment->id} still holds a position whose Permanent assignment (#{$predecessor->id}) ended on {$lastWorked->toDateString()}. It keeps being paid on that assignment's salary; decide who holds the position (Replace Employee, or make the Replacement Permanent).";
+                $result['permanent_holder_ended_on'] = $lastWorked->toDateString();
+            }
+        } elseif ($predecessor !== null && $predecessor->status !== WorkAssignmentStatus::Cancelled) {
             if ($predecessor->end_date === null || $assignment->start_date->lte($predecessor->end_date)) {
                 $overlap = $predecessor->end_date === null
                     ? 'the assignment it replaces has no end date'
@@ -706,7 +791,7 @@ class PayrollRunCalculator
      * @param  list<string>  $warnings
      * @return list<string> the dates already deducted as unpaid leave
      */
-    private function addUnpaidLeave(EmployeeWorkAssignment $assignment, SalaryTimeline $salary, \DateTimeImmutable $first, \DateTimeImmutable $last, int $daysInMonth, array &$deductions, array &$pending, array &$warnings): array
+    private function addUnpaidLeave(EmployeeWorkAssignment $assignment, SalaryTimeline $salary, \DateTimeImmutable $first, \DateTimeImmutable $last, int $daysInMonth, array &$deductions, array &$pending, array &$warnings, array $heldElsewhere = []): array
     {
         $windowStart = $assignment->start_date->gt($first) ? CarbonImmutable::parse($assignment->start_date) : CarbonImmutable::parse($first);
         $windowEnd = $assignment->end_date !== null && $assignment->end_date->lt($last) ? CarbonImmutable::parse($assignment->end_date) : CarbonImmutable::parse($last);
@@ -742,6 +827,12 @@ class PayrollRunCalculator
 
             for ($day = $from; $day->lte($to); $day = $day->addDay()) {
                 $iso = $day->toDateString();
+
+                // A day this assignment is not paid for anyway (a Replacement holds it, or its holder is away) cannot cost it more.
+                if (self::withinRanges($iso, $heldElsewhere)) {
+                    continue;
+                }
+
                 $monthly = isset($counted[$iso]) ? null : $salary->monthlyCentsOn(new \DateTimeImmutable($iso));
 
                 if ($monthly === null) {
@@ -776,7 +867,7 @@ class PayrollRunCalculator
      * @param  list<array<string, mixed>>  $deductions
      * @param  list<string>  $skipDates  days already deducted as unpaid leave (never deducted twice)
      */
-    private function addAbsence(EmployeeWorkAssignment $assignment, SalaryTimeline $salary, \DateTimeImmutable $first, \DateTimeImmutable $last, int $daysInMonth, array &$deductions, array $skipDates = [], array $coveredByReplacement = [], ?array &$charged = null): void
+    private function addAbsence(EmployeeWorkAssignment $assignment, SalaryTimeline $salary, \DateTimeImmutable $first, \DateTimeImmutable $last, int $daysInMonth, array &$deductions, array $skipDates = [], array $coveredByReplacement = [], ?array &$charged = null, array $heldElsewhere = []): void
     {
         $absences = $this->inputs?->hasEmployee($assignment->employee_id)
             ? $this->inputs->absences($assignment->employee_id)
@@ -792,6 +883,11 @@ class PayrollRunCalculator
 
         foreach ($absences as $absence) {
             $iso = $absence->date->toDateString();
+
+            // Not paid to this assignment on that day (held by a Replacement, or its holder is away): nothing to deduct from it.
+            if (self::withinRanges($iso, $heldElsewhere)) {
+                continue;
+            }
 
             if (in_array($iso, $coveredByReplacement, true) && ! isset($charged[$iso])) {
                 $coveredSkipped[] = $iso;
