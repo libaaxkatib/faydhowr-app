@@ -83,8 +83,8 @@ class TemporaryCoveragePeriodTest extends TestCase
         // A single-day cover is one day: start and end are the same day and both count.
         [$other, $b] = $this->position(600);
         $one = $this->cover($b, '2026-08-15', '2026-08-15');
-        $this->expected($token, $one)->assertOk()->assertJsonPath('data.counted_days', 1)->assertJsonPath('data.expected', '19.35'); // 600 / 31
-        $this->assertSame('19.35', $this->replacementDeduction($this->payrollLine($token, '2026-08', $other)));
+        $this->expected($token, $one)->assertOk()->assertJsonPath('data.counted_days', 1)->assertJsonPath('data.expected', '20.00'); // 600 / 30 (a 31-day month: the divisor is always 30)
+        $this->assertSame('20.00', $this->replacementDeduction($this->payrollLine($token, '2026-08', $other)));
     }
 
     public function test_the_entitlement_and_the_deduction_use_the_same_period_whatever_attendance_was_verified(): void
@@ -117,16 +117,16 @@ class TemporaryCoveragePeriodTest extends TestCase
         $this->assertSame('100.00', $this->replacementDeduction($this->payrollLine($token, '2026-09', $permanent)), 'nothing after the actual end date is deducted');
     }
 
-    public function test_the_real_month_length_is_used_for_28_29_30_and_31_days(): void
+    public function test_the_divisor_is_always_30_whatever_the_length_of_the_month(): void
     {
         [, $token] = $this->superAdminToken();
 
         // [period, salary, first, last, entitlement = deduction]
         foreach ([
-            ['2027-02', 280, '2027-02-19', '2027-02-28', '100.00'], // 28 days
-            ['2028-02', 290, '2028-02-20', '2028-02-29', '100.00'], // 29 days (leap year)
-            ['2026-09', 600, '2026-09-21', '2026-09-30', '200.00'], // 30 days
-            ['2026-10', 310, '2026-10-26', '2026-10-31', '60.00'], // 31 days
+            ['2027-02', 280, '2027-02-19', '2027-02-28', '93.33'], // 28-day month: 280 x 10 / 30
+            ['2028-02', 290, '2028-02-20', '2028-02-29', '96.67'], // 29-day month (leap year): 290 x 10 / 30
+            ['2026-09', 600, '2026-09-21', '2026-09-30', '200.00'], // 30-day month: 600 x 10 / 30
+            ['2026-10', 310, '2026-10-26', '2026-10-31', '62.00'], // 31-day month: 310 x 6 / 30
         ] as [$period, $salary, $first, $last, $amount]) {
             [$permanent, $a] = $this->position($salary);
             $r = $this->cover($a, $first, $last);
@@ -197,9 +197,9 @@ class TemporaryCoveragePeriodTest extends TestCase
         [$permanent, $a] = $this->position(100);
         $r = $this->cover($a, '2026-10-01', '2026-10-10');
 
-        // 100.00 x 10 / 31 = 32.2580...: 32.26 once. Rounding each day first (3.23 x 10) would give 32.30.
-        $this->expected($token, $r)->assertOk()->assertJsonPath('data.expected', '32.26');
-        $this->assertSame('32.26', $this->replacementDeduction($this->payrollLine($token, '2026-10', $permanent)));
+        // 100.00 x 10 / 30 = 33.3333...: 33.33 once. Rounding each day first (3.33 x 10) would give 33.30.
+        $this->expected($token, $r)->assertOk()->assertJsonPath('data.expected', '33.33');
+        $this->assertSame('33.33', $this->replacementDeduction($this->payrollLine($token, '2026-10', $permanent)));
     }
 
     public function test_what_the_temporaries_are_paid_equals_what_is_deducted_from_the_permanent_to_the_cent(): void
@@ -212,10 +212,10 @@ class TemporaryCoveragePeriodTest extends TestCase
         $line = $this->payrollLine($token, '2026-10', $permanent);
         $deductions = collect($line['deductions'])->where('kind', 'replacement')->pluck('amount')->all();
 
-        // Each cover is rounded once (32.26 each); the figures paid and the figures deducted are the same, so no cent is created or lost between them.
-        $this->assertSame(['32.26', '32.26', '32.26'], $entitlements);
+        // Each cover is rounded once (33.33 each); the figures paid and the figures deducted are the same, so no cent is created or lost between them.
+        $this->assertSame(['33.33', '33.33', '33.33'], $entitlements);
         $this->assertSame($entitlements, array_map('strval', $deductions));
-        $this->assertEqualsWithDelta(96.78, array_sum(array_map('floatval', $deductions)), 0.0001);
+        $this->assertEqualsWithDelta(99.99, array_sum(array_map('floatval', $deductions)), 0.0001);
     }
 
     public function test_the_coverage_and_the_calculation_are_kept_for_audit(): void

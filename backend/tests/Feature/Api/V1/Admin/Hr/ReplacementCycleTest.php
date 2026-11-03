@@ -722,7 +722,8 @@ class ReplacementCycleTest extends TestCase
         $cover('2026-10-08', '2026-10-09'); // while the holder was working: two days
 
         $line = $this->october()[$original->id];
-        $this->assertSame(2000, $line->replacement_deduction_cents);
+        // Two covered days at the Temporary rate (310 / 30 = 10.333... a day, always 30 as the divisor), rounded once: 20.67.
+        $this->assertSame(2067, $line->replacement_deduction_cents);
     }
 
     public function test_days_nobody_covers_are_reported(): void

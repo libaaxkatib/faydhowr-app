@@ -411,6 +411,7 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
           onChange={setReplacementEmployeeId}
           excludeId={coveredEmployeeId}
           placeholder={t('option.pipeline.selectTemporary')}
+          allowNotYetActive
         />
       </FormField>
       <div className="grid grid-cols-2 gap-3">

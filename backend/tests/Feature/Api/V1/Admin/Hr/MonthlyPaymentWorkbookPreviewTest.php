@@ -198,10 +198,10 @@ class MonthlyPaymentWorkbookPreviewTest extends TestCase
         $this->assertContains('Permanent employees total (this record)', $labels);
         $this->assertContains('Combined total', $labels);
 
-        // The money cells show what Excel shows: a dollar sign and two decimals. The covered Permanent is paid 406.45, the Temporary 193.55.
+        // The money cells show what Excel shows: a dollar sign and two decimals. The covered Permanent is paid 400.00, the Temporary 200.00.
         $money = array_column(array_map($text, $table), 4);
-        $this->assertContains('$406.45', $money);
-        $this->assertContains('$193.55', $money);
+        $this->assertContains('$400.00', $money);
+        $this->assertContains('$200.00', $money);
 
         // A text that looks like a formula is shown as text; the employee without a number has a blank NUMBER cell that carries the highlight.
         $numbers = array_column(array_map($text, $table), 1);

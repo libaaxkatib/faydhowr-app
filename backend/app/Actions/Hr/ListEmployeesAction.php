@@ -56,6 +56,10 @@ class ListEmployeesAction
             $query->where('status', $filters['status']);
         }
 
+        if (! empty($filters['statuses'])) {
+            $query->whereIn('status', array_values(array_unique(explode(',', (string) $filters['statuses']))));
+        }
+
         if (! empty($filters['pipeline_stage'])) {
             // A stage queue lists people who are in the pipeline; an Active (working) person is never in one.
             $query->where('pipeline_stage', $filters['pipeline_stage'])->where('status', '!=', 'active');

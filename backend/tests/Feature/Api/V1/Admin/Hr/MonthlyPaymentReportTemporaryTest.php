@@ -157,11 +157,11 @@ class MonthlyPaymentReportTemporaryTest extends TestCase
         $this->assertSame('Covered by: '.$temporary->employee_number.' '.$temporary->full_name, $rows[$at]['Linked employee']);
         $this->assertSame('2026-10-11 to 2026-10-20', $rows[$at + 1]['Cover period']);
 
-        // 600.00 x 10 / 31 = 193.5483... -> 193.55, rounded once. The Permanent keeps 600.00 - 193.55 = 406.45.
-        $this->assertEqualsWithDelta(193.55, (float) $rows[$at + 1]['Payment amount (USD)'], 0.0001);
-        $this->assertEqualsWithDelta(193.55, (float) $rows[$at + 1]['Gross pay (USD)'], 0.0001);
+        // 600.00 x 10 / 30 = 200.00 (the Temporary divisor is always 30). The Permanent keeps 600.00 - 200.00 = 400.00.
+        $this->assertEqualsWithDelta(200.00, (float) $rows[$at + 1]['Payment amount (USD)'], 0.0001);
+        $this->assertEqualsWithDelta(200.00, (float) $rows[$at + 1]['Gross pay (USD)'], 0.0001);
         $this->assertSame([10, 31], [$rows[$at + 1]['Days paid'], $rows[$at + 1]['Days in month']]);
-        $this->assertEqualsWithDelta(406.45, (float) $rows[$at]['Payment amount (USD)'], 0.0001);
+        $this->assertEqualsWithDelta(400.00, (float) $rows[$at]['Payment amount (USD)'], 0.0001);
         $this->assertSame('n/a (Temporary)', $rows[$at + 1]['Monthly salary (USD)'], 'the covered Permanent\'s salary is not shown as the Temporary\'s own');
         $this->assertSame($temporary->payment_account_number, $rows[$at + 1]['Payment / account number']);
         $this->assertSame([], array_filter([$rows[$at]['Employee number'] === $rows[$at + 1]['Employee number']]), 'one row per cover, not a copy of the Permanent line');
@@ -178,14 +178,14 @@ class MonthlyPaymentReportTemporaryTest extends TestCase
         $summary = $this->summary($book);
 
         $money = fn (string $column) => array_sum(array_map(fn (array $r): float => (float) $r[$column], $rows));
-        // 600 x 10/31 = 193.55 and 600 x 5/31 = 96.77; the Permanent is charged exactly those two figures: 600 - 193.55 - 96.77 = 309.68.
-        $this->assertEqualsWithDelta(193.55 + 96.77, $money('Gross pay (USD)') - 600.00, 0.0001);
+        // 600 x 10/30 = 200.00 and 600 x 5/30 = 100.00; the Permanent is charged exactly those two figures: 600 - 200.00 - 100.00 = 300.00.
+        $this->assertEqualsWithDelta(200.00 + 100.00, $money('Gross pay (USD)') - 600.00, 0.0001);
         $this->assertEqualsWithDelta(600.00, $money('Payment amount (USD)'), 0.0001, 'the Permanent\'s net plus what the Temporaries earn is exactly the covered salary');
-        $this->assertEqualsWithDelta(309.68, (float) $rows[0]['Payment amount (USD)'], 0.0001);
+        $this->assertEqualsWithDelta(300.00, (float) $rows[0]['Payment amount (USD)'], 0.0001);
         $this->assertSame(1, $summary['Employees paid (each counted once)'], 'the Temporary workers are not payroll employees');
-        $this->assertEqualsWithDelta(309.68, (float) $summary['Total payment amount (USD)'], 0.0001, 'the existing total is the Permanent employees\' own');
-        $this->assertEqualsWithDelta(290.32, (float) $summary['Temporary amount earned this month (USD)'], 0.0001);
-        $this->assertEqualsWithDelta(290.32, (float) $summary['Deducted from the Permanent employees for these covers (USD)'], 0.0001);
+        $this->assertEqualsWithDelta(300.00, (float) $summary['Total payment amount (USD)'], 0.0001, 'the existing total is the Permanent employees\' own');
+        $this->assertEqualsWithDelta(300.00, (float) $summary['Temporary amount earned this month (USD)'], 0.0001);
+        $this->assertEqualsWithDelta(300.00, (float) $summary['Deducted from the Permanent employees for these covers (USD)'], 0.0001);
         $this->assertEqualsWithDelta(0.0, (float) $summary['Earned but not deducted (cover not approved, or days already unpaid leave) (USD)'], 0.0001);
         $this->assertSame('Yes', $summary['The two deduction figures agree']);
         $this->assertEqualsWithDelta(600.00, (float) $summary['Total payment amount including Temporary workers (USD)'], 0.0001);
@@ -201,9 +201,9 @@ class MonthlyPaymentReportTemporaryTest extends TestCase
         $summary = $this->summary($book);
 
         $this->assertEqualsWithDelta(600.00, (float) $rows[0]['Payment amount (USD)'], 0.0001, 'no approval, no deduction (existing rule)');
-        $this->assertEqualsWithDelta(193.55, (float) $rows[1]['Payment amount (USD)'], 0.0001);
+        $this->assertEqualsWithDelta(200.00, (float) $rows[1]['Payment amount (USD)'], 0.0001);
         $this->assertStringContainsString('Cover not approved', $rows[1]['Data checks']);
-        $this->assertEqualsWithDelta(193.55, (float) $summary['Earned but not deducted (cover not approved, or days already unpaid leave) (USD)'], 0.0001);
+        $this->assertEqualsWithDelta(200.00, (float) $summary['Earned but not deducted (cover not approved, or days already unpaid leave) (USD)'], 0.0001);
     }
 
     public function test_what_was_paid_up_to_the_end_of_the_month_and_the_balance_are_shown(): void
@@ -218,10 +218,10 @@ class MonthlyPaymentReportTemporaryTest extends TestCase
         $row = $this->rows($this->book($token))[1];
 
         $this->assertEqualsWithDelta(100.00, (float) $row['Paid to date (USD)'], 0.0001);
-        $this->assertEqualsWithDelta(93.55, (float) $row['Balance (USD)'], 0.0001);
+        $this->assertEqualsWithDelta(100.00, (float) $row['Balance (USD)'], 0.0001);
         $this->assertSame('Partly paid', $row['Payment status']);
 
-        $this->pay($cover, '93.55', '2026-10-30');
+        $this->pay($cover, '100.00', '2026-10-30');
         $row = $this->rows($this->book($token))[1];
         $this->assertEqualsWithDelta(0.0, (float) $row['Balance (USD)'], 0.0001);
         $this->assertSame('Paid', $row['Payment status']);
@@ -237,14 +237,14 @@ class MonthlyPaymentReportTemporaryTest extends TestCase
         $cover = $this->cover($position, $this->temporary(), '2026-09-28', '2026-10-03');
         $this->pay($cover, '31.00', '2026-09-30');
 
-        // September: 3 days of 30 at 310 = 31.00 (paid in full). October: 3 days of 31 = 30.00; the balance at the end of October is 61.00 - 31.00.
+        // September: 3 days at 310 / 30 = 31.00 (paid in full). October: 3 days at 310 / 30 = 31.00 as well; the balance at the end of October is 62.00 - 31.00.
         $september = $this->rows($this->book($token, '2026-09'))[1];
         $october = $this->rows($this->book($token, '2026-10'))[1];
 
         $this->assertEqualsWithDelta(31.00, (float) $september['Payment amount (USD)'], 0.0001);
         $this->assertEqualsWithDelta(0.0, (float) $september['Balance (USD)'], 0.0001);
-        $this->assertEqualsWithDelta(30.00, (float) $october['Payment amount (USD)'], 0.0001);
-        $this->assertEqualsWithDelta(30.00, (float) $october['Balance (USD)'], 0.0001);
+        $this->assertEqualsWithDelta(31.00, (float) $october['Payment amount (USD)'], 0.0001);
+        $this->assertEqualsWithDelta(31.00, (float) $october['Balance (USD)'], 0.0001);
         $this->assertSame(3, $october['Days paid']);
     }
 
@@ -288,9 +288,9 @@ class MonthlyPaymentReportTemporaryTest extends TestCase
         $summary = $this->summary($book);
 
         $this->assertStringContainsString('Payroll run finalized', $summary['Amounts based on']);
-        $this->assertEqualsWithDelta(406.45, (float) $rows[0]['Payment amount (USD)'], 0.0001, 'the stored line');
-        $this->assertEqualsWithDelta(193.55, (float) $rows[1]['Payment amount (USD)'], 0.0001);
-        $this->assertEqualsWithDelta(193.55, (float) $summary['Replacement deductions on the Permanent lines above (USD)'], 0.0001);
+        $this->assertEqualsWithDelta(400.00, (float) $rows[0]['Payment amount (USD)'], 0.0001, 'the stored line');
+        $this->assertEqualsWithDelta(200.00, (float) $rows[1]['Payment amount (USD)'], 0.0001);
+        $this->assertEqualsWithDelta(200.00, (float) $summary['Replacement deductions on the Permanent lines above (USD)'], 0.0001);
         $this->assertSame('Yes', $summary['The two deduction figures agree']);
         $this->assertEqualsWithDelta(600.00, (float) $summary['Total payment amount including Temporary workers (USD)'], 0.0001);
     }
@@ -319,7 +319,7 @@ class MonthlyPaymentReportTemporaryTest extends TestCase
         $rows = $this->rows($book);
 
         $this->assertSame([$permanentA->employee_number, $inA->employee_number], array_column($rows, 'Employee number'));
-        $this->assertEqualsWithDelta(193.55, (float) $this->summary($book)['Temporary amount earned this month (USD)'], 0.0001);
+        $this->assertEqualsWithDelta(200.00, (float) $this->summary($book)['Temporary amount earned this month (USD)'], 0.0001);
     }
 
     public function test_the_columns_already_in_the_list_are_not_changed_and_a_month_without_covers_has_no_temporary_lines(): void
@@ -357,7 +357,7 @@ class MonthlyPaymentReportTemporaryTest extends TestCase
         // The line under the table keeps the Permanent total and adds the Temporary total and the grand total, each a number.
         $this->assertSame('Total', (string) $sheet->getCell('A8')->getValue());
         $this->assertSame('Temporary workers total (not included in the total above)', (string) $sheet->getCell('A9')->getValue());
-        $this->assertEqualsWithDelta(193.55, (float) $sheet->getCell('M9')->getValue(), 0.0001);
+        $this->assertEqualsWithDelta(200.00, (float) $sheet->getCell('M9')->getValue(), 0.0001);
         $this->assertEqualsWithDelta(600.00, (float) $sheet->getCell('M10')->getValue(), 0.0001);
     }
 

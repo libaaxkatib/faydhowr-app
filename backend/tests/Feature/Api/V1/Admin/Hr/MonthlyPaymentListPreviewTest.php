@@ -151,7 +151,7 @@ class MonthlyPaymentListPreviewTest extends TestCase
 
         $this->assertSame(['id' => $company->id, 'name' => 'Example Company B', 'kind' => 'company'], $data['record']);
         $this->assertSame([self::P, 'company', 2, 1, 1], [$data['period'], $data['scope'], $data['row_count'], $data['permanent_count'], $data['temporary_count']]);
-        $this->assertSame(['406.45', '193.55', '600.00', 'USD'], [$data['permanent_total'], $data['temporary_total'], $data['combined_total'], $data['currency']]);
+        $this->assertSame(['400.00', '200.00', '600.00', 'USD'], [$data['permanent_total'], $data['temporary_total'], $data['combined_total'], $data['currency']]);
         $this->assertSame(0, $data['missing_payment_number_count']);
         $this->assertTrue($data['is_estimate'], 'no approved run exists: the amounts are an estimate, as the workbook says');
     }

@@ -73,12 +73,12 @@ class PayrollSheetTest extends TestCase
 
         [$perm, $a, $b] = $sheet['rows'];
 
-        $this->assertSame(3871, $a['amount_cents']);
-        $this->assertSame(3871, $b['amount_cents']);
-        $this->assertSame(7742, $perm['replacement_deduction_cents']);
-        $this->assertSame(9742, $perm['total_deductions_cents']);
+        $this->assertSame(4000, $a['amount_cents']); // 4 days x 300 / 30
+        $this->assertSame(4000, $b['amount_cents']);
+        $this->assertSame(8000, $perm['replacement_deduction_cents']);
+        $this->assertSame(10000, $perm['total_deductions_cents']);
         $this->assertSame(30000, $perm['gross_cents']);
-        $this->assertSame(20258, $perm['net_cents']);
+        $this->assertSame(20000, $perm['net_cents']);
         $this->assertTrue($sheet['reconciliation']['ok']);
     }
 
@@ -90,8 +90,8 @@ class PayrollSheetTest extends TestCase
         ]);
 
         $this->assertSame(50000, $sheet['totals']['gross_cents']);
-        $this->assertSame(3871, $sheet['totals']['replacement_deduction_cents']);
-        $this->assertSame(50000 - 3871, $sheet['totals']['net_cents']);
+        $this->assertSame(4000, $sheet['totals']['replacement_deduction_cents']);
+        $this->assertSame(50000 - 4000, $sheet['totals']['net_cents']);
     }
 
     public function test_an_unapproved_replacement_is_shown_but_not_deducted(): void
@@ -101,7 +101,7 @@ class PayrollSheetTest extends TestCase
         ]);
 
         $this->assertSame(0, $sheet['rows'][0]['replacement_deduction_cents']);
-        $this->assertSame(3871, $sheet['rows'][1]['amount_cents']);
+        $this->assertSame(4000, $sheet['rows'][1]['amount_cents']);
         $this->assertFalse($sheet['rows'][1]['deducted_from_parent']);
         $this->assertStringContainsString('Pending approval', $sheet['rows'][1]['note']);
     }
@@ -113,7 +113,7 @@ class PayrollSheetTest extends TestCase
         ]);
 
         $this->assertSame(2, $sheet['rows'][1]['verified_days']);
-        $this->assertSame(1935, $sheet['rows'][1]['amount_cents']);
+        $this->assertSame(2000, $sheet['rows'][1]['amount_cents']);
     }
 
     public function test_two_replacements_charging_the_same_day_are_rejected(): void

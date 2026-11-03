@@ -69,6 +69,8 @@ class ListEmployeesRequest extends FormRequest
             // true = a number typed in `search` also matches the employee's database ID (the pickers; other lists search name, phone and number only).
             'search_by_id' => ['sometimes', 'boolean'],
             'status' => ['sometimes', Rule::in(EmployeeStatus::values())],
+            // Several statuses at once, comma separated (the Temporary replacement picker lists Active, Waiting and Applicant people together).
+            'statuses' => ['sometimes', 'string', 'max:100', 'regex:/^('.implode('|', EmployeeStatus::values()).')(,('.implode('|', EmployeeStatus::values()).'))*$/'],
             // The Permanent / Temporary classification (a person without one counts as Permanent, the default). Used by the Temporary replacement pickers.
             'employment_type' => ['sometimes', Rule::in(['permanent', 'temporary'])],
             'pipeline_stage' => ['sometimes', Rule::in(EmployeePipelineStage::values())],

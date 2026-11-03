@@ -38,14 +38,17 @@ class ReplacementCostCalculatorTest extends TestCase
         $this->assertSame(8000, $cost['amount_cents']);
     }
 
-    public function test_thirty_one_day_month_rounds_once_from_the_exact_fraction(): void
+    public function test_a_thirty_one_day_month_still_uses_the_fixed_divisor_30(): void
     {
         $cost = (new ReplacementCostCalculator)->monthlyCost('2026-10', $this->salary(), [
             'replacement_id' => 1, 'start_date' => '2026-10-01', 'workdays' => $this->days('2026-10', 3, 10),
         ]);
 
-        $this->assertSame(7742, $cost['amount_cents']);
-        $this->assertNotSame(7744, $cost['amount_cents'], 'A pre-rounded daily rate (9.68 x 8) must not be used.');
+        // 300 / 30 = 10.00 a day x 8 days = 80.00. The real month length (31) is never the divisor: that would give 77.42.
+        $this->assertSame(8000, $cost['amount_cents']);
+        $this->assertNotSame(7742, $cost['amount_cents']);
+        $this->assertSame(30, $cost['rate_divisor']);
+        $this->assertSame(31, $cost['days_in_month'], 'the month length is reported for information only');
     }
 
     public function test_unverified_days_are_never_charged(): void
@@ -83,7 +86,7 @@ class ReplacementCostCalculatorTest extends TestCase
         $this->assertSame(2000, $cost['amount_cents']);
     }
 
-    public function test_a_replacement_spanning_two_months_uses_each_months_own_denominator(): void
+    public function test_a_replacement_spanning_two_months_uses_the_same_divisor_in_each(): void
     {
         $replacement = [
             'replacement_id' => 1, 'start_date' => '2026-10-29',
@@ -95,7 +98,7 @@ class ReplacementCostCalculatorTest extends TestCase
         $november = $calc->monthlyCost('2026-11', $this->salary(), $replacement);
 
         $this->assertSame(31, $october['days_in_month']);
-        $this->assertSame(2903, $october['amount_cents']);
+        $this->assertSame(3000, $october['amount_cents'], '3 days x 300 / 30, although October has 31 days');
         $this->assertSame(30, $november['days_in_month']);
         $this->assertSame(2000, $november['amount_cents']);
     }
@@ -110,7 +113,7 @@ class ReplacementCostCalculatorTest extends TestCase
             'replacement_id' => 1, 'start_date' => '2026-10-01', 'workdays' => $this->days('2026-10', 14, 17),
         ]);
 
-        $this->assertSame(4516, $cost['amount_cents']);
+        $this->assertSame(4667, $cost['amount_cents'], '(2 x 300 + 2 x 400) / 30 = 46.67, rounded once');
         $this->assertStringStartsWith('varies', $cost['daily_rate']);
     }
 

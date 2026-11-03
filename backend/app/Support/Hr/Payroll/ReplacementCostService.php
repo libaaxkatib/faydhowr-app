@@ -76,7 +76,7 @@ class ReplacementCostService
         // The calculator calls the days it charged `verified_days`; here they are the covered days, and `verified_days` becomes the ledger's attendance count.
         return array_merge($result, [
             'covered_days' => $result['verified_days'],
-            'entitlement_cents' => PayrollMoney::roundDiv($numerator, $daysInMonth),
+            'entitlement_cents' => TemporaryRate::amountCents($numerator),
             'verified_days' => $replacement->workdays()
                 ->where('status', TemporaryReplacementWorkday::STATUS_VERIFIED)
                 ->whereDate('work_date', '>=', $first->format('Y-m-d'))

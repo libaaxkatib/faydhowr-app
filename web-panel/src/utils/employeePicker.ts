@@ -7,6 +7,9 @@
 //    being looked for is always found. Whoever cannot be chosen is shown greyed out with the reason; only people who meet the rules can be selected.
 // The rules themselves are the server's (docs/HR_PAYROLL_RULES.md A5/A13, CreateTemporaryReplacementAction::assertEmployeeCanCover) and are still enforced
 // on save: nothing here makes anybody eligible, converts a type, or bypasses a check.
+//
+// The NEW-cover form (owner decision 2026-11-03) also accepts a Waiting or Applicant person (`allowNotYetActive`): choosing them changes nothing; saving the
+// cover is what makes them Active. Every other picker (the covered person, correcting a cover) is unchanged: it still needs an Active person.
 
 export type PickerEmploymentType = 'permanent' | 'temporary';
 
@@ -16,6 +19,8 @@ export const PICKER_PAGE_SIZE = 50;
 export interface PickerParams {
   /** Only without a search: the list of people who can be chosen. A search looks at everyone. */
   status?: 'active';
+  /** Only without a search, in the new-cover form: Active, Waiting and Applicant people together (comma separated). */
+  statuses?: string;
   employment_type?: PickerEmploymentType;
   search?: string;
   search_by_id?: boolean;
@@ -27,13 +32,21 @@ export interface PickerParams {
  * The exact query the picker sends for one page.
  * Blank search: the eligible pool (Active, of this type). Typed search: every employee that matches, whatever the status or type.
  */
-export function pickerParams(employmentType: PickerEmploymentType, search: string, page: number): PickerParams {
+export function pickerParams(employmentType: PickerEmploymentType, search: string, page: number, allowNotYetActive = false): PickerParams {
   const term = search.trim();
 
-  return term === ''
-    ? { status: 'active', employment_type: employmentType, per_page: PICKER_PAGE_SIZE, page }
-    : { search: term, search_by_id: true, per_page: PICKER_PAGE_SIZE, page };
+  if (term !== '') return { search: term, search_by_id: true, per_page: PICKER_PAGE_SIZE, page };
+
+  return allowNotYetActive
+    ? { statuses: NEW_COVER_STATUSES.join(','), employment_type: employmentType, per_page: PICKER_PAGE_SIZE, page }
+    : { status: 'active', employment_type: employmentType, per_page: PICKER_PAGE_SIZE, page };
 }
+
+/** The statuses of a person who may be chosen in the new-cover form: Active, or Waiting / Applicant (made Active when the cover is saved). */
+export const NEW_COVER_STATUSES = ['active', 'waiting', 'applicant'] as const;
+
+/** True for a status that is made Active by saving the cover. */
+export const isNotYetActive = (status: string | null | undefined): boolean => status === 'waiting' || status === 'applicant';
 
 /** The part of an employee row the picker reads. */
 export interface PickerEmployee {
@@ -57,16 +70,19 @@ export type NotChoosable =
  * The same questions the server asks (the person doing the cover: Active, Temporary, registration complete, not the covered person; the person being
  * covered: a Permanent employee who is Active). The first failing one is the reason shown; the server stays the authority and re-checks on save.
  */
-export function notChoosable(employee: PickerEmployee, employmentType: PickerEmploymentType, excludeId?: string): NotChoosable | null {
+export function notChoosable(employee: PickerEmployee, employmentType: PickerEmploymentType, excludeId?: string, allowNotYetActive = false): NotChoosable | null {
   if (String(employee.id) === excludeId) return { reason: 'covered_person' };
-  if (employee.status !== undefined && employee.status !== null && employee.status !== 'active') return { reason: 'not_active', status: employee.status };
+
+  const notYetActive = allowNotYetActive && isNotYetActive(employee.status);
+  if (!notYetActive && employee.status !== undefined && employee.status !== null && employee.status !== 'active') return { reason: 'not_active', status: employee.status };
 
   // The type: a row without a type is Permanent (the default of the employee record).
   const isTemporary = employee.employment_type === 'temporary';
   if (employmentType === 'temporary') {
     // The type is the more basic reason (a Permanent person's registration is irrelevant to covering), so it is said first.
     if (!isTemporary) return { reason: 'not_temporary' };
-    if (employee.registration_workflow?.eligible_for_waiting_and_company === false) return { reason: 'registration_incomplete' };
+    // A Waiting / Applicant person is not held back here: saving the cover activates them, as a recorded exception when the registration steps are not complete.
+    if (!notYetActive && employee.registration_workflow?.eligible_for_waiting_and_company === false) return { reason: 'registration_incomplete' };
   } else if (isTemporary) {
     return { reason: 'not_permanent' };
   }
@@ -77,6 +93,8 @@ export function notChoosable(employee: PickerEmployee, employmentType: PickerEmp
 export interface PickerOption {
   value: string;
   label: string;
+  /** The person's status when they will be made Active by saving the cover (Waiting / Applicant); the form says so. */
+  becomesActive?: string;
   /** Shown but not selectable: the person was found but does not meet the rules (the label says why). */
   disabled?: boolean;
 }
@@ -92,7 +110,20 @@ export function pickerLabel(employee: PickerEmployee): string {
  */
 export function pickerOptions(
   employees: readonly PickerEmployee[],
-  { employmentType, excludeId, reasonText }: { employmentType: PickerEmploymentType; excludeId?: string; reasonText: (why: NotChoosable) => string },
+  {
+    employmentType,
+    excludeId,
+    reasonText,
+    allowNotYetActive = false,
+    activeOnSaveText,
+  }: {
+    employmentType: PickerEmploymentType;
+    excludeId?: string;
+    reasonText: (why: NotChoosable) => string;
+    allowNotYetActive?: boolean;
+    /** Written after the name of a Waiting / Applicant person who can be chosen ("Waiting - becomes Active when saved"). */
+    activeOnSaveText?: (status: string) => string;
+  },
 ): PickerOption[] {
   const seen = new Set<number>();
   const choosable: PickerOption[] = [];
@@ -102,8 +133,15 @@ export function pickerOptions(
     if (seen.has(employee.id)) continue;
     seen.add(employee.id);
 
-    const why = notChoosable(employee, employmentType, excludeId);
-    if (why === null) choosable.push({ value: String(employee.id), label: pickerLabel(employee) });
+    const why = notChoosable(employee, employmentType, excludeId, allowNotYetActive);
+    const pending = allowNotYetActive && isNotYetActive(employee.status) ? String(employee.status) : undefined;
+    if (why === null) {
+      choosable.push(
+        pending === undefined
+          ? { value: String(employee.id), label: pickerLabel(employee) }
+          : { value: String(employee.id), label: `${pickerLabel(employee)} — ${activeOnSaveText ? activeOnSaveText(pending) : pending}`, becomesActive: pending },
+      );
+    }
     else others.push({ value: String(employee.id), label: `${pickerLabel(employee)} — ${reasonText(why)}`, disabled: true });
   }
 

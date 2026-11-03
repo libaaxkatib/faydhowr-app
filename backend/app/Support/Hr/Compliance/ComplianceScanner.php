@@ -161,7 +161,9 @@ final class ComplianceScanner
                     $exempted ? 'medium' : 'high', $exempted ? HrComplianceFinding::NEEDS_REVIEW : HrComplianceFinding::CONFIRMED,
                     'Registration steps not completed: '.implode(', ', $missing).'.',
                     $exempted
-                        ? 'The person went past the registration workflow through a recorded exception ('.($exception?->source === EmployeeRegistrationWorkflow::SOURCE_SUCCESSOR_EXCEPTION ? 'appointed by HR as a successor' : 'Super Admin override').'). Reason on record: '.($exception?->override_reason ?? 'not recorded').' HR should confirm the missing steps are being completed.'
+                        ? 'The person went past the registration workflow through a recorded exception ('.match ($exception?->source) {
+                            EmployeeRegistrationWorkflow::SOURCE_SUCCESSOR_EXCEPTION => 'appointed by HR as a successor', EmployeeRegistrationWorkflow::SOURCE_COVER_EXCEPTION => 'made Active when recorded as a Temporary replacement', default => 'Super Admin override'
+                        }.'). Reason on record: '.($exception?->override_reason ?? 'not recorded').' HR should confirm the missing steps are being completed.'
                         : 'A new registration must complete every step (guarantor, contract, uniform, training, practical) before working; the records for these steps do not exist.',
                     $exempted ? 'Confirm the exception with the person who recorded it and complete the missing steps.' : 'Complete the missing registration steps, or record the approved exception.',
                     ['missing_steps' => $missing, 'exception_reason' => $exception?->override_reason, 'exception_source' => $exception?->source],
@@ -425,7 +427,7 @@ final class ComplianceScanner
     {
         return EmployeeStatusHistory::query()
             ->where('employee_id', $employee->id)
-            ->whereIn('source', ['override', EmployeeRegistrationWorkflow::SOURCE_SUCCESSOR_EXCEPTION])
+            ->whereIn('source', EmployeeRegistrationWorkflow::EXCEPTION_SOURCES)
             ->whereNotNull('override_reason')
             ->latest('id')
             ->first();

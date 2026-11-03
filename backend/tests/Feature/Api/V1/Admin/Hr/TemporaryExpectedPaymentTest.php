@@ -62,7 +62,7 @@ class TemporaryExpectedPaymentTest extends TestCase
         return $this->withToken($token)->postJson("/api/v1/admin/hr/temporary-replacements/{$r->id}/payments", $body + ['payment_date' => '2026-10-01']);
     }
 
-    // ------------------------------------------------------------------ N9, N11: the full assignment period, real month lengths
+    // ------------------------------------------------------------------ N9, N11: the full assignment period, fixed divisor 30
 
     public function test_600_over_10_eligible_days_of_a_30_day_month_is_200(): void
     {
@@ -97,20 +97,20 @@ class TemporaryExpectedPaymentTest extends TestCase
         $this->expected($token, $r)->assertOk()->assertJsonPath('data.expected', '200.00')->assertJsonPath('data.permanent_deduction', '200.00');
     }
 
-    public function test_months_of_28_29_30_and_31_days_use_their_real_length_including_leap_february(): void
+    public function test_months_of_28_29_30_and_31_days_all_use_the_fixed_divisor_30_including_leap_february(): void
     {
         CarbonImmutable::setTestNow('2028-06-01 10:00:00');
         [, $token] = $this->superAdminToken(); // after the clock moved: a token minted earlier would already have expired
 
-        // [salary, first day, last day, days in month, eligible days, expected]
+        // [salary, first day, last day, days in month (informational), eligible days, expected = salary x eligible days / 30]
         foreach ([
-            [280, '2027-02-01', '2027-02-28', 28, 28, '280.00'],
-            [280, '2027-02-19', '2027-02-28', 28, 10, '100.00'],
-            [290, '2028-02-01', '2028-02-29', 29, 29, '290.00'],
-            [290, '2028-02-20', '2028-02-29', 29, 10, '100.00'],
+            [280, '2027-02-01', '2027-02-28', 28, 28, '261.33'],
+            [280, '2027-02-19', '2027-02-28', 28, 10, '93.33'],
+            [290, '2028-02-01', '2028-02-29', 29, 29, '280.33'],
+            [290, '2028-02-20', '2028-02-29', 29, 10, '96.67'],
             [600, '2026-09-21', '2026-09-30', 30, 10, '200.00'],
-            [310, '2026-10-26', '2026-10-31', 31, 6, '60.00'],
-            [310, '2026-10-01', '2026-10-31', 31, 31, '310.00'],
+            [310, '2026-10-26', '2026-10-31', 31, 6, '62.00'],
+            [310, '2026-10-01', '2026-10-31', 31, 31, '320.33'],
         ] as [$salary, $from, $to, $daysInMonth, $eligible, $expected]) {
             [$a, $temp] = $this->position($salary);
             $r = $this->cover($a, $temp, $from, $to);
@@ -163,7 +163,7 @@ class TemporaryExpectedPaymentTest extends TestCase
         $running = $this->cover($a, $temp, '2026-10-01');
 
         // Today is 5 October: five days so far, whatever `through` asks for.
-        $this->expected($token, $running)->assertOk()->assertJsonPath('data.counted_days', 5)->assertJsonPath('data.expected', '50.00');
+        $this->expected($token, $running)->assertOk()->assertJsonPath('data.counted_days', 5)->assertJsonPath('data.expected', '51.67'); // 310 x 5 / 30
         $this->expected($token, $running, '2026-12-31')->assertOk()->assertJsonPath('data.counted_days', 5);
 
         // The covered assignment ended on 3 October: nothing counts after it.
@@ -193,10 +193,10 @@ class TemporaryExpectedPaymentTest extends TestCase
         [$a, $temp] = $this->position(310);
         $r = $this->cover($a, $temp, '2026-09-28', '2026-10-03');
 
-        // September: 3 days of 30 at 310 = 31.00; October: 3 days of 31 = 30.00.
+        // September: 3 days at 310 / 30 = 31.00; October: 3 days at 310 / 30 = 31.00 (the divisor does not change with the month).
         $response = $this->expected($token, $r)->assertOk();
-        $this->assertSame(['31.00', '30.00'], array_column($response->json('data.months'), 'amount'));
-        $this->assertSame('61.00', $response->json('data.expected'));
+        $this->assertSame(['31.00', '31.00'], array_column($response->json('data.months'), 'amount'));
+        $this->assertSame('62.00', $response->json('data.expected'));
     }
 
     public function test_data_that_overlaps_from_before_the_rule_is_counted_in_full_and_reported_never_shared_out(): void

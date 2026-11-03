@@ -154,7 +154,7 @@ class MonthlyPaymentListTenColumnTest extends TestCase
         }
     }
 
-    public function test_the_worked_example_600_with_a_10_day_october_cover_gives_406_45_193_55_and_600_00(): void
+    public function test_the_worked_example_600_with_a_10_day_october_cover_gives_400_200_and_600(): void
     {
         [, $token] = $this->superAdminToken();
         $companyB = $this->makeCompany('Example Company B');
@@ -167,15 +167,15 @@ class MonthlyPaymentListTenColumnTest extends TestCase
 
         $this->assertCount(2, $rows);
         $this->assertSame(['Ahmed Ali (example)', 'TEST-PERM-0001', 'Example Company B', 'Permanent', 'Permanent', "\u{2014}", "\u{2014}"], [$rows[0]['Employee'], $rows[0]['NUMBER'], $rows[0]['COMPANY OR GURI'], $rows[0]['Type'], $rows[0]['Row type'], $rows[0]['Linked employee'], $rows[0]['Cover period']]);
-        $this->assertEqualsWithDelta(406.45, (float) $rows[0]['Pay amount'], 0.0001);
+        $this->assertEqualsWithDelta(400.00, (float) $rows[0]['Pay amount'], 0.0001);
         $this->assertSame(["\u{21B3} Hassan Omar (example)", 'TEST-TEMP-0002', 'Example Company B', 'Temporary', 'Temporary', 'Ahmed Ali (example)', "Oct 1\u{2013}10"], [$rows[1]['Employee'], $rows[1]['NUMBER'], $rows[1]['COMPANY OR GURI'], $rows[1]['Type'], $rows[1]['Row type'], $rows[1]['Linked employee'], $rows[1]['Cover period']]);
-        $this->assertEqualsWithDelta(193.55, (float) $rows[1]['Pay amount'], 0.0001);
-        $this->assertEqualsWithDelta(193.55, (float) $rows[1]['Balance'], 0.0001);
+        $this->assertEqualsWithDelta(200.00, (float) $rows[1]['Pay amount'], 0.0001);
+        $this->assertEqualsWithDelta(200.00, (float) $rows[1]['Balance'], 0.0001);
         $this->assertEqualsWithDelta(0.0, (float) $rows[1]['Paid to date'], 0.0001);
 
         $totals = $this->totals($this->book($token));
-        $this->assertEqualsWithDelta(406.45, $totals['Permanent employees total'], 0.0001);
-        $this->assertEqualsWithDelta(193.55, $totals['Temporary workers total (not included in the Permanent total)'], 0.0001);
+        $this->assertEqualsWithDelta(400.00, $totals['Permanent employees total'], 0.0001);
+        $this->assertEqualsWithDelta(200.00, $totals['Temporary workers total (not included in the Permanent total)'], 0.0001);
         $this->assertEqualsWithDelta(600.00, $totals['Combined total'], 0.0001);
         $this->assertEqualsWithDelta(600.00, array_sum(array_map(fn (array $r): float => (float) $r['Pay amount'], $rows)), 0.0001, 'the column adds up to the covered salary: nothing twice');
     }
@@ -192,7 +192,7 @@ class MonthlyPaymentListTenColumnTest extends TestCase
         $rows = $this->rows($this->book($token));
         $this->assertSame(['Not recorded', 'Not recorded'], [$rows[0]['Paid to date'], $rows[0]['Balance']]);
         $this->assertEqualsWithDelta(100.00, (float) $rows[1]['Paid to date'], 0.0001);
-        $this->assertEqualsWithDelta(93.55, (float) $rows[1]['Balance'], 0.0001);
+        $this->assertEqualsWithDelta(100.00, (float) $rows[1]['Balance'], 0.0001);
 
         // Finalized and marked paid: the Permanent line is paid in full.
         $run = $this->withToken($token)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => self::P])->assertCreated()->json('data.id');
@@ -201,9 +201,9 @@ class MonthlyPaymentListTenColumnTest extends TestCase
         $this->withToken($token)->postJson("/api/v1/admin/hr/payroll-items/{$item->id}/pay", ['payment_date' => '2026-11-02'])->assertOk();
 
         $rows = $this->rows($this->book($token));
-        $this->assertEqualsWithDelta(406.45, (float) $rows[0]['Paid to date'], 0.0001);
+        $this->assertEqualsWithDelta(400.00, (float) $rows[0]['Paid to date'], 0.0001);
         $this->assertEqualsWithDelta(0.0, (float) $rows[0]['Balance'], 0.0001);
-        $this->assertEqualsWithDelta(93.55, (float) $rows[1]['Balance'], 0.0001, 'the Temporary balance is separate');
+        $this->assertEqualsWithDelta(100.00, (float) $rows[1]['Balance'], 0.0001, 'the Temporary balance is separate');
     }
 
     // ------------------------------------------------------------------------------------------------------ NUMBER
@@ -382,7 +382,7 @@ class MonthlyPaymentListTenColumnTest extends TestCase
 
         $this->assertEqualsWithDelta(900.00, $all['Combined total'], 0.0001);
         $this->assertEqualsWithDelta(600.00, $onlyA['Combined total'], 0.0001);
-        $this->assertEqualsWithDelta(193.55, $onlyA['Temporary workers total (not included in the Permanent total)'], 0.0001);
+        $this->assertEqualsWithDelta(200.00, $onlyA['Temporary workers total (not included in the Permanent total)'], 0.0001);
         $this->assertEqualsWithDelta(300.00, $onlyB['Combined total'], 0.0001);
         $this->assertEqualsWithDelta(0.0, $onlyB['Temporary workers total (not included in the Permanent total)'], 0.0001);
         $this->assertNotNull($positionB);
@@ -424,13 +424,13 @@ class MonthlyPaymentListTenColumnTest extends TestCase
         $all = $this->rows($this->book($token));
         $this->assertSame([$person->full_name, $tempA->full_name, $tempB->full_name], $this->names($all));
         $this->assertSame([$person->full_name, $person->full_name], [$all[1]['Linked employee'], $all[2]['Linked employee']]);
-        $this->assertEqualsWithDelta(193.55, (float) $all[1]['Pay amount'], 0.0001);
-        $this->assertEqualsWithDelta(300 * 10 / 31, (float) $all[2]['Pay amount'], 0.01);
+        $this->assertEqualsWithDelta(200.00, (float) $all[1]['Pay amount'], 0.0001);
+        $this->assertEqualsWithDelta(300 * 10 / 30, (float) $all[2]['Pay amount'], 0.01);
 
         // One company: only that company's line of the person and only the covers of that company's position.
         $onlyA = $this->rows($this->book($token, ['scope' => 'company', 'client_company_id' => $a->id]));
         $this->assertSame([$person->full_name, $tempA->full_name], $this->names($onlyA));
-        $this->assertEqualsWithDelta(406.45, (float) $onlyA[0]['Pay amount'], 0.0001, 'only the A line: B\'s salary is not added');
+        $this->assertEqualsWithDelta(400.00, (float) $onlyA[0]['Pay amount'], 0.0001, 'only the A line: B\'s salary is not added');
         $onlyB = $this->rows($this->book($token, ['scope' => 'company', 'client_company_id' => $b->id]));
         $this->assertSame([$person->full_name, $tempB->full_name], $this->names($onlyB));
         $this->assertSame($b->name, $onlyB[1]['COMPANY OR GURI']);

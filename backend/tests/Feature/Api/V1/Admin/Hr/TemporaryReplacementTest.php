@@ -97,14 +97,15 @@ class TemporaryReplacementTest extends TestCase
             ->assertOk()->assertJsonCount(2, 'data.0.payments');
     }
 
-    public function test_replacement_employee_must_be_active(): void
+    public function test_replacement_employee_must_be_active_waiting_or_applicant(): void
     {
         $admin = Admin::factory()->superAdmin()->create();
         $token = $admin->createToken('t')->plainTextToken;
         $location = $this->makeWorkLocation();
         $originalEmployee = $this->makeEmployee();
         $assignmentId = $this->makeActiveAssignment($token, $originalEmployee, $location);
-        $waitingReplacement = $this->makeEmployee('waiting');
+        // Active, Waiting and Applicant people may cover (2026-11-03); any other status is still refused.
+        $waitingReplacement = $this->makeEmployee('recruitment');
 
         $this->withToken($token)->postJson('/api/v1/admin/hr/temporary-replacements', [
             'work_assignment_id' => $assignmentId,

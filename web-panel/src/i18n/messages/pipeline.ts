@@ -215,8 +215,8 @@ export const pipeline = defineMessages({
     'Waxaa la muujinayaa beddelaadyada {status} oo keliya ({shown} ka mid ah {total}).',
   ),
   'warning.pipeline.createReplacementNotice': message(
-    "A Temporary employee covers a Permanent employee's position. You do not enter a daily rate: the cost is the covered employee's monthly salary divided by the days of the month, for every calendar day from the first to the last day of the cover (both included). Once approved, it is deducted once from the Permanent employee's pay. Check the dates carefully.",
-    'Shaqaale ku-meel-gaar ah ayaa bedelaya booska shaqaale joogto ah. Ma gelinayso qiimaha maalinlaha ah: kharashka waa mushaharka bille ee shaqaalaha la bedelay oo loo qaybiyo maalmaha bisha, maalin kasta oo kalandar ah laga bilaabo maalinta ugu horreysa ilaa tan ugu dambaysa ee beddelaadda (labaduba waa ku jiraan). Marka la ansixiyo, mar keliya ayaa laga jarayaa mushaharka shaqaalaha joogtada ah. Fadlan taariikhaha si fiican u hubi.',
+    "A Temporary employee covers a Permanent employee's position. You do not enter a daily rate: the cost is the covered employee's monthly salary divided by 30 (always 30, in every month), for every calendar day from the first to the last day of the cover (both included). Once approved, it is deducted once from the Permanent employee's pay. Check the dates carefully.",
+    'Shaqaale ku-meel-gaar ah ayaa bedelaya booska shaqaale joogto ah. Ma gelinayso qiimaha maalinlaha ah: kharashka waa mushaharka bille ee shaqaalaha la bedelay oo loo qaybiyo 30 (had iyo jeer 30, bil kasta), maalin kasta oo kalandar ah laga bilaabo maalinta ugu horreysa ilaa tan ugu dambaysa ee beddelaadda (labaduba waa ku jiraan). Marka la ansixiyo, mar keliya ayaa laga jarayaa mushaharka shaqaalaha joogtada ah. Fadlan taariikhaha si fiican u hubi.',
   ),
   // Corrected for the coverage-period rule (U8): the amount follows the days the cover existed; the attendance days below are only a record.
   'warning.pipeline.workdaysNotice': message(

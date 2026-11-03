@@ -92,6 +92,12 @@ final class EmployeeRegistrationWorkflow
     /** The status-history source of an appointment made through the successor workflow before the registration steps were complete (always with its reason). */
     public const SOURCE_SUCCESSOR_EXCEPTION = 'successor_appointment_exception';
 
+    /** The status-history source of a Waiting / Applicant person made Active when recorded as a Temporary replacement, when the normal status path refused (always with its reason). */
+    public const SOURCE_COVER_EXCEPTION = 'temporary_cover_exception';
+
+    /** Every status-history source that records a deliberate, written exception to the registration workflow. */
+    public const EXCEPTION_SOURCES = ['override', self::SOURCE_SUCCESSOR_EXCEPTION, self::SOURCE_COVER_EXCEPTION];
+
     /**
      * A recorded exception moved this person past the workflow: a Super Admin override with a reason, or an appointment made by HR through the successor
      * workflow (the owner's rule: HR may appoint any person; what was not complete is recorded and shown in the HR compliance report, not silently blocked).
@@ -100,7 +106,7 @@ final class EmployeeRegistrationWorkflow
     {
         return EmployeeStatusHistory::query()
             ->where('employee_id', $employee->id)
-            ->whereIn('source', ['override', self::SOURCE_SUCCESSOR_EXCEPTION])
+            ->whereIn('source', self::EXCEPTION_SOURCES)
             ->whereNotNull('override_reason')
             ->whereIn('to_status', array_map(fn (EmployeeStatus $s): string => $s->value, self::PROTECTED_STATUSES))
             ->exists();

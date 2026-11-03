@@ -8,15 +8,16 @@ use RuntimeException;
 /**
  * Cost of a Temporary employee covering a Permanent employee's position:
  *
- *   daily replacement rate = permanent monthly salary / calendar days in that month
- *   replacement amount     = daily rate x verified eligible workdays
+ *   daily replacement rate = permanent monthly salary / 30           (TemporaryRate::DIVISOR - always 30, whatever the month)
+ *   replacement amount     = daily rate x covered days
  *
  * Only days that are verified, fall inside the replacement window
  * (start/end inclusive) and inside the payroll month are charged; a date
  * listed twice is charged once. The amount is computed from the exact
  * fraction and rounded once (half-up), never from a pre-rounded daily rate.
  * The permanent salary applicable on each worked day is used, so a salary
- * change mid-month or a change of month length is handled day by day.
+ * change mid-month is handled day by day. The month's real length only decides
+ * which days exist; it is never the divisor.
  *
  * A verified day is still NOT charged to the covered employee when they were
  * not payable that day: outside their assignment dates (e.g. after a permanent
@@ -28,7 +29,7 @@ final class ReplacementCostCalculator
 {
     /**
      * @param  array{replacement_id: int|string, start_date: string, end_date?: ?string, assignment_start?: ?string, assignment_end?: ?string, unpaid_leave_dates?: list<string>, workdays: list<array{date: string, verified: bool}>}  $replacement
-     * @return array{replacement_id: int|string, period: string, days_in_month: int, verified_days: int, charged_dates: list<string>, ignored: array{unverified: int, outside_window_or_month: int, duplicates: int}, not_chargeable: array{outside_assignment: list<string>, on_unpaid_leave: list<string>}, amount_cents: int, daily_rate: string}
+     * @return array{replacement_id: int|string, period: string, days_in_month: int, rate_divisor: int, verified_days: int, charged_dates: list<string>, ignored: array{unverified: int, outside_window_or_month: int, duplicates: int}, not_chargeable: array{outside_assignment: list<string>, on_unpaid_leave: list<string>}, amount_cents: int, daily_rate: string}
      */
     public function monthlyCost(string $period, SalaryTimeline $permanentSalary, array $replacement): array
     {
@@ -93,18 +94,19 @@ final class ReplacementCostCalculator
 
         ksort($charged);
         $rateText = count($rates) === 1
-            ? number_format(array_key_first($rates) / 100 / $daysInMonth, 4, '.', '')
+            ? TemporaryRate::dailyRateText((int) array_key_first($rates))
             : (count($rates) === 0 ? '0.0000' : 'varies (salary changed during the month)');
 
         return [
             'replacement_id' => $replacement['replacement_id'],
             'period' => $period,
             'days_in_month' => $daysInMonth,
+            'rate_divisor' => TemporaryRate::DIVISOR,
             'verified_days' => count($charged),
             'charged_dates' => array_keys($charged),
             'ignored' => $ignored,
             'not_chargeable' => $notChargeable,
-            'amount_cents' => PayrollMoney::roundDiv($numerator, $daysInMonth),
+            'amount_cents' => TemporaryRate::amountCents($numerator),
             'daily_rate' => $rateText,
         ];
     }

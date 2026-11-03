@@ -118,7 +118,7 @@ class RecordTemporaryReplacementPaymentAction
                 'balance' => PayrollMoney::format($balance),
                 'approved' => $expected['approved'],
                 'permanent_deduction' => $expected['permanent_deduction'],
-                'months' => array_map(fn (array $m): array => ['period' => $m['period'], 'days' => $m['days'], 'days_in_month' => $m['days_in_month'], 'amount' => $m['amount']], $expected['months']),
+                'months' => array_map(fn (array $m): array => ['period' => $m['period'], 'days' => $m['days'], 'days_in_month' => $m['days_in_month'], 'rate_divisor' => $m['rate_divisor'], 'amount' => $m['amount']], $expected['months']),
             ],
         ];
     }

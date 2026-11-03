@@ -128,7 +128,7 @@ class EmployeePickerSearchAnyoneTest extends TestCase
         $assignment = $this->makeAssignment($covered, $company, $location);
 
         $permanent = $this->person('active', 'permanent', 'Eligibility Permanent');
-        $waiting = $this->person('waiting', 'temporary', 'Eligibility Waiting');
+        $waiting = $this->person('recruitment', 'temporary', 'Eligibility Waiting'); // a status that may still not cover (Waiting / Applicant may, since 2026-11-03)
         $inactive = $this->person('inactive', 'temporary', 'Eligibility Inactive');
         $incomplete = $this->person('active', 'temporary', 'Eligibility Incomplete');
         $incomplete->update(['registration_origin' => 'new']);

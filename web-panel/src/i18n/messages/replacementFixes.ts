@@ -146,6 +146,12 @@ export const replacementFixes = defineMessages({
     'Found {count} on this page, but none of them can be chosen. Open the list to see why.',
     'Waxaa la helay {count} bogga, laakiin midkoodna lama dooran karo. Fur liiska si aad u aragto sababta.',
   ),
+  // The new-cover form accepts a Waiting or Applicant person; saving the cover is what makes them Active.
+  'option.pipeline.activeOnSaveNote': message('{status} - becomes Active when the replacement is saved', '{status} - wuxuu noqonayaa Active marka beddelka la kaydiyo'),
+  'warning.pipeline.activatesWhenSaved': message(
+    'This person is {status}. Nothing is changed now: they become Active only when the replacement is saved.',
+    'Shaqaalahan waa {status}. Hadda waxba lama beddelayo: wuxuu noqonayaa Active kaliya marka beddelka la kaydiyo.',
+  ),
   'option.pipeline.cannotChoose.notTemporary': message('not a Temporary employee', 'ma aha shaqaale ku-meel-gaar ah'),
   'option.pipeline.cannotChoose.isTemporary': message('a Temporary employee (cannot be covered)', 'waa shaqaale ku-meel-gaar ah (lama bedeli karo)'),
   'option.pipeline.cannotChoose.notActive': message('not Active ({status})', 'ma aha Active ({status})'),

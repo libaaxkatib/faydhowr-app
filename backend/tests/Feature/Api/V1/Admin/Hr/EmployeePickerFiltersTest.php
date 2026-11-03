@@ -182,8 +182,10 @@ class EmployeePickerFiltersTest extends TestCase
             ]);
         };
 
-        // Waiting List people stay ineligible: only Active people may cover (an owner decision, not part of this change).
-        $cover($this->person('waiting', 'temporary', 'Waiting Temporary'))->assertStatus(422)->assertJsonPath('error_code', 'EMPLOYEE_NOT_ACTIVE');
+        // Active, Waiting and Applicant people may cover (owner decision 2026-11-03: saving the cover activates a Waiting / Applicant person - see
+        // TemporaryReplacementActivationTest). Every other status stays ineligible.
+        $cover($this->person('recruitment', 'temporary', 'Recruitment Temporary'))->assertStatus(422)->assertJsonPath('error_code', 'EMPLOYEE_NOT_ACTIVE');
+        $cover($this->person('approved', 'temporary', 'Approved Temporary'))->assertStatus(422)->assertJsonPath('error_code', 'EMPLOYEE_NOT_ACTIVE');
         // Active but not classified Temporary.
         $cover($this->person('active', 'permanent', 'Active Permanent'))->assertStatus(422)->assertJsonPath('error_code', 'REPLACEMENT_EMPLOYEE_NOT_TEMPORARY');
         // A new registration that has not completed the registration workflow.

@@ -14,12 +14,12 @@ use RuntimeException;
  * The Temporary employee's ENTITLEMENT for a cover and the deduction it causes on the covered Permanent (docs/HR_PAYROLL_RULES.md U8, N5, N6, N9-N11).
  *
  * Both are worked out from the same actual coverage period (CoveragePeriod): every calendar day from the cover's actual start to its actual last
- * day, both inclusive, the covered Permanent's salary in effect on each day over the real number of days of that month (28, 29, 30, 31), each month
- * rounded once, half-up. Verified attendance days play no part. The Temporary's entitlement is calculated first; the deduction from the Permanent
+ * day, both inclusive, the covered Permanent's salary in effect on each day over the FIXED divisor 30 (TemporaryRate; the month's real length is not
+ * used), each month rounded once, half-up. Verified attendance days play no part. The Temporary's entitlement is calculated first; the deduction from the Permanent
  * is then determined by the existing approved rule (ReplacementCostService): the entitlement of the month is deducted once, only after the cover is
  * approved, and a day the Permanent was already on unpaid leave is not deducted twice. There is no separate penalty formula.
  *
- * Example (N11): salary 600, 10 eligible days of a 30-day month = 600 x 10 / 30 = 200.00.
+ * Example: salary 300 -> 10.00 a day; 12 days = 120.00 in any month (owner decision 2026-11-03; before it the real month length was the divisor).
  *
  * Nothing here approves anything: `approved` reports whether the cover was approved for deduction. It writes nothing.
  */
@@ -62,13 +62,14 @@ final class TemporaryExpectedPayment
         $monthRows = [];
 
         foreach ($months as $period => $month) {
-            $entitlement = PayrollMoney::roundDiv($month['numerator'], $month['days_in_month']);
+            $entitlement = TemporaryRate::amountCents($month['numerator']);
             $deduction = (int) $this->costs->forPeriod($replacement, (string) $period)['amount_cents'];
             $totalCents += $entitlement;
             $deductionCents += $deduction;
             $monthRows[] = [
                 'period' => (string) $period,
                 'days_in_month' => $month['days_in_month'],
+                'rate_divisor' => TemporaryRate::DIVISOR,
                 'days' => $month['days'],
                 'segments' => $month['segments'],
                 'amount_cents' => $entitlement,

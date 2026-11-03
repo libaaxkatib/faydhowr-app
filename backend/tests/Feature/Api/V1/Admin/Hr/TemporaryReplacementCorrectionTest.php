@@ -217,7 +217,7 @@ class TemporaryReplacementCorrectionTest extends TestCase
     {
         [$permanent, $position] = $this->position(600);
         $cover = $this->cover($position, '2026-10-01', '2026-10-10', true);
-        $this->assertSame('193.55', $this->replacementDeduction('2026-10', $permanent), '600 x 10 / 31');
+        $this->assertSame('200.00', $this->replacementDeduction('2026-10', $permanent), '600 x 10 / 30');
 
         $response = $this->edit($this->manager, $cover, ['end_date' => '2026-10-12', 'change_reason' => 'The cover really lasted two more days'])->assertOk();
         $response->assertJsonPath('data.approved', false);
@@ -225,7 +225,7 @@ class TemporaryReplacementCorrectionTest extends TestCase
         $this->assertNull($this->replacementDeduction('2026-10', $permanent), 'nothing is deducted until the new cost is approved');
 
         $this->as($this->manager)->patchJson("/api/v1/admin/hr/temporary-replacements/{$cover->id}/approve")->assertOk();
-        $this->assertSame('232.26', $this->replacementDeduction('2026-10', $permanent), '600 x 12 / 31');
+        $this->assertSame('240.00', $this->replacementDeduction('2026-10', $permanent), '600 x 12 / 30');
 
         $audit = AuditLog::query()->where('entity_type', TemporaryReplacement::class)->where('entity_id', $cover->id)->get()->firstWhere('metadata.event', 'temporary_replacement_corrected');
         $this->assertTrue($audit->metadata['approval_cleared']);
@@ -238,7 +238,7 @@ class TemporaryReplacementCorrectionTest extends TestCase
         $cover = $this->cover($position, '2026-10-01', '2026-10-10', true);
 
         $this->edit($this->manager, $cover, ['end_date' => '2026-10-05', 'change_reason' => 'Ended five days earlier than typed'])->assertOk()->assertJsonPath('data.approved', true);
-        $this->assertSame('96.77', $this->replacementDeduction('2026-10', $permanent), '600 x 5 / 31');
+        $this->assertSame('100.00', $this->replacementDeduction('2026-10', $permanent), '600 x 5 / 30');
     }
 
     // ------------------------------------------------------------------------------------------ closed payroll

@@ -16,6 +16,8 @@ import { foundButNoneChoosable, hasMore, isSearching, pickerOptions, pickerParam
  *  - Something typed: the server searches EVERY employee by name, employee number, phone or database ID, so the person being looked for is always found,
  *    whatever their status or type. Whoever cannot be chosen is shown greyed out with the reason; only people who meet the rules can be selected.
  * "Show more" loads the next page of the current search; a new search starts again from its first page.
+ * `allowNotYetActive` (the NEW-cover form only): a Waiting or Applicant person can be chosen too. Choosing them changes nothing; they become Active only when
+ * the cover is saved, and the form says so under the list.
  * `current` keeps a person that is already chosen (for example the saved Temporary employee of a cover that is being corrected) in the list.
  * The rules are the server's and are re-checked on save: finding a person here never makes them eligible.
  */
@@ -28,6 +30,7 @@ export function EmployeePicker({
   placeholder,
   current,
   disabled,
+  allowNotYetActive = false,
 }: {
   id: string;
   employmentType: EmploymentType;
@@ -37,6 +40,7 @@ export function EmployeePicker({
   placeholder: string;
   current?: { value: string; label: string };
   disabled?: boolean;
+  allowNotYetActive?: boolean;
 }) {
   const { t, tValue } = useI18n();
   const [search, setSearch] = useState('');
@@ -45,8 +49,8 @@ export function EmployeePicker({
   const searching = isSearching(debouncedSearch);
 
   const { data, isFetching, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteQuery({
-    queryKey: ['employees', 'replacement-picker', employmentType, debouncedSearch.trim()],
-    queryFn: ({ pageParam }) => hrApi.employees.list(pickerParams(employmentType, debouncedSearch, pageParam)),
+    queryKey: ['employees', 'replacement-picker', employmentType, allowNotYetActive, debouncedSearch.trim()],
+    queryFn: ({ pageParam }) => hrApi.employees.list(pickerParams(employmentType, debouncedSearch, pageParam, allowNotYetActive)),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.meta.current_page < last.meta.last_page ? last.meta.current_page + 1 : undefined),
   });
@@ -68,7 +72,14 @@ export function EmployeePicker({
 
   const employees = (data?.pages ?? []).flatMap((page) => page.data);
   const total = data?.pages[0]?.meta.total ?? 0;
-  const options = pickerOptions(employees, { employmentType, excludeId, reasonText });
+  const options = pickerOptions(employees, {
+    employmentType,
+    excludeId,
+    reasonText,
+    allowNotYetActive,
+    activeOnSaveText: (status) => t('option.pipeline.activeOnSaveNote', { status: tValue('status', status) ?? status }),
+  });
+  const pending = options.find((option) => option.value === value)?.becomesActive;
 
   // Keep the chosen person visible even after the search box narrows the list to someone else.
   if (value !== '' && selectedLabel !== '' && !options.some((option) => option.value === value)) {
@@ -108,6 +119,11 @@ export function EmployeePicker({
         placeholder={isFetching && !isFetchingNextPage ? t('option.label.searching') : options.length === 0 ? emptyText : placeholder}
         options={options}
       />
+      {pending !== undefined && (
+        <p className="rounded-sm bg-surface-alt px-2.5 py-1.5 text-xs text-ink-muted" role="note" data-testid={`${id}-activates-when-saved`}>
+          {t('warning.pipeline.activatesWhenSaved', { status: tValue('status', pending) ?? pending })}
+        </p>
+      )}
       {searching && !isFetching && foundButNoneChoosable(options) && (
         <p className="text-xs font-medium text-ink" role="status" data-testid={`${id}-none-choosable`}>
           {t('option.pipeline.foundNoneChoosable', { count: options.length })}
