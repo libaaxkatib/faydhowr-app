@@ -11,6 +11,7 @@ use App\Models\PayrollRun;
 use App\Support\ApiResponse;
 use App\Support\Hr\Facility\FacilityCalendar;
 use App\Support\Hr\Payroll\PayrollMoney;
+use App\Support\Hr\Payroll\WorkplacePayroll;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
@@ -43,6 +44,8 @@ class MarkPayrollItemPaidAction
                 $this->fail('There is no positive net amount to pay on this line.', 'PAYROLL_ITEM_NOTHING_TO_PAY');
             }
 
+            $this->assertWorkplacePaymentsLeaveRoom($item);
+
             // The payment-ledger row of a line can carry the link to it only once (unique): when an earlier payment of this line was voided and
             // the line is paid again, the new row is tied to the line through the line's own employee_payment_id and says so in its note.
             $earlier = EmployeePayment::query()->where('payroll_item_id', $item->id)->first();
@@ -70,6 +73,22 @@ class MarkPayrollItemPaidAction
 
             return $item;
         });
+    }
+
+    /**
+     * A workplace may also be paid as a whole (RecordWorkplacePaymentAction). When money was recorded for this line's workplace that way, paying the
+     * line as well must not take the workplace above its total, so the line has to fit in what is still outstanding. Without a workplace payment
+     * nothing changes: the line is paid exactly as before. The run row is locked, as the workplace payment does, so the two are decided one by one.
+     */
+    private function assertWorkplacePaymentsLeaveRoom(PayrollItem $item): void
+    {
+        $run = PayrollRun::query()->lockForUpdate()->findOrFail($item->payroll_run_id);
+        [$companyId, $locationId] = WorkplacePayroll::workplaceOfLine($item->id);
+        $summary = WorkplacePayroll::summaryFor($run, $companyId, $locationId);
+
+        if ($summary !== null && $summary['workplace_paid_cents'] > 0 && $item->net_cents > $summary['outstanding_cents']) {
+            $this->fail('A payment recorded for this workplace already covers part of its payroll: paying this line too would pay more than the workplace is owed ('.PayrollMoney::format((int) $summary['outstanding_cents']).' USD is still outstanding). Nothing was recorded.', 'WORKPLACE_PAYMENT_COVERS_LINE');
+        }
     }
 
     private function fail(string $message, string $code): never

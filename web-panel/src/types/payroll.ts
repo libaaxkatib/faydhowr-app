@@ -178,3 +178,62 @@ export interface PayrollAdjustmentResult {
   applies_in_period: string;
   status: string;
 }
+
+/** One payment recorded for a whole workplace (never edited or deleted: a mistaken one is voided and stays listed). Amounts are USD. */
+export interface WorkplacePaymentRecord {
+  id: number;
+  amount: string;
+  amount_cents: number;
+  payment_date: string;
+  note: string | null;
+  recorded_by: string | null;
+  recorded_at: string | null;
+  voided: boolean;
+  voided_at: string | null;
+  void_reason: string | null;
+  voided_by: string | null;
+}
+
+export type WorkplacePaymentStatus = 'unpaid' | 'partial' | 'paid';
+
+/** What one workplace (a company or guri, or one of its work locations) is owed and has been paid for a payroll month. */
+export interface WorkplacePayrollSummary {
+  key: string;
+  /** False for the lines that name no workplace: they can only be paid line by line. */
+  payable: boolean;
+  client_company_id: number | null;
+  work_location_id: number | null;
+  company_name: string | null;
+  workplace_name: string | null;
+  category: 'company' | 'guri' | null;
+  employee_count: number;
+  total: string;
+  total_cents: number;
+  paid: string;
+  paid_cents: number;
+  outstanding: string;
+  outstanding_cents: number;
+  status: WorkplacePaymentStatus;
+  payments: WorkplacePaymentRecord[];
+}
+
+export interface WorkplacePayments {
+  payroll_run_id: number;
+  period: string;
+  run_status: PayrollRunStatus;
+  /** Payments are recorded against a finalized month only. */
+  can_record: boolean;
+  totals: { total: string; paid: string; outstanding: string };
+  workplaces: WorkplacePayrollSummary[];
+}
+
+export interface RecordWorkplacePaymentPayload {
+  client_company_id: number | null;
+  work_location_id: number | null;
+  mode: 'full' | 'partial';
+  /** Dollars, only for a partial payment. */
+  amount?: string;
+  payment_date: string;
+  note?: string | null;
+  idempotency_key: string;
+}

@@ -3,8 +3,8 @@ import type { PageMeta } from '@/types/api';
 import type { OfficeStaffSummary } from '@/utils/officeStaff';
 import type { CompanyListMeta } from '@/utils/clientCompanyFilter';
 import type { CoverConflict } from '@/utils/coverConflict';
-import { downloadQuery, fileName as paymentListFileName, type PaymentListFilterOptions, type PaymentListOption, type PaymentListPreview, type PaymentListScope } from '@/utils/paymentListFilter';
-import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollCorrectionsResponse, PayrollItem, PayrollRun } from '@/types/payroll';
+import { downloadQuery, fileName as paymentListFileName, type PaymentListFilterOptions, type PaymentListOption, type PaymentListScope, type PaymentListWorkbookPreview } from '@/utils/paymentListFilter';
+import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollCorrectionsResponse, PayrollItem, PayrollRun, RecordWorkplacePaymentPayload, WorkplacePayments, WorkplacePayrollSummary } from '@/types/payroll';
 import type {
   AttendanceRosterEntry,
   ClientCompany,
@@ -358,15 +358,29 @@ export const hrApi = {
     /** Excel list of who to pay for a month (needs hr.payroll.view + hr.manage). Read-only: pays nothing, creates no run. */
     /** The Companies and Guryo that really exist, for the download's selectors (needs hr.payroll.view + hr.manage, like the download). */
     paymentListFilters: () => apiRequest<PaymentListFilterOptions>('admin/hr/reports/monthly-payment-list/filters'),
-    /** Read-only totals of what the download for the same month and record would contain (same permissions; nothing is stored or audited). */
-    paymentListPreview: (period: string, scope: PaymentListScope, selected: PaymentListOption | null) =>
-      apiRequest<PaymentListPreview>('admin/hr/reports/monthly-payment-list/preview', { query: downloadQuery(period, scope, selected ? String(selected.id) : '') }),
-    /** All records, or ONE Company / ONE Guri named by id and kind; the server validates both. */
-    downloadPaymentList: (period: string, scope: PaymentListScope, selected: PaymentListOption | null) =>
+    /**
+     * The whole workbook (every worksheet, column, row, value and total) read back from the file the download would send, with the totals. Read-only:
+     * nothing is stored or audited. Its content hash and "Generated" stamp go back with the download, which refuses a file that differs from it.
+     */
+    paymentListWorkbookPreview: (period: string, scope: PaymentListScope, selected: PaymentListOption | null) =>
+      apiRequest<PaymentListWorkbookPreview>('admin/hr/reports/monthly-payment-list/workbook-preview', { query: downloadQuery(period, scope, selected ? String(selected.id) : '') }),
+    /** All records, or ONE Company / ONE Guri named by id and kind; the server validates both. After a preview the file must equal that preview. */
+    downloadPaymentList: (period: string, scope: PaymentListScope, selected: PaymentListOption | null, previewed?: { content_hash: string; generated_at: string }) =>
       downloadAuthenticatedFile(
-        `admin/hr/reports/monthly-payment-list?${new URLSearchParams(downloadQuery(period, scope, selected ? String(selected.id) : '')).toString()}`,
+        `admin/hr/reports/monthly-payment-list?${new URLSearchParams({
+          ...downloadQuery(period, scope, selected ? String(selected.id) : ''),
+          ...(previewed ? { preview_hash: previewed.content_hash, generated_at: previewed.generated_at } : {}),
+        }).toString()}`,
         paymentListFileName(period, selected),
       ),
+    /** Each workplace's total / paid / outstanding / status and payment history for a month (hr.payroll.view). */
+    workplacePayments: (runId: number) => apiRequest<WorkplacePayments>(`admin/hr/payroll-runs/${runId}/workplace-payments`),
+    /** A full or partial payment for one workplace of a finalized month (hr.payroll.approve). Safe to retry with the same idempotency key. */
+    recordWorkplacePayment: (runId: number, payload: RecordWorkplacePaymentPayload) =>
+      apiRequest<{ payment_id: number; replayed: boolean; workplace: WorkplacePayrollSummary }>(`admin/hr/payroll-runs/${runId}/workplace-payments`, { method: 'POST', body: payload }),
+    /** Voids a workplace payment recorded by mistake (Super Admin / HR Manager, reason required): it stays in the history and stops counting. */
+    voidWorkplacePayment: (paymentId: number, reason: string) =>
+      apiRequest<{ workplace: WorkplacePayrollSummary }>(`admin/hr/workplace-payments/${paymentId}/void`, { method: 'POST', body: { reason } }),
     addAdjustment: (itemId: number, payload: CreatePayrollAdjustmentPayload) =>
       apiRequest<PayrollAdjustmentResult>(`admin/hr/payroll-items/${itemId}/adjustments`, { method: 'POST', body: payload }),
     /** Voids a payment marked paid (Super Admin / HR Manager, reason required): a linked reversal is added, nothing is edited or deleted. */

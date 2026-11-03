@@ -57,6 +57,7 @@ use App\Http\Controllers\Api\V1\Admin\Hr\MonthlyPaymentReportController as Admin
 use App\Http\Controllers\Api\V1\Admin\Hr\OfficeStaffController as AdminOfficeStaffController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PayrollCorrectionController as AdminPayrollCorrectionController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PayrollRunController as AdminPayrollRunController;
+use App\Http\Controllers\Api\V1\Admin\Hr\PayrollWorkplacePaymentController as AdminPayrollWorkplacePaymentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PositionController as AdminPositionController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PracticalBatchController as AdminPracticalBatchController;
 use App\Http\Controllers\Api\V1\Admin\Hr\TemporaryReplacementController as AdminTemporaryReplacementController;
@@ -1585,6 +1586,10 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.view', 'throt
     Route::get('v1/admin/hr/payroll-runs/{payrollRun}/export', [AdminPayrollRunController::class, 'export'])
         ->whereNumber('payrollRun')
         ->name('api.v1.admin.hr.payroll-runs.export');
+    // Each workplace's total / paid / outstanding / status and payment history for the month (read-only).
+    Route::get('v1/admin/hr/payroll-runs/{payrollRun}/workplace-payments', [AdminPayrollWorkplacePaymentController::class, 'index'])
+        ->whereNumber('payrollRun')
+        ->name('api.v1.admin.hr.payroll-runs.workplace-payments.index');
 });
 
 // Facility Inspections, complaints and their reports (Phase 2). Reading needs hr.inspections.view, writing hr.inspections.manage, the report
@@ -1652,6 +1657,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.view', 'permi
     // Totals only (row count, Permanent / Temporary / combined, missing numbers) for the confirmation shown before the download; same permissions.
     Route::get('v1/admin/hr/reports/monthly-payment-list/preview', [AdminMonthlyPaymentReportController::class, 'preview'])
         ->name('api.v1.admin.hr.reports.monthly-payment-list.preview');
+    // The whole workbook (every worksheet, column, row, value and total) read back from the file the download would send, shown before the download.
+    Route::get('v1/admin/hr/reports/monthly-payment-list/workbook-preview', [AdminMonthlyPaymentReportController::class, 'workbookPreview'])
+        ->name('api.v1.admin.hr.reports.monthly-payment-list.workbook-preview');
 });
 
 Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.approve', 'throttle:admin-operations'])->group(function (): void {
@@ -1677,6 +1685,13 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.approve', 'th
     Route::post('v1/admin/hr/payroll-items/{payrollItem}/void-payment', [AdminPayrollRunController::class, 'voidPayment'])
         ->whereNumber('payrollItem')
         ->name('api.v1.admin.hr.payroll-items.void-payment');
+    // A full or partial payment for a whole workplace in a finalized month, and the void of one recorded by mistake (role checked again in the action).
+    Route::post('v1/admin/hr/payroll-runs/{payrollRun}/workplace-payments', [AdminPayrollWorkplacePaymentController::class, 'store'])
+        ->whereNumber('payrollRun')
+        ->name('api.v1.admin.hr.payroll-runs.workplace-payments.store');
+    Route::post('v1/admin/hr/workplace-payments/{workplacePayment}/void', [AdminPayrollWorkplacePaymentController::class, 'void'])
+        ->whereNumber('workplacePayment')
+        ->name('api.v1.admin.hr.workplace-payments.void');
 });
 
 Route::middleware(['auth:sanctum', 'admin', 'permission:reconciliation.view', 'throttle:admin-operations'])->group(function (): void {

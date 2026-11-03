@@ -10,6 +10,7 @@ use App\Models\ClientCompany;
 use App\Support\ApiResponse;
 use App\Support\Hr\Payroll\MonthlyPaymentReportBuilder;
 use App\Support\Hr\Payroll\MonthlyPaymentReportExporter;
+use App\Support\Hr\Payroll\MonthlyPaymentWorkbookPreview;
 use App\Support\Hr\Payroll\PayrollMoney;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
@@ -53,11 +54,44 @@ class MonthlyPaymentReportController extends Controller
             return ApiResponse::error("{$kind} '{$company->name}' has no payment records for {$period}.", 'NO_PAYMENT_RECORDS', 422);
         }
 
+        return ApiResponse::success('Payment list preview retrieved successfully.', $this->totals($period, $report, $company, $kind));
+    }
+
+    /**
+     * The whole workbook as data - every worksheet with its columns, rows, values, totals and highlights - for the preview shown before the download,
+     * plus the same totals as `preview`. The workbook is written by the download's own writer and read back, so this IS the file's content; its
+     * `content_hash` and `generated_at` are sent back with the download, which refuses a file whose content differs. Read-only, nothing is stored
+     * and no audit entry is written (the audit entry belongs to the download).
+     */
+    public function workbookPreview(MonthlyPaymentReportRequest $request, MonthlyPaymentReportBuilder $builder, MonthlyPaymentWorkbookPreview $preview): JsonResponse
+    {
+        $period = $request->validated('period');
+        [$report, $company, $kind] = $this->reportFor($request, $builder);
+
+        if ($company !== null && $report['rows'] === []) {
+            return ApiResponse::error("{$kind} '{$company->name}' has no payment records for {$period}.", 'NO_PAYMENT_RECORDS', 422);
+        }
+
+        $workbook = $preview->fromReport($report);
+
+        return ApiResponse::success('Payment list workbook preview retrieved successfully.', $this->totals($period, $report, $company, $kind) + [
+            'generated_at' => $report['generated_at'],
+            'content_hash' => $workbook['content_hash'],
+            'sheets' => $workbook['sheets'],
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $report
+     * @return array<string, mixed>
+     */
+    private function totals(string $period, array $report, ?ClientCompany $company, ?string $kind): array
+    {
         $summary = $report['summary'];
         $replacementCount = (int) ($summary['replacement_count'] ?? 0);
         $temporaryCount = (int) ($summary['temporary_cover_count'] ?? 0) + $replacementCount;
 
-        return ApiResponse::success('Payment list preview retrieved successfully.', [
+        return [
             'period' => $period,
             'scope' => $company === null ? 'all' : strtolower($kind),
             'record' => $company === null ? null : ['id' => $company->id, 'name' => $company->name, 'kind' => strtolower($kind)],
@@ -72,7 +106,7 @@ class MonthlyPaymentReportController extends Controller
             // The same rule as the workbook's blank, highlighted NUMBER cells (every row of the Payment list sheet, Temporary rows included).
             'missing_payment_number_count' => count(array_filter($report['rows'], fn (array $row): bool => $row['payment_account'] === null)),
             'currency' => 'USD',
-        ]);
+        ];
     }
 
     /**
@@ -89,10 +123,16 @@ class MonthlyPaymentReportController extends Controller
         return [$report, $company, $kind];
     }
 
-    public function download(MonthlyPaymentReportRequest $request, MonthlyPaymentReportBuilder $builder, MonthlyPaymentReportExporter $exporter): BinaryFileResponse|JsonResponse
+    public function download(MonthlyPaymentReportRequest $request, MonthlyPaymentReportBuilder $builder, MonthlyPaymentReportExporter $exporter, MonthlyPaymentWorkbookPreview $preview): BinaryFileResponse|JsonResponse
     {
         $period = $request->validated('period');
         [$report, $company, $kind] = $this->reportFor($request, $builder);
+
+        // After a preview the file carries the preview's own "Generated" stamp, so identical data gives an identical file. The stamp is honoured only
+        // together with the preview's hash (which covers it): on its own it is ignored, so no one can put an arbitrary stamp on an unchecked file.
+        if ($request->validated('generated_at') !== null && $request->validated('preview_hash') !== null) {
+            $report['generated_at'] = $request->validated('generated_at');
+        }
 
         // A list for one Company or Guri with nothing to pay says so, instead of handing over a workbook of zeros.
         if ($company !== null && $report['rows'] === []) {
@@ -101,6 +141,13 @@ class MonthlyPaymentReportController extends Controller
 
         $path = tempnam(sys_get_temp_dir(), 'payment-list').'.xlsx';
         $exporter->write($report, $path);
+
+        // The file about to be sent must hold exactly what the person previewed. If the data changed in between, nothing is sent and nothing is audited.
+        if ($request->validated('preview_hash') !== null && ! hash_equals($request->validated('preview_hash'), $preview->fromFile($path)['content_hash'])) {
+            @unlink($path);
+
+            return ApiResponse::error('The payment list changed after the preview was shown, so the file would not match it. Nothing was downloaded. Open the preview again to see the current list.', 'PREVIEW_OUT_OF_DATE', 409);
+        }
 
         $rows = count($report['rows']);
 

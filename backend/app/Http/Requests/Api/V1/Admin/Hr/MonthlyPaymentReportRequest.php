@@ -30,6 +30,10 @@ class MonthlyPaymentReportRequest extends FormRequest
             'scope' => ['sometimes', 'nullable', Rule::in(self::SCOPES)],
             // A list for one company or guri only (omit it, or send scope=all, for the all-records list).
             'client_company_id' => ['sometimes', 'nullable', 'integer', 'exists:client_companies,id'],
+            // The download that follows a preview names that preview (its content hash and "Generated" stamp): the file is then built with the same
+            // stamp and refused if its content differs from what was previewed. Both are optional, so a direct download still works as before.
+            'preview_hash' => ['sometimes', 'nullable', 'regex:/^[a-f0-9]{64}$/'],
+            'generated_at' => ['sometimes', 'nullable', 'regex:/^\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/'],
         ];
     }
 

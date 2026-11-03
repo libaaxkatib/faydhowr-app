@@ -13,7 +13,7 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   /**
    * Protects a form: once the person has changed any field inside, closing (cross, Escape, outside click, Cancel), pressing Back or reloading
    * asks "Discard your changes?" first. Nothing is asked when nothing changed or after a save (the parent closes the modal itself).
@@ -23,7 +23,7 @@ interface ModalProps {
   dirty?: boolean;
 }
 
-const sizeClasses = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl' };
+const sizeClasses = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl', xl: 'max-w-6xl' };
 
 // Open modals, oldest first: Escape closes only the topmost one, so a shortcut dialog opened from a form does not also close the form.
 const openModals: symbol[] = [];

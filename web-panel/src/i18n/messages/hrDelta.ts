@@ -125,4 +125,68 @@ export const hrDelta = defineMessages({
     'Nothing is cancelled or changed for you. Fix the dates, the shifts or the earlier record first.',
     'Waxba laguma joojin ama laguu beddelin. Marka hore saxdo taariikhaha, shift-yada ama diiwaankii hore.',
   ),
+
+  // ---- Payments by workplace: full and partial payments for each workplace of a finalized month
+  'option.payroll.wpTitle': message('Payments by workplace', 'Lacag-bixinta goob-shaqo kasta'),
+  'option.payroll.wpHelp': message(
+    'Each workplace is paid on its own. Pay its whole outstanding balance, or record any part of it; the rest stays outstanding. Recording a payment does not move any money.',
+    'Goob-shaqo kasta si gooni ah ayaa loo bixiyaa. Bixi inta uu hadhay oo dhan, ama diiwaangeli qayb ka mid ah; inta soo hartay way sii furan tahay. Diiwaangelinta lacag-bixinta lacag ma dhaqaajiso.',
+  ),
+  'option.payroll.wpWorkplace': message('Workplace', 'Goob-shaqo'),
+  'option.payroll.wpTotal': message('Total payroll', 'Wadarta mushaharka'),
+  'option.payroll.wpPaid': message('Total paid', 'Wadarta la bixiyey'),
+  'option.payroll.wpOutstanding': message('Outstanding', 'Haraaga'),
+  'option.payroll.wpAll': message('All workplaces', 'Dhammaan goobaha shaqada'),
+  'option.payroll.wpNone': message('No workplace has payable lines in this month.', 'Goob-shaqo ma laha safaf la bixin karo bishan.'),
+  'option.payroll.wpUnassigned': message(
+    'Lines with no workplace on the assignment (pay these one by one in the table below)',
+    'Safaf aan goob-shaqo ku lahayn qoondaynta (kuwan mid-mid ugu bixi shaxda hoose)',
+  ),
+  'option.payroll.wpHistory': message('Payment history', 'Taariikhda lacag-bixinta'),
+  'option.payroll.wpNoPayments': message('No payment has been recorded for this workplace yet.', 'Goobtan shaqo lacag-bixin weli lagama diiwaangelin.'),
+  'option.payroll.wpRecordedBy': message('Recorded by', 'Waxaa diiwaangeliyey'),
+  'option.payroll.wpNote': message('Note', 'Qoraal'),
+  'option.payroll.wpVoidedMark': message('Voided: {reason}', 'La burburiyey: {reason}'),
+  'status.payroll.wpUnpaid': message('UNPAID', 'LAMA BIXIN'),
+  'status.payroll.wpPartial': message('PARTIAL', 'QAYB'),
+  'status.payroll.wpPaid': message('PAID', 'LA BIXIYEY'),
+  'action.payroll.wpPayFull': message('Pay in full', 'Bixi dhammaan'),
+  'action.payroll.wpPayPartial': message('Partial payment', 'Bixin qayb ah'),
+  'action.payroll.wpRecordFull': message('Record full payment', 'Diiwaangeli bixinta dhammaystiran'),
+  'action.payroll.wpRecordPartial': message('Record partial payment', 'Diiwaangeli bixinta qayb ah'),
+  'action.payroll.wpVoid': message('Void', 'Burburi'),
+  'confirm.payroll.wpFullTitle': message('Pay {name} in full', 'Bixi {name} dhammaan'),
+  'confirm.payroll.wpFullBody': message(
+    'Record a payment of {amount} for {name} ({month}). This is the whole outstanding balance, so the workplace becomes PAID.',
+    'Diiwaangeli lacag-bixin ah {amount} ee {name} ({month}). Kani waa haraaga oo dhan, sidaas darteed goobta shaqada waxay noqonaysaa LA BIXIYEY.',
+  ),
+  'confirm.payroll.wpPartialTitle': message('Partial payment for {name}', 'Bixin qayb ah oo loogu talagalay {name}'),
+  'confirm.payroll.wpPartialBody': message(
+    'Outstanding now: {amount}. Enter any amount up to that; the rest stays outstanding.',
+    'Haraaga hadda: {amount}. Geli qaddar kasta ilaa intaas; inta soo hartay way sii furan tahay.',
+  ),
+  'confirm.payroll.wpVoidTitle': message('Void this workplace payment', 'Burburi lacag-bixintan goobta shaqada'),
+  'confirm.payroll.wpVoidBody': message(
+    'The payment of {amount} dated {date} for {name} will stop counting toward what was paid. It stays in the history. Give the reason.',
+    'Lacag-bixinta {amount} ee taariikhda {date} ee {name} ma ahaan doonto mid lagu xisaabiyo wixii la bixiyey. Waxay ku hartaa taariikhda. Sheeg sababta.',
+  ),
+  'option.payroll.wpVoidReason': message('Reason', 'Sabab'),
+  'validation.payroll.wpVoidReason': message('Give a reason of at least 5 characters.', 'Sheeg sabab ugu yaraan 5 xaraf ah.'),
+  'warning.payroll.wpNotFinalized': message(
+    'Payments are recorded once the month is finalized. You can see each workplace\'s total here already.',
+    'Lacag-bixinta waa la diiwaangelin karaa marka bisha la dhammaystiro. Wadarta goob-shaqo kasta halkan hore ayaad ka arki kartaa.',
+  ),
+  'notify.payroll.wpRecorded': message('Workplace payment recorded.', 'Lacag-bixinta goobta shaqada waa la diiwaangeliyey.'),
+  'notify.payroll.wpVoided': message('Payment voided. It no longer counts; the record is kept.', 'Lacag-bixinta waa la burburiyey. Mid lagu xisaabiyo ma aha; diiwaanka waa la hayaa.'),
+  'notify.payroll.wpFailed': message('The payment was not recorded. Nothing was changed.', 'Lacag-bixinta lama diiwaangelin. Waxba lama beddelin.'),
+  'notify.payroll.wpLoadFailed': message('Could not load the workplace payments.', 'Lacag-bixinta goobaha shaqada lama soo qaadi karin.'),
+
+  // ---- Excel preview: every worksheet of the workbook, shown before the download
+  'option.payroll.previewSheets': message('Worksheets', 'Xaashiyada shaqada'),
+  'option.payroll.previewSheetSize': message('{rows} rows, {columns} columns', '{rows} saf, {columns} tiir'),
+  'option.payroll.previewFreezeNote': message('The header row stays in view while you scroll.', 'Safka madaxa wuu muuqdaa markaad hoos u rogto.'),
+  'warning.payroll.previewChanged': message(
+    'The list changed after the preview was shown, so nothing was downloaded. The preview below is the current list; check it and download again.',
+    'Liiska waa isbeddelay ka dib marka horudhaca la muujiyey, sidaas darteed waxba lama soo dejin. Horudhaca hoose waa liiska hadda; hubi oo mar kale soo deji.',
+  ),
 });

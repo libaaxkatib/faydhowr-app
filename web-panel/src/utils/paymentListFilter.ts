@@ -83,9 +83,62 @@ export interface PaymentListPreview {
   currency: string;
 }
 
-/** One company or one guri is checked before the download; "All" keeps downloading directly, as it always did. */
-export function needsPreview(scope: PaymentListScope): boolean {
-  return scope !== 'all';
+/**
+ * A cell of a previewed worksheet: null (empty) or [the text exactly as Excel shows it, the index of its look in the sheet's `styles`].
+ * Style 0 is the plain look.
+ */
+export type PreviewCell = [string, number] | null;
+
+export interface PreviewCellStyle {
+  bold?: boolean;
+  /** Hex colours of the workbook (a header, a highlighted missing number, a Temporary row, a red MISSING). */
+  fill?: string;
+  color?: string;
+  number?: boolean;
+  indent?: number;
+}
+
+/** One worksheet of the workbook, as the download will contain it. */
+export interface PreviewSheet {
+  name: string;
+  row_count: number;
+  column_count: number;
+  /** The row holding the column titles (1-based), or null for a sheet without a table (the Summary). */
+  header_row: number | null;
+  headers: string[];
+  frozen_at: string | null;
+  filter_range: string | null;
+  column_widths: (number | null)[];
+  styles: PreviewCellStyle[];
+  rows: PreviewCell[][];
+}
+
+/**
+ * The whole workbook read back from the file the download would send, plus the totals. `content_hash` and `generated_at` go back with the download,
+ * which refuses to send a file that differs from what was previewed.
+ */
+export interface PaymentListWorkbookPreview extends PaymentListPreview {
+  generated_at: string;
+  content_hash: string;
+  sheets: PreviewSheet[];
+}
+
+/** The theme classes for a cell look. The workbook's own colours are mapped to theme tokens, so Light and Dark Mode both stay readable. */
+export function cellClasses(style: PreviewCellStyle | undefined): string {
+  if (!style) return '';
+  const classes: string[] = [];
+
+  if (style.fill === '1F3864') classes.push('bg-primary', 'text-white');
+  else if (style.fill === 'FFF2CC') classes.push('bg-warning-soft');
+  else if (style.fill === 'EAF1DD') classes.push('bg-success-soft');
+  else if (style.fill) classes.push('bg-surface-muted');
+
+  if (style.color === 'C00000') classes.push('text-danger');
+  if (style.bold) classes.push('font-semibold');
+  if (style.number) classes.push('text-right', 'tabular-nums');
+  if (style.indent) classes.push('pl-5');
+
+  return classes.join(' ');
 }
 
 /** The query sent to the server: the record is named by its id only (never by name). */

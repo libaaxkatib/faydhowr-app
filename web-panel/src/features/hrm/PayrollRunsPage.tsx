@@ -31,8 +31,10 @@ import { PayrollCorrectionsPanel } from '@/features/hrm/PayrollCorrectionsPanel'
 import { useAuth } from '@/features/auth/useAuth';
 import { canVoidPayrollPayment, validateWriteOffReason } from '@/utils/payrollCorrections';
 import { filterPayrollLines, type PayrollPaymentFilter } from '@/utils/payrollLineFilter';
-import { PAYMENT_LIST_SCOPES, buttonLabel, canDownload, chooseRecordLabel, emptyOptionsMessage, needsPreview, optionsFor, recordFieldLabel, scopeLabel, selectedOption, type PaymentListScope } from '@/utils/paymentListFilter';
+import { ApiClientError } from '@/api/client';
+import { PAYMENT_LIST_SCOPES, buttonLabel, canDownload, chooseRecordLabel, emptyOptionsMessage, optionsFor, recordFieldLabel, scopeLabel, selectedOption, type PaymentListScope } from '@/utils/paymentListFilter';
 import { PaymentListPreviewDialog } from '@/features/hrm/PaymentListPreviewDialog';
+import { WorkplacePaymentsPanel } from '@/features/hrm/WorkplacePaymentsPanel';
 import type {
   PayrollAdjustmentKind,
   PayrollDeductionDetail,
@@ -127,6 +129,8 @@ export function PayrollRunsPage() {
   const refresh = (id?: number) => {
     queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
     queryClient.invalidateQueries({ queryKey: id ? ['payroll-run', id] : ['payroll-run'] });
+    // A line paid or voided one by one changes what its workplace has been paid.
+    queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
   };
 
   const generateMutation = useMutation({
@@ -196,23 +200,42 @@ export function PayrollRunsPage() {
   const listSelected = selectedOption(listScope, listRecordId, listFilters);
   const listEmptyMessage = emptyOptionsMessage(listScope, listFilters);
 
-  // One company or guri is checked in a preview first; the person then confirms the download or cancels. "All" downloads directly, as before.
+  // Every list (all records, one company or one guri) is previewed in full first, every worksheet of the workbook; the person then confirms the
+  // download of exactly that preview or cancels.
   const [isListPreviewOpen, setIsListPreviewOpen] = useState(false);
+  // The server refused a download because the list changed after the preview was shown; the preview is then fetched again.
+  const [listChangedAfterPreview, setListChangedAfterPreview] = useState(false);
 
   // A ref, not the mutation's state: two clicks in the same instant both see "not pending" until the next render, and must still download once.
   const paymentListLock = useRef(false);
   const paymentListMutation = useMutation({
-    mutationFn: () => hrApi.payrollRuns.downloadPaymentList(period, listScope, listSelected),
-    onSuccess: () => setIsListPreviewOpen(false),
-    onError: (err) => show(friendlyErrorMessage(err, t('notify.payroll.paymentListFailed')), 'error'),
+    mutationFn: (previewed: { content_hash: string; generated_at: string }) => hrApi.payrollRuns.downloadPaymentList(period, listScope, listSelected, previewed),
+    onSuccess: () => {
+      setIsListPreviewOpen(false);
+      setListChangedAfterPreview(false);
+    },
+    onError: (err) => {
+      if (err instanceof ApiClientError && err.code === 'PREVIEW_OUT_OF_DATE') {
+        setListChangedAfterPreview(true);
+        void queryClient.invalidateQueries({ queryKey: ['payment-list-preview'] });
+
+        return;
+      }
+      show(friendlyErrorMessage(err, t('notify.payroll.paymentListFailed')), 'error');
+    },
     onSettled: () => {
       paymentListLock.current = false;
     },
   });
-  const startPaymentListDownload = () => {
+  const startPaymentListDownload = (previewed: { content_hash: string; generated_at: string }) => {
     if (paymentListLock.current) return;
     paymentListLock.current = true;
-    paymentListMutation.mutate();
+    setListChangedAfterPreview(false);
+    paymentListMutation.mutate(previewed);
+  };
+  const openPaymentListPreview = () => {
+    setListChangedAfterPreview(false);
+    setIsListPreviewOpen(true);
   };
 
   const exportMutation = useMutation({
@@ -353,7 +376,7 @@ export function PayrollRunsPage() {
               variant="outline"
               isLoading={paymentListMutation.isPending}
               disabled={!PERIOD_PATTERN.test(period) || !canDownload(listScope, listRecordId, listFilters)}
-              onClick={() => (needsPreview(listScope) ? setIsListPreviewOpen(true) : startPaymentListDownload())}
+              onClick={openPaymentListPreview}
             >
               <Icon name="file-text" size={15} />
               {buttonLabel(listScope, listSelected)}
@@ -370,12 +393,13 @@ export function PayrollRunsPage() {
 
       {canDownloadPaymentList && (
         <PaymentListPreviewDialog
-          isOpen={isListPreviewOpen && needsPreview(listScope) && listSelected !== null}
+          isOpen={isListPreviewOpen && (listScope === 'all' || listSelected !== null)}
           period={period}
           monthLabel={monthLabel(period)}
           scope={listScope}
           selected={listSelected}
           isDownloading={paymentListMutation.isPending}
+          changedAfterPreview={listChangedAfterPreview}
           onClose={() => setIsListPreviewOpen(false)}
           onConfirm={startPaymentListDownload}
         />
@@ -601,6 +625,8 @@ function RunDetail({
             </ul>
           </div>
         )}
+
+        {run.items && run.items.length > 0 && <WorkplacePaymentsPanel run={run} canRecord={canApprove} canVoid={canVoid} />}
 
         {!run.items || run.items.length === 0 ? (
           <EmptyState icon="credit-card" title={t('option.payroll.noLines')} description={t('option.payroll.noLinesRun')} />
