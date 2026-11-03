@@ -11,6 +11,7 @@ use App\Models\EmployeeWorkAssignment;
 use App\Models\TemporaryReplacement;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\FinalizesCompanies;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -23,6 +24,7 @@ use Tests\TestCase;
  */
 class PayrollSummaryReconciliationTest extends TestCase
 {
+    use FinalizesCompanies;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -57,9 +59,7 @@ class PayrollSummaryReconciliationTest extends TestCase
 
     private function finalize(string $token, int $run): void
     {
-        foreach (['review', 'approve', 'finalize'] as $step) {
-            $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/{$step}")->assertOk();
-        }
+        $this->finalizeEveryCompany((int) $run, $token);
     }
 
     /** @return array{0: Employee, 1: EmployeeWorkAssignment} */
@@ -303,16 +303,18 @@ class PayrollSummaryReconciliationTest extends TestCase
         $this->summary($token, $employee, $assignment)->assertOk()->assertJsonPath('data.payable', false)->assertJsonPath('data.net_payable', '0.00');
     }
 
-    public function test_a_penalty_is_shown_only_on_the_employees_first_assignment_like_the_run(): void
+    public function test_a_penalty_is_shown_only_on_the_company_that_owns_it_like_the_run(): void
     {
         [, $token] = $this->superAdminToken();
         $employee = $this->makeEmployee('active', 'permanent');
+        $companyB = $this->makeCompany('Co B');
         $first = $this->makeAssignment($employee, $this->makeCompany('Co A'), null, 300, '2026-01-01');
-        $second = $this->makeAssignment($employee, $this->makeCompany('Co B'), null, 100, '2026-01-01');
-        EmployeePenalty::query()->create(['employee_id' => $employee->id, 'penalty_date' => '2026-09-05', 'reason' => 'Late', 'deduction_amount' => 15, 'currency' => 'USD', 'payroll_period' => self::P]);
+        $second = $this->makeAssignment($employee, $companyB, null, 100, '2026-01-01');
+        // The penalty belongs to Company B, so it is B's line that carries it - not the employee's first line.
+        EmployeePenalty::query()->create(['employee_id' => $employee->id, 'client_company_id' => $companyB->id, 'penalty_date' => '2026-09-05', 'reason' => 'Late', 'deduction_amount' => 15, 'currency' => 'USD', 'payroll_period' => self::P]);
 
-        $this->summary($token, $employee, $first)->assertJsonPath('data.penalty_deduction', '15.00');
-        $this->summary($token, $employee, $second)->assertJsonPath('data.penalty_deduction', '0.00');
+        $this->summary($token, $employee, $first)->assertJsonPath('data.penalty_deduction', '0.00');
+        $this->summary($token, $employee, $second)->assertJsonPath('data.penalty_deduction', '15.00');
     }
 
     // ------------------------------------------------------------ rollup filters and meta

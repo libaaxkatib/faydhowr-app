@@ -13,9 +13,8 @@ use Illuminate\Support\Facades\Schema;
  * payroll_items.section_id. A run's own status is derived from its sections (the least advanced one), so a month is approved or finalized only
  * when every company is.
  *
- * Additive only: one new table and one new nullable column; no existing column is dropped, renamed or changed. Runs that are approved or
- * finalized are left exactly as they are (no sections: they keep their run-level behaviour). For runs still in draft / reviewed the existing lines
- * are LINKED to their company's section (PayrollSectionBackfill): only payroll_items.section_id is written, nothing is recalculated or regenerated,
+ * Additive only: one new table and one new nullable column; no existing column is dropped, renamed or changed. The existing lines of
+ * EVERY run are LINKED to their company's section (PayrollSectionBackfill; a section starts with its run's own status and stamps): only payroll_items.section_id is written, nothing is recalculated or regenerated,
  * no amount, deduction, payment status or relationship changes, and it is safe to run again.
  */
 return new class extends Migration
@@ -54,7 +53,7 @@ return new class extends Migration
             $table->index('section_id');
         });
 
-        // Link the lines of runs that are still draft / reviewed. Nothing is recalculated; only section_id is written.
+        // Link the lines of every run. Nothing is recalculated; only section_id is written.
         PayrollSectionBackfill::run();
     }
 

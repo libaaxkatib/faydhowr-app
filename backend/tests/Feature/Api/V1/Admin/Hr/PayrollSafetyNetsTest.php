@@ -10,6 +10,7 @@ use App\Models\PayrollRun;
 use App\Models\TemporaryReplacement;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\FinalizesCompanies;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -20,6 +21,7 @@ use Tests\TestCase;
  */
 class PayrollSafetyNetsTest extends TestCase
 {
+    use FinalizesCompanies;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -103,9 +105,7 @@ class PayrollSafetyNetsTest extends TestCase
         $employee = $this->makeEmployee();
         $assignment = $this->makeAssignment($employee, $this->makeCompany(), null, 300, '2026-01-01');
         $run = $this->generate($token)->json('data.id');
-        foreach (['review', 'approve', 'finalize'] as $step) {
-            $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/{$step}")->assertOk();
-        }
+        $this->finalizeEveryCompany((int) $run, $token);
         $itemId = PayrollItem::query()->firstOrFail()->id;
         $this->withToken($token)->postJson("/api/v1/admin/hr/payroll-items/{$itemId}/adjustments", [
             'kind' => 'correction', 'amount' => '5.00', 'reason' => 'Late correction for September', 'applies_in_period' => '2026-10',

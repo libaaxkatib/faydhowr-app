@@ -12,6 +12,7 @@ use App\Models\PayrollRun;
 use App\Models\TemporaryReplacement;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\FinalizesCompanies;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -22,6 +23,7 @@ use Tests\TestCase;
  */
 class TemporaryReplacementCorrectionTest extends TestCase
 {
+    use FinalizesCompanies;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -95,7 +97,7 @@ class TemporaryReplacementCorrectionTest extends TestCase
         $id = $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => $period])->assertCreated()->json('data.id');
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/review")->assertOk();
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/approve")->assertOk();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/finalize")->assertOk();
+        $this->finalizeEveryCompany($id, $this->super);
 
         return PayrollRun::query()->findOrFail($id);
     }

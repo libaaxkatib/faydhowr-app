@@ -14,6 +14,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use Tests\Support\FinalizesCompanies;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -25,6 +26,7 @@ use Tests\TestCase;
  */
 class MonthlyPaymentListTenColumnTest extends TestCase
 {
+    use FinalizesCompanies;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -194,9 +196,7 @@ class MonthlyPaymentListTenColumnTest extends TestCase
 
         // Finalized and marked paid: the Permanent line is paid in full.
         $run = $this->withToken($token)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => self::P])->assertCreated()->json('data.id');
-        foreach (['review', 'approve', 'finalize'] as $step) {
-            $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/{$step}")->assertOk();
-        }
+        $this->finalizeEveryCompany((int) $run, $token);
         $item = PayrollItem::query()->where('payroll_run_id', $run)->firstOrFail();
         $this->withToken($token)->postJson("/api/v1/admin/hr/payroll-items/{$item->id}/pay", ['payment_date' => '2026-11-02'])->assertOk();
 

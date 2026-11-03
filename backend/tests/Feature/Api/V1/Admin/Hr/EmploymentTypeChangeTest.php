@@ -10,6 +10,7 @@ use App\Support\Hr\EmploymentTypeChange;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\FinalizesCompanies;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -20,6 +21,7 @@ use Tests\TestCase;
  */
 class EmploymentTypeChangeTest extends TestCase
 {
+    use FinalizesCompanies;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -127,9 +129,7 @@ class EmploymentTypeChangeTest extends TestCase
         [, $token] = $this->superAdminToken();
         [$employee] = $this->position(300);
         $runId = $this->withToken($token)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-09'])->assertCreated()->json('data.id');
-        foreach (['review', 'approve', 'finalize'] as $step) {
-            $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$runId}/{$step}")->assertOk();
-        }
+        $this->finalizeEveryCompany((int) $runId, $token);
         $item = PayrollItem::query()->where('employee_id', $employee->id)->firstOrFail();
         $this->withToken($token)->postJson("/api/v1/admin/hr/payroll-items/{$item->id}/pay", ['payment_date' => '2026-10-02'])->assertOk();
         $stored = $item->fresh()->only(['gross_cents', 'net_cents', 'payment_status']);

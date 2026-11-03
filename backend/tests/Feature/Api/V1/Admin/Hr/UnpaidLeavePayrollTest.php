@@ -37,10 +37,10 @@ class UnpaidLeavePayrollTest extends TestCase
         parent::tearDown();
     }
 
-    private function leave(Employee $employee, string $from, string $to, string $status = 'approved', string $type = 'unpaid'): EmployeeLeave
+    private function leave(Employee $employee, string $from, string $to, string $status = 'approved', string $type = 'unpaid', ?int $companyId = null): EmployeeLeave
     {
         return EmployeeLeave::query()->create([
-            'employee_id' => $employee->id, 'leave_type' => $type, 'approval_status' => $status,
+            'employee_id' => $employee->id, 'client_company_id' => $companyId, 'leave_type' => $type, 'approval_status' => $status,
             'start_date' => $from, 'end_date' => $to,
             'recorded_by' => Admin::factory()->create()->id,
             'decided_by' => $status === 'approved' ? Admin::factory()->create()->id : null,
@@ -137,7 +137,26 @@ class UnpaidLeavePayrollTest extends TestCase
         $this->generate($token)->assertCreated()->assertJsonPath('data.totals.other_deductions', '46.67');
     }
 
-    public function test_an_employee_with_two_jobs_loses_each_jobs_daily_pay(): void
+    public function test_an_employee_with_two_jobs_loses_only_the_daily_pay_of_the_company_that_owns_the_leave(): void
+    {
+        [, $token] = $this->superAdminToken();
+        $employee = $this->makeEmployee();
+        $companyA = $this->makeCompany('Co A');
+        $companyB = $this->makeCompany('Co B');
+        $this->makeAssignment($employee, $companyA, null, 300, '2026-01-01');
+        $this->makeAssignment($employee, $companyB, null, 100, '2026-01-01');
+        // Each company has its own payroll: the leave taken for A reduces A's pay only, the leave taken for B reduces B's pay only.
+        $this->leave($employee, '2026-09-10', '2026-09-14', companyId: $companyA->id);
+
+        $response = $this->generate($token)->assertCreated();
+        $this->assertSame(2, $response->json('data.item_count'));
+        $this->assertSame('50.00', $response->json('data.totals.other_deductions')); // A: 5 days x 10.00; B untouched
+
+        $this->leave($employee, '2026-09-10', '2026-09-14', companyId: $companyB->id);
+        $this->assertSame('66.67', $this->generate($token)->assertCreated()->json('data.totals.other_deductions')); // 50.00 (A) + 16.67 (B)
+    }
+
+    public function test_unpaid_leave_that_names_no_company_is_not_guessed_when_the_employee_works_for_two(): void
     {
         [, $token] = $this->superAdminToken();
         $employee = $this->makeEmployee();
@@ -147,8 +166,8 @@ class UnpaidLeavePayrollTest extends TestCase
 
         $response = $this->generate($token)->assertCreated();
 
-        $this->assertSame(2, $response->json('data.item_count'));
-        $this->assertSame('66.67', $response->json('data.totals.other_deductions')); // 50.00 + 16.67
+        $this->assertSame('0.00', $response->json('data.totals.other_deductions'));
+        $this->assertStringContainsString('names no company', implode(' ', $response->json('data.warnings')));
     }
 
     public function test_a_day_covered_by_two_leave_records_is_deducted_once(): void

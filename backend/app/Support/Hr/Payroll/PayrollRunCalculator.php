@@ -49,12 +49,57 @@ class PayrollRunCalculator
      * @param  list<int>|null  $employeeIds  limit the calculation to these employees (used by the per-employee summary); null = everyone. Period-wide orphan warnings are only produced for a full run.
      * @return array{items: list<array<string, mixed>>, warnings: list<string>, totals: array<string, int>}
      */
+    /** @var array<int, string> work assignment id => the key of the company its payroll line belongs to (InputOwnership) */
+    private array $lineKeys = [];
+
+    /** @var array<int, array<string, true>> employee id => the company keys of their payroll lines this month */
+    private array $employeeKeys = [];
+
+    /**
+     * Remembers which company each payroll line of the month belongs to, so every penalty, advance, unpaid leave, absence and recovery is charged to
+     * the company that OWNS it (owner decision 2026-11-03), never to "the first line" and never to several.
+     *
+     * @param  Collection<int, EmployeeWorkAssignment>  $assignments
+     */
+    private function indexOwnership(Collection $assignments): void
+    {
+        $this->lineKeys = [];
+        $this->employeeKeys = [];
+
+        foreach ($assignments as $assignment) {
+            if ($assignment->employee === null || $assignment->employee->trashed()) {
+                continue;
+            }
+
+            $key = InputOwnership::lineKey($assignment);
+            $this->lineKeys[$assignment->id] = $key;
+            $this->employeeKeys[$assignment->employee_id][$key] = true;
+        }
+    }
+
+    /**
+     * The company key a record is charged to: the company it names; or, for a record from before company ownership (no company), the employee's one
+     * company when they work for exactly one that month. Null = ambiguous (several companies): it is then charged NOWHERE and reported.
+     */
+    private function ownerKey(?int $recordCompany, int $employeeId): ?string
+    {
+        if ($recordCompany !== null) {
+            return (string) $recordCompany;
+        }
+
+        $keys = array_keys($this->employeeKeys[$employeeId] ?? []);
+
+        return count($keys) === 1 ? (string) $keys[0] : null;
+    }
+
     public function calculate(string $period, ?array $employeeIds = null, bool $withRecovery = true, bool $batched = true): array
     {
         try {
             return $this->compute($period, $employeeIds, $withRecovery, $batched);
         } finally {
             $this->inputs = null;
+            $this->lineKeys = [];
+            $this->employeeKeys = [];
         }
     }
 
@@ -84,6 +129,7 @@ class PayrollRunCalculator
             ->get();
 
         $this->inputs = $batched ? PayrollInputs::load($period, $assignments, $first, $last) : null;
+        $this->indexOwnership($assignments);
 
         // Lines that share one position (Permanent -> Replacement -> returned Permanent) are rounded together so their cents add up.
         $reconciled = $this->reconciledChainGross($period, $assignments);
@@ -198,15 +244,18 @@ class PayrollRunCalculator
                 ];
             }
 
-            if (! isset($firstItemForEmployee[$employee->id])) {
-                $firstItemForEmployee[$employee->id] = true;
-                $this->addPenaltiesAndAdvances($employee->id, $period, $deductions, $warnings);
+            $lineKey = $this->lineKeys[$assignment->id] ?? InputOwnership::lineKey($assignment);
+
+            // A person's penalties and advances belong to a COMPANY: the first line of THAT company carries them (several lines in one company: once).
+            if (! isset($firstItemForEmployee[$employee->id][$lineKey])) {
+                $firstItemForEmployee[$employee->id][$lineKey] = true;
+                $this->addPenaltiesAndAdvances($employee->id, $period, $lineKey, $deductions, $warnings);
             }
 
             $pendingLeaves = [];
             $leaveDates = $this->addUnpaidLeave($assignment, $salary, $first, $last, $daysInMonth, $deductions, $pendingLeaves, $warnings, $heldElsewhere);
 
-            $this->addAbsence($assignment, $salary, $first, $last, $daysInMonth, $deductions, $leaveDates, $coveredDates, $absenceCharged[$employee->id], $heldElsewhere);
+            $this->addAbsence($assignment, $salary, $first, $last, $daysInMonth, $deductions, $leaveDates, $coveredDates, $absenceCharged[$employee->id][$lineKey], $heldElsewhere);
 
             $replacementCents = (int) collect($deductions)->where('kind', PayrollItemDeduction::KIND_REPLACEMENT)->sum('amount_cents');
             $otherCents = (int) collect($deductions)->where('kind', '!=', PayrollItemDeduction::KIND_REPLACEMENT)->sum('amount_cents');
@@ -260,6 +309,7 @@ class PayrollRunCalculator
         if ($employeeIds === null) {
             $this->warnAboutOrphans($period, $items, $warnings);
         }
+        $this->warnAboutUnownedInputs($period, $first, $last, $warnings);
         $warnings = array_values(array_unique($warnings));
 
         $collection = new Collection($items);
@@ -488,6 +538,21 @@ class PayrollRunCalculator
             }
 
             foreach ($list as $correction) {
+                // An overpayment is recovered from the company it was overpaid by, and only from that company's lines this month.
+                $owner = $this->ownerKey($correction->client_company_id, (int) $employeeId);
+
+                if ($owner === null) {
+                    $warnings[] = "Overpayment correction #{$correction->id} names no company and the employee works for several: it was NOT recovered from any of them. Assign it to its company first.";
+
+                    continue;
+                }
+
+                $myIndexes = array_values(array_filter($lineIndexes, fn (int $i): bool => ($this->lineKeys[$items[$i]['work_assignment_id']] ?? null) === $owner));
+
+                if ($myIndexes === []) {
+                    continue; // that company has no line this month: the balance waits for a month it has one (never taken from another company)
+                }
+
                 $recoveredEarlier = (int) PayrollRecoveryDeduction::query()
                     ->where('payroll_correction_id', $correction->id)->where('period', '<', $period)->sum('amount_cents');
                 // Repayments recorded outside payroll (a person paying part of the debt back) also reduce what payroll may still take.
@@ -495,17 +560,17 @@ class PayrollRunCalculator
                 // A Super Admin write-off forgives part of the debt: payroll must never deduct what was written off.
                 $writtenOff = $correction->transactionCents(PayrollCorrectionTransaction::TYPE_DEBT_WRITE_OFF);
                 $balance = (int) $correction->difference_cents - $recoveredEarlier - $repaid - $writtenOff;
-                $take = min($balance, (int) array_sum($available));
+                $take = min($balance, (int) array_sum(array_intersect_key($available, array_flip($myIndexes))));
 
                 if ($balance <= 0) {
                     continue;
                 }
 
                 // Leaving = every line of this employee this month has an end date (no open assignment).
-                $leaving = count(array_filter($lineIndexes, fn (int $i): bool => $items[$i]['calc_snapshot']['employment_window']['to'] !== null)) === count($lineIndexes);
+                $leaving = count(array_filter($myIndexes, fn (int $i): bool => $items[$i]['calc_snapshot']['employment_window']['to'] !== null)) === count($myIndexes);
                 $remaining = max(0, $take);
 
-                foreach ($lineIndexes as $index) {
+                foreach ($myIndexes as $index) {
                     $part = min($remaining, $available[$index]);
 
                     if ($part <= 0) {
@@ -537,7 +602,7 @@ class PayrollRunCalculator
                 $left = $balance - max(0, $take);
 
                 if ($leaving && $left > 0) {
-                    $name = $items[$lineIndexes[0]]['employee_number'];
+                    $name = $items[$myIndexes[0]]['employee_number'];
                     $warnings[] = "Employee {$name} has no open assignment: the final salary of {$period} was used up to what is available, and ".PayrollMoney::format($left)." USD of the overpayment from {$correction->period} (correction #{$correction->id}) stays an outstanding debt to be managed on the corrections ledger.";
                 }
             }
@@ -701,6 +766,47 @@ class PayrollRunCalculator
      * @param  list<array<string, mixed>>  $items
      * @param  list<string>  $warnings
      */
+    /**
+     * Inputs that could not be charged to a company, said plainly instead of being guessed: a record with no company when the employee works for
+     * several, or one that names a company where the employee has no payroll line this month. They are charged nowhere until HR assigns them.
+     *
+     * @param  list<string>  $warnings
+     */
+    private function warnAboutUnownedInputs(string $period, \DateTimeImmutable $first, \DateTimeImmutable $last, array &$warnings): void
+    {
+        foreach ($this->employeeKeys as $employeeId => $keys) {
+            $kinds = [
+                'Penalty' => $this->inputs?->hasEmployee($employeeId) ? $this->inputs->penalties($employeeId) : EmployeePenalty::query()->where('employee_id', $employeeId)->where('payroll_period', $period)->get(),
+                'Advance' => $this->inputs?->hasEmployee($employeeId) ? $this->inputs->advances($employeeId) : EmployeeAdvance::query()->where('employee_id', $employeeId)->where('payroll_period', $period)->get(),
+                'Unpaid leave' => $this->inputs?->hasEmployee($employeeId) ? $this->inputs->unpaidLeaves($employeeId) : EmployeeLeave::query()->where('employee_id', $employeeId)->where('leave_type', LeaveType::Unpaid)->whereDate('start_date', '<=', $last->format('Y-m-d'))->whereDate('end_date', '>=', $first->format('Y-m-d'))->get(),
+                'Absence mark' => $this->inputs?->hasEmployee($employeeId) ? $this->inputs->absences($employeeId) : EmployeeAttendance::query()->where('employee_id', $employeeId)->where('status', AttendanceStatus::Absent)->whereDate('date', '>=', $first->format('Y-m-d'))->whereDate('date', '<=', $last->format('Y-m-d'))->get(),
+            ];
+
+            foreach ($kinds as $label => $records) {
+                $ambiguous = [];
+                $elsewhere = [];
+
+                foreach ($records as $record) {
+                    $owner = $this->ownerKey($record->client_company_id, (int) $employeeId);
+
+                    if ($owner === null) {
+                        $ambiguous[] = '#'.$record->id;
+                    } elseif (! isset($keys[$owner])) {
+                        $elsewhere[] = '#'.$record->id;
+                    }
+                }
+
+                if ($ambiguous !== []) {
+                    $warnings[] = "{$label} ".implode(', ', array_slice($ambiguous, 0, 5)).(count($ambiguous) > 5 ? ' and '.(count($ambiguous) - 5).' more' : '')." of employee #{$employeeId} names no company and the employee works for several: it was NOT charged to any of them. Assign it to its company first.";
+                }
+
+                if ($elsewhere !== []) {
+                    $warnings[] = "{$label} ".implode(', ', array_slice($elsewhere, 0, 5)).(count($elsewhere) > 5 ? ' and '.(count($elsewhere) - 5).' more' : '')." of employee #{$employeeId} belongs to a company where the employee has no payroll line in {$period}: it was NOT charged.";
+                }
+            }
+        }
+    }
+
     private function warnAboutOrphans(string $period, array $items, array &$warnings): void
     {
         $assignmentIds = array_column($items, 'work_assignment_id');
@@ -737,13 +843,18 @@ class PayrollRunCalculator
      * @param  list<array<string, mixed>>  $deductions
      * @param  list<string>  $warnings
      */
-    private function addPenaltiesAndAdvances(int $employeeId, string $period, array &$deductions, array &$warnings): void
+    private function addPenaltiesAndAdvances(int $employeeId, string $period, string $lineKey, array &$deductions, array &$warnings): void
     {
         $penalties = $this->inputs?->hasEmployee($employeeId)
             ? $this->inputs->penalties($employeeId)
             : EmployeePenalty::query()->where('employee_id', $employeeId)->where('payroll_period', $period)->get();
 
         foreach ($penalties as $penalty) {
+            // Another company's penalty (or one whose company is ambiguous) is not charged on this company's line.
+            if ($this->ownerKey($penalty->client_company_id, $employeeId) !== $lineKey) {
+                continue;
+            }
+
             if ($penalty->currency !== PayrollMoney::CURRENCY) {
                 $warnings[] = "Penalty #{$penalty->id} is in {$penalty->currency}, not USD; it was not deducted.";
 
@@ -762,6 +873,10 @@ class PayrollRunCalculator
             : EmployeeAdvance::query()->where('employee_id', $employeeId)->where('payroll_period', $period)->get();
 
         foreach ($advances as $advance) {
+            if ($this->ownerKey($advance->client_company_id, $employeeId) !== $lineKey) {
+                continue;
+            }
+
             if ($advance->currency !== PayrollMoney::CURRENCY) {
                 $warnings[] = "Advance #{$advance->id} is in {$advance->currency}, not USD; it was not deducted.";
 
@@ -808,6 +923,11 @@ class PayrollRunCalculator
                 ->get();
 
         foreach ($leaves as $leave) {
+            // Unpaid leave reduces the pay of the company it belongs to, and only that company's.
+            if ($this->ownerKey($leave->client_company_id, $assignment->employee_id) !== ($this->lineKeys[$assignment->id] ?? null)) {
+                continue;
+            }
+
             $from = $leave->start_date->gt($windowStart) ? CarbonImmutable::parse($leave->start_date) : $windowStart;
             $to = $leave->end_date->lt($windowEnd) ? CarbonImmutable::parse($leave->end_date) : $windowEnd;
 
@@ -882,6 +1002,11 @@ class PayrollRunCalculator
         $coveredSkipped = [];
 
         foreach ($absences as $absence) {
+            // An absence is charged to the company it belongs to, and only that company's line.
+            if ($this->ownerKey($absence->client_company_id, $assignment->employee_id) !== ($this->lineKeys[$assignment->id] ?? null)) {
+                continue;
+            }
+
             $iso = $absence->date->toDateString();
 
             // Not paid to this assignment on that day (held by a Replacement, or its holder is away): nothing to deduct from it.

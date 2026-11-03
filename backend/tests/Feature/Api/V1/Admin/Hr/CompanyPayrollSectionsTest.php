@@ -3,7 +3,10 @@
 namespace Tests\Feature\Api\V1\Admin\Hr;
 
 use App\Actions\Hr\GetPayrollRollupAction;
+use App\Actions\Hr\TransitionPayrollRunAction;
+use App\Actions\Hr\TransitionPayrollRunSectionAction;
 use App\Enums\AdminRole;
+use App\Http\Controllers\Api\V1\Admin\Hr\PayrollRunController;
 use App\Models\Admin;
 use App\Models\AuditLog;
 use App\Models\ClientCompany;
@@ -12,6 +15,7 @@ use App\Models\EmployeeAdvance;
 use App\Models\EmployeePayment;
 use App\Models\EmployeePenalty;
 use App\Models\EmployeeWorkAssignment;
+use App\Models\HrPolicy;
 use App\Models\PayrollCorrection;
 use App\Models\PayrollItem;
 use App\Models\PayrollItemDeduction;
@@ -262,7 +266,7 @@ class CompanyPayrollSectionsTest extends TestCase
         $this->assertSame([3, 1, true], [$list['sections_total'], $list['sections_finalized'], $list['is_partially_finalized']]);
     }
 
-    public function test_the_month_level_buttons_move_every_company_that_is_in_the_previous_state_and_leave_the_others(): void
+    public function test_the_month_level_review_and_approve_move_every_company_in_the_previous_state_and_finalize_stays_company_by_company(): void
     {
         $this->generate();
 
@@ -277,9 +281,41 @@ class CompanyPayrollSectionsTest extends TestCase
         $this->assertSame('approved', $this->monthRun()->status, 'least advanced: Bravo and Gury are approved');
         $this->assertSame(['Alpha Co' => 'finalized', 'Bravo Co' => 'approved', 'Gury One' => 'approved'], $this->statuses());
 
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/finalize")->assertOk();
+        // The rest can only be finalized one company at a time; the month finalizes itself with the last one.
+        $this->move($this->bravo, 'finalize')->assertOk();
+        $this->assertSame('approved', $this->monthRun()->status);
+        $this->move($this->gury, 'finalize')->assertOk();
         $this->assertSame('finalized', $this->monthRun()->status);
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/finalize")->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_WRONG_STATE');
+    }
+
+    public function test_there_is_no_month_level_finalize_and_no_bulk_finalize_anywhere(): void
+    {
+        $this->generate();
+        foreach (['review', 'approve'] as $step) {
+            $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/{$step}")->assertOk();
+        }
+
+        // The route is gone (not merely hidden): every method and every spelling is refused, for the highest-privileged user too, and nothing changes.
+        foreach (['finalize', 'finalise', 'finalize-all', 'finalize-companies', 'bulk-finalize'] as $path) {
+            foreach (['patch', 'post', 'put'] as $method) {
+                $status = $this->as($this->super)->json(strtoupper($method), "/api/v1/admin/hr/payroll-runs/{$this->runId}/{$path}")->status();
+                $this->assertContains($status, [404, 405], "{$method} payroll-runs/{id}/{$path} must not exist (got {$status})");
+            }
+        }
+        $this->as($this->super)->patchJson('/api/v1/admin/hr/payroll-run-sections/finalize')->assertNotFound();
+        $this->as($this->super)->patchJson('/api/v1/admin/hr/payroll-run-sections/finalize-all')->assertNotFound();
+        $this->assertSame(['Alpha Co' => 'approved', 'Bravo Co' => 'approved', 'Gury One' => 'approved'], $this->statuses());
+        $this->assertSame('approved', $this->monthRun()->status);
+
+        // No registered route finalizes more than one company: the only finalize route names exactly one section.
+        $finalizeRoutes = collect($this->app['router']->getRoutes()->getRoutes())->filter(fn ($route): bool => str_contains($route->uri(), 'payroll') && str_contains(strtolower($route->uri().$route->getActionName()), 'finali'));
+        $this->assertSame(['api/v1/admin/hr/payroll-run-sections/{payrollRunSection}/finalize'], $finalizeRoutes->map(fn ($route): string => $route->uri())->values()->all());
+        $this->assertFalse(method_exists(TransitionPayrollRunAction::class, 'finalize'), 'the month-level action is removed, not just unrouted');
+        $this->assertFalse(method_exists(PayrollRunController::class, 'finalize'));
+
+        // The shared bulk path itself refuses to finalize.
+        $this->expectException(\LogicException::class);
+        app(TransitionPayrollRunSectionAction::class)->bulk($this->monthRun(), 'approved', 'finalized', $this->superAdmin);
     }
 
     public function test_an_approved_company_can_be_reopened_with_a_reason_a_finalized_one_cannot_and_nothing_else_changes(): void
@@ -403,63 +439,87 @@ class CompanyPayrollSectionsTest extends TestCase
 
     // ------------------------------------------------------------------------------------------------ cross-company employee
 
-    public function test_a_shared_employee_is_charged_a_penalty_and_an_advance_once_across_two_companies_even_after_one_is_finalized(): void
+    public function test_a_shared_employees_penalty_and_advance_each_hit_only_their_own_company_even_after_the_other_is_finalized(): void
     {
-        EmployeePenalty::query()->create(['employee_id' => $this->x->id, 'penalty_date' => '2026-09-05', 'reason' => 'Late', 'deduction_amount' => 15, 'currency' => 'USD', 'payroll_period' => self::P]);
-        EmployeeAdvance::query()->create(['employee_id' => $this->x->id, 'advance_date' => '2026-09-06', 'amount' => 20, 'currency' => 'USD', 'payroll_period' => self::P, 'reason' => 'Rent']);
+        // X works for Alpha (100.00) and Bravo (150.00). The penalty is Alpha's, the advance is Bravo's: each reduces ONLY its own company's pay.
+        EmployeePenalty::query()->create(['employee_id' => $this->x->id, 'client_company_id' => $this->alpha->id, 'penalty_date' => '2026-09-05', 'reason' => 'Late', 'deduction_amount' => 15, 'currency' => 'USD', 'payroll_period' => self::P]);
+        EmployeeAdvance::query()->create(['employee_id' => $this->x->id, 'client_company_id' => $this->bravo->id, 'advance_date' => '2026-09-06', 'amount' => 20, 'currency' => 'USD', 'payroll_period' => self::P, 'reason' => 'Rent']);
         $this->generate();
 
         $deductions = fn () => PayrollItemDeduction::query()->whereIn('kind', ['penalty', 'advance'])->get();
-        $this->assertCount(2, $deductions(), 'one penalty and one advance in total, not one per company');
         $lineOf = fn (EmployeeWorkAssignment $a) => PayrollItem::query()->where('work_assignment_id', $a->id)->firstOrFail();
-        $this->assertSame(10000 - 3500, (int) $lineOf($this->xAlpha)->net_cents, 'they sit on the first (Alpha) line');
-        $this->assertSame(15000, (int) $lineOf($this->xBravo)->net_cents);
+        $kindsOn = fn (EmployeeWorkAssignment $a) => PayrollItemDeduction::query()->where('payroll_item_id', $lineOf($a)->id)->whereIn('kind', ['penalty', 'advance'])->pluck('kind')->all();
+        $this->assertCount(2, $deductions(), 'one penalty and one advance in total');
+        $this->assertSame(10000 - 1500, (int) $lineOf($this->xAlpha)->net_cents, "Alpha's penalty reduces Alpha's pay only");
+        $this->assertSame(15000 - 2000, (int) $lineOf($this->xBravo)->net_cents, "Bravo's advance reduces Bravo's pay only");
+        $this->assertSame(['penalty'], $kindsOn($this->xAlpha));
+        $this->assertSame(['advance'], $kindsOn($this->xBravo));
 
+        // Alpha is finalized; Bravo is regenerated around it (twice): nothing is added again and Alpha's finalized line never moves.
         $this->finalizeCompany($this->alpha);
+        $alphaLine = $lineOf($this->xAlpha);
+        $alphaStamp = [$alphaLine->id, (int) $alphaLine->net_cents, $alphaLine->updated_at->toIso8601String()];
         $this->b1->update(['salary_amount' => 450]);
         $this->b1->salaryHistories()->update(['amount' => 450]);
         $this->generate();
         $this->generate();
 
         $this->assertCount(2, $deductions(), 'regenerating Bravo around a finalized Alpha never adds them again');
-        $this->assertSame(10000 - 3500, (int) $lineOf($this->xAlpha)->net_cents);
-        $this->assertSame(15000, (int) $lineOf($this->xBravo)->net_cents);
-        $this->assertSame(0, PayrollItemDeduction::query()->whereIn('payroll_item_id', PayrollItem::query()->where('work_assignment_id', $this->xBravo->id)->pluck('id'))->whereIn('kind', ['penalty', 'advance'])->count());
+        $this->assertSame($alphaStamp, [$lineOf($this->xAlpha)->id, (int) $lineOf($this->xAlpha)->net_cents, $lineOf($this->xAlpha)->updated_at->toIso8601String()]);
+        $this->assertSame(15000 - 2000, (int) $lineOf($this->xBravo)->net_cents);
+        $this->assertSame(['advance'], $kindsOn($this->xBravo));
         $this->assertSame(1, PayrollItem::query()->where('work_assignment_id', $this->xAlpha->id)->count(), 'no duplicate payroll line');
     }
 
-    public function test_an_overpayment_recovered_over_two_companies_is_deducted_once_and_the_ledger_row_follows_both(): void
+    public function test_a_shared_employees_unowned_penalty_is_charged_to_neither_company_and_is_reported(): void
     {
-        // X was overpaid 120.00 in August (a closed month); September recovers it over X's two lines: 100.00 from Alpha's line, 20.00 from Bravo's.
+        EmployeePenalty::query()->create(['employee_id' => $this->x->id, 'penalty_date' => '2026-09-05', 'reason' => 'Late', 'deduction_amount' => 15, 'currency' => 'USD', 'payroll_period' => self::P]);
+        $run = $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => self::P])->assertCreated();
+
+        $this->assertSame(0, PayrollItemDeduction::query()->where('kind', 'penalty')->count(), 'not guessed onto the first line');
+        $this->assertSame([10000, 15000], PayrollItem::query()->whereIn('work_assignment_id', [$this->xAlpha->id, $this->xBravo->id])->orderBy('work_assignment_id')->pluck('net_cents')->map(fn ($c) => (int) $c)->all());
+        $this->assertStringContainsString('names no company', implode(' ', $run->json('data.warnings')));
+    }
+
+    public function test_an_overpayment_is_recovered_only_from_the_company_that_was_overpaid(): void
+    {
+        // X was overpaid 120.00 by ALPHA in August (a closed month). September recovers it from Alpha's line only (100.00 of it - Alpha's pay that month);
+        // Bravo's payroll is never touched by Alpha's overpayment.
         $august = PayrollRun::query()->create(['period' => '2026-08', 'status' => 'finalized', 'currency' => 'USD', 'totals' => ['item_count' => 0, 'net_cents' => 0]]);
         $correction = PayrollCorrection::query()->create([
-            'batch_key' => (string) Str::uuid(), 'employee_id' => $this->x->id, 'payroll_run_id' => $august->id, 'period' => '2026-08', 'kind' => 'overpayment', 'action' => 'edited',
+            'batch_key' => (string) Str::uuid(), 'employee_id' => $this->x->id, 'client_company_id' => $this->alpha->id, 'payroll_run_id' => $august->id, 'period' => '2026-08', 'kind' => 'overpayment', 'action' => 'edited',
             'recorded_net_cents' => 25000, 'corrected_net_cents' => 13000, 'difference_cents' => 12000, 'outstanding_cents' => 12000, 'status' => 'open', 'reason' => 'Paid too much in August',
         ]);
         $this->generate();
 
         $recovery = fn () => PayrollItemDeduction::query()->where('kind', 'overpayment_recovery')->where('source_id', $correction->id);
         $lineOf = fn (EmployeeWorkAssignment $a) => PayrollItem::query()->where('work_assignment_id', $a->id)->firstOrFail();
-        $this->assertSame([2, 12000], [$recovery()->count(), (int) $recovery()->sum('amount_cents')]);
-        $this->assertSame([0, 13000], [(int) $lineOf($this->xAlpha)->net_cents, (int) $lineOf($this->xBravo)->net_cents]);
+        $this->assertSame([1, 10000], [$recovery()->count(), (int) $recovery()->sum('amount_cents')], 'limited to what Alpha pays this month');
+        $this->assertSame([0, 15000], [(int) $lineOf($this->xAlpha)->net_cents, (int) $lineOf($this->xBravo)->net_cents], "Bravo's pay is untouched");
         $ledger = fn () => PayrollRecoveryDeduction::query()->where('payroll_correction_id', $correction->id)->get();
-        $this->assertSame([1, 12000, 'scheduled'], [$ledger()->count(), (int) $ledger()->first()->amount_cents, $ledger()->first()->status]);
+        $this->assertSame([1, 10000, 'scheduled'], [$ledger()->count(), (int) $ledger()->first()->amount_cents, $ledger()->first()->status]);
 
-        // Alpha (the line with 100.00 of it) is finalized: the recovery is still "scheduled" because Bravo's 20.00 can still be regenerated.
-        $this->finalizeCompany($this->alpha);
-        $this->assertSame('scheduled', $ledger()->first()->status);
-        $this->b1->update(['salary_amount' => 450]);
-        $this->b1->salaryHistories()->update(['amount' => 450]);
-        $this->generate();
-        $this->generate();
-
-        $this->assertSame([2, 12000], [$recovery()->count(), (int) $recovery()->sum('amount_cents')], 'regenerating around a finalized company never deducts it again');
-        $this->assertSame([1, 12000], [$ledger()->count(), (int) $ledger()->first()->amount_cents]);
-        $this->assertSame([0, 13000], [(int) $lineOf($this->xAlpha)->net_cents, (int) $lineOf($this->xBravo)->net_cents]);
-
-        // Once every line that carries it is in a finalized company, it counts as recovered (applied) - one row, the whole amount.
+        // Bravo is finalized first: the recovery is not Bravo's, so it stays scheduled and Bravo's line is unchanged.
         $this->finalizeCompany($this->bravo);
-        $this->assertSame([1, 12000, 'applied'], [$ledger()->count(), (int) $ledger()->first()->amount_cents, $ledger()->first()->status]);
+        $this->assertSame('scheduled', $ledger()->first()->status);
+
+        // Alpha (the only line carrying it) is finalized: the recovery counts as recovered (applied) - one row.
+        $this->finalizeCompany($this->alpha);
+        $this->assertSame([1, 10000, 'applied'], [$ledger()->count(), (int) $ledger()->first()->amount_cents, $ledger()->first()->status]);
+        $this->assertSame([1, 10000], [$recovery()->count(), (int) $recovery()->sum('amount_cents')]);
+    }
+
+    public function test_an_overpayment_that_names_no_company_is_not_guessed_when_the_employee_works_for_two(): void
+    {
+        $august = PayrollRun::query()->create(['period' => '2026-08', 'status' => 'finalized', 'currency' => 'USD', 'totals' => ['item_count' => 0, 'net_cents' => 0]]);
+        PayrollCorrection::query()->create([
+            'batch_key' => (string) Str::uuid(), 'employee_id' => $this->x->id, 'payroll_run_id' => $august->id, 'period' => '2026-08', 'kind' => 'overpayment', 'action' => 'edited',
+            'recorded_net_cents' => 25000, 'corrected_net_cents' => 13000, 'difference_cents' => 12000, 'outstanding_cents' => 12000, 'status' => 'open', 'reason' => 'Paid too much in August',
+        ]);
+        $this->generate();
+
+        $this->assertSame(0, PayrollItemDeduction::query()->where('kind', 'overpayment_recovery')->count());
+        $this->assertSame([10000, 15000], PayrollItem::query()->whereIn('work_assignment_id', [$this->xAlpha->id, $this->xBravo->id])->orderBy('work_assignment_id')->pluck('net_cents')->map(fn ($c) => (int) $c)->all());
     }
 
     public function test_a_shared_employees_line_cannot_be_paid_twice_through_the_line_and_the_company(): void
@@ -565,6 +625,53 @@ class CompanyPayrollSectionsTest extends TestCase
         $this->assertSame($alphaBefore, $this->linesFingerprint($this->section($this->alpha)), 'the finalized lines are never edited');
         $this->assertSame($bravoBefore, $this->linesFingerprint($this->section($this->bravo)), 'another company is not touched');
         $this->assertSame(['Alpha Co' => 'finalized', 'Bravo Co' => 'draft', 'Gury One' => 'draft'], $this->statuses());
+    }
+
+    public function test_a_correction_for_a_shared_employee_belongs_to_one_company_and_is_measured_on_that_companys_line_only(): void
+    {
+        // X works for Alpha (100.00) and Bravo (150.00); both are finalized. Alpha's assignment started later than recorded: the correction is about
+        // ALPHA's pay (100.00 recorded) and carries Alpha's id - it never includes Bravo's 150.00 and it is not recovered from Bravo.
+        $this->generate();
+        $this->finalizeCompany($this->alpha);
+        $this->finalizeCompany($this->bravo);
+        $bravoBefore = $this->linesFingerprint($this->section($this->bravo));
+        // Editing an assignment of someone who works for two companies is only allowed while the Super Admin's multiple-company policy is on.
+        $this->as($this->super)->putJson('/api/v1/admin/hr/policies/'.HrPolicy::MULTI_COMPANY_ASSIGNMENTS, ['enabled' => true, 'reason' => 'A cleaner works two sites'])->assertOk();
+
+        $response = $this->as($this->super)->putJson("/api/v1/admin/hr/work-assignments/{$this->xAlpha->id}", ['start_date' => '2026-09-16', 'correction_reason' => 'Started on 16 September']);
+        $this->assertSame(200, $response->status(), $response->getContent());
+
+        $correction = PayrollCorrection::query()->where('employee_id', $this->x->id)->sole();
+        $this->assertSame($this->alpha->id, $correction->client_company_id);
+        $this->assertSame([10000, 5000, 'overpayment'], [(int) $correction->recorded_net_cents, (int) $correction->corrected_net_cents, $correction->kind], "Alpha's line only");
+        $this->assertSame(5000, (int) $correction->outstanding_cents);
+        $this->assertSame($bravoBefore, $this->linesFingerprint($this->section($this->bravo)));
+        $log = AuditLog::query()->where('entity_type', PayrollCorrection::class)->where('entity_id', $correction->id)->firstOrFail();
+        $this->assertSame($this->alpha->id, $log->metadata['client_company_id']);
+    }
+
+    public function test_a_company_with_a_shared_employees_unowned_record_cannot_be_approved_until_the_record_is_assigned(): void
+    {
+        // A penalty from before company ownership names no company, and X works for two: nothing is charged and neither company may be locked in.
+        $penalty = EmployeePenalty::query()->create(['employee_id' => $this->x->id, 'penalty_date' => '2026-09-05', 'reason' => 'Late', 'deduction_amount' => 15, 'currency' => 'USD', 'payroll_period' => self::P]);
+        $this->generate();
+        $this->move($this->alpha, 'review')->assertOk();
+
+        $this->move($this->alpha, 'approve')->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_AMBIGUOUS_COMPANY_INPUT')
+            ->assertJsonPath('errors.unowned_inputs.0.kind', 'penalty')->assertJsonPath('errors.unowned_inputs.0.id', $penalty->id);
+        $this->assertSame('reviewed', $this->section($this->alpha)->status);
+
+        // A company that does not employ X is not blocked by it.
+        $this->move($this->gury, 'review')->assertOk();
+        $this->move($this->gury, 'approve')->assertOk();
+
+        // HR assigns the penalty to Bravo and generates again: it is now charged to Bravo only, and Alpha can be approved.
+        $penalty->update(['client_company_id' => $this->bravo->id]);
+        $this->generate();
+        $this->move($this->alpha, 'review')->assertOk();
+        $this->move($this->alpha, 'approve')->assertOk();
+        $this->assertSame(15000 - 1500, (int) PayrollItem::query()->where('work_assignment_id', $this->xBravo->id)->value('net_cents'));
+        $this->assertSame(10000, (int) PayrollItem::query()->where('work_assignment_id', $this->xAlpha->id)->value('net_cents'));
     }
 
     public function test_a_change_that_only_reaches_a_company_that_is_still_open_needs_no_correction(): void
@@ -759,11 +866,13 @@ class CompanyPayrollSectionsTest extends TestCase
             'company_name' => 'Alpha Co', 'eligible_days' => 31, 'days_in_month' => 31, 'gross_cents' => 30000, 'net_cents' => 30000, 'calc_snapshot' => [],
         ]);
 
-        foreach (['review', 'approve', 'finalize'] as $step) {
+        // Reviewing and approving the month still work for a run that has no sections yet; there is no month-level Finalize to finish it.
+        foreach (['review', 'approve'] as $step) {
             $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/{$step}")->assertOk();
         }
+        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/finalize")->assertNotFound();
 
-        $this->assertSame('finalized', $run->fresh()->status);
+        $this->assertSame('approved', $run->fresh()->status);
         $this->assertSame(0, PayrollRunSection::query()->where('payroll_run_id', $run->id)->count());
     }
 

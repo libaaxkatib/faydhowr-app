@@ -8,8 +8,8 @@ export const payroll = defineMessages({
   'status.payroll.helpDraft': message('Still being prepared. It can be regenerated.', 'Weli waa la diyaarinayaa. Dib ayaa loo samayn karaa.'),
   'status.payroll.helpReviewed': message('Checked. Next step: approve it.', 'Waa la hubiyey. Tallaabada xigta: ansixi.'),
   'status.payroll.helpApproved': message(
-    'The month is locked. It can still be reopened until it is finalized.',
-    'Bisha waa la xidhay. Weli dib ayaa loo furi karaa ilaa la dhammaystiro.',
+    'The month is locked. Finalize each company on its own; until then it can still be reopened.',
+    'Bisha waa la xidhay. Shirkad kasta si gaar ah u dhammaystir; ilaa markaas dib ayaa loo furi karaa.',
   ),
   'status.payroll.helpFinalized': message(
     'Final. It cannot be edited or reopened; corrections are recorded as adjustments in a later month.',
@@ -131,11 +131,6 @@ export const payroll = defineMessages({
     'Ansixintu waxay xidhaa {month}: isbeddellada mushaharka iyo beddelaadka ku-meel-gaarka ah ee bishaas waa la diidi doonaa. Weli waad dib u furi kartaa mushahar la ansixiyey ka hor inta aan la dhammaystirin.',
   ),
   'confirm.payroll.theMonth': message('the month', 'bisha'),
-  'confirm.payroll.finalizeTitle': message('Finalize this payroll?', 'Ma dhammaystirtaa mushaharkan?'),
-  'confirm.payroll.finalizeBody': message(
-    'Finalized payroll cannot be edited or reopened; corrections are recorded as adjustments in a later month. After finalizing you can mark each line as paid.',
-    'Mushahar la dhammaystiray lama wax-ka-beddeli karo lamana dib u furi karo; sixitaannada waxaa loo diiwaangeliyaa hagaajinno bil dambe ah. Marka la dhammaystiro, saf kasta waad u calaamadayn kartaa in la bixiyey.',
-  ),
   'confirm.payroll.reopenBody': message(
     '{month} goes back to Draft and has to be reviewed and approved again. Only an approved payroll can be reopened.',
     '{month} wuxuu ku noqonayaa Qabyo oo waa in mar kale dib loo eego oo la ansixiyaa. Keliya mushahar la ansixiyey ayaa dib loo furi karaa.',

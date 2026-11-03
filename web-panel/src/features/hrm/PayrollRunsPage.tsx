@@ -110,7 +110,7 @@ export function PayrollRunsPage() {
 
   const [period, setPeriod] = useState(localMonth());
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [confirming, setConfirming] = useState<'approve' | 'finalize' | null>(null);
+  const [confirming, setConfirming] = useState<'approve' | null>(null);
   const [isReopenOpen, setIsReopenOpen] = useState(false);
   const [adjustingItem, setAdjustingItem] = useState<PayrollItem | null>(null);
   const [payingItem, setPayingItem] = useState<PayrollItem | null>(null);
@@ -168,19 +168,6 @@ export function PayrollRunsPage() {
     onError: (err) => {
       setConfirming(null);
       show(friendlyErrorMessage(err, t('notify.payroll.approveFailed')), 'error');
-    },
-  });
-
-  const finalizeMutation = useMutation({
-    mutationFn: (id: number) => hrApi.payrollRuns.finalize(id),
-    onSuccess: (updated) => {
-      refresh(updated.id);
-      setConfirming(null);
-      show(t('notify.payroll.finalized'));
-    },
-    onError: (err) => {
-      setConfirming(null);
-      show(friendlyErrorMessage(err, t('notify.payroll.finalizeFailed')), 'error');
     },
   });
 
@@ -448,7 +435,6 @@ export function PayrollRunsPage() {
           }}
           onReview={() => reviewMutation.mutate(run.id)}
           onApprove={() => setConfirming('approve')}
-          onFinalize={() => setConfirming('finalize')}
           onReopen={() => setIsReopenOpen(true)}
           onExport={() => exportMutation.mutate(run)}
           onAdjust={setAdjustingItem}
@@ -467,17 +453,6 @@ export function PayrollRunsPage() {
         confirmLabel={t('action.approvePayroll')}
         isLoading={approveMutation.isPending}
         onConfirm={() => run && approveMutation.mutate(run.id)}
-        onCancel={() => setConfirming(null)}
-      />
-
-      <ConfirmDialog
-        isOpen={confirming === 'finalize'}
-        title={t('confirm.payroll.finalizeTitle')}
-        description={t('confirm.payroll.finalizeBody')}
-        confirmLabel={t('action.finalizePayroll')}
-        tone="danger"
-        isLoading={finalizeMutation.isPending}
-        onConfirm={() => run && finalizeMutation.mutate(run.id)}
         onCancel={() => setConfirming(null)}
       />
 
@@ -527,7 +502,6 @@ function RunDetail({
   busy,
   onReview,
   onApprove,
-  onFinalize,
   onReopen,
   onExport,
   onAdjust,
@@ -541,7 +515,6 @@ function RunDetail({
   busy: { review: boolean; export: boolean };
   onReview: () => void;
   onApprove: () => void;
-  onFinalize: () => void;
   onReopen: () => void;
   onExport: () => void;
   onAdjust: (item: PayrollItem) => void;
@@ -601,11 +574,9 @@ function RunDetail({
           {run.status === 'reviewed' && canApprove && (
             <Button size="sm" onClick={onApprove}>{t('action.approvePayrollButton')}</Button>
           )}
+          {/* There is no month-level Finalize: each company is finalized on its own, in the company list below. */}
           {run.status === 'approved' && canApprove && (
-            <>
-              <Button size="sm" onClick={onFinalize}>{t('action.finalize')}</Button>
-              <Button size="sm" variant="outline" onClick={onReopen}>{t('action.reopen')}</Button>
-            </>
+            <Button size="sm" variant="outline" onClick={onReopen}>{t('action.reopen')}</Button>
           )}
           <Button size="sm" variant="outline" isLoading={busy.export} onClick={onExport}>
             <Icon name="file-text" size={14} />
@@ -638,7 +609,7 @@ function RunDetail({
         )}
 
         {run.sectioned && (run.sections?.length ?? 0) > 0 && (
-          <CompanySectionsPanel run={run} monthLabel={monthLabel(run.period)} canManage={canManage} canApprove={canApprove} selectedSectionId={shownSectionId} onSelect={setSelectedSectionId} />
+          <CompanySectionsPanel run={run} monthLabel={monthLabel(run.period)} canManage={canManage} canApprove={canApprove} selectedSectionId={shownSectionId} onSelect={setSelectedSectionId} finalizeLabel={t('action.finalize')} finalizeConfirmLabel={t('action.finalizePayroll')} />
         )}
 
         {run.items && run.items.length > 0 && <WorkplacePaymentsPanel run={run} canRecord={canApprove} canVoid={canVoid} />}

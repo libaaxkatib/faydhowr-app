@@ -16,6 +16,8 @@ class EmployeePenaltyResource extends JsonResource
             'deduction_amount' => $this->deduction_amount,
             'currency' => $this->currency,
             'payroll_period' => $this->payroll_period,
+            'client_company_id' => $this->client_company_id,
+            'client_company_name' => $this->whenLoaded('clientCompany', fn () => $this->clientCompany?->name),
             'notes' => $this->notes,
             'recorded_by' => $this->whenLoaded('recordedBy', fn () => $this->recordedBy?->full_name),
             'created_at' => $this->created_at?->toIso8601String(),

@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use Tests\Support\FinalizesCompanies;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -26,6 +27,7 @@ use Tests\TestCase;
  */
 class MonthlyPaymentReportTest extends TestCase
 {
+    use FinalizesCompanies;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -448,9 +450,7 @@ class MonthlyPaymentReportTest extends TestCase
         $this->assertStringContainsString('ESTIMATE', (string) $estimate->getSheetByName('Summary')->getCell('B4')->getValue());
 
         $run = $this->asToken($token)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => self::P])->assertCreated()->json('data.id');
-        foreach (['review', 'approve', 'finalize'] as $step) {
-            $this->asToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/{$step}")->assertOk();
-        }
+        $this->finalizeEveryCompany((int) $run, $token);
         $item = PayrollItem::query()->where('employee_id', $paid->id)->firstOrFail();
         app(MarkPayrollItemPaidAction::class)->handle($item, '2026-11-02', $admin);
 

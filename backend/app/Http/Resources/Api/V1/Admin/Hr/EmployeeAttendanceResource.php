@@ -13,6 +13,8 @@ class EmployeeAttendanceResource extends JsonResource
             'id' => $this->id,
             'date' => $this->date?->toDateString(),
             'status' => $this->status->value,
+            'client_company_id' => $this->client_company_id,
+            'client_company_name' => $this->whenLoaded('clientCompany', fn () => $this->clientCompany?->name),
             'notes' => $this->notes,
             'recorded_by' => $this->whenLoaded('recordedBy', fn () => $this->recordedBy?->full_name),
             'created_at' => $this->created_at?->toIso8601String(),

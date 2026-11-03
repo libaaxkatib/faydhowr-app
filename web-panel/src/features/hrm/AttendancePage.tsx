@@ -47,7 +47,8 @@ export function AttendancePage() {
 
   const markMutation = useMutation({
     mutationFn: ({ employeeId, status }: { employeeId: number; status: AttendanceStatus }) =>
-      hrApi.employees.markAttendance(employeeId, { date, status }),
+      // The daily roster is the office roster: the mark belongs to the office, not to a client company.
+      hrApi.employees.markAttendance(employeeId, { date, status, client_company_id: null }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attendance', date] });
       queryClient.invalidateQueries({ queryKey: ['hr-dashboard'] });

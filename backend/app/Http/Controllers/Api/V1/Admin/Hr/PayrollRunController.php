@@ -68,11 +68,6 @@ class PayrollRunController extends Controller
         return ApiResponse::success('Payroll reopened to draft.', new PayrollRunResource($action->reopen($payrollRun, $request->validated('reason'), $request->user())->loadCount(self::sectionCounts())));
     }
 
-    public function finalize(PayrollRun $payrollRun, TransitionPayrollRunAction $action, Request $request): JsonResponse
-    {
-        return ApiResponse::success('Payroll finalized.', new PayrollRunResource($action->finalize($payrollRun, $request->user())->loadCount(self::sectionCounts())));
-    }
-
     public function export(PayrollRun $payrollRun, PayrollRunSheetMapper $mapper, PayrollWorkbookExporter $exporter): BinaryFileResponse
     {
         $path = tempnam(sys_get_temp_dir(), 'payroll').'.xlsx';

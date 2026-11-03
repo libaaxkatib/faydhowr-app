@@ -4,6 +4,17 @@
 import { defineMessages, message } from '../catalog.ts';
 
 export const employeeDetail = defineMessages({
+  // Which company a penalty, advance, unpaid leave or absence belongs to (each company has its own payroll)
+  'option.employeeDetail.chooseCompany': message('Choose the company', 'Dooro shirkadda'),
+  'option.employeeDetail.companyOwnsPayroll': message(
+    'This employee works for more than one company. Each company has its own payroll, so this is charged to the company you choose and to no other.',
+    'Shaqaalahan wuxuu u shaqeeyaa wax ka badan hal shirkad. Shirkad kasta waxay leedahay mushahar u gaar ah, sidaa darteed tan waxaa lagu xisaabinayaa shirkadda aad dooratid oo aan lagu xisaabin mid kale.',
+  ),
+  'option.employeeDetail.chargedToCompany': message('Charged to {company}', 'Waxaa lagu xisaabiyey {company}'),
+  'warning.employeeDetail.recordNoCompany': message(
+    'No company is recorded, so this is not charged to any payroll. Record it again for the right company.',
+    'Shirkad lama diiwaangelin, sidaa darteed mushahar kasta lagu ma xisaabin. Mar kale u diiwaangeli shirkadda saxda ah.',
+  ),
   // Buttons, link-buttons and their titles
   'action.employeeDetail.backTo': message('Back to {label}', 'Dib ugu noqo {label}'),
   'action.employeeDetail.replacePicture': message('Replace profile picture', 'Beddel sawirka shaqaalaha'),

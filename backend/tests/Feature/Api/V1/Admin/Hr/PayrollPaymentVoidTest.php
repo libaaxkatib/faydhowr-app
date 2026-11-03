@@ -17,6 +17,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\FinalizesCompanies;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -27,6 +28,7 @@ use Tests\TestCase;
  */
 class PayrollPaymentVoidTest extends TestCase
 {
+    use FinalizesCompanies;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -87,7 +89,7 @@ class PayrollPaymentVoidTest extends TestCase
         $id = $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-09'])->assertCreated()->json('data.id');
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/review")->assertOk();
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/approve")->assertOk();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/finalize")->assertOk();
+        $this->finalizeEveryCompany($id, $this->super);
         $item = PayrollItem::query()->where('payroll_run_id', $id)->where('work_assignment_id', $this->assignment->id)->firstOrFail();
         $this->as($this->super)->postJson("/api/v1/admin/hr/payroll-items/{$item->id}/pay", [])->assertOk();
 

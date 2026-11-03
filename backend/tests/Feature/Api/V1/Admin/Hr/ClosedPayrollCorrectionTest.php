@@ -17,6 +17,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Support\FinalizesCompanies;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -28,6 +29,7 @@ use Tests\TestCase;
  */
 class ClosedPayrollCorrectionTest extends TestCase
 {
+    use FinalizesCompanies;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -71,7 +73,7 @@ class ClosedPayrollCorrectionTest extends TestCase
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/approve")->assertOk();
 
         if ($finalize) {
-            $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/finalize")->assertOk();
+            $this->finalizeEveryCompany($id, $this->super);
         }
 
         return PayrollRun::query()->findOrFail($id);

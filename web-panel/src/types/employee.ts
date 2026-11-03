@@ -621,6 +621,9 @@ export interface EmployeeAttendance {
   id: number;
   date: string;
   status: AttendanceStatus;
+  /** The company whose payroll this belongs to (null = the office, or a record from before each company had its own payroll). */
+  client_company_id?: number | null;
+  client_company_name?: string | null;
   notes: string | null;
   recorded_by: string | null;
   created_at: string;
@@ -630,6 +633,8 @@ export interface MarkEmployeeAttendancePayload {
   date: string;
   status: AttendanceStatus;
   notes?: string | null;
+  /** Required when the employee works for several companies (null = the office roster). */
+  client_company_id?: number | null;
 }
 
 /** A daily roster row - docs/HRM_MARKETING_SRS.md HR Phase 4. attendance_status is null when not yet marked for the requested date. */
@@ -656,6 +661,9 @@ export interface EmployeeLeave {
   leave_type_label: string;
   start_date: string;
   end_date: string;
+  /** The company whose payroll this belongs to (null = the office, or a record from before each company had its own payroll). */
+  client_company_id?: number | null;
+  client_company_name?: string | null;
   notes: string | null;
   /** Unpaid leave starts pending and reduces pay only once approved. */
   approval_status: LeaveApprovalStatus;
@@ -671,6 +679,8 @@ export interface RecordEmployeeLeavePayload {
   start_date: string;
   end_date: string;
   notes?: string | null;
+  /** Unpaid leave only; required when the employee works for several companies. */
+  client_company_id?: number | null;
 }
 
 export type PerformanceRating = 'excellent' | 'good' | 'needs_improvement' | 'poor';
@@ -724,6 +734,9 @@ export interface EmployeePenalty {
   deduction_amount: string;
   currency: string;
   payroll_period: string;
+  /** The company whose payroll this belongs to (null = the office, or a record from before each company had its own payroll). */
+  client_company_id?: number | null;
+  client_company_name?: string | null;
   notes: string | null;
   recorded_by: string | null;
   created_at: string;
@@ -736,6 +749,8 @@ export interface RecordEmployeePenaltyPayload {
   currency: string;
   payroll_period: string;
   notes?: string | null;
+  /** Required when the employee works for several companies. */
+  client_company_id?: number | null;
 }
 
 export interface EmployeeAdvance {
@@ -744,6 +759,9 @@ export interface EmployeeAdvance {
   amount: string;
   currency: string;
   payroll_period: string;
+  /** The company whose payroll this belongs to (null = the office, or a record from before each company had its own payroll). */
+  client_company_id?: number | null;
+  client_company_name?: string | null;
   reason: string;
   notes: string | null;
   recorded_by: string | null;
@@ -757,6 +775,8 @@ export interface RecordEmployeeAdvancePayload {
   payroll_period: string;
   reason: string;
   notes?: string | null;
+  /** Required when the employee works for several companies. */
+  client_company_id?: number | null;
 }
 
 /**

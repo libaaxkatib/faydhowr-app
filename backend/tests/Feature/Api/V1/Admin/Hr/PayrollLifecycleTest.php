@@ -22,11 +22,13 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Tests\Support\FinalizesCompanies;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
 class PayrollLifecycleTest extends TestCase
 {
+    use FinalizesCompanies;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -159,7 +161,21 @@ class PayrollLifecycleTest extends TestCase
         $this->assertCount(1, $response->json('data.warnings'));
     }
 
-    public function test_penalties_are_charged_once_even_when_an_employee_has_two_assignments(): void
+    public function test_a_penalty_is_charged_once_to_the_company_that_owns_it_when_an_employee_works_for_two(): void
+    {
+        [, $token] = $this->superAdminToken();
+        $employee = $this->makeEmployee('active', 'permanent');
+        $companyA = $this->makeCompany('Co A');
+        $this->makeAssignment($employee, $companyA, null, 300, '2026-01-01');
+        $this->makeAssignment($employee, $this->makeCompany('Co B'), null, 100, '2026-01-01');
+        EmployeePenalty::query()->create(['employee_id' => $employee->id, 'client_company_id' => $companyA->id, 'penalty_date' => '2026-09-05', 'reason' => 'Late', 'deduction_amount' => 15, 'currency' => 'USD', 'payroll_period' => self::P]);
+
+        $this->generate($token)->assertCreated()->assertJsonPath('data.item_count', 2)->assertJsonPath('data.totals.other_deductions', '15.00');
+        $this->assertSame(1, PayrollItemDeduction::query()->where('kind', 'penalty')->count());
+        $this->assertSame($companyA->id, PayrollItemDeduction::query()->where('kind', 'penalty')->firstOrFail()->item->workAssignment->client_company_id);
+    }
+
+    public function test_a_penalty_that_names_no_company_is_not_guessed_when_the_employee_works_for_two(): void
     {
         [, $token] = $this->superAdminToken();
         $employee = $this->makeEmployee('active', 'permanent');
@@ -167,7 +183,9 @@ class PayrollLifecycleTest extends TestCase
         $this->makeAssignment($employee, $this->makeCompany('Co B'), null, 100, '2026-01-01');
         EmployeePenalty::query()->create(['employee_id' => $employee->id, 'penalty_date' => '2026-09-05', 'reason' => 'Late', 'deduction_amount' => 15, 'currency' => 'USD', 'payroll_period' => self::P]);
 
-        $this->generate($token)->assertCreated()->assertJsonPath('data.item_count', 2)->assertJsonPath('data.totals.other_deductions', '15.00');
+        $response = $this->generate($token)->assertCreated()->assertJsonPath('data.totals.other_deductions', '0.00');
+        $this->assertSame(0, PayrollItemDeduction::query()->where('kind', 'penalty')->count());
+        $this->assertStringContainsString('names no company', implode(' ', $response->json('data.warnings')));
     }
 
     public function test_absence_is_deducted_for_every_assignment_per_the_approved_spec(): void
@@ -185,22 +203,42 @@ class PayrollLifecycleTest extends TestCase
         $this->assertSame('20.00', $response->json('data.totals.other_deductions')); // 300/30 x 1 day each, office and client alike
     }
 
-    public function test_an_absent_day_is_charged_once_even_with_two_assignments_and_never_outside_the_assignment_dates(): void
+    public function test_an_absent_day_is_charged_once_to_its_company_and_never_outside_the_assignment_dates(): void
     {
         [, $token] = $this->superAdminToken();
         $employee = $this->makeEmployee('active', 'permanent');
-        $first = $this->makeAssignment($employee, $this->makeCompany('Co A'), null, 300, '2026-01-01');
-        $this->makeAssignment($employee, $this->makeCompany('Co B'), null, 300, '2026-01-01');
+        $companyA = $this->makeCompany('Co A');
+        $companyB = $this->makeCompany('Co B');
+        $first = $this->makeAssignment($employee, $companyA, null, 300, '2026-01-01');
+        $this->makeAssignment($employee, $companyB, null, 300, '2026-01-01');
         $first->update(['end_date' => '2026-09-20', 'status' => 'ended']);
-        foreach (['2026-09-08', '2026-09-25'] as $date) {
-            EmployeeAttendance::query()->create(['employee_id' => $employee->id, 'date' => $date, 'status' => 'absent']);
-        }
+        // Company A's mark on 09-08 (inside its assignment) and Company B's mark on 09-25 (A had ended; only B was active).
+        EmployeeAttendance::query()->create(['employee_id' => $employee->id, 'client_company_id' => $companyA->id, 'date' => '2026-09-08', 'status' => 'absent']);
+        EmployeeAttendance::query()->create(['employee_id' => $employee->id, 'client_company_id' => $companyB->id, 'date' => '2026-09-25', 'status' => 'absent']);
 
         $response = $this->generate($token)->assertCreated();
 
-        // 09-08 is charged once, to the first assignment; 09-25 is after the first assignment ended so only the second can carry it.
+        // Each day is one daily rate (300 / 30 = 10.00), charged once, to the company that owns the mark.
         $this->assertSame('20.00', $response->json('data.totals.other_deductions'));
         $this->assertSame(2, PayrollItemDeduction::query()->where('kind', 'absence')->count());
+        $this->assertSame(
+            [$companyA->id, $companyB->id],
+            PayrollItemDeduction::query()->where('kind', 'absence')->get()->map(fn ($d) => $d->item->workAssignment->client_company_id)->sort()->values()->all(),
+        );
+    }
+
+    public function test_an_absence_that_names_no_company_is_not_guessed_when_the_employee_works_for_two(): void
+    {
+        [, $token] = $this->superAdminToken();
+        $employee = $this->makeEmployee('active', 'permanent');
+        $this->makeAssignment($employee, $this->makeCompany('Co A'), null, 300, '2026-01-01');
+        $this->makeAssignment($employee, $this->makeCompany('Co B'), null, 300, '2026-01-01');
+        EmployeeAttendance::query()->create(['employee_id' => $employee->id, 'date' => '2026-09-08', 'status' => 'absent']);
+
+        $response = $this->generate($token)->assertCreated();
+
+        $this->assertSame(0, PayrollItemDeduction::query()->where('kind', 'absence')->count());
+        $this->assertStringContainsString('names no company', implode(' ', $response->json('data.warnings')));
     }
 
     public function test_a_non_usd_penalty_is_reported_and_not_converted(): void
@@ -238,7 +276,7 @@ class PayrollLifecycleTest extends TestCase
 
         $this->generate($token)->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_LOCKED');
 
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/finalize")->assertOk()->assertJsonPath('data.status', 'finalized');
+        $this->assertSame('finalized', $this->finalizeEveryCompany($run, $token)->status);
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/reopen", ['reason' => 'Trying to undo a final month'])
             ->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_NOT_REOPENABLE');
         $this->generate($token)->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_LOCKED');
@@ -281,7 +319,7 @@ class PayrollLifecycleTest extends TestCase
 
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review")->assertOk()->assertJsonPath('data.status', 'reviewed');
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/approve")->assertOk()->assertJsonPath('data.status', 'approved');
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/finalize")->assertOk()->assertJsonPath('data.status', 'finalized');
+        $this->assertSame('finalized', $this->finalizeEveryCompany($run, $token)->status);
 
         // Who did each step, and when, is kept on the run and in the audit log.
         $stored = PayrollRun::query()->findOrFail($run);
@@ -303,7 +341,7 @@ class PayrollLifecycleTest extends TestCase
         $this->withToken($preparer)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review")->assertOk();
 
         $this->withToken($preparer)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/approve")->assertForbidden();
-        $this->withToken($preparer)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/finalize")->assertForbidden();
+        // There is no month-level finalize any more (tested in CompanyPayrollSectionsTest).
     }
 
     public function test_permissions_separate_viewing_preparing_and_approving(): void
@@ -339,7 +377,7 @@ class PayrollLifecycleTest extends TestCase
 
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review");
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/approve");
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/finalize");
+        $this->finalizeEveryCompany($run, $token);
 
         $this->withToken($token)->postJson("/api/v1/admin/hr/payroll-items/{$itemId}/adjustments", [...$body, 'applies_in_period' => '2026-09'])
             ->assertStatus(422)->assertJsonPath('error_code', 'ADJUSTMENT_PERIOD_NOT_LATER');
@@ -356,9 +394,7 @@ class PayrollLifecycleTest extends TestCase
         [, $token] = $this->superAdminToken();
         $this->permanentWith(300);
         $run = $this->generate($token)->json('data.id');
-        foreach (['review', 'approve', 'finalize'] as $step) {
-            $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/{$step}")->assertOk();
-        }
+        $this->finalizeEveryCompany((int) $run, $token);
         $itemId = PayrollItem::query()->firstOrFail()->id;
         $body = ['kind' => 'reversal', 'reason' => 'Paid in error, recover next month', 'applies_in_period' => '2026-10'];
 
@@ -377,9 +413,7 @@ class PayrollLifecycleTest extends TestCase
 
         $this->withToken($token)->postJson("/api/v1/admin/hr/payroll-items/{$itemId}/pay", [])->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_NOT_FINALIZED');
 
-        foreach (['review', 'approve', 'finalize'] as $step) {
-            $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/{$step}")->assertOk();
-        }
+        $this->finalizeEveryCompany((int) $run, $token);
 
         $this->withToken($token)->postJson("/api/v1/admin/hr/payroll-items/{$itemId}/pay", [])->assertOk()->assertJsonPath('data.payment_status', 'paid');
         $payment = EmployeePayment::query()->where('employee_id', $employee->id)->firstOrFail();

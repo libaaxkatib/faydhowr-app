@@ -17,6 +17,8 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { SuccessorPicker } from '@/features/hrm/companyEmployees/SuccessorPicker';
 import { EMPTY_SUCCESSOR, missingSuccessors, needsSuccessor, toSuccessorPayload, validateSuccessor, type SuccessorDraft } from '@/utils/successor';
 import { Select } from '@/components/ui/Select';
+import { CompanyChoiceField } from '@/features/hrm/CompanyChoiceField';
+import { companyChoices, companyMissing, companyPayload, type CompanyChoice } from '@/utils/inputCompany';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -33,7 +35,7 @@ import { formatDate, formatDateTime, initialsOf } from '@/utils/formatters';
 import { additionalCompanyQuestion, assignmentLabel, friendlyErrorMessage, isWorkplaceMissing, localToday, officeLabel } from '@/utils/hrHelpers';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { submitPracticalDecision } from '@/utils/practicalDecision';
-import type { AttendanceStatus, Employee, MarkEmployeeSeparatedPayload, SuccessorPayload, EmployeeDocument, EmployeeLeave, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, SalaryFrequency, WorkAssignment } from '@/types/employee';
+import type { AttendanceStatus, Employee, MarkEmployeeSeparatedPayload, SuccessorPayload, EmployeeDocument, EmployeeLeave, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, RecordEmployeeAdvancePayload, RecordEmployeeLeavePayload, RecordEmployeePenaltyPayload, SalaryFrequency, WorkAssignment } from '@/types/employee';
 
 const SEPARATION_REASON_OPTIONS: { value: EmployeeSeparationReason; labelKey: MessageKey }[] = [
   { value: 'resigned', labelKey: 'option.separation.resigned' },
@@ -265,8 +267,7 @@ export function EmployeeDetailPage() {
   });
 
   const leaveMutation = useMutation({
-    mutationFn: (payload: { leave_type: LeaveType; start_date: string; end_date: string; notes: string | null }) =>
-      hrApi.employees.addLeave(employeeId, payload),
+    mutationFn: (payload: RecordEmployeeLeavePayload) => hrApi.employees.addLeave(employeeId, payload),
     onSuccess: () => {
       invalidate();
       show(t('notify.employeeDetail.leaveRecorded'));
@@ -298,8 +299,7 @@ export function EmployeeDetailPage() {
   });
 
   const penaltyMutation = useMutation({
-    mutationFn: (payload: { penalty_date: string; reason: string; deduction_amount: number; currency: string; payroll_period: string; notes: string | null }) =>
-      hrApi.employees.addPenalty(employeeId, payload),
+    mutationFn: (payload: RecordEmployeePenaltyPayload) => hrApi.employees.addPenalty(employeeId, payload),
     onSuccess: () => {
       invalidate();
       show(t('notify.employeeDetail.penaltyRecorded'));
@@ -309,8 +309,7 @@ export function EmployeeDetailPage() {
   });
 
   const advanceMutation = useMutation({
-    mutationFn: (payload: { advance_date: string; amount: number; currency: string; payroll_period: string; reason: string; notes: string | null }) =>
-      hrApi.employees.addAdvance(employeeId, payload),
+    mutationFn: (payload: RecordEmployeeAdvancePayload) => hrApi.employees.addAdvance(employeeId, payload),
     onSuccess: () => {
       invalidate();
       show(t('notify.employeeDetail.advanceRecorded'));
@@ -473,6 +472,8 @@ export function EmployeeDetailPage() {
   if (isLoading) return <LoadingState label={t('option.employeeDetail.loadingEmployee')} />;
   if (error || !employee) return <ErrorState error={error} onRetry={refetch} />;
 
+  // The companies this person works for: more than one means every penalty, advance, unpaid leave and absence must name its company.
+  const choices = companyChoices(employee.work_assignments ?? employee.active_work_assignments, officeLabel());
   const statusFlowIndex = STATUS_FLOW.indexOf(employee.status);
   const nextStatus = statusFlowIndex === -1 ? undefined : STATUS_FLOW[statusFlowIndex + 1];
   const advanceBlocked = advanceBlockedByWorkflow(employee.registration_workflow, nextStatus);
@@ -926,6 +927,7 @@ export function EmployeeDetailPage() {
                       {formatDate(leave.start_date)} → {formatDate(leave.end_date)}
                     </span>
                   </div>
+                  {leave.leave_type === 'unpaid' && <RecordCompany record={leave} choices={choices} />}
                   {leave.notes && <p className="mt-1 text-xs text-ink-muted">{leave.notes}</p>}
                   {leave.leave_type === 'unpaid' && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-2">
@@ -1045,6 +1047,7 @@ export function EmployeeDetailPage() {
                     <span className="text-sm text-ink">{penalty.deduction_amount} {penalty.currency}</span>
                   </div>
                   <p className="mt-1 text-xs text-ink-muted">{penalty.reason}</p>
+                  <RecordCompany record={penalty} choices={choices} />
                   <p className="mt-0.5 text-[11px] text-ink-faint">{t('option.employeeDetail.payrollPeriodValue', { period: penalty.payroll_period })}</p>
                 </div>
               ))
@@ -1075,6 +1078,7 @@ export function EmployeeDetailPage() {
                     <span className="text-sm text-ink">{advance.amount} {advance.currency}</span>
                   </div>
                   <p className="mt-1 text-xs text-ink-muted">{advance.reason}</p>
+                  <RecordCompany record={advance} choices={choices} />
                   <p className="mt-0.5 text-[11px] text-ink-faint">{t('option.employeeDetail.payrollPeriodValue', { period: advance.payroll_period })}</p>
                 </div>
               ))
@@ -1549,6 +1553,7 @@ export function EmployeeDetailPage() {
       </Modal>
 
       <RecordLeaveModal
+        choices={choices}
         isOpen={isLeaveOpen}
         onClose={() => setIsLeaveOpen(false)}
         onConfirm={(payload) => leaveMutation.mutate(payload)}
@@ -1570,6 +1575,7 @@ export function EmployeeDetailPage() {
       />
 
       <RecordPenaltyModal
+        choices={choices}
         isOpen={isPenaltyOpen}
         onClose={() => setIsPenaltyOpen(false)}
         onConfirm={(payload) => penaltyMutation.mutate(payload)}
@@ -1577,6 +1583,7 @@ export function EmployeeDetailPage() {
       />
 
       <RecordAdvanceModal
+        choices={choices}
         isOpen={isAdvanceOpen}
         onClose={() => setIsAdvanceOpen(false)}
         onConfirm={(payload) => advanceMutation.mutate(payload)}
@@ -1584,6 +1591,17 @@ export function EmployeeDetailPage() {
       />
     </div>
   );
+}
+
+/** Which company a penalty, advance or unpaid leave is charged to; a record with no company (from before this rule) is flagged when the employee works for several. */
+function RecordCompany({ record, choices }: { record: { client_company_name?: string | null; client_company_id?: number | null }; choices: CompanyChoice[] }) {
+  const { t } = useI18n();
+
+  if (record.client_company_name) {
+    return <p className="mt-0.5 text-[11px] text-ink-faint">{t('option.employeeDetail.chargedToCompany', { company: record.client_company_name })}</p>;
+  }
+
+  return choices.length > 1 && record.client_company_id == null ? <p className="mt-0.5 text-[11px] text-warning">{t('warning.employeeDetail.recordNoCompany')}</p> : null;
 }
 
 function Field({ label, value }: { label: string; value: ReactNode }) {
@@ -2113,14 +2131,16 @@ function RehireModal({
 }
 
 function RecordLeaveModal({
+  choices,
   isOpen,
   onClose,
   onConfirm,
   isLoading,
 }: {
+  choices: CompanyChoice[];
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (payload: { leave_type: LeaveType; start_date: string; end_date: string; notes: string | null }) => void;
+  onConfirm: (payload: RecordEmployeeLeavePayload) => void;
   isLoading: boolean;
 }) {
   const { t } = useI18n();
@@ -2128,6 +2148,9 @@ function RecordLeaveModal({
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState('');
+  const [company, setCompany] = useState('');
+  // Only unpaid leave reduces pay, so only it belongs to a company.
+  const needsCompany = leaveType === 'unpaid' && companyMissing(choices, company);
 
   if (!isOpen) return null;
 
@@ -2143,7 +2166,8 @@ function RecordLeaveModal({
           <Button
             size="sm"
             isLoading={isLoading}
-            onClick={() => onConfirm({ leave_type: leaveType, start_date: startDate, end_date: endDate, notes: notes || null })}
+            disabled={needsCompany}
+            onClick={() => onConfirm({ leave_type: leaveType, start_date: startDate, end_date: endDate, notes: notes || null, ...(leaveType === 'unpaid' ? companyPayload(choices, company) : {}) })}
           >
             {t('action.record')}
           </Button>
@@ -2158,6 +2182,7 @@ function RecordLeaveModal({
           {t('warning.employeeDetail.unpaidLeaveRules')}
         </p>
       )}
+      {leaveType === 'unpaid' && <CompanyChoiceField id="leave-company" choices={choices} value={company} onChange={setCompany} />}
       <FormField label={t('option.employeeDetail.fieldStartDate')} htmlFor="leave-start" required>
         <input id="leave-start" type="date" className={inputClasses} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
       </FormField>
@@ -2275,14 +2300,16 @@ function RecordEmployeePaymentModal({
 }
 
 function RecordPenaltyModal({
+  choices,
   isOpen,
   onClose,
   onConfirm,
   isLoading,
 }: {
+  choices: CompanyChoice[];
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (payload: { penalty_date: string; reason: string; deduction_amount: number; currency: string; payroll_period: string; notes: string | null }) => void;
+  onConfirm: (payload: RecordEmployeePenaltyPayload) => void;
   isLoading: boolean;
 }) {
   const { t } = useI18n();
@@ -2292,6 +2319,7 @@ function RecordPenaltyModal({
   const [currency, setCurrency] = useState('USD');
   const [payrollPeriod, setPayrollPeriod] = useState(new Date().toISOString().slice(0, 7));
   const [notes, setNotes] = useState('');
+  const [company, setCompany] = useState('');
 
   if (!isOpen) return null;
 
@@ -2307,7 +2335,7 @@ function RecordPenaltyModal({
           <Button
             size="sm"
             isLoading={isLoading}
-            disabled={!amount || !reason}
+            disabled={!amount || !reason || companyMissing(choices, company)}
             onClick={() =>
               onConfirm({
                 penalty_date: penaltyDate,
@@ -2316,6 +2344,7 @@ function RecordPenaltyModal({
                 currency,
                 payroll_period: payrollPeriod,
                 notes: notes || null,
+                ...companyPayload(choices, company),
               })
             }
           >
@@ -2324,6 +2353,7 @@ function RecordPenaltyModal({
         </>
       }
     >
+      <CompanyChoiceField id="pen-company" choices={choices} value={company} onChange={setCompany} />
       <FormField label={t('option.employeeDetail.fieldPenaltyDate')} htmlFor="pen-date" required>
         <input id="pen-date" type="date" className={inputClasses} value={penaltyDate} onChange={(e) => setPenaltyDate(e.target.value)} />
       </FormField>
@@ -2349,14 +2379,16 @@ function RecordPenaltyModal({
 }
 
 function RecordAdvanceModal({
+  choices,
   isOpen,
   onClose,
   onConfirm,
   isLoading,
 }: {
+  choices: CompanyChoice[];
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (payload: { advance_date: string; amount: number; currency: string; payroll_period: string; reason: string; notes: string | null }) => void;
+  onConfirm: (payload: RecordEmployeeAdvancePayload) => void;
   isLoading: boolean;
 }) {
   const { t } = useI18n();
@@ -2366,6 +2398,7 @@ function RecordAdvanceModal({
   const [payrollPeriod, setPayrollPeriod] = useState(new Date().toISOString().slice(0, 7));
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
+  const [company, setCompany] = useState('');
 
   if (!isOpen) return null;
 
@@ -2381,7 +2414,7 @@ function RecordAdvanceModal({
           <Button
             size="sm"
             isLoading={isLoading}
-            disabled={!amount || !reason}
+            disabled={!amount || !reason || companyMissing(choices, company)}
             onClick={() =>
               onConfirm({
                 advance_date: advanceDate,
@@ -2390,6 +2423,7 @@ function RecordAdvanceModal({
                 payroll_period: payrollPeriod,
                 reason,
                 notes: notes || null,
+                ...companyPayload(choices, company),
               })
             }
           >
@@ -2398,6 +2432,7 @@ function RecordAdvanceModal({
         </>
       }
     >
+      <CompanyChoiceField id="adv-company" choices={choices} value={company} onChange={setCompany} />
       <FormField label={t('option.employeeDetail.fieldAdvanceDate')} htmlFor="adv-date" required>
         <input id="adv-date" type="date" className={inputClasses} value={advanceDate} onChange={(e) => setAdvanceDate(e.target.value)} />
       </FormField>

@@ -10,6 +10,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\FinalizesCompanies;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -19,6 +20,7 @@ use Tests\TestCase;
  */
 class SeparationClosesAssignmentsTest extends TestCase
 {
+    use FinalizesCompanies;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -198,9 +200,7 @@ class SeparationClosesAssignmentsTest extends TestCase
         $employee = $this->makeEmployee();
         $this->makeAssignment($employee, $this->makeCompany(), null, 300, '2026-01-01');
         $run = $this->withToken($token)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-09'])->json('data.id');
-        foreach (['review', 'approve', 'finalize'] as $step) {
-            $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/{$step}")->assertOk();
-        }
+        $this->finalizeEveryCompany((int) $run, $token);
 
         // The replacement starts on 16 August, inside the finalized September run, so appointing it is a recorded correction.
         $this->separate($token, $employee->id, '2026-08-15', 'resigned', ['correction_reason' => 'Back-dated separation; replacement appointed from 16 August'])->assertOk();

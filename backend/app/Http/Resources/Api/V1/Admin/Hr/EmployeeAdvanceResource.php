@@ -15,6 +15,8 @@ class EmployeeAdvanceResource extends JsonResource
             'amount' => $this->amount,
             'currency' => $this->currency,
             'payroll_period' => $this->payroll_period,
+            'client_company_id' => $this->client_company_id,
+            'client_company_name' => $this->whenLoaded('clientCompany', fn () => $this->clientCompany?->name),
             'reason' => $this->reason,
             'notes' => $this->notes,
             'recorded_by' => $this->whenLoaded('recordedBy', fn () => $this->recordedBy?->full_name),

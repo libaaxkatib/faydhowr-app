@@ -12,7 +12,8 @@ use App\Support\Hr\Payroll\RecoveryLedger;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
- * Moves a payroll run through draft -> reviewed -> approved -> finalized.
+ * Moves a payroll run through draft -> reviewed -> approved (and back to draft by reopening an approved one). Finalizing is NOT done here: it is only
+ * done company by company (TransitionPayrollRunSectionAction), and the month finalizes itself when the last company is finalized.
  * Each step must start from the exact previous state. Owner decision (2026-10-29): the authorized HR Manager prepares, reviews, approves and
  * finalizes payroll; a second person is NOT required, so the same person may do every step. Who did each step and when is stored on the run and in
  * the audit log. An approved run can be reopened to draft (with a reason) for correction; a finalized run can never be reopened - corrections
@@ -55,11 +56,10 @@ class TransitionPayrollRunAction
         $description = match ($word) {
             'reviewed' => "Payroll {$run->period} marked reviewed.",
             'approved' => "Payroll {$run->period} approved.",
-            'finalized' => "Payroll {$run->period} finalized.",
             default => "Payroll {$run->period} reopened to draft.",
         };
 
-        return $this->audited($run, $actor, in_array($to, [PayrollRun::STATUS_APPROVED, PayrollRun::STATUS_FINALIZED], true) ? AuditAction::Approve : AuditAction::Update, $description, array_filter(['sections_moved' => $moved, 'month_status' => $run->status, 'reason' => $reason], fn ($v) => $v !== null));
+        return $this->audited($run, $actor, $to === PayrollRun::STATUS_APPROVED ? AuditAction::Approve : AuditAction::Update, $description, array_filter(['sections_moved' => $moved, 'month_status' => $run->status, 'reason' => $reason], fn ($v) => $v !== null));
     }
 
     public function review(PayrollRun $run, Admin $actor): PayrollRun
@@ -109,18 +109,8 @@ class TransitionPayrollRunAction
         return $this->audited($run, $actor, AuditAction::Update, "Payroll {$run->period} reopened to draft.", ['reason' => $reason]);
     }
 
-    public function finalize(PayrollRun $run, Admin $actor): PayrollRun
-    {
-        if (($bulk = $this->bulk($run, PayrollRun::STATUS_APPROVED, PayrollRun::STATUS_FINALIZED, $actor, 'finalized')) !== null) {
-            return $bulk;
-        }
-
-        $this->require($run, PayrollRun::STATUS_APPROVED, 'finalized');
-
-        $run->update(['status' => PayrollRun::STATUS_FINALIZED, 'finalized_at' => now(), 'finalized_by' => $actor->id]);
-
-        return $this->audited($run, $actor, AuditAction::Approve, "Payroll {$run->period} finalized.", ['totals' => $run->totals]);
-    }
+    // There is NO month-level finalize (owner decision 2026-11-03): a company is finalized only through its own section
+    // (TransitionPayrollRunSectionAction::finalize), and the month finalizes itself when the last company is finalized.
 
     private function require(PayrollRun $run, string $expected, string $target): void
     {

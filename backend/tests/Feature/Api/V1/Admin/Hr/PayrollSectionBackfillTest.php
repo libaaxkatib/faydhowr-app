@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api\V1\Admin\Hr;
 
+use App\Models\Admin;
 use App\Models\ClientCompany;
 use App\Models\PayrollItem;
 use App\Models\PayrollRun;
@@ -139,7 +140,7 @@ class PayrollSectionBackfillTest extends TestCase
         $this->assertSame(0, PayrollRunSection::query()->count());
     }
 
-    public function test_a_reviewed_run_gives_reviewed_sections_with_the_runs_reviewer_and_an_approved_or_finalized_run_is_left_alone(): void
+    public function test_a_reviewed_run_gives_reviewed_sections_and_an_approved_or_finalized_run_gives_sections_that_mirror_it(): void
     {
         $this->world();
         $reviewed = $this->legacyDraft('2026-10');
@@ -149,17 +150,21 @@ class PayrollSectionBackfillTest extends TestCase
         PayrollRun::query()->findOrFail($reviewed)->update(['status' => 'reviewed']);
 
         $approved = $this->legacyDraft('2026-11');
-        PayrollRun::query()->findOrFail($approved)->update(['status' => 'approved', 'approved_at' => now()]);
+        PayrollRun::query()->findOrFail($approved)->update(['status' => 'approved', 'approved_at' => now(), 'approved_by' => $approver = Admin::factory()->create()->id]);
         $approvedLines = $this->lines($approved);
+        $approvedRun = PayrollRun::query()->findOrFail($approved)->getAttributes();
 
         $report = PayrollSectionBackfill::run();
 
-        $this->assertSame(1, $report['runs'], 'only the reviewed run was looked at');
+        $this->assertSame(2, $report['runs'], 'the reviewed and the approved run were looked at');
         $this->assertSame(['reviewed'], PayrollRunSection::query()->where('payroll_run_id', $reviewed)->pluck('status')->unique()->values()->all());
         $this->assertNotNull(PayrollRunSection::query()->where('payroll_run_id', $reviewed)->value('reviewed_at'));
-        $this->assertSame(0, PayrollRunSection::query()->where('payroll_run_id', $approved)->count(), 'an approved run keeps its run-level behaviour');
-        $this->assertSame($approvedLines, $this->lines($approved));
-        $this->assertSame(4, PayrollItem::query()->where('payroll_run_id', $approved)->whereNull('section_id')->count());
+        // An approved run is linked too: its sections start approved, with the run's own approver and date, and the run row is never written.
+        $this->assertSame(['approved'], PayrollRunSection::query()->where('payroll_run_id', $approved)->pluck('status')->unique()->values()->all());
+        $this->assertSame([$approver], PayrollRunSection::query()->where('payroll_run_id', $approved)->pluck('approved_by')->unique()->values()->all());
+        $this->assertSame($approvedLines, $this->lines($approved), 'no amount, deduction or id changes');
+        $this->assertSame(0, PayrollItem::query()->where('payroll_run_id', $approved)->whereNull('section_id')->count());
+        $this->assertSame($approvedRun, PayrollRun::query()->findOrFail($approved)->getAttributes(), 'the run itself is untouched');
     }
 
     public function test_a_month_linked_by_the_backfill_can_be_finalized_company_by_company_without_regenerating(): void

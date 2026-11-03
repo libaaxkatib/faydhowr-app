@@ -10,6 +10,7 @@ use App\Models\Admin;
 use App\Models\Employee;
 use App\Models\EmployeeAttendance;
 use App\Support\ApiResponse;
+use App\Support\Hr\Payroll\InputOwnership;
 use App\Support\Hr\Payroll\PayrollPeriodLock;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
@@ -21,9 +22,16 @@ use Illuminate\Http\Exceptions\HttpResponseException;
  */
 class MarkEmployeeAttendanceAction
 {
-    public function handle(Employee $employee, string $date, AttendanceStatus $status, ?string $notes, Admin $actor): EmployeeAttendance
+    /**
+     * @param  bool  $companyProvided  the request named a company (null then means "no company": the office roster)
+     * @param  int|null  $companyId  the company this day's mark belongs to
+     */
+    public function handle(Employee $employee, string $date, AttendanceStatus $status, ?string $notes, Admin $actor, bool $companyProvided = false, ?int $companyId = null): EmployeeAttendance
     {
-        app(PayrollPeriodLock::class)->assertDateEditable($date, 'Attendance on this date', $employee->id);
+        // An absence is charged to ONE company (each company owns its own payroll): the one the employee works for that day, or the one chosen when
+        // they work for several. The day is one fact PER COMPANY, so a day can be marked for Company A without touching Company B.
+        $company = InputOwnership::resolve($employee->id, $date, $date, $companyProvided, $companyId);
+        app(PayrollPeriodLock::class)->assertDateEditable($date, 'Attendance on this date', $employee->id, null, InputOwnership::key($company));
 
         if ($employee->status !== EmployeeStatus::Active) {
             throw new HttpResponseException(
@@ -38,7 +46,8 @@ class MarkEmployeeAttendanceAction
         $attendance = EmployeeAttendance::query()
             ->where('employee_id', $employee->id)
             ->whereDate('date', $date)
-            ->first() ?? new EmployeeAttendance(['employee_id' => $employee->id, 'date' => $date]);
+            ->when($company === null, fn ($q) => $q->whereNull('client_company_id'), fn ($q) => $q->where('client_company_id', $company))
+            ->first() ?? new EmployeeAttendance(['employee_id' => $employee->id, 'date' => $date, 'client_company_id' => $company]);
 
         $attendance->fill(['status' => $status, 'notes' => $notes, 'recorded_by' => $actor->id]);
         $attendance->save();
@@ -49,7 +58,7 @@ class MarkEmployeeAttendanceAction
             description: "Attendance for '{$employee->full_name}' on {$date} marked {$status->label()}.",
             entityType: Employee::class,
             entityId: $employee->id,
-            metadata: ['date' => $date, 'status' => $status->value],
+            metadata: ['date' => $date, 'status' => $status->value, 'client_company_id' => $company],
         ));
 
         return $attendance->load('recordedBy');

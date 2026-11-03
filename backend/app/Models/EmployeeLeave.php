@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['employee_id', 'leave_type', 'approval_status', 'start_date', 'end_date', 'notes', 'recorded_by', 'decided_by', 'decided_at', 'decision_note'])]
+#[Fillable(['employee_id', 'leave_type', 'approval_status', 'start_date', 'end_date', 'notes', 'recorded_by', 'decided_by', 'decided_at', 'decision_note', 'client_company_id'])]
 class EmployeeLeave extends Model
 {
     use HasFactory;
@@ -36,5 +36,11 @@ class EmployeeLeave extends Model
     public function decidedBy(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'decided_by');
+    }
+
+    /** The company whose payroll this record belongs to (null = the office, or a record from before company ownership). */
+    public function clientCompany(): BelongsTo
+    {
+        return $this->belongsTo(ClientCompany::class, 'client_company_id');
     }
 }

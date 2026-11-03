@@ -8,6 +8,7 @@ use App\Models\Admin;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunSection;
 use App\Support\ApiResponse;
+use App\Support\Hr\Payroll\InputOwnership;
 use App\Support\Hr\Payroll\PayrollSections;
 use App\Support\Hr\Payroll\RecoveryLedger;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -49,6 +50,11 @@ class TransitionPayrollRunSectionAction
      */
     public function bulk(PayrollRun $run, string $from, string $to, Admin $actor, ?string $reason = null): int
     {
+        // Finalizing is ONE company at a time, by design (owner decision 2026-11-03): there is no way to finalize several companies together.
+        if ($to === PayrollRunSection::STATUS_FINALIZED) {
+            throw new \LogicException('Companies are finalized one at a time; there is no bulk finalize.');
+        }
+
         return DB::transaction(function () use ($run, $from, $to, $actor, $reason): int {
             $run = PayrollRun::query()->lockForUpdate()->findOrFail($run->id);
             $sections = $run->sections()->where('status', $from)->lockForUpdate()->get();
@@ -93,6 +99,10 @@ class TransitionPayrollRunSectionAction
             $this->fail('A payroll run with no lines cannot be reviewed.', 'PAYROLL_RUN_EMPTY');
         }
 
+        if (in_array($to, [PayrollRunSection::STATUS_APPROVED, PayrollRunSection::STATUS_FINALIZED], true)) {
+            $this->assertNoUnownedInputs($section, $run);
+        }
+
         $stamp = match ($to) {
             PayrollRunSection::STATUS_REVIEWED => ['reviewed_at' => now(), 'reviewed_by' => $actor->id],
             PayrollRunSection::STATUS_APPROVED => ['approved_at' => now(), 'approved_by' => $actor->id],
@@ -127,6 +137,29 @@ class TransitionPayrollRunSectionAction
                 'totals' => $to === PayrollRunSection::STATUS_FINALIZED ? $section->totals : null,
                 'reason' => $reason,
             ], fn ($v) => $v !== null),
+        ));
+    }
+
+    /**
+     * Each company owns its deductions, so a company is not locked in while an employee of it has a penalty, advance, leave, absence or recovery that
+     * names no company although the employee works for several: the payroll charged it to nobody (nothing is guessed) and approving would make that final.
+     */
+    private function assertNoUnownedInputs(PayrollRunSection $section, PayrollRun $run): void
+    {
+        $unowned = InputOwnership::unownedFor($run->period, $section->items()->pluck('employee_id')->map(fn ($id): int => (int) $id)->unique()->values()->all());
+
+        if ($unowned === []) {
+            return;
+        }
+
+        $name = $section->clientCompany?->name ?? 'this company';
+        $employees = count(array_unique(array_column($unowned, 'employee_id')));
+
+        throw new HttpResponseException(ApiResponse::error(
+            count($unowned)." record(s) of {$employees} employee(s) in {$name} name no company although the employee works for several, so no company was charged for them. Assign each one to its company first, then generate again.",
+            'PAYROLL_AMBIGUOUS_COMPANY_INPUT',
+            422,
+            ['unowned_inputs' => array_slice($unowned, 0, 50)],
         ));
     }
 

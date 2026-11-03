@@ -16,6 +16,8 @@ class EmployeeLeaveResource extends JsonResource
             'start_date' => $this->start_date?->toDateString(),
             'end_date' => $this->end_date?->toDateString(),
             'approval_status' => $this->approval_status,
+            'client_company_id' => $this->client_company_id,
+            'client_company_name' => $this->whenLoaded('clientCompany', fn () => $this->clientCompany?->name),
             'decided_by' => $this->whenLoaded('decidedBy', fn () => $this->decidedBy?->full_name),
             'decided_at' => $this->decided_at?->toIso8601String(),
             'decision_note' => $this->decision_note,

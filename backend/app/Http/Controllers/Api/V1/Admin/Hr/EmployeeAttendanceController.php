@@ -30,6 +30,8 @@ class EmployeeAttendanceController extends Controller
             AttendanceStatus::from($request->validated('status')),
             $request->validated('notes'),
             $request->user(),
+            array_key_exists('client_company_id', $request->validated()),
+            $request->validated('client_company_id'),
         );
 
         return ApiResponse::success('Attendance recorded successfully.', new EmployeeAttendanceResource($attendance));

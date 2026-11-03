@@ -1677,9 +1677,8 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.approve', 'th
     Route::patch('v1/admin/hr/payroll-runs/{payrollRun}/reopen', [AdminPayrollRunController::class, 'reopen'])
         ->whereNumber('payrollRun')
         ->name('api.v1.admin.hr.payroll-runs.reopen');
-    Route::patch('v1/admin/hr/payroll-runs/{payrollRun}/finalize', [AdminPayrollRunController::class, 'finalize'])
-        ->whereNumber('payrollRun')
-        ->name('api.v1.admin.hr.payroll-runs.finalize');
+    // There is deliberately NO month-level Finalize and no bulk finalize: a company is finalized only through its own section below, and the month
+    // finalizes itself when the last company is (owner decision 2026-11-03).
     // ONE company's part of the month: same permission as the month-level actions (hr.payroll.approve).
     Route::patch('v1/admin/hr/payroll-run-sections/{payrollRunSection}/approve', [AdminPayrollRunSectionController::class, 'approve'])
         ->whereNumber('payrollRunSection')

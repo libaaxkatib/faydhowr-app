@@ -206,7 +206,8 @@ class MultiCompanyAndCurrencyPolicyTest extends TestCase
         $employee = $this->makeEmployee();
         $first = $this->makeAssignment($employee, $this->a, null, 310, '2026-01-01');
         $second = $this->makeAssignment($employee, $this->b, null, 200, '2026-01-01');
-        EmployeeAttendance::query()->create(['employee_id' => $employee->id, 'date' => '2026-10-08', 'status' => 'absent']);
+        // The absence was marked for Company A, so only A's payroll pays for it.
+        EmployeeAttendance::query()->create(['employee_id' => $employee->id, 'client_company_id' => $this->a->id, 'date' => '2026-10-08', 'status' => 'absent']);
 
         $view = (new PayrollPeriodView)->forPeriod('2026-10', [$employee->id]);
         $lines = collect($view['lines'])->keyBy('work_assignment_id');
@@ -216,8 +217,14 @@ class MultiCompanyAndCurrencyPolicyTest extends TestCase
         $this->assertSame(20000, (int) $lines[$second->id]['gross_cents']);
         $this->assertSame('Company A', $lines[$first->id]['company_name']);
         $this->assertSame('Company B', $lines[$second->id]['company_name']);
-        $this->assertSame(1000, (int) $lines[$first->id]['other_deduction_cents'], 'one absent day = one daily rate (310 / 31), charged once, to the first assignment');
-        $this->assertSame(0, (int) $lines[$second->id]['other_deduction_cents'], 'the same absent day is not charged a second time');
+        $this->assertSame(1000, (int) $lines[$first->id]['other_deduction_cents'], 'one absent day = one daily rate (310 / 31), charged once, to the company it was marked for');
+        $this->assertSame(0, (int) $lines[$second->id]['other_deduction_cents'], "the other company's payroll is not touched");
+
+        // The same day marked for Company B as well is a separate fact for B's payroll: B pays its own daily rate (200 / 31, rounded).
+        EmployeeAttendance::query()->create(['employee_id' => $employee->id, 'client_company_id' => $this->b->id, 'date' => '2026-10-08', 'status' => 'absent']);
+        $lines = collect((new PayrollPeriodView)->forPeriod('2026-10', [$employee->id])['lines'])->keyBy('work_assignment_id');
+        $this->assertSame(1000, (int) $lines[$first->id]['other_deduction_cents']);
+        $this->assertSame((int) round(20000 / 31), (int) $lines[$second->id]['other_deduction_cents']);
     }
 
     public function test_switching_off_again_changes_nothing_already_recorded_but_blocks_new_overlaps(): void

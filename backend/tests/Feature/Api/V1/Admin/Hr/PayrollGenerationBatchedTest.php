@@ -94,12 +94,16 @@ class PayrollGenerationBatchedTest extends TestCase
 
         // Penalties and advances (one in a foreign currency), on an employee with two assignments.
         $twoJobs = $this->makeEmployee('active', 'permanent');
-        $this->makeAssignment($twoJobs, $this->makeCompany('Co A'), null, 300, '2026-01-01');
-        $this->makeAssignment($twoJobs, $this->makeCompany('Co B'), null, 100, '2026-01-01');
-        EmployeePenalty::query()->create(['employee_id' => $twoJobs->id, 'penalty_date' => '2026-09-05', 'reason' => 'Late', 'deduction_amount' => 15, 'currency' => 'USD', 'payroll_period' => self::P]);
-        EmployeePenalty::query()->create(['employee_id' => $twoJobs->id, 'penalty_date' => '2026-09-06', 'reason' => 'Foreign', 'deduction_amount' => 9, 'currency' => 'SOS', 'payroll_period' => self::P]);
-        EmployeeAdvance::query()->create(['employee_id' => $twoJobs->id, 'advance_date' => '2026-09-02', 'amount' => 40, 'currency' => 'USD', 'payroll_period' => self::P, 'reason' => 'Advance']);
-        EmployeeAttendance::query()->create(['employee_id' => $twoJobs->id, 'date' => '2026-09-08', 'status' => 'absent']);
+        $jobA = $this->makeCompany('Co A');
+        $jobB = $this->makeCompany('Co B');
+        $this->makeAssignment($twoJobs, $jobA, null, 300, '2026-01-01');
+        $this->makeAssignment($twoJobs, $jobB, null, 100, '2026-01-01');
+        // Each record belongs to ONE company; one more (no company) is left unowned on purpose so the warning path is compared too.
+        EmployeePenalty::query()->create(['employee_id' => $twoJobs->id, 'client_company_id' => $jobA->id, 'penalty_date' => '2026-09-05', 'reason' => 'Late', 'deduction_amount' => 15, 'currency' => 'USD', 'payroll_period' => self::P]);
+        EmployeePenalty::query()->create(['employee_id' => $twoJobs->id, 'client_company_id' => $jobB->id, 'penalty_date' => '2026-09-06', 'reason' => 'Foreign', 'deduction_amount' => 9, 'currency' => 'SOS', 'payroll_period' => self::P]);
+        EmployeePenalty::query()->create(['employee_id' => $twoJobs->id, 'penalty_date' => '2026-09-07', 'reason' => 'Unowned', 'deduction_amount' => 4, 'currency' => 'USD', 'payroll_period' => self::P]);
+        EmployeeAdvance::query()->create(['employee_id' => $twoJobs->id, 'client_company_id' => $jobB->id, 'advance_date' => '2026-09-02', 'amount' => 40, 'currency' => 'USD', 'payroll_period' => self::P, 'reason' => 'Advance']);
+        EmployeeAttendance::query()->create(['employee_id' => $twoJobs->id, 'client_company_id' => $jobA->id, 'date' => '2026-09-08', 'status' => 'absent']);
 
         // Unpaid leave: approved, pending, rejected, and one leave that only touches the month's edge.
         [$leaver] = $this->permanent(300);

@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'batch_key', 'employee_id', 'work_assignment_id', 'payroll_run_id', 'payroll_item_id', 'period', 'kind', 'action',
     'recorded_net_cents', 'corrected_net_cents', 'difference_cents', 'outstanding_cents', 'status', 'reason',
-    'old_values', 'new_values', 'corrected_by',
+    'old_values', 'new_values', 'corrected_by', 'client_company_id',
 ])]
 class PayrollCorrection extends Model
 {

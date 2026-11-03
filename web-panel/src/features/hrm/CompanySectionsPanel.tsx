@@ -30,6 +30,9 @@ interface CompanySectionsPanelProps {
   /** The company whose lines the table below shows (null = every company). */
   selectedSectionId: number | null;
   onSelect: (sectionId: number | null) => void;
+  /** The words of the one Finalize button each company has (there is no month-level Finalize): the approved "Finalize" and "Finalize payroll". */
+  finalizeLabel: string;
+  finalizeConfirmLabel: string;
 }
 
 /**
@@ -37,7 +40,7 @@ interface CompanySectionsPanelProps {
  * it and when, and the buttons that move THAT company one step (Review, Approve, Finalize, Reopen). Each button changes only its own row; the month
  * shows "N of M companies finalized" and is finalized by the server when the last company is. Everything shown comes from the server.
  */
-export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, selectedSectionId, onSelect }: CompanySectionsPanelProps) {
+export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, selectedSectionId, onSelect, finalizeLabel, finalizeConfirmLabel }: CompanySectionsPanelProps) {
   const { t } = useI18n();
   const { show } = useToast();
   const queryClient = useQueryClient();
@@ -89,7 +92,7 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
   const label: Record<SectionAction, string> = {
     review: t('action.markReviewed'),
     approve: t('action.approvePayrollButton'),
-    finalize: t('action.finalize'),
+    finalize: finalizeLabel,
     reopen: t('action.reopen'),
   };
   const display = MONTH_STATUS_LABEL[monthDisplayStatus(run)];
@@ -176,7 +179,7 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
         isOpen={finalizing !== null}
         title={t('confirm.payroll.sectionFinalizeTitle', { name: finalizing ? nameOf(finalizing) : '' })}
         description={t('confirm.payroll.sectionFinalizeBody', { name: finalizing ? nameOf(finalizing) : '', month: monthLabel })}
-        confirmLabel={t('action.finalize')}
+        confirmLabel={finalizeConfirmLabel}
         tone="danger"
         isLoading={busy}
         onConfirm={() => finalizing && mutation.mutate({ section: finalizing, action: 'finalize' })}

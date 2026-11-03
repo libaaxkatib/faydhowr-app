@@ -34,12 +34,16 @@ class GetEmployeeAction
             'separations.separatedBy',
             'historicalCompletions',
             'attendances.recordedBy',
+            'attendances.clientCompany',
             'leaves.recordedBy',
             'leaves.decidedBy',
+            'leaves.clientCompany',
             'performanceReviews.reviewedBy',
             'payments.paidBy',
             'penalties.recordedBy',
+            'penalties.clientCompany',
             'advances.recordedBy',
+            'advances.clientCompany',
             'trainingParticipations.trainingBatch.trainer',
         ]);
 

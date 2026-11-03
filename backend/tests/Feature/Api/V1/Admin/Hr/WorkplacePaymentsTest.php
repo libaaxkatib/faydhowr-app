@@ -15,6 +15,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\FinalizesCompanies;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -32,6 +33,7 @@ use Tests\TestCase;
  */
 class WorkplacePaymentsTest extends TestCase
 {
+    use FinalizesCompanies;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -95,7 +97,7 @@ class WorkplacePaymentsTest extends TestCase
         $id = $this->draft();
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/review")->assertOk();
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/approve")->assertOk();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/finalize")->assertOk();
+        $this->finalizeEveryCompany($id, $this->super);
 
         return $id;
     }
@@ -241,7 +243,7 @@ class WorkplacePaymentsTest extends TestCase
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/review")->assertOk();
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/approve")->assertOk();
         $this->pay($acme)->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_NOT_FINALIZED');
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/finalize")->assertOk();
+        $this->finalizeEveryCompany($this->runId, $this->super);
         $this->assertTrue($this->as($this->super)->getJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/workplace-payments")->json('data.can_record'));
 
         $other = $this->makeCompany('Nobody Co');

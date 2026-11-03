@@ -9,7 +9,9 @@ use App\Models\Admin;
 use App\Models\Employee;
 use App\Models\EmployeeAdvance;
 use App\Support\ApiResponse;
+use App\Support\Hr\Payroll\InputOwnership;
 use App\Support\Hr\Payroll\PayrollPeriodLock;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
@@ -23,7 +25,9 @@ class RecordEmployeeAdvanceAction
 {
     public function handle(Employee $employee, array $data, Admin $actor): Employee
     {
-        app(PayrollPeriodLock::class)->assertMonthEditable($data['payroll_period'], 'The payroll month of this record', $employee->id);
+        // The advance belongs to ONE company (each company owns its own payroll): the one the employee works for, or the one the person recording it chose.
+        $company = InputOwnership::resolve($employee->id, $data['payroll_period'].'-01', CarbonImmutable::parse($data['payroll_period'].'-01')->endOfMonth()->toDateString(), array_key_exists('client_company_id', $data), $data['client_company_id'] ?? null);
+        app(PayrollPeriodLock::class)->assertMonthEditable($data['payroll_period'], 'The payroll month of this record', $employee->id, InputOwnership::key($company));
 
         if ($employee->status !== EmployeeStatus::Active) {
             throw new HttpResponseException(
@@ -37,6 +41,7 @@ class RecordEmployeeAdvanceAction
 
         $advance = EmployeeAdvance::query()->create([
             ...$data,
+            'client_company_id' => $company,
             'employee_id' => $employee->id,
             'recorded_by' => $actor->id,
         ]);
@@ -47,9 +52,9 @@ class RecordEmployeeAdvanceAction
             description: "Salary advance of {$advance->amount} {$advance->currency} recorded for '{$employee->full_name}' ({$advance->payroll_period}).",
             entityType: Employee::class,
             entityId: $employee->id,
-            metadata: ['advance_id' => $advance->id, 'payroll_period' => $advance->payroll_period],
+            metadata: ['advance_id' => $advance->id, 'payroll_period' => $advance->payroll_period, 'client_company_id' => $advance->client_company_id],
         ));
 
-        return $employee->load('advances.recordedBy');
+        return $employee->load('advances.recordedBy', 'advances.clientCompany');
     }
 }

@@ -17,6 +17,8 @@ class RecordEmployeeAdvanceRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // The company this belongs to (each company owns its own payroll). Omitted: taken from where the employee works when that is one company; required when several. null = the office.
+            'client_company_id' => ['nullable', 'integer', 'exists:client_companies,id'],
             'advance_date' => ['required', 'date'],
             'amount' => ['required', 'numeric', 'min:0'],
             'currency' => ['required', 'string', 'size:3'],

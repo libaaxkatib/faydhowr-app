@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['employee_id', 'date', 'status', 'notes', 'recorded_by'])]
+#[Fillable(['employee_id', 'date', 'status', 'notes', 'recorded_by', 'client_company_id'])]
 class EmployeeAttendance extends Model
 {
     use HasFactory;
@@ -29,5 +29,11 @@ class EmployeeAttendance extends Model
     public function recordedBy(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'recorded_by');
+    }
+
+    /** The company whose payroll this record belongs to (null = the office, or a record from before company ownership). */
+    public function clientCompany(): BelongsTo
+    {
+        return $this->belongsTo(ClientCompany::class, 'client_company_id');
     }
 }

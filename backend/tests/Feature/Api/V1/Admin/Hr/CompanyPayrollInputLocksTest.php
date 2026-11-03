@@ -93,24 +93,30 @@ class CompanyPayrollInputLocksTest extends TestCase
         }
     }
 
-    private function attendance(Employee $employee, string $date = '2026-09-10')
+    /** The company a record belongs to, when the person recording it names one (an employee of a single company never has to). */
+    private function owned(?ClientCompany $company): array
     {
-        return $this->as($this->super)->postJson("/api/v1/admin/hr/employees/{$employee->id}/attendance", ['date' => $date, 'status' => 'absent']);
+        return $company === null ? [] : ['client_company_id' => $company->id];
     }
 
-    private function penalty(Employee $employee)
+    private function attendance(Employee $employee, string $date = '2026-09-10', ?ClientCompany $company = null)
     {
-        return $this->as($this->super)->postJson("/api/v1/admin/hr/employees/{$employee->id}/penalties", ['penalty_date' => '2026-09-10', 'reason' => 'Late', 'deduction_amount' => 5, 'currency' => 'USD', 'payroll_period' => self::P]);
+        return $this->as($this->super)->postJson("/api/v1/admin/hr/employees/{$employee->id}/attendance", ['date' => $date, 'status' => 'absent', ...$this->owned($company)]);
     }
 
-    private function advance(Employee $employee)
+    private function penalty(Employee $employee, ?ClientCompany $company = null)
     {
-        return $this->as($this->super)->postJson("/api/v1/admin/hr/employees/{$employee->id}/advances", ['advance_date' => '2026-09-10', 'amount' => 10, 'currency' => 'USD', 'payroll_period' => self::P, 'reason' => 'Rent']);
+        return $this->as($this->super)->postJson("/api/v1/admin/hr/employees/{$employee->id}/penalties", ['penalty_date' => '2026-09-10', 'reason' => 'Late', 'deduction_amount' => 5, 'currency' => 'USD', 'payroll_period' => self::P, ...$this->owned($company)]);
     }
 
-    private function leave(Employee $employee)
+    private function advance(Employee $employee, ?ClientCompany $company = null)
     {
-        return $this->as($this->super)->postJson("/api/v1/admin/hr/employees/{$employee->id}/leaves", ['leave_type' => 'unpaid', 'start_date' => '2026-09-10', 'end_date' => '2026-09-12']);
+        return $this->as($this->super)->postJson("/api/v1/admin/hr/employees/{$employee->id}/advances", ['advance_date' => '2026-09-10', 'amount' => 10, 'currency' => 'USD', 'payroll_period' => self::P, 'reason' => 'Rent', ...$this->owned($company)]);
+    }
+
+    private function leave(Employee $employee, ?ClientCompany $company = null, string $from = '2026-09-10', string $to = '2026-09-12')
+    {
+        return $this->as($this->super)->postJson("/api/v1/admin/hr/employees/{$employee->id}/leaves", ['leave_type' => 'unpaid', 'start_date' => $from, 'end_date' => $to, ...$this->owned($company)]);
     }
 
     private function refused($response): void
@@ -206,11 +212,11 @@ class CompanyPayrollInputLocksTest extends TestCase
     public function test_every_one_of_the_eight_call_sites_gives_the_lock_its_context(): void
     {
         $sites = [
-            'Actions/Hr/MarkEmployeeAttendanceAction.php' => ["assertDateEditable(\$date, 'Attendance on this date', \$employee->id)"],
-            'Actions/Hr/RecordEmployeeAdvanceAction.php' => ['assertMonthEditable($data[\'payroll_period\'], \'The payroll month of this record\', $employee->id)'],
-            'Actions/Hr/RecordEmployeePenaltyAction.php' => ['assertMonthEditable($data[\'payroll_period\'], \'The payroll month of this record\', $employee->id)'],
-            'Actions/Hr/RecordEmployeeLeaveAction.php' => ['assertRangeEditable(', '$this->assertMonthsOpen($start, $end, $employee->id)'],
-            'Actions/Hr/DecideEmployeeLeaveAction.php' => ['(int) $leave->employee_id)'],
+            'Actions/Hr/MarkEmployeeAttendanceAction.php' => ["assertDateEditable(\$date, 'Attendance on this date', \$employee->id, null, InputOwnership::key(\$company))"],
+            'Actions/Hr/RecordEmployeeAdvanceAction.php' => ['assertMonthEditable($data[\'payroll_period\'], \'The payroll month of this record\', $employee->id, InputOwnership::key($company))'],
+            'Actions/Hr/RecordEmployeePenaltyAction.php' => ['assertMonthEditable($data[\'payroll_period\'], \'The payroll month of this record\', $employee->id, InputOwnership::key($company))'],
+            'Actions/Hr/RecordEmployeeLeaveAction.php' => ['assertRangeEditable(', '$this->assertMonthsOpen($start, $end, $employee->id, InputOwnership::key($company))'],
+            'Actions/Hr/DecideEmployeeLeaveAction.php' => ['(int) $leave->employee_id, $leave->client_company_id'],
             'Actions/Hr/RecordReplacementWorkdaysAction.php' => ['null, $assignment->id)'],
             'Actions/Hr/ReviewReplacementWorkdayAction.php' => ['null, (int) $workday->work_assignment_id)'],
         ];
@@ -231,25 +237,70 @@ class CompanyPayrollInputLocksTest extends TestCase
 
     // ------------------------------------------------------------------------------------------------ the whole month, a shared employee, a legacy run
 
-    public function test_an_employee_who_works_for_two_companies_is_locked_when_either_is_finalized_but_a_penalty_follows_the_first_line(): void
+    public function test_a_shared_employee_keeps_working_for_alpha_while_bravo_is_finalized(): void
     {
-        // Bravo finalized, Alpha (X's first line) still draft: X's penalty goes on the Alpha line, so it is allowed; X's attendance could touch either, so it is refused.
+        // X works for both. Bravo is finalized, Alpha is still a draft: every input that belongs to ALPHA is still accepted, every input that belongs
+        // to BRAVO is refused, and nothing is stored for Bravo.
         $this->generate();
         $this->close($this->bravo);
-        $this->penalty($this->x)->assertStatus(201);
-        $this->advance($this->x)->assertStatus(201);
-        $this->refused($this->attendance($this->x));
-        $this->refused($this->leave($this->x));
+
+        $this->attendance($this->x, '2026-09-10', $this->alpha)->assertOk();
+        $this->penalty($this->x, $this->alpha)->assertStatus(201);
+        $this->advance($this->x, $this->alpha)->assertStatus(201);
+        $this->leave($this->x, $this->alpha)->assertStatus(201);
+
+        $this->refused($this->attendance($this->x, '2026-09-11', $this->bravo));
+        $this->refused($this->penalty($this->x, $this->bravo));
+        $this->refused($this->advance($this->x, $this->bravo));
+        $this->refused($this->leave($this->x, $this->bravo, '2026-09-14', '2026-09-15'));
+
+        $this->assertSame([$this->alpha->id], $this->x->attendances()->pluck('client_company_id')->all());
+        $this->assertSame([$this->alpha->id], $this->x->penalties()->pluck('client_company_id')->all());
+        $this->assertSame([$this->alpha->id], $this->x->advances()->pluck('client_company_id')->all());
+        $this->assertSame([$this->alpha->id], $this->x->leaves()->pluck('client_company_id')->all());
     }
 
-    public function test_a_shared_employees_penalty_is_locked_when_the_company_of_the_first_line_is_finalized(): void
+    public function test_a_shared_employee_keeps_working_for_bravo_while_alpha_is_finalized(): void
     {
+        // The reverse direction: Alpha (the employee's first company) is finalized; Bravo is a draft and keeps accepting its own inputs.
         $this->generate();
         $this->close($this->alpha);
 
-        $this->refused($this->penalty($this->x));
-        $this->refused($this->advance($this->x));
-        $this->refused($this->attendance($this->x));
+        $this->attendance($this->x, '2026-09-10', $this->bravo)->assertOk();
+        $this->penalty($this->x, $this->bravo)->assertStatus(201);
+        $this->advance($this->x, $this->bravo)->assertStatus(201);
+        $this->leave($this->x, $this->bravo)->assertStatus(201);
+
+        $this->refused($this->attendance($this->x, '2026-09-11', $this->alpha));
+        $this->refused($this->penalty($this->x, $this->alpha));
+        $this->refused($this->advance($this->x, $this->alpha));
+        $this->refused($this->leave($this->x, $this->alpha, '2026-09-14', '2026-09-15'));
+    }
+
+    public function test_a_shared_employees_record_must_name_its_company_and_no_company_is_ever_guessed(): void
+    {
+        $this->generate();
+
+        foreach ([$this->penalty($this->x), $this->advance($this->x), $this->attendance($this->x), $this->leave($this->x)] as $response) {
+            $response->assertStatus(422)->assertJsonPath('error_code', 'COMPANY_REQUIRED');
+        }
+
+        // A company the employee does not work for is refused too (a single-company employee needs no choice at all).
+        $this->penalty($this->x, $this->makeCompany('Elsewhere Co'))->assertStatus(422)->assertJsonPath('error_code', 'COMPANY_NOT_ASSIGNED');
+        $this->penalty($this->a)->assertStatus(201);
+        $this->assertSame($this->alpha->id, $this->a->penalties()->firstOrFail()->client_company_id, 'the only company the employee works for');
+        $this->assertSame(0, $this->x->penalties()->count());
+    }
+
+    public function test_a_legacy_input_with_no_company_is_locked_when_any_company_the_employee_works_for_is_protected(): void
+    {
+        // An input from before company ownership names no company: judged by where the employee works, on the safe side.
+        $this->generate();
+        $this->close($this->alpha);
+        $lock = new PayrollPeriodLock;
+
+        $this->expectException(HttpResponseException::class);
+        $lock->assertMonthEditable(self::P, 'Legacy record', $this->x->id);
     }
 
     public function test_a_month_whose_every_company_is_approved_is_locked_for_everyone_and_other_months_stay_open(): void

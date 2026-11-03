@@ -20,6 +20,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\FinalizesCompanies;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -34,6 +35,7 @@ use Tests\TestCase;
  */
 class OwnerDecisionsUpdateTest extends TestCase
 {
+    use FinalizesCompanies;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -95,7 +97,7 @@ class OwnerDecisionsUpdateTest extends TestCase
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/approve")->assertOk();
 
         if ($finalize) {
-            $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/finalize")->assertOk();
+            $this->finalizeEveryCompany($run->id, $this->super);
         }
 
         return $run->refresh();

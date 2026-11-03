@@ -110,12 +110,13 @@ class ClosedPayrollCorrection
     }
 
     /**
-     * Net pay per employee for each closed month, calculated live WITHOUT recovery deductions (those are a consequence of corrections,
-     * not an input to them).
+     * Net pay per employee AND COMPANY for each closed month, calculated live WITHOUT recovery deductions (those are a consequence of corrections,
+     * not an input to them). Each company owns its payroll, so a change is measured per company: a correction of Company A's pay is never mixed with
+     * the same person's pay at Company B.
      *
      * @param  list<string>  $periods
      * @param  list<int>  $employeeIds
-     * @return array<string, array<int, int>> period => employee id => net cents
+     * @return array<string, array<string, int>> period => "employee id:company key" => net cents
      */
     private function netByEmployee(array $periods, array $employeeIds): array
     {
@@ -128,20 +129,19 @@ class ClosedPayrollCorrection
             // Null = every line of the month is closed (the run itself is approved / finalized, or it has no sections); else only the closed companies' lines.
             $closedCompanies = $run === null || in_array($run->status, PayrollPeriodLock::LOCKED_STATUSES, true)
                 ? null
-                : array_map(fn (?int $id): string => $id === null ? 'none' : (string) $id, PayrollSections::lockedCompanyIds($run));
+                : array_map(fn (?int $id): string => InputOwnership::key($id), PayrollSections::lockedCompanyIds($run));
             $items = $this->calculator->calculate($period, $employeeIds, false)['items'];
-            $companyOf = $closedCompanies === null ? [] : PayrollSections::companyIdsByAssignment(array_values(array_unique(array_column($items, 'work_assignment_id'))));
+            $companyOf = PayrollSections::companyIdsByAssignment(array_values(array_unique(array_column($items, 'work_assignment_id'))));
 
             foreach ($items as $item) {
-                if ($closedCompanies !== null) {
-                    $company = $companyOf[$item['work_assignment_id']] ?? null;
+                $company = InputOwnership::key($companyOf[$item['work_assignment_id']] ?? null);
 
-                    if (! in_array($company === null ? 'none' : (string) $company, $closedCompanies, true)) {
-                        continue;
-                    }
+                if ($closedCompanies !== null && ! in_array($company, $closedCompanies, true)) {
+                    continue;
                 }
 
-                $result[$period][$item['employee_id']] = ($result[$period][$item['employee_id']] ?? 0) + (int) $item['net_cents'];
+                $key = $item['employee_id'].':'.$company;
+                $result[$period][$key] = ($result[$period][$key] ?? 0) + (int) $item['net_cents'];
             }
         }
 
@@ -149,20 +149,20 @@ class ClosedPayrollCorrection
     }
 
     /**
-     * @param  array<string, array<int, int>>  $before
-     * @param  array<string, array<int, int>>  $after
-     * @return array<string, array<int, int>> period => employee id => (after - before), only non-zero
+     * @param  array<string, array<string, int>>  $before
+     * @param  array<string, array<string, int>>  $after
+     * @return array<string, array<string, int>> period => "employee id:company key" => (after - before), only non-zero
      */
     private function differences(array $before, array $after): array
     {
         $result = [];
 
-        foreach ($after as $period => $employees) {
-            foreach (array_unique([...array_keys($employees), ...array_keys($before[$period] ?? [])]) as $employeeId) {
-                $delta = ($employees[$employeeId] ?? 0) - ($before[$period][$employeeId] ?? 0);
+        foreach ($after as $period => $lines) {
+            foreach (array_unique([...array_keys($lines), ...array_keys($before[$period] ?? [])]) as $key) {
+                $delta = ($lines[$key] ?? 0) - ($before[$period][$key] ?? 0);
 
                 if ($delta !== 0) {
-                    $result[$period][$employeeId] = $delta;
+                    $result[$period][$key] = $delta;
                 }
             }
         }
@@ -171,16 +171,17 @@ class ClosedPayrollCorrection
     }
 
     /**
-     * @param  array<string, array<int, int>>  $differences
-     * @return list<array{period: string, employee_id: int, change_cents: int}>
+     * @param  array<string, array<string, int>>  $differences
+     * @return list<array{period: string, employee_id: int, client_company_id: int|null, change_cents: int}>
      */
     private function describe(array $differences): array
     {
         $rows = [];
 
-        foreach ($differences as $period => $employees) {
-            foreach ($employees as $employeeId => $delta) {
-                $rows[] = ['period' => $period, 'employee_id' => $employeeId, 'change_cents' => $delta];
+        foreach ($differences as $period => $lines) {
+            foreach ($lines as $key => $delta) {
+                [$employeeId, $company] = explode(':', (string) $key, 2);
+                $rows[] = ['period' => $period, 'employee_id' => (int) $employeeId, 'client_company_id' => InputOwnership::companyOf($company), 'change_cents' => $delta];
             }
         }
 
@@ -188,22 +189,28 @@ class ClosedPayrollCorrection
     }
 
     /**
-     * @param  array<string, array<int, int>>  $differences
+     * @param  array<string, array<string, int>>  $differences
      * @param  array<string, mixed>  $context
      */
     private function record(Admin $actor, string $action, array $differences, string $reason, array $context): void
     {
         $batch = (string) Str::uuid();
 
-        foreach ($differences as $period => $employees) {
+        foreach ($differences as $period => $lines) {
             $run = PayrollRun::query()->where('period', $period)->firstOrFail();
 
-            foreach ($employees as $employeeId => $delta) {
-                // Only the lines that are closed (their company's section is approved / finalized, or the whole run is) are corrected.
+            foreach ($lines as $key => $delta) {
+                [$employeeId, $companyKey] = explode(':', (string) $key, 2);
+                $employeeId = (int) $employeeId;
+                $companyId = InputOwnership::companyOf($companyKey);
+
+                // Only the lines that are closed (their company's section is approved / finalized, or the whole run is) and that belong to THIS company are corrected.
                 $runClosed = in_array($run->status, PayrollPeriodLock::LOCKED_STATUSES, true);
                 $items = PayrollItem::query()->with('section')->where('payroll_run_id', $run->id)->where('employee_id', $employeeId)->whereNull('voided_at')
                     ->when(! $runClosed, fn ($q) => $q->whereHas('section', fn ($s) => $s->whereIn('status', PayrollRunSection::LOCKED_STATUSES)))
                     ->orderBy('id')->get();
+                $companyOf = PayrollSections::companyIdsByAssignment($items->pluck('work_assignment_id')->unique()->map(fn ($id): int => (int) $id)->values()->all());
+                $items = $items->filter(fn (PayrollItem $i): bool => InputOwnership::key($companyOf[$i->work_assignment_id] ?? null) === $companyKey)->values();
                 $recorded = (int) $items->sum('net_cents');
                 $corrected = $recorded + $delta;
                 $difference = $recorded - $corrected; // > 0: paid more than it should have been
@@ -211,6 +218,7 @@ class ClosedPayrollCorrection
                 $correction = PayrollCorrection::query()->create([
                     'batch_key' => $batch,
                     'employee_id' => $employeeId,
+                    'client_company_id' => $companyId,
                     'work_assignment_id' => $context['assignment_id'] ?? null,
                     'payroll_run_id' => $run->id,
                     'payroll_item_id' => $items->first()?->id,
@@ -241,8 +249,9 @@ class ClosedPayrollCorrection
                         'period' => $period,
                         'payroll_run_id' => $run->id,
                         'run_status' => $run->status,
-                        // The company (or companies) whose closed section this correction is about.
-                        'client_company_ids' => $items->map(fn (PayrollItem $i): ?int => $i->section?->client_company_id)->unique()->values()->all(),
+                        // The ONE company whose closed payroll this correction is about; an overpayment is recovered from that company's pay only.
+                        'client_company_id' => $companyId,
+                        'client_company_ids' => [$companyId],
                         'recorded_net_cents' => $recorded,
                         'corrected_net_cents' => $corrected,
                         'difference_cents' => $difference,

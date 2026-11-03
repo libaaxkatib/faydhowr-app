@@ -352,7 +352,6 @@ export const hrApi = {
     approve: (id: number) => apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/approve`, { method: 'PATCH' }),
     reopen: (id: number, reason: string) =>
       apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/reopen`, { method: 'PATCH', body: { reason } }),
-    finalize: (id: number) => apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/finalize`, { method: 'PATCH' }),
     /** ONE company's part of the month: review / approve / finalize / reopen it without touching the other companies (the answer is the whole month). */
     reviewSection: (sectionId: number) => apiRequest<PayrollRun>(`admin/hr/payroll-run-sections/${sectionId}/review`, { method: 'PATCH' }),
     approveSection: (sectionId: number) => apiRequest<PayrollRun>(`admin/hr/payroll-run-sections/${sectionId}/approve`, { method: 'PATCH' }),
