@@ -28,7 +28,8 @@ final class MonthlyPaymentWorkbookPreview
      */
     public function fromReport(array $report): array
     {
-        $path = tempnam(sys_get_temp_dir(), 'payment-preview').'.xlsx';
+        // The temporary file itself (no suffix added): the writer and the reader are chosen explicitly, and the one file is always deleted below.
+        $path = tempnam(sys_get_temp_dir(), 'payment-preview');
 
         try {
             $this->exporter->write($report, $path);
