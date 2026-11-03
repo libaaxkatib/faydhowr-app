@@ -49,7 +49,13 @@ class ListEmployeesAction
 
         if (! empty($filters['employment_type'])) {
             // 'permanent' or 'temporary' (validated); the column is never empty - it defaults to permanent.
-            $query->where('employment_type', $filters['employment_type']);
+            if (! empty($filters['statuses']) && ! empty($filters['cover_pool'])) {
+                // The new-cover picker (owner decision 2026-11-03): Active people must already be of this type, but a Waiting / Applicant person has no real
+                // type yet - saving the cover makes them Temporary - so the type is not asked of them.
+                $query->where(fn ($q) => $q->where('status', '!=', 'active')->orWhere('employment_type', $filters['employment_type']));
+            } else {
+                $query->where('employment_type', $filters['employment_type']);
+            }
         }
 
         if (! empty($filters['status'])) {

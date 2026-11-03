@@ -257,7 +257,6 @@ class PayrollRunCalculator
 
             $this->addAbsence($assignment, $salary, $first, $last, $daysInMonth, $deductions, $leaveDates, $coveredDates, $absenceCharged[$employee->id][$lineKey], $heldElsewhere);
 
-            $replacementCents = (int) collect($deductions)->where('kind', PayrollItemDeduction::KIND_REPLACEMENT)->sum('amount_cents');
             $otherCents = (int) collect($deductions)->where('kind', '!=', PayrollItemDeduction::KIND_REPLACEMENT)->sum('amount_cents');
             $pending = $this->inputs?->hasAssignment($assignment->id)
                 ? $this->inputs->pendingAdjustments($assignment->id)
@@ -265,6 +264,11 @@ class PayrollRunCalculator
                     ->where('applies_in_period', $period)->where('status', 'pending')
                     ->whereHas('item', fn ($q) => $q->where('work_assignment_id', $assignment->id))->get();
             $adjustmentCents = (int) $pending->sum('amount_cents');
+
+            // Owner decision 2026-11-03: Temporary covers can never push a Permanent's net below zero. The Temporary's own amount stays the full cost (it is in
+            // the detail); only what is taken off this line is capped (ReplacementDeductionCap).
+            $this->capReplacementDeductions($deductions, $gross['gross_cents'], $otherCents, $adjustmentCents);
+            $replacementCents = (int) collect($deductions)->where('kind', PayrollItemDeduction::KIND_REPLACEMENT)->sum('amount_cents');
 
             $company = $assignment->clientCompany ?? $assignment->workLocation?->clientCompany;
 
@@ -326,6 +330,42 @@ class PayrollRunCalculator
                 'net_cents' => (int) $collection->sum('net_cents'),
             ],
         ];
+    }
+
+    /**
+     * Caps the Temporary-cover deductions of one line so they never take more than the line has left (ReplacementDeductionCap). A capped deduction keeps the
+     * cover's full cost in its detail ('amount_cents', the Temporary's payable amount) and records what was calculated, deducted and not deducted.
+     *
+     * @param  list<array<string, mixed>>  $deductions
+     */
+    private function capReplacementDeductions(array &$deductions, int $grossCents, int $otherCents, int $adjustmentCents): void
+    {
+        $indexes = array_keys(array_filter($deductions, fn (array $d): bool => $d['kind'] === PayrollItemDeduction::KIND_REPLACEMENT));
+
+        if ($indexes === []) {
+            return;
+        }
+
+        $applied = ReplacementDeductionCap::allocate(
+            ReplacementDeductionCap::available($grossCents, $otherCents, $adjustmentCents),
+            array_map(fn (int $i): int => (int) $deductions[$i]['amount_cents'], $indexes),
+        );
+
+        foreach ($indexes as $position => $index) {
+            $cost = (int) $deductions[$index]['amount_cents'];
+            $take = $applied[$position];
+
+            if ($take === $cost) {
+                continue;
+            }
+
+            $deductions[$index]['amount_cents'] = $take;
+            $deductions[$index]['detail']['calculated_cost_cents'] = $cost;
+            $deductions[$index]['detail']['deducted_cents'] = $take;
+            $deductions[$index]['detail']['not_deducted_cents'] = $cost - $take;
+            $deductions[$index]['detail']['capped_at_zero_net'] = true;
+            $deductions[$index]['description'] .= ' - capped at what the salary has left: '.PayrollMoney::format($take).' deducted of '.PayrollMoney::format($cost).' (the net is never below 0)';
+        }
     }
 
     /**

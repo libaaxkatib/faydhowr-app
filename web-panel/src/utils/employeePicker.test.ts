@@ -129,7 +129,7 @@ test('when people were found but none can be chosen, the screen says so (the gre
 // ------------------------------------------------------------------ the NEW-cover form: Waiting and Applicant people can be chosen (owner decision 2026-11-03)
 
 test('new-cover form, nothing typed: Active, Waiting and Applicant Temporary people are listed together; every other picker is unchanged', () => {
-  assert.deepEqual(pickerParams('temporary', '', 1, true), { statuses: 'active,waiting,applicant', employment_type: 'temporary', per_page: PICKER_PAGE_SIZE, page: 1 });
+  assert.deepEqual(pickerParams('temporary', '', 1, true), { statuses: 'active,waiting,applicant', employment_type: 'temporary', cover_pool: true, per_page: PICKER_PAGE_SIZE, page: 1 });
   assert.deepEqual(pickerParams('temporary', '', 1), { status: 'active', employment_type: 'temporary', per_page: PICKER_PAGE_SIZE, page: 1 }, 'default: Active only');
   assert.deepEqual(pickerParams('temporary', 'ali', 1, true), { search: 'ali', search_by_id: true, per_page: PICKER_PAGE_SIZE, page: 1 }, 'a search still looks at everyone');
 });
@@ -146,7 +146,12 @@ test('new-cover form: every other status, a non-Temporary type, a Permanent bein
   for (const status of ['recruitment', 'practical', 'approved', 'inactive']) {
     assert.deepEqual(notChoosable(person(13, 'X', { status }), 'temporary', undefined, true), { reason: 'not_active', status });
   }
-  assert.deepEqual(notChoosable(person(14, 'Perm', { status: 'waiting', employment_type: 'permanent' }), 'temporary', undefined, true), { reason: 'not_temporary' }, 'the Temporary-type rule is unchanged');
+  // A Waiting / Applicant person has no real type yet (the stored value is only the default): saving the cover makes them Temporary, so they can be chosen.
+  for (const status of ['waiting', 'applicant']) {
+    assert.equal(notChoosable(person(14, 'Perm', { status, employment_type: 'permanent' }), 'temporary', undefined, true), null, `${status} of any type`);
+  }
+  // An Active person keeps their type: an Active Permanent person is never converted, so they are still refused.
+  assert.deepEqual(notChoosable(person(19, 'ActPerm', { status: 'active', employment_type: 'permanent' }), 'temporary', undefined, true), { reason: 'not_temporary' });
   assert.deepEqual(notChoosable(person(15, 'Self', { status: 'waiting' }), 'temporary', '15', true), { reason: 'covered_person' });
   assert.deepEqual(notChoosable(person(16, 'Act', { status: 'active', registration_workflow: incomplete }), 'temporary', undefined, true), { reason: 'registration_incomplete' }, 'an Active person is held to the registration rule as before');
 });
@@ -161,14 +166,14 @@ test('without the new-cover option nothing changes: a Waiting or Applicant perso
 test('new-cover form options: the Waiting / Applicant person is selectable and says they become Active when saved; nobody is activated by choosing', () => {
   const options = pickerOptions(
     [person(20, 'Active One'), person(21, 'Waiting One', { status: 'waiting' }), person(22, 'Applicant One', { status: 'applicant' }), person(23, 'Approved One', { status: 'approved' })],
-    { employmentType: 'temporary', reasonText: say, allowNotYetActive: true, activeOnSaveText: (status) => `${status} - becomes Active when saved` },
+    { employmentType: 'temporary', reasonText: say, allowNotYetActive: true, activeOnSaveText: (status) => `${status} - becomes Active and Temporary when saved` },
   );
 
   assert.deepEqual(options.filter((o) => !o.disabled).map((o) => o.value), ['20', '21', '22']);
   assert.deepEqual(options.find((o) => o.value === '21')?.becomesActive, 'waiting');
   assert.deepEqual(options.find((o) => o.value === '22')?.becomesActive, 'applicant');
   assert.equal(options.find((o) => o.value === '20')?.becomesActive, undefined, 'an Active person is not changed by saving');
-  assert.match(options.find((o) => o.value === '21')?.label ?? '', /waiting - becomes Active when saved/);
+  assert.match(options.find((o) => o.value === '21')?.label ?? '', /waiting - becomes Active and Temporary when saved/);
   assert.equal(options.find((o) => o.value === '23')?.disabled, true, 'Approved stays refused');
 });
 

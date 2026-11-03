@@ -20,13 +20,14 @@ final class PayrollSheetBuilder
 
     /**
      * @param  list<array{employee_id: int|string, name: string, company: string, workplace?: ?string, status?: string, salary_periods: list<array{from: string, to?: ?string, monthly_cents: int}>, employed_from?: ?string, employed_to?: ?string, deductions?: list<array{type: string, cents: int}>, payroll_status?: string, replacements?: list<array{replacement_id: int|string, employee_id: int|string, name: string, start_date: string, end_date?: ?string, approved?: bool, workdays: list<array{date: string, verified: bool}>}>}>  $permanents
-     * @return array{period: string, rows: list<array<string, mixed>>, totals: array<string, int>, reconciliation: array{children_approved_cents: int, parent_deductions_cents: int, ok: bool}}
+     * @return array{period: string, rows: list<array<string, mixed>>, totals: array<string, int>, reconciliation: array{children_approved_cents: int, parent_deductions_cents: int, capped_cents: int, ok: bool}}
      */
     public function build(string $period, array $permanents): array
     {
         $rows = [];
         $totals = ['gross_cents' => 0, 'replacement_deduction_cents' => 0, 'other_deduction_cents' => 0, 'net_cents' => 0];
         $childrenApproved = 0;
+        $cappedTotal = 0;
 
         foreach ($permanents as $permanent) {
             $salary = new SalaryTimeline($permanent['salary_periods']);
@@ -68,8 +69,11 @@ final class PayrollSheetBuilder
 
             usort($children, fn (array $a, array $b): int => [$a['start_date'], (string) $a['replacement_id']] <=> [$b['start_date'], (string) $b['replacement_id']]);
 
-            $replacementDeduction = array_sum(array_map(fn (array $c): int => $c['deducted_from_parent'] ? $c['amount_cents'] : 0, $children));
             $other = array_sum(array_column($permanent['deductions'] ?? [], 'cents'));
+            // The Temporary's amount stays the full cost; what is taken off the Permanent never exceeds what the salary has left (ReplacementDeductionCap).
+            $approvedCosts = array_map(fn (array $c): int => $c['deducted_from_parent'] ? $c['amount_cents'] : 0, $children);
+            $replacementDeduction = array_sum(ReplacementDeductionCap::allocate(ReplacementDeductionCap::available($gross['gross_cents'], $other), $approvedCosts));
+            $capped = array_sum($approvedCosts) - $replacementDeduction;
             $totalDeductions = $replacementDeduction + $other;
             $net = $gross['gross_cents'] - $totalDeductions;
 
@@ -102,7 +106,8 @@ final class PayrollSheetBuilder
             $totals['replacement_deduction_cents'] += $replacementDeduction;
             $totals['other_deduction_cents'] += $other;
             $totals['net_cents'] += $net;
-            $childrenApproved += $replacementDeduction;
+            $childrenApproved += $replacementDeduction + $capped;
+            $cappedTotal += $capped;
         }
 
         return [
@@ -112,7 +117,8 @@ final class PayrollSheetBuilder
             'reconciliation' => [
                 'children_approved_cents' => $childrenApproved,
                 'parent_deductions_cents' => $totals['replacement_deduction_cents'],
-                'ok' => $childrenApproved === $totals['replacement_deduction_cents'],
+                'capped_cents' => $cappedTotal,
+                'ok' => $childrenApproved === $totals['replacement_deduction_cents'] + $cappedTotal,
             ],
         ];
     }

@@ -15,6 +15,7 @@ use App\Models\TemporaryReplacement;
 use App\Support\ApiResponse;
 use App\Support\Hr\CoverConflicts;
 use App\Support\Hr\EmployeeRegistrationWorkflow;
+use App\Support\Hr\EmploymentTypeChange;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -26,8 +27,8 @@ use Illuminate\Support\Facades\DB;
  * work" needs no special handling: the replacement is picked from the full
  * employee list, independent of which company they normally work for.
  *
- * Who may be chosen (owner decision 2026-11-03): an Active, Waiting or Applicant Temporary employee. Choosing changes nothing. Only when the cover is
- * SAVED does a Waiting / Applicant person become Active - exactly that person, through the normal status workflow (history + audit), or, when that
+ * Who may be chosen (owner decision 2026-11-03): an Active Temporary employee, or a Waiting / Applicant person. Choosing changes nothing. Only when the cover is
+ * SAVED does a Waiting / Applicant person become Temporary AND Active - exactly that person (an Active person keeps their type), through the normal status workflow (history + audit), or, when that
  * workflow refuses (Applicant is not one step from Active; a new registration has not finished the registration steps), as a RECORDED EXCEPTION (status
  * history source temporary_cover_exception with the reason and what was missing, an audit event, listed by the HR compliance report). The activation and
  * the cover are one transaction: when the cover is refused or fails, the person's status, history and audit are exactly as they were.
@@ -64,8 +65,12 @@ class CreateTemporaryReplacementAction
                 empty($data['end_date']) ? null : CarbonImmutable::parse($data['end_date'])->toDateString(),
             );
 
-            // Only now - every rule passed - is a Waiting / Applicant person made Active, inside this same transaction.
-            $this->activate($locked, $workAssignment, $actor);
+            // Only now - every rule passed - is a Waiting / Applicant person made Temporary and Active, inside this same transaction. A person who is
+            // already Active is left exactly as they are (their type was required to be Temporary above).
+            if ($locked->status !== EmployeeStatus::Active) {
+                $this->classifyAsTemporary($locked, $workAssignment, $actor);
+                $this->activate($locked, $workAssignment, $actor);
+            }
 
             $replacement = TemporaryReplacement::query()->create([
                 ...$data,
@@ -129,7 +134,9 @@ class CreateTemporaryReplacementAction
             );
         }
 
-        if ($replacementEmployee->employment_type !== 'temporary') {
+        // An Active person must already be Temporary (never converted here). A Waiting / Applicant person has no real type yet (the column only holds its
+        // default): saving the cover makes them Temporary (classifyAsTemporary), so they are not held back by it.
+        if ($replacementEmployee->employment_type !== 'temporary' && ! $notYetActive) {
             throw new HttpResponseException(
                 ApiResponse::error(
                     "Employee '{$replacementEmployee->full_name}' is not classified as Temporary. Set the employment type to Temporary first.",
@@ -148,6 +155,36 @@ class CreateTemporaryReplacementAction
                 ),
             );
         }
+    }
+
+    /**
+     * A Waiting / Applicant person recorded as a Temporary replacement becomes a Temporary employee (owner decision 2026-11-03). Only the selected person is
+     * touched. The same rule as editing the type applies (EmploymentTypeChange: refused while the person still holds an Active assignment), so a refusal
+     * rolls the whole save back. The change is audited with the same metadata an edit of the type writes (payroll reads it to date the change).
+     */
+    private function classifyAsTemporary(Employee $locked, EmployeeWorkAssignment $workAssignment, Admin $actor): void
+    {
+        if ($locked->employment_type === 'temporary') {
+            return;
+        }
+
+        EmploymentTypeChange::assertAllowed($locked, 'temporary');
+
+        $from = $locked->employment_type;
+        $locked->update(['employment_type' => 'temporary']);
+
+        event(AuditEvent::record(
+            action: AuditAction::Update,
+            admin: $actor,
+            description: "Employee '{$locked->full_name}' ({$locked->employee_number}) set to Temporary when recorded as the temporary replacement for work assignment #{$workAssignment->id}.",
+            entityType: Employee::class,
+            entityId: $locked->id,
+            metadata: [
+                'event' => 'temporary_cover_type_set',
+                'employment_type' => ['from' => $from, 'to' => 'temporary'],
+                'work_assignment_id' => $workAssignment->id,
+            ],
+        ));
     }
 
     /**

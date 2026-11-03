@@ -230,15 +230,140 @@ class TemporaryReplacementActivationTest extends TestCase
         return ['Recruitment' => ['recruitment'], 'Practical' => ['practical'], 'Approved' => ['approved'], 'Inactive' => ['inactive']];
     }
 
-    #[DataProvider('preActive')]
-    public function test_a_person_who_is_not_a_temporary_employee_is_still_refused_and_is_not_activated(string $status): void
+    public function test_an_active_permanent_employee_is_still_refused_and_never_converted(): void
     {
-        $person = $this->person($status, type: 'permanent');
+        $person = $this->person('active', type: 'permanent');
 
         $this->save($person)->assertStatus(422)->assertJsonPath('error_code', 'REPLACEMENT_EMPLOYEE_NOT_TEMPORARY');
 
-        $this->assertSame($status, $this->statusOf($person));
-        $this->assertSame(0, EmployeeStatusHistory::query()->where('employee_id', $person->id)->count());
+        $this->assertSame(['active', 'permanent'], [$this->statusOf($person), $this->typeOf($person)]);
+        $this->assertSame(0, TemporaryReplacement::query()->count());
+    }
+
+    // ------------------------------------------------------------------ the type: a Waiting / Applicant person becomes Temporary when the cover is saved
+
+    private function typeOf(Employee $employee): string
+    {
+        return (string) DB::table('employees')->where('id', $employee->id)->value('employment_type');
+    }
+
+    #[DataProvider('preActive')]
+    public function test_a_waiting_or_applicant_person_with_no_real_type_becomes_active_and_temporary_only_when_the_cover_is_saved(string $status): void
+    {
+        // The stored value of a person who was never given a type is the column default, 'permanent'.
+        $person = $this->person($status, type: 'permanent');
+        $bystander = $this->person($status, type: 'permanent');
+        $activePermanent = $this->person('active', type: 'permanent');
+
+        $this->assertSame([$status, 'permanent'], [$this->statusOf($person), $this->typeOf($person)], 'choosing / looking changes nothing');
+
+        $this->save($person)->assertCreated();
+
+        $this->assertSame(['active', 'temporary'], [$this->statusOf($person), $this->typeOf($person)]);
+        $this->assertSame([$status, 'permanent'], [$this->statusOf($bystander), $this->typeOf($bystander)], 'nobody else is touched');
+        $this->assertSame(['active', 'permanent'], [$this->statusOf($activePermanent), $this->typeOf($activePermanent)], 'unrelated employees keep their type');
+        $this->assertSame(1, AuditLog::query()->where('entity_type', Employee::class)->where('entity_id', $person->id)->where('metadata->event', 'temporary_cover_type_set')->count());
+        $this->assertSame(1, TemporaryReplacement::query()->where('replacement_employee_id', $person->id)->count());
+    }
+
+    public function test_an_applicant_made_temporary_and_active_is_listed_by_the_compliance_trail_as_a_recorded_exception(): void
+    {
+        $person = $this->person('applicant', type: 'permanent');
+
+        $this->save($person)->assertCreated();
+
+        $history = EmployeeStatusHistory::query()->where('employee_id', $person->id)->sole();
+        $this->assertSame(['applicant', 'active', 'temporary_cover_exception'], [$history->from_status->value, $history->to_status->value, $history->source]);
+        $this->assertSame(1, AuditLog::query()->where('entity_type', Employee::class)->where('entity_id', $person->id)->where('metadata->event', 'temporary_cover_exception')->count());
+    }
+
+    public function test_the_hr_compliance_report_lists_an_applicant_made_active_for_a_cover_but_not_a_waiting_person_or_an_active_one(): void
+    {
+        $applicant = $this->person('applicant', type: 'permanent');
+        $waiting = $this->person('waiting', type: 'permanent');
+        $active = $this->person('active');
+        $this->save($applicant)->assertCreated();
+        $this->save($waiting, ['start_date' => '2026-10-12', 'end_date' => '2026-10-14'])->assertCreated();
+        $this->save($active, ['start_date' => '2026-10-16', 'end_date' => '2026-10-18'])->assertCreated();
+
+        $this->app['auth']->forgetGuards();
+        $findings = $this->withToken($this->token)->getJson('/api/v1/admin/hr/compliance/findings')->assertOk()->json('data.findings');
+        $codesOf = fn (Employee $e): array => array_column(array_filter($findings, fn (array $f): bool => $f['employee_id'] === $e->id), 'code');
+
+        $this->assertContains('APPLICANT_ACTIVATED_FOR_TEMPORARY_COVER', $codesOf($applicant));
+        $this->assertNotContains('APPLICANT_ACTIVATED_FOR_TEMPORARY_COVER', $codesOf($waiting), 'Waiting -> Active is a normal step');
+        $this->assertNotContains('APPLICANT_ACTIVATED_FOR_TEMPORARY_COVER', $codesOf($active));
+        $row = collect($findings)->firstWhere('code', 'APPLICANT_ACTIVATED_FOR_TEMPORARY_COVER');
+        $this->assertSame('needs_review', $row['confidence']);
+        $this->assertStringContainsString('temporary replacement', strtolower((string) $row['explanation']));
+    }
+
+    #[DataProvider('preActive')]
+    public function test_a_refused_cover_leaves_status_and_type_unchanged(string $status): void
+    {
+        $person = $this->person($status, type: 'permanent');
+        $this->save($this->person('active'))->assertCreated();
+
+        $this->save($person, ['start_date' => '2026-10-08', 'end_date' => '2026-10-12'])->assertStatus(422); // overlaps the first cover
+
+        $this->assertSame([$status, 'permanent'], [$this->statusOf($person), $this->typeOf($person)]);
+        $this->assertSame(0, AuditLog::query()->where('entity_type', Employee::class)->where('entity_id', $person->id)->count());
+    }
+
+    #[DataProvider('preActive')]
+    public function test_a_database_failure_rolls_the_type_change_back_too(string $status): void
+    {
+        $person = $this->person($status, type: 'permanent');
+        TemporaryReplacement::creating(function (): never {
+            throw new \RuntimeException('simulated database failure');
+        });
+
+        try {
+            $this->save($person);
+        } catch (\Throwable) {
+            // either a 500 or rethrown: nothing may remain
+        }
+
+        TemporaryReplacement::flushEventListeners();
+        $this->assertSame([$status, 'permanent'], [$this->statusOf($person), $this->typeOf($person)]);
+        $this->assertSame(0, AuditLog::query()->where('entity_type', Employee::class)->where('entity_id', $person->id)->count());
+    }
+
+    #[DataProvider('preActive')]
+    public function test_a_person_who_still_holds_an_active_assignment_is_not_converted_and_the_save_is_refused(string $status): void
+    {
+        $person = $this->person($status, type: 'permanent');
+        // An Active assignment that starts later: it does not overlap the cover (so the overlap rule is not what refuses), but it would lose its pay line.
+        $this->makeAssignment($person, $this->makeCompany('Other Co'), null, 200, '2026-12-01');
+
+        $this->save($person)->assertStatus(422)->assertJsonPath('error_code', 'EMPLOYMENT_TYPE_CHANGE_BLOCKED_ACTIVE_ASSIGNMENT');
+
+        $this->assertSame([$status, 'permanent'], [$this->statusOf($person), $this->typeOf($person)]);
+        $this->assertSame(0, TemporaryReplacement::query()->count());
+    }
+
+    public function test_an_active_temporary_employee_keeps_their_type_and_gets_no_type_audit(): void
+    {
+        $person = $this->person('active');
+
+        $this->save($person)->assertCreated();
+
+        $this->assertSame(['active', 'temporary'], [$this->statusOf($person), $this->typeOf($person)]);
+        $this->assertSame(0, AuditLog::query()->where('entity_type', Employee::class)->where('entity_id', $person->id)->count());
+    }
+
+    public function test_the_new_cover_pool_lists_waiting_and_applicant_people_of_any_type_but_only_temporary_active_people(): void
+    {
+        $activeTemp = $this->person('active');
+        $activePerm = $this->person('active', type: 'permanent');
+        $waitingPerm = $this->person('waiting', type: 'permanent');
+        $applicantPerm = $this->person('applicant', type: 'permanent');
+        $approved = $this->person('approved');
+        $all = [$activeTemp->id, $activePerm->id, $waitingPerm->id, $applicantPerm->id, $approved->id];
+
+        $ids = collect($this->withToken($this->token)->getJson('/api/v1/admin/hr/employees?statuses=active,waiting,applicant&employment_type=temporary&cover_pool=1&per_page=100')->assertOk()->json('data'))->pluck('id')->all();
+
+        $this->assertEqualsCanonicalizing([$activeTemp->id, $waitingPerm->id, $applicantPerm->id], array_values(array_intersect($ids, $all)));
     }
 
     public function test_a_person_cannot_cover_their_own_position_and_is_not_activated_by_trying(): void

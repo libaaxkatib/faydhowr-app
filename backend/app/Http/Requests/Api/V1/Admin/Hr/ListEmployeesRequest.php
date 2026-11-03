@@ -57,6 +57,10 @@ class ListEmployeesRequest extends FormRequest
             $this->merge(['search_by_id' => filter_var($this->query('search_by_id'), FILTER_VALIDATE_BOOLEAN)]);
         }
 
+        if ($this->has('cover_pool')) {
+            $this->merge(['cover_pool' => filter_var($this->query('cover_pool'), FILTER_VALIDATE_BOOLEAN)]);
+        }
+
         if ($this->has('historical_rejected')) {
             $this->merge(['historical_rejected' => filter_var($this->query('historical_rejected'), FILTER_VALIDATE_BOOLEAN)]);
         }
@@ -73,6 +77,9 @@ class ListEmployeesRequest extends FormRequest
             'statuses' => ['sometimes', 'string', 'max:100', 'regex:/^('.implode('|', EmployeeStatus::values()).')(,('.implode('|', EmployeeStatus::values()).'))*$/'],
             // The Permanent / Temporary classification (a person without one counts as Permanent, the default). Used by the Temporary replacement pickers.
             'employment_type' => ['sometimes', Rule::in(['permanent', 'temporary'])],
+            // true (with `statuses` and `employment_type`) = the new-cover picker's pool: the type is asked of Active people only, because saving the cover makes a
+            // Waiting / Applicant person Temporary.
+            'cover_pool' => ['sometimes', 'boolean'],
             'pipeline_stage' => ['sometimes', Rule::in(EmployeePipelineStage::values())],
             'employee_category_id' => ['sometimes', 'integer', 'exists:employee_categories,id'],
             'department_id' => ['sometimes', 'integer', 'exists:departments,id'],

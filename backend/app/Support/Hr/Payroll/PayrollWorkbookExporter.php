@@ -23,7 +23,7 @@ final class PayrollWorkbookExporter
     ];
 
     /**
-     * @param  array{period: string, rows: list<array<string, mixed>>, totals: array<string, int>, reconciliation: array{children_approved_cents: int, parent_deductions_cents: int, ok: bool}}  $sheet
+     * @param  array{period: string, rows: list<array<string, mixed>>, totals: array<string, int>, reconciliation: array{children_approved_cents: int, parent_deductions_cents: int, capped_cents?: int, ok: bool}}  $sheet
      */
     public function write(array $sheet, string $path, string $title = 'Month-end payroll'): void
     {
@@ -73,8 +73,9 @@ final class PayrollWorkbookExporter
         $ws->setCellValueExplicit("T{$rowNumber}", PayrollMoney::format($totals['net_cents']), DataType::TYPE_STRING);
         $ws->getStyle("A{$rowNumber}:V{$rowNumber}")->getFont()->setBold(true);
         $rowNumber++;
-        $ws->setCellValue("B{$rowNumber}", 'Reconciliation: approved Temporary amounts = Permanent replacement deductions');
-        $ws->setCellValue("Q{$rowNumber}", PayrollMoney::format($sheet['reconciliation']['children_approved_cents']).' vs '.PayrollMoney::format($sheet['reconciliation']['parent_deductions_cents']));
+        $capped = (int) ($sheet['reconciliation']['capped_cents'] ?? 0);
+        $ws->setCellValue("B{$rowNumber}", 'Reconciliation: approved Temporary amounts = Permanent replacement deductions'.($capped > 0 ? ' + the part not deducted because a Permanent net is never below 0' : ''));
+        $ws->setCellValue("Q{$rowNumber}", PayrollMoney::format($sheet['reconciliation']['children_approved_cents']).' vs '.PayrollMoney::format($sheet['reconciliation']['parent_deductions_cents']).($capped > 0 ? ' + '.PayrollMoney::format($capped).' not deducted' : ''));
         $ws->setCellValue("T{$rowNumber}", $sheet['reconciliation']['ok'] ? 'OK' : 'MISMATCH');
         $ws->freezePane('C4');
 

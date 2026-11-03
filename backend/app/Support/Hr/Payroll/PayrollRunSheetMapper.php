@@ -23,13 +23,14 @@ class PayrollRunSheetMapper
     ];
 
     /**
-     * @return array{period: string, rows: list<array<string, mixed>>, totals: array<string, int>, reconciliation: array{children_approved_cents: int, parent_deductions_cents: int, ok: bool}}
+     * @return array{period: string, rows: list<array<string, mixed>>, totals: array<string, int>, reconciliation: array{children_approved_cents: int, parent_deductions_cents: int, capped_cents: int, ok: bool}}
      */
     public function map(PayrollRun $run): array
     {
         $rows = [];
         $totals = ['gross_cents' => 0, 'replacement_deduction_cents' => 0, 'other_deduction_cents' => 0, 'net_cents' => 0];
         $childrenApproved = 0;
+        $capped = 0;
 
         $items = $run->items()->with('deductions', 'section')->whereNull('voided_at')->orderBy('company_name')->orderBy('employee_name')->orderBy('id')->get();
 
@@ -85,6 +86,8 @@ class PayrollRunSheetMapper
             $totals['other_deduction_cents'] += (int) $item->other_deduction_cents - (int) $item->adjustment_cents;
             $totals['net_cents'] += (int) $item->net_cents;
             $childrenApproved += (int) collect($children)->where('deducted_from_parent', true)->sum('amount_cents');
+            // What a Temporary was owed but the Permanent's salary could not give (net never below 0): kept in each deduction's detail when the run was calculated.
+            $capped += (int) $item->deductions->where('kind', PayrollItemDeduction::KIND_REPLACEMENT)->sum(fn (PayrollItemDeduction $d): int => (int) ($d->detail['not_deducted_cents'] ?? 0));
         }
 
         return [
@@ -94,7 +97,8 @@ class PayrollRunSheetMapper
             'reconciliation' => [
                 'children_approved_cents' => $childrenApproved,
                 'parent_deductions_cents' => $totals['replacement_deduction_cents'],
-                'ok' => $childrenApproved === $totals['replacement_deduction_cents'],
+                'capped_cents' => $capped,
+                'ok' => $childrenApproved === $totals['replacement_deduction_cents'] + $capped,
             ],
         ];
     }

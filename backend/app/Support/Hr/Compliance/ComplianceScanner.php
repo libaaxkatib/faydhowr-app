@@ -150,6 +150,19 @@ final class ComplianceScanner
             );
         }
 
+        // An Applicant who was made Active when recorded as a Temporary replacement (owner decision 2026-11-03): Applicant -> Active is not a step of the
+        // lifecycle, so HR is told about every such person - whether or not the registration steps were also missing (that is the finding below).
+        if ($employee->status === EmployeeStatus::Active && $activation?->source === EmployeeRegistrationWorkflow::SOURCE_COVER_EXCEPTION && $activation->from_status === EmployeeStatus::Applicant) {
+            $out[] = $this->finding(
+                $employee, $primary, 'APPLICANT_ACTIVATED_FOR_TEMPORARY_COVER', self::CATEGORY_WORKFLOW, 'medium', HrComplianceFinding::NEEDS_REVIEW,
+                'An Applicant was made Active and Temporary when recorded as a Temporary replacement.',
+                'Applicant -> Active is not a step of the HR lifecycle; it was done as a recorded exception when the cover was saved. Reason on record: '.($activation->override_reason ?? 'not recorded'),
+                'Confirm the exception with the person who recorded it and complete the recruitment steps that were skipped.',
+                ['exception_reason' => $activation->override_reason, 'exception_source' => $activation->source, 'recorded_on' => $activation->created_at?->toDateString()],
+                $this->activationActor($activation),
+            );
+        }
+
         if ($this->workflow->appliesTo($employee)) {
             $missing = $this->workflow->missing($employee);
 

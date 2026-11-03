@@ -9,7 +9,7 @@
 // on save: nothing here makes anybody eligible, converts a type, or bypasses a check.
 //
 // The NEW-cover form (owner decision 2026-11-03) also accepts a Waiting or Applicant person (`allowNotYetActive`): choosing them changes nothing; saving the
-// cover is what makes them Active. Every other picker (the covered person, correcting a cover) is unchanged: it still needs an Active person.
+// cover is what makes them Active AND Temporary (an Active person keeps the type they have). Every other picker (the covered person, correcting a cover) is unchanged: it still needs an Active person.
 
 export type PickerEmploymentType = 'permanent' | 'temporary';
 
@@ -21,6 +21,8 @@ export interface PickerParams {
   status?: 'active';
   /** Only without a search, in the new-cover form: Active, Waiting and Applicant people together (comma separated). */
   statuses?: string;
+  /** With `statuses`: the type is asked of Active people only (a Waiting / Applicant person becomes Temporary when the cover is saved). */
+  cover_pool?: boolean;
   employment_type?: PickerEmploymentType;
   search?: string;
   search_by_id?: boolean;
@@ -38,7 +40,7 @@ export function pickerParams(employmentType: PickerEmploymentType, search: strin
   if (term !== '') return { search: term, search_by_id: true, per_page: PICKER_PAGE_SIZE, page };
 
   return allowNotYetActive
-    ? { statuses: NEW_COVER_STATUSES.join(','), employment_type: employmentType, per_page: PICKER_PAGE_SIZE, page }
+    ? { statuses: NEW_COVER_STATUSES.join(','), employment_type: employmentType, cover_pool: true, per_page: PICKER_PAGE_SIZE, page }
     : { status: 'active', employment_type: employmentType, per_page: PICKER_PAGE_SIZE, page };
 }
 
@@ -79,8 +81,9 @@ export function notChoosable(employee: PickerEmployee, employmentType: PickerEmp
   // The type: a row without a type is Permanent (the default of the employee record).
   const isTemporary = employee.employment_type === 'temporary';
   if (employmentType === 'temporary') {
-    // The type is the more basic reason (a Permanent person's registration is irrelevant to covering), so it is said first.
-    if (!isTemporary) return { reason: 'not_temporary' };
+    // The type is the more basic reason (a Permanent person's registration is irrelevant to covering), so it is said first. A Waiting / Applicant person
+    // has no real type yet: saving the cover makes them Temporary, so the type is not asked of them.
+    if (!isTemporary && !notYetActive) return { reason: 'not_temporary' };
     // A Waiting / Applicant person is not held back here: saving the cover activates them, as a recorded exception when the registration steps are not complete.
     if (!notYetActive && employee.registration_workflow?.eligible_for_waiting_and_company === false) return { reason: 'registration_incomplete' };
   } else if (isTemporary) {
