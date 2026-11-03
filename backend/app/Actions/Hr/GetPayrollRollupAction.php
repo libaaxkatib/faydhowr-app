@@ -8,6 +8,7 @@ use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\Payroll\PayrollPeriodView;
 use App\Support\Hr\Payroll\PayrollSummaryPresenter;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * docs/HRM_MARKETING_SRS.md HR Phase 6: a management-level payroll rollup for
@@ -28,6 +29,7 @@ class GetPayrollRollupAction
     {
         $view = $this->periodView->forPeriod($payrollPeriod);
         $lines = collect($view['lines']);
+        $sections = $this->sectionCounts($view['run_id']);
 
         $assignments = EmployeeWorkAssignment::query()
             ->with(['workLocation.clientCompany'])
@@ -74,6 +76,9 @@ class GetPayrollRollupAction
                 'estimate_note' => $view['is_estimate'] ? PayrollSummaryPresenter::ESTIMATE_NOTE : null,
                 'run_id' => $view['run_id'],
                 'run_status' => $view['run_status'],
+                // Companies finalize on their own: "3 of 118 companies finalized". Null for a month without company sections.
+                'companies_total' => $sections['total'],
+                'companies_finalized' => $sections['finalized'],
                 'differs_from_run' => $view['differs_from_run'],
                 'row_count' => $rows->count(),
                 'totals' => [
@@ -86,5 +91,19 @@ class GetPayrollRollupAction
                 'warnings' => $view['warnings'],
             ],
         ];
+    }
+
+    /**
+     * @return array{total: ?int, finalized: ?int}
+     */
+    private function sectionCounts(?int $runId): array
+    {
+        if ($runId === null) {
+            return ['total' => null, 'finalized' => null];
+        }
+
+        $row = DB::table('payroll_run_sections')->where('payroll_run_id', $runId)->selectRaw("count(*) as total, coalesce(sum(case when status = 'finalized' then 1 else 0 end), 0) as finalized")->first();
+
+        return (int) $row->total === 0 ? ['total' => null, 'finalized' => null] : ['total' => (int) $row->total, 'finalized' => (int) $row->finalized];
     }
 }

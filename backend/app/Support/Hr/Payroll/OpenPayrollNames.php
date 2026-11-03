@@ -41,6 +41,11 @@ final class OpenPayrollNames
     /** @return Builder<PayrollItem> */
     private static function open(): Builder
     {
-        return PayrollItem::query()->whereHas('run', fn (Builder $run) => $run->whereIn('status', [PayrollRun::STATUS_DRAFT, PayrollRun::STATUS_REVIEWED]));
+        // Open = a line a regenerated draft can still rebuild: its run is draft / reviewed AND its company section (when it has one) is too.
+        $open = [PayrollRun::STATUS_DRAFT, PayrollRun::STATUS_REVIEWED];
+
+        return PayrollItem::query()
+            ->whereHas('run', fn (Builder $run) => $run->whereIn('status', $open))
+            ->where(fn (Builder $q) => $q->whereNull('section_id')->orWhereHas('section', fn (Builder $section) => $section->whereIn('status', $open)));
     }
 }

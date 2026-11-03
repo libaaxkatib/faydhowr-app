@@ -22,9 +22,17 @@ export function workplaceName(workplace: Pick<WorkplacePayrollSummary, 'company_
   return company || location || '—';
 }
 
-/** Payments can be recorded for a finalized month, by someone allowed to, for a workplace that still has an outstanding balance. */
-export function canRecordPayment(workplace: Pick<WorkplacePayrollSummary, 'payable' | 'outstanding_cents'>, monthCanRecord: boolean, userCanRecord: boolean): boolean {
-  return monthCanRecord && userCanRecord && workplace.payable && workplace.outstanding_cents > 0;
+/**
+ * Payments can be recorded by someone allowed to, for a workplace whose OWN company is finalized (a month that is only partly finalized does not
+ * stop the companies that are), and that still has an outstanding balance.
+ */
+export function canRecordPayment(workplace: Pick<WorkplacePayrollSummary, 'payable' | 'outstanding_cents' | 'can_record'>, userCanRecord: boolean): boolean {
+  return userCanRecord && workplace.can_record && workplace.payable && workplace.outstanding_cents > 0;
+}
+
+/** True when the workplace has money to pay but its company is not finalized yet: the screen then says "Company not finalized yet". */
+export function waitsForCompanyFinalization(workplace: Pick<WorkplacePayrollSummary, 'payable' | 'can_record' | 'outstanding_cents'>): boolean {
+  return workplace.payable && !workplace.can_record && workplace.outstanding_cents > 0;
 }
 
 /** Whole cents of an amount typed in dollars with at most two decimals, or null when it is not such an amount. */

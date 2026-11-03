@@ -60,7 +60,7 @@ class DecideEmployeeLeaveAction
             $this->fail('Only unpaid leave needs a decision; other leave types are effective when recorded.', 'LEAVE_NOT_UNPAID');
         }
 
-        RecordEmployeeLeaveAction::assertMonthsOpenFor($this->lock, $leave->start_date->toDateString(), $leave->end_date->toDateString());
+        RecordEmployeeLeaveAction::assertMonthsOpenFor($this->lock, $leave->start_date->toDateString(), $leave->end_date->toDateString(), (int) $leave->employee_id);
     }
 
     private function decide(EmployeeLeave $leave, string $status, ?string $note, Admin $actor): EmployeeLeave

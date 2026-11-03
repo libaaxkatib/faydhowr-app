@@ -57,6 +57,7 @@ use App\Http\Controllers\Api\V1\Admin\Hr\MonthlyPaymentReportController as Admin
 use App\Http\Controllers\Api\V1\Admin\Hr\OfficeStaffController as AdminOfficeStaffController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PayrollCorrectionController as AdminPayrollCorrectionController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PayrollRunController as AdminPayrollRunController;
+use App\Http\Controllers\Api\V1\Admin\Hr\PayrollRunSectionController as AdminPayrollRunSectionController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PayrollWorkplacePaymentController as AdminPayrollWorkplacePaymentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PositionController as AdminPositionController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PracticalBatchController as AdminPracticalBatchController;
@@ -1560,6 +1561,10 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.manage', 'thr
     Route::patch('v1/admin/hr/payroll-runs/{payrollRun}/review', [AdminPayrollRunController::class, 'review'])
         ->whereNumber('payrollRun')
         ->name('api.v1.admin.hr.payroll-runs.review');
+    // ONE company's part of the month (company-level finalization): same permission as the month-level review.
+    Route::patch('v1/admin/hr/payroll-run-sections/{payrollRunSection}/review', [AdminPayrollRunSectionController::class, 'review'])
+        ->whereNumber('payrollRunSection')
+        ->name('api.v1.admin.hr.payroll-run-sections.review');
     // Money outside payroll for a correction (underpayment paid by a Super Admin; debt repaid - Super Admin / HR Manager). The role is checked again in the action.
     Route::post('v1/admin/hr/payroll-corrections/{payrollCorrection}/transactions', [AdminPayrollCorrectionController::class, 'store'])
         ->whereNumber('payrollCorrection')
@@ -1675,6 +1680,16 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.approve', 'th
     Route::patch('v1/admin/hr/payroll-runs/{payrollRun}/finalize', [AdminPayrollRunController::class, 'finalize'])
         ->whereNumber('payrollRun')
         ->name('api.v1.admin.hr.payroll-runs.finalize');
+    // ONE company's part of the month: same permission as the month-level actions (hr.payroll.approve).
+    Route::patch('v1/admin/hr/payroll-run-sections/{payrollRunSection}/approve', [AdminPayrollRunSectionController::class, 'approve'])
+        ->whereNumber('payrollRunSection')
+        ->name('api.v1.admin.hr.payroll-run-sections.approve');
+    Route::patch('v1/admin/hr/payroll-run-sections/{payrollRunSection}/reopen', [AdminPayrollRunSectionController::class, 'reopen'])
+        ->whereNumber('payrollRunSection')
+        ->name('api.v1.admin.hr.payroll-run-sections.reopen');
+    Route::patch('v1/admin/hr/payroll-run-sections/{payrollRunSection}/finalize', [AdminPayrollRunSectionController::class, 'finalize'])
+        ->whereNumber('payrollRunSection')
+        ->name('api.v1.admin.hr.payroll-run-sections.finalize');
     Route::post('v1/admin/hr/payroll-items/{payrollItem}/adjustments', [AdminPayrollRunController::class, 'adjust'])
         ->whereNumber('payrollItem')
         ->name('api.v1.admin.hr.payroll-items.adjustments.store');

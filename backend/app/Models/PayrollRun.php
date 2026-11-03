@@ -37,6 +37,15 @@ class PayrollRun extends Model
         return $this->hasMany(PayrollItem::class);
     }
 
+    /**
+     * The company sections of this month. A run created before company-level finalization has none and keeps its run-level behaviour; a run with
+     * sections takes its own status from them (the least advanced section), see PayrollSections::syncRun.
+     */
+    public function sections(): HasMany
+    {
+        return $this->hasMany(PayrollRunSection::class);
+    }
+
     public function generatedBy(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'generated_by');

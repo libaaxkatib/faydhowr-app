@@ -9,10 +9,10 @@ use App\Models\Admin;
 use App\Models\EmployeePayment;
 use App\Models\PayrollItem;
 use App\Models\PayrollPaymentVoid;
-use App\Models\PayrollRun;
 use App\Support\ApiResponse;
 use App\Support\Hr\Facility\FacilityCalendar;
 use App\Support\Hr\Payroll\PayrollMoney;
+use App\Support\Hr\Payroll\PayrollSections;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
@@ -45,7 +45,7 @@ class VoidPayrollPaymentAction
         return DB::transaction(function () use ($item, $reason, $actor): PayrollItem {
             $item = PayrollItem::query()->with('run')->lockForUpdate()->findOrFail($item->id);
 
-            if ($item->run->status !== PayrollRun::STATUS_FINALIZED || $item->payment_status !== 'paid' || $item->employee_payment_id === null) {
+            if (! PayrollSections::itemFinalized($item) || $item->payment_status !== 'paid' || $item->employee_payment_id === null) {
                 $this->fail('Only a payroll line that is marked paid can have its payment voided. This line is not paid (it may already have been voided).', 'PAYROLL_ITEM_NOT_PAID');
             }
 

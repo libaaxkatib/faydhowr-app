@@ -11,6 +11,7 @@ use App\Models\PayrollRun;
 use App\Support\ApiResponse;
 use App\Support\Hr\Facility\FacilityCalendar;
 use App\Support\Hr\Payroll\PayrollMoney;
+use App\Support\Hr\Payroll\PayrollSections;
 use App\Support\Hr\Payroll\WorkplacePayroll;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -28,7 +29,8 @@ class MarkPayrollItemPaidAction
         return DB::transaction(function () use ($item, $paymentDate, $actor) {
             $item = PayrollItem::query()->with('run')->lockForUpdate()->findOrFail($item->id);
 
-            if ($item->run->status !== PayrollRun::STATUS_FINALIZED) {
+            // The line's own company section decides (a line with no section follows its run).
+            if (! PayrollSections::itemFinalized($item)) {
                 $this->fail('Only lines of a finalized payroll can be marked paid.', 'PAYROLL_RUN_NOT_FINALIZED');
             }
 

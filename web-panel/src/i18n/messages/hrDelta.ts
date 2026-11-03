@@ -173,9 +173,10 @@ export const hrDelta = defineMessages({
   'option.payroll.wpVoidReason': message('Reason', 'Sabab'),
   'validation.payroll.wpVoidReason': message('Give a reason of at least 5 characters.', 'Sheeg sabab ugu yaraan 5 xaraf ah.'),
   'warning.payroll.wpNotFinalized': message(
-    'Payments are recorded once the month is finalized. You can see each workplace\'s total here already.',
-    'Lacag-bixinta waa la diiwaangelin karaa marka bisha la dhammaystiro. Wadarta goob-shaqo kasta halkan hore ayaad ka arki kartaa.',
+    'Payments are recorded for a company once its payroll is finalized. You can see each workplace\'s total here already.',
+    'Lacag-bixinta shirkad waa la diiwaangelin karaa marka mushaharkeeda la dhammaystiro. Wadarta goob-shaqo kasta halkan hore ayaad ka arki kartaa.',
   ),
+  'warning.payroll.wpCompanyNotFinalized': message('Company not finalized yet', 'Shirkadda weli lama dhammaystirin'),
   'notify.payroll.wpRecorded': message('Workplace payment recorded.', 'Lacag-bixinta goobta shaqada waa la diiwaangeliyey.'),
   'notify.payroll.wpVoided': message('Payment voided. It no longer counts; the record is kept.', 'Lacag-bixinta waa la burburiyey. Mid lagu xisaabiyo ma aha; diiwaanka waa la hayaa.'),
   'notify.payroll.wpFailed': message('The payment was not recorded. Nothing was changed.', 'Lacag-bixinta lama diiwaangelin. Waxba lama beddelin.'),
@@ -188,5 +189,28 @@ export const hrDelta = defineMessages({
   'warning.payroll.previewChanged': message(
     'The list changed after the preview was shown, so nothing was downloaded. The preview below is the current list; check it and download again.',
     'Liiska waa isbeddelay ka dib marka horudhaca la muujiyey, sidaas darteed waxba lama soo dejin. Horudhaca hoose waa liiska hadda; hubi oo mar kale soo deji.',
+  ),
+
+  // ---- Company-level finalization: each company of a payroll month is reviewed, approved and finalized on its own
+  'status.payroll.partiallyFinalized': message('Partially finalized', 'Qayb ayaa la dhammaystiray'),
+  'option.payroll.companiesFinalized': message('{finalized} of {total} companies finalized', '{finalized} ka mid ah {total} shirkadood ayaa la dhammaystiray'),
+  'option.payroll.sectionsTitle': message('Payroll by company', 'Mushaharka shirkad kasta'),
+  'option.payroll.sectionsHelp': message(
+    'Each company is reviewed, approved and finalized on its own. Finalizing one company does not finalize the others; the month is finalized when every company is. Payments can be recorded for a company once it is finalized.',
+    'Shirkad kasta si gooni ah ayaa loo eegaa, loo ansixiyaa loona dhammaystiraa. Dhammaystirka hal shirkad kuma dhammaystirayo kuwa kale; bisha waa la dhammaystiraa marka shirkad kasta la dhammaystiro. Lacag-bixinta shirkad waa la diiwaangelin karaa marka la dhammaystiro.',
+  ),
+  'option.payroll.sectionHistory': message('Review, approval and finalization', 'Eegis, ansixin iyo dhammaystir'),
+  'option.payroll.sectionNoCompany': message('No company on the assignment', 'Qoondaynta shirkad kuma jirto'),
+  'option.payroll.sectionShowLines': message('Show its lines', 'Muuji safafkeeda'),
+  'option.payroll.sectionAllLines': message('Show all companies', 'Muuji dhammaan shirkadaha'),
+  'option.payroll.sectionFilteredBy': message('Showing only the lines of {name}.', 'Waxaa la muujinayaa oo keliya safafka {name}.'),
+  'confirm.payroll.sectionFinalizeTitle': message('Finalize {name}?', 'Ma dhammaystirtaa {name}?'),
+  'confirm.payroll.sectionFinalizeBody': message(
+    'Finalize the payroll of {name} for {month}. Other companies are not affected. A finalized company cannot be regenerated or reopened, and payments can then be recorded for it.',
+    'Dhammaystir mushaharka {name} ee {month}. Shirkadaha kale lama saameynayo. Shirkad la dhammaystiray dib looma samayn karo lamana furi karo, lacag-bixinna waa lagu diiwaangelin karaa.',
+  ),
+  'confirm.payroll.sectionReopenBody': message(
+    'Reopen the payroll of {name} for {month}. Only this company becomes a draft again; the others are not affected.',
+    'Dib u fur mushaharka {name} ee {month}. Shirkaddan oo keliya ayaa mar kale noqonaysa qabyo; kuwa kale lama saameynayo.',
   ),
 });

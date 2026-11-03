@@ -31,7 +31,7 @@ class PayrollRunSheetMapper
         $totals = ['gross_cents' => 0, 'replacement_deduction_cents' => 0, 'other_deduction_cents' => 0, 'net_cents' => 0];
         $childrenApproved = 0;
 
-        $items = $run->items()->with('deductions')->whereNull('voided_at')->orderBy('company_name')->orderBy('employee_name')->orderBy('id')->get();
+        $items = $run->items()->with('deductions', 'section')->whereNull('voided_at')->orderBy('company_name')->orderBy('employee_name')->orderBy('id')->get();
 
         foreach ($items as $item) {
             /** @var PayrollItem $item */
@@ -72,7 +72,7 @@ class PayrollRunSheetMapper
                 'other_deductions' => $other,
                 'total_deductions_cents' => (int) $item->gross_cents - (int) $item->net_cents,
                 'net_cents' => (int) $item->net_cents,
-                'payroll_status' => ucfirst($run->status).($item->payment_status === 'paid' ? ' / Paid' : ''),
+                'payroll_status' => ucfirst(PayrollSections::effective($item->section?->status, $run->status)).($item->payment_status === 'paid' ? ' / Paid' : ''),
                 'note' => $item->net_cents < 0 ? 'Negative net payable - needs management decision' : '',
             ];
 

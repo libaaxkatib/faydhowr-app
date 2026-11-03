@@ -85,21 +85,22 @@ class RecordEmployeeLeaveAction
             ));
         }
 
-        $this->assertMonthsOpen($start, $end);
+        $this->assertMonthsOpen($start, $end, $employee->id);
     }
 
     /**
      * Every calendar month touched by the leave must still be open for payroll.
      */
-    public static function assertMonthsOpenFor(PayrollPeriodLock $lock, string $start, string $end): void
+    public static function assertMonthsOpenFor(PayrollPeriodLock $lock, string $start, string $end, ?int $employeeId = null): void
     {
         for ($month = CarbonImmutable::parse($start)->startOfMonth(); $month->lte(CarbonImmutable::parse($end)); $month = $month->addMonth()) {
-            $lock->assertDateEditable($month->toDateString(), 'Unpaid leave');
+            // The days of the leave that fall in this month, for the company (or companies) the employee works for on those days.
+            $lock->assertRangeEditable($month->toDateString(), $start, $end, 'Unpaid leave', $employeeId);
         }
     }
 
-    private function assertMonthsOpen(string $start, string $end): void
+    private function assertMonthsOpen(string $start, string $end, ?int $employeeId = null): void
     {
-        self::assertMonthsOpenFor($this->lock, $start, $end);
+        self::assertMonthsOpenFor($this->lock, $start, $end, $employeeId);
     }
 }

@@ -23,7 +23,7 @@ class RecordEmployeeAdvanceAction
 {
     public function handle(Employee $employee, array $data, Admin $actor): Employee
     {
-        app(PayrollPeriodLock::class)->assertDateEditable($data['payroll_period'].'-01', 'The payroll month of this record');
+        app(PayrollPeriodLock::class)->assertMonthEditable($data['payroll_period'], 'The payroll month of this record', $employee->id);
 
         if ($employee->status !== EmployeeStatus::Active) {
             throw new HttpResponseException(

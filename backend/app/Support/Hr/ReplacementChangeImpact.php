@@ -54,7 +54,7 @@ final class ReplacementChangeImpact
         $lockedChanged = false;
 
         foreach ($periods as $period) {
-            $locked = $this->lock->isLocked($period);
+            $locked = $this->lock->isLockedForAssignment($period, (int) $replacement->work_assignment_id);
             $daysBefore = count(array_filter($before, fn (string $d): bool => str_starts_with($d, $period.'-')));
             $daysAfter = count(array_filter($after, fn (string $d): bool => str_starts_with($d, $period.'-')));
             $changed = array_values(array_filter([...$added, ...$removed], fn (string $d): bool => str_starts_with($d, $period.'-'))) !== [];

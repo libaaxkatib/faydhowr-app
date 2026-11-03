@@ -9,6 +9,7 @@ use App\Models\Admin;
 use App\Models\PayrollCorrection;
 use App\Models\PayrollItem;
 use App\Models\PayrollRun;
+use App\Models\PayrollRunSection;
 use App\Support\ApiResponse;
 use Closure;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -48,8 +49,12 @@ class ClosedPayrollCorrection
             return $change();
         }
 
+        // A month is closed for this change when the run is approved / finalized, or when some company of it is (the lines of the OTHER companies of
+        // such a month are still open and are not counted: see netByEmployee).
         $periods = PayrollRun::query()
-            ->whereIn('status', PayrollPeriodLock::LOCKED_STATUSES)
+            ->where(fn ($q) => $q
+                ->whereIn('status', PayrollPeriodLock::LOCKED_STATUSES)
+                ->orWhereHas('sections', fn ($s) => $s->whereIn('status', PayrollRunSection::LOCKED_STATUSES)))
             ->where('period', '>=', substr($earliestDate, 0, 7))
             ->orderBy('period')
             ->pluck('period')
@@ -115,11 +120,27 @@ class ClosedPayrollCorrection
     private function netByEmployee(array $periods, array $employeeIds): array
     {
         $result = [];
+        $runs = PayrollRun::query()->whereIn('period', $periods)->get()->keyBy('period');
 
         foreach ($periods as $period) {
             $result[$period] = [];
+            $run = $runs->get($period);
+            // Null = every line of the month is closed (the run itself is approved / finalized, or it has no sections); else only the closed companies' lines.
+            $closedCompanies = $run === null || in_array($run->status, PayrollPeriodLock::LOCKED_STATUSES, true)
+                ? null
+                : array_map(fn (?int $id): string => $id === null ? 'none' : (string) $id, PayrollSections::lockedCompanyIds($run));
+            $items = $this->calculator->calculate($period, $employeeIds, false)['items'];
+            $companyOf = $closedCompanies === null ? [] : PayrollSections::companyIdsByAssignment(array_values(array_unique(array_column($items, 'work_assignment_id'))));
 
-            foreach ($this->calculator->calculate($period, $employeeIds, false)['items'] as $item) {
+            foreach ($items as $item) {
+                if ($closedCompanies !== null) {
+                    $company = $companyOf[$item['work_assignment_id']] ?? null;
+
+                    if (! in_array($company === null ? 'none' : (string) $company, $closedCompanies, true)) {
+                        continue;
+                    }
+                }
+
                 $result[$period][$item['employee_id']] = ($result[$period][$item['employee_id']] ?? 0) + (int) $item['net_cents'];
             }
         }
@@ -178,7 +199,11 @@ class ClosedPayrollCorrection
             $run = PayrollRun::query()->where('period', $period)->firstOrFail();
 
             foreach ($employees as $employeeId => $delta) {
-                $items = PayrollItem::query()->where('payroll_run_id', $run->id)->where('employee_id', $employeeId)->whereNull('voided_at')->orderBy('id')->get();
+                // Only the lines that are closed (their company's section is approved / finalized, or the whole run is) are corrected.
+                $runClosed = in_array($run->status, PayrollPeriodLock::LOCKED_STATUSES, true);
+                $items = PayrollItem::query()->with('section')->where('payroll_run_id', $run->id)->where('employee_id', $employeeId)->whereNull('voided_at')
+                    ->when(! $runClosed, fn ($q) => $q->whereHas('section', fn ($s) => $s->whereIn('status', PayrollRunSection::LOCKED_STATUSES)))
+                    ->orderBy('id')->get();
                 $recorded = (int) $items->sum('net_cents');
                 $corrected = $recorded + $delta;
                 $difference = $recorded - $corrected; // > 0: paid more than it should have been
@@ -216,6 +241,8 @@ class ClosedPayrollCorrection
                         'period' => $period,
                         'payroll_run_id' => $run->id,
                         'run_status' => $run->status,
+                        // The company (or companies) whose closed section this correction is about.
+                        'client_company_ids' => $items->map(fn (PayrollItem $i): ?int => $i->section?->client_company_id)->unique()->values()->all(),
                         'recorded_net_cents' => $recorded,
                         'corrected_net_cents' => $corrected,
                         'difference_cents' => $difference,

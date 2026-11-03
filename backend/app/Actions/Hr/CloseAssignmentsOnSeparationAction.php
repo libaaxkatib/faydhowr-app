@@ -188,7 +188,9 @@ class CloseAssignmentsOnSeparationAction
         return PayrollItem::query()
             ->where('employee_id', $employee->id)
             ->where('period', '>', $date->format('Y-m'))
-            ->whereHas('run', fn ($q) => $q->whereIn('status', ['approved', 'finalized']))
+            ->where(fn ($q) => $q
+                ->whereHas('section', fn ($s) => $s->whereIn('status', ['approved', 'finalized']))
+                ->orWhereHas('run', fn ($r) => $r->whereIn('status', ['approved', 'finalized'])))
             ->orderBy('period')
             ->pluck('period')
             ->unique()

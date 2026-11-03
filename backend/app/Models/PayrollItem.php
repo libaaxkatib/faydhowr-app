@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'payroll_run_id', 'period', 'employee_id', 'work_assignment_id', 'employee_name', 'employee_number',
+    'payroll_run_id', 'section_id', 'period', 'employee_id', 'work_assignment_id', 'employee_name', 'employee_number',
     'company_name', 'workplace_name', 'eligible_days', 'days_in_month', 'gross_cents',
     'replacement_deduction_cents', 'other_deduction_cents', 'adjustment_cents', 'net_cents', 'calc_snapshot',
     'payment_status', 'paid_at', 'employee_payment_id', 'voided_at', 'voided_by', 'void_reason',
@@ -27,6 +27,12 @@ class PayrollItem extends Model
     public function run(): BelongsTo
     {
         return $this->belongsTo(PayrollRun::class, 'payroll_run_id');
+    }
+
+    /** The company section this line belongs to; null for a line of a run created before company-level finalization (it follows its run). */
+    public function section(): BelongsTo
+    {
+        return $this->belongsTo(PayrollRunSection::class, 'section_id');
     }
 
     public function employee(): BelongsTo

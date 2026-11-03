@@ -13,6 +13,7 @@ class PayrollItemResource extends JsonResource
         return [
             'id' => $this->id,
             'payroll_run_id' => $this->payroll_run_id,
+            'section_id' => $this->section_id,
             'period' => $this->period,
             'employee_id' => $this->employee_id,
             'employee_number' => $this->employee_number,

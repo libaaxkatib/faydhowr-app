@@ -35,6 +35,8 @@ import { ApiClientError } from '@/api/client';
 import { PAYMENT_LIST_SCOPES, buttonLabel, canDownload, chooseRecordLabel, emptyOptionsMessage, optionsFor, recordFieldLabel, scopeLabel, selectedOption, type PaymentListScope } from '@/utils/paymentListFilter';
 import { PaymentListPreviewDialog } from '@/features/hrm/PaymentListPreviewDialog';
 import { WorkplacePaymentsPanel } from '@/features/hrm/WorkplacePaymentsPanel';
+import { CompanySectionsPanel } from '@/features/hrm/CompanySectionsPanel';
+import { MONTH_STATUS_LABEL, itemsOfSection, lineIsFinalized, monthDisplayStatus, selectedSection } from '@/utils/payrollSections';
 import type {
   PayrollAdjustmentKind,
   PayrollDeductionDetail,
@@ -289,7 +291,12 @@ export function PayrollRunsPage() {
         header: t('option.label.status'),
         id: 'status',
         cell: ({ row }) => (
-          <StatusBadge status={row.original.status} label={t(RUN_STATUS[row.original.status].labelKey)} tone={RUN_STATUS[row.original.status].tone} />
+          <span className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={monthDisplayStatus(row.original)} label={t(MONTH_STATUS_LABEL[monthDisplayStatus(row.original)].labelKey)} tone={MONTH_STATUS_LABEL[monthDisplayStatus(row.original)].tone} />
+            {row.original.sectioned && (
+              <span className="text-xs text-ink-muted">{t('option.payroll.companiesFinalized', { finalized: row.original.sections_finalized ?? 0, total: row.original.sections_total ?? 0 })}</span>
+            )}
+          </span>
         ),
       },
       { header: t('option.label.employees'), id: 'count', cell: ({ row }) => <span className="text-ink">{row.original.item_count}</span> },
@@ -544,6 +551,10 @@ function RunDetail({
 }) {
   const { t } = useI18n();
   const status = RUN_STATUS[run.status];
+  const display = MONTH_STATUS_LABEL[monthDisplayStatus(run)];
+  // The company whose lines the table shows (null = every company); dropped when the month no longer has that company.
+  const [selectedSectionId, setSelectedSectionId] = useState<number | null>(null);
+  const shownSectionId = selectedSection(run.sections ?? [], selectedSectionId)?.id ?? null;
   const trail = [
     run.generated_at &&
       (run.generated_by
@@ -577,7 +588,7 @@ function RunDetail({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-display text-base font-bold text-ink">{t('option.payroll.payrollFor', { month: monthLabel(run.period) })}</h3>
-            <StatusBadge status={run.status} label={t(status.labelKey)} tone={status.tone} />
+            <StatusBadge status={monthDisplayStatus(run)} label={t(display.labelKey)} tone={display.tone} />
           </div>
           <p className="mt-0.5 text-xs text-ink-muted">{t(status.helpKey)}</p>
         </div>
@@ -626,12 +637,16 @@ function RunDetail({
           </div>
         )}
 
+        {run.sectioned && (run.sections?.length ?? 0) > 0 && (
+          <CompanySectionsPanel run={run} monthLabel={monthLabel(run.period)} canManage={canManage} canApprove={canApprove} selectedSectionId={shownSectionId} onSelect={setSelectedSectionId} />
+        )}
+
         {run.items && run.items.length > 0 && <WorkplacePaymentsPanel run={run} canRecord={canApprove} canVoid={canVoid} />}
 
         {!run.items || run.items.length === 0 ? (
           <EmptyState icon="credit-card" title={t('option.payroll.noLines')} description={t('option.payroll.noLinesRun')} />
         ) : (
-          <ItemsTable run={run} canApprove={canApprove} onAdjust={onAdjust} onPay={onPay} canVoid={canVoid} onVoid={onVoid} />
+          <ItemsTable run={run} sectionId={shownSectionId} canApprove={canApprove} onAdjust={onAdjust} onPay={onPay} canVoid={canVoid} onVoid={onVoid} />
         )}
       </CardBody>
     </Card>
@@ -640,6 +655,7 @@ function RunDetail({
 
 function ItemsTable({
   run,
+  sectionId,
   canApprove,
   onAdjust,
   onPay,
@@ -647,6 +663,8 @@ function ItemsTable({
   onVoid,
 }: {
   run: PayrollRun;
+  /** The company whose lines are shown (null = every company). */
+  sectionId: number | null;
   canApprove: boolean;
   onAdjust: (item: PayrollItem) => void;
   onPay: (item: PayrollItem) => void;
@@ -658,8 +676,10 @@ function ItemsTable({
   // Finding a line (display only): the lines of the month are already loaded, so the search and the payment filter work on them here.
   const [search, setSearch] = useState('');
   const [payment, setPayment] = useState<PayrollPaymentFilter>('');
-  const isFinalized = run.status === 'finalized';
-  const allItems = run.items ?? [];
+  const allItems = itemsOfSection(run.items ?? [], sectionId);
+  // Each line follows ITS company: the payment controls of a finalized company work while another company of the same month is still draft.
+  const lineFinal = (item: PayrollItem) => lineIsFinalized(run, item);
+  const isFinalized = allItems.some(lineFinal);
   const items = filterPayrollLines(allItems, search, payment);
   const filtered = search.trim() !== '' || payment !== '';
   const reset = () => {
@@ -756,7 +776,7 @@ function ItemsTable({
                     {item.payment_status === 'paid' ? (
                       <StatusBadge status="paid" label={item.paid_at ? t('status.payroll.paidOn', { date: formatDate(item.paid_at) }) : t('status.payroll.paid')} tone="success" />
                     ) : (
-                      <span className="text-xs text-ink-faint">{isFinalized ? t('status.payroll.notPaidYet') : '—'}</span>
+                      <span className="text-xs text-ink-faint">{lineFinal(item) ? t('status.payroll.notPaidYet') : '—'}</span>
                     )}
                     {(item.payment_voids?.length ?? 0) > 0 && (
                       <span className="mt-1 block text-xs text-warning" data-testid="payment-voided-note">
@@ -766,6 +786,7 @@ function ItemsTable({
                   </td>
                   {isFinalized && canApprove && (
                     <td className="whitespace-nowrap px-3 py-3">
+                      {lineFinal(item) && (
                       <div className="flex items-center gap-1">
                         <Button size="sm" variant="outline" onClick={() => onAdjust(item)}>{t('action.recordAdjustment')}</Button>
                         {item.payment_status !== 'paid' && (
@@ -775,6 +796,7 @@ function ItemsTable({
                           <Button size="sm" variant="outline" onClick={() => onVoid(item)}>{t('action.voidPayment')}</Button>
                         )}
                       </div>
+                      )}
                     </td>
                   )}
                 </tr>

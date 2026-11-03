@@ -23,7 +23,7 @@ class MarkEmployeeAttendanceAction
 {
     public function handle(Employee $employee, string $date, AttendanceStatus $status, ?string $notes, Admin $actor): EmployeeAttendance
     {
-        app(PayrollPeriodLock::class)->assertDateEditable($date, 'Attendance on this date');
+        app(PayrollPeriodLock::class)->assertDateEditable($date, 'Attendance on this date', $employee->id);
 
         if ($employee->status !== EmployeeStatus::Active) {
             throw new HttpResponseException(

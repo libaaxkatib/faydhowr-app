@@ -69,7 +69,7 @@ final class PayrollSummaryPresenter
             'net_payable' => $fmt((int) $line['net_cents']),
             'final_pay' => $line['calc_snapshot']['final_pay'] ?? null,
             'succession' => $line['calc_snapshot']['succession'] ?? null,
-            ...self::provenance($view),
+            ...self::provenance($view, $line),
         ];
     }
 
@@ -108,14 +108,17 @@ final class PayrollSummaryPresenter
      * @param  array<string, mixed>  $view
      * @return array<string, mixed>
      */
-    private static function provenance(array $view): array
+    private static function provenance(array $view, ?array $line = null): array
     {
+        // A month can mix finalized companies with companies still in draft: the line says which it is. Without a line the month's own answer stands.
+        $estimate = isset($line['line_source']) ? $line['line_source'] === PayrollPeriodView::LINE_ESTIMATE : $view['is_estimate'];
+
         return [
-            'source' => $view['source'],
-            'is_estimate' => $view['is_estimate'],
-            'estimate_note' => $view['is_estimate'] ? self::ESTIMATE_NOTE : null,
+            'source' => isset($line['line_source']) ? ($estimate ? PayrollPeriodView::SOURCE_ESTIMATE : PayrollPeriodView::SOURCE_STORED) : $view['source'],
+            'is_estimate' => $estimate,
+            'estimate_note' => $estimate ? self::ESTIMATE_NOTE : null,
             'run_id' => $view['run_id'],
-            'run_status' => $view['run_status'],
+            'run_status' => $line['section_status'] ?? $view['run_status'],
             'differs_from_run' => $view['differs_from_run'],
         ];
     }

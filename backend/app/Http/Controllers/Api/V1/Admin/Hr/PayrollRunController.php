@@ -28,39 +28,49 @@ class PayrollRunController extends Controller
 {
     public function index(): JsonResponse
     {
-        return ApiResponse::success('Payroll runs retrieved successfully.', PayrollRunResource::collection(PayrollRun::query()->orderByDesc('period')->get()));
+        return ApiResponse::success('Payroll runs retrieved successfully.', PayrollRunResource::collection(PayrollRun::query()->withCount(self::sectionCounts())->orderByDesc('period')->get()));
+    }
+
+    /**
+     * How many company sections a month has, and how many are finalized (the counts the month list and the transition answers carry).
+     *
+     * @return array<int|string, mixed>
+     */
+    public static function sectionCounts(): array
+    {
+        return ['sections', 'sections as sections_finalized_count' => fn ($q) => $q->where('status', 'finalized')];
     }
 
     public function show(PayrollRun $payrollRun): JsonResponse
     {
-        $payrollRun->load(['items' => fn ($q) => $q->orderBy('company_name')->orderBy('employee_name'), 'items.deductions', 'items.paymentVoids', 'generatedBy', 'reviewedBy', 'approvedBy', 'finalizedBy']);
+        $payrollRun->load(['items' => fn ($q) => $q->orderBy('company_name')->orderBy('employee_name'), 'items.deductions', 'items.paymentVoids', 'generatedBy', 'reviewedBy', 'approvedBy', 'finalizedBy', 'sections.clientCompany', 'sections.reviewedBy', 'sections.approvedBy', 'sections.finalizedBy']);
 
         return ApiResponse::success('Payroll run retrieved successfully.', new PayrollRunResource($payrollRun));
     }
 
     public function store(GeneratePayrollRunRequest $request, GeneratePayrollRunAction $action): JsonResponse
     {
-        return ApiResponse::success('Payroll draft generated.', new PayrollRunResource($action->handle($request->validated('period'), $request->user())), 201);
+        return ApiResponse::success('Payroll draft generated.', new PayrollRunResource($action->handle($request->validated('period'), $request->user())->loadCount(self::sectionCounts())), 201);
     }
 
     public function review(PayrollRun $payrollRun, TransitionPayrollRunAction $action, Request $request): JsonResponse
     {
-        return ApiResponse::success('Payroll marked reviewed.', new PayrollRunResource($action->review($payrollRun, $request->user())));
+        return ApiResponse::success('Payroll marked reviewed.', new PayrollRunResource($action->review($payrollRun, $request->user())->loadCount(self::sectionCounts())));
     }
 
     public function approve(PayrollRun $payrollRun, TransitionPayrollRunAction $action, Request $request): JsonResponse
     {
-        return ApiResponse::success('Payroll approved.', new PayrollRunResource($action->approve($payrollRun, $request->user())));
+        return ApiResponse::success('Payroll approved.', new PayrollRunResource($action->approve($payrollRun, $request->user())->loadCount(self::sectionCounts())));
     }
 
     public function reopen(ReopenPayrollRunRequest $request, PayrollRun $payrollRun, TransitionPayrollRunAction $action): JsonResponse
     {
-        return ApiResponse::success('Payroll reopened to draft.', new PayrollRunResource($action->reopen($payrollRun, $request->validated('reason'), $request->user())));
+        return ApiResponse::success('Payroll reopened to draft.', new PayrollRunResource($action->reopen($payrollRun, $request->validated('reason'), $request->user())->loadCount(self::sectionCounts())));
     }
 
     public function finalize(PayrollRun $payrollRun, TransitionPayrollRunAction $action, Request $request): JsonResponse
     {
-        return ApiResponse::success('Payroll finalized.', new PayrollRunResource($action->finalize($payrollRun, $request->user())));
+        return ApiResponse::success('Payroll finalized.', new PayrollRunResource($action->finalize($payrollRun, $request->user())->loadCount(self::sectionCounts())));
     }
 
     public function export(PayrollRun $payrollRun, PayrollRunSheetMapper $mapper, PayrollWorkbookExporter $exporter): BinaryFileResponse

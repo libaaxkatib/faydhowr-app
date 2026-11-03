@@ -4,6 +4,7 @@ namespace App\Support\Hr\Payroll;
 
 use App\Models\ClientCompany;
 use App\Models\PayrollRun;
+use App\Models\PayrollRunSection;
 use App\Models\PayrollWorkplacePayment;
 use App\Models\WorkLocation;
 use Illuminate\Support\Facades\DB;
@@ -45,10 +46,11 @@ final class WorkplacePayroll
         return DB::table('payroll_items as i')
             ->join('employee_work_assignments as a', 'a.id', '=', 'i.work_assignment_id')
             ->leftJoin('work_locations as l', 'l.id', '=', 'a.work_location_id')
+            ->leftJoin('payroll_run_sections as s', 's.id', '=', 'i.section_id')
             ->where('i.payroll_run_id', $run->id)
             ->whereNull('i.voided_at')
             ->where('i.net_cents', '>', 0)
-            ->get(['i.id', 'i.net_cents', 'i.payment_status', 'i.company_name', 'i.workplace_name', 'a.work_location_id as location_id', DB::raw('COALESCE(a.client_company_id, l.client_company_id) as company_id')])
+            ->get(['i.id', 'i.net_cents', 'i.payment_status', 'i.company_name', 'i.workplace_name', 'i.section_id', 's.status as section_status', 'a.work_location_id as location_id', DB::raw('COALESCE(a.client_company_id, l.client_company_id) as company_id')])
             ->all();
     }
 
@@ -63,7 +65,9 @@ final class WorkplacePayroll
 
         foreach (self::lines($run) as $line) {
             $key = self::key($line->company_id === null ? null : (int) $line->company_id, $line->location_id === null ? null : (int) $line->location_id);
-            $groups[$key] ??= ['company_id' => $line->company_id === null ? null : (int) $line->company_id, 'location_id' => $line->location_id === null ? null : (int) $line->location_id, 'company_name' => $line->company_name, 'workplace_name' => $line->workplace_name, 'employees' => 0, 'total' => 0, 'line_paid' => 0];
+            $groups[$key] ??= ['company_id' => $line->company_id === null ? null : (int) $line->company_id, 'location_id' => $line->location_id === null ? null : (int) $line->location_id, 'company_name' => $line->company_name, 'workplace_name' => $line->workplace_name, 'employees' => 0, 'total' => 0, 'line_paid' => 0, 'finalized' => true];
+            // Payments follow the company's section: a line with no section follows its run (a run from before company sections).
+            $groups[$key]['finalized'] = $groups[$key]['finalized'] && PayrollSections::effective($line->section_status, $run->status) === PayrollRunSection::STATUS_FINALIZED;
             $groups[$key]['employees']++;
             $groups[$key]['total'] += (int) $line->net_cents;
             $groups[$key]['line_paid'] += $line->payment_status === 'paid' ? (int) $line->net_cents : 0;
@@ -74,7 +78,7 @@ final class WorkplacePayroll
         foreach ($payments as $payment) {
             $key = self::key($payment->client_company_id, $payment->work_location_id);
             // A payment for a workplace that has no payable line any more (an old run edited elsewhere) still shows up, with a zero total.
-            $groups[$key] ??= ['company_id' => $payment->client_company_id, 'location_id' => $payment->work_location_id, 'company_name' => null, 'workplace_name' => null, 'employees' => 0, 'total' => 0, 'line_paid' => 0];
+            $groups[$key] ??= ['company_id' => $payment->client_company_id, 'location_id' => $payment->work_location_id, 'company_name' => null, 'workplace_name' => null, 'employees' => 0, 'total' => 0, 'line_paid' => 0, 'finalized' => $run->status === PayrollRun::STATUS_FINALIZED];
         }
 
         $companies = ClientCompany::query()->whereIn('id', array_filter(array_column($groups, 'company_id')))->get()->keyBy('id');
@@ -93,6 +97,8 @@ final class WorkplacePayroll
             $out[] = [
                 'key' => $key,
                 'payable' => $key !== self::NO_WORKPLACE,
+                // Payments can be recorded for this workplace only when ITS company's payroll is finalized.
+                'can_record' => $g['finalized'],
                 'client_company_id' => $g['company_id'],
                 'work_location_id' => $g['location_id'],
                 'company_name' => $company?->name ?? $g['company_name'],
@@ -180,8 +186,9 @@ final class WorkplacePayroll
             'payroll_run_id' => $run->id,
             'period' => $run->period,
             'run_status' => $run->status,
-            // Payments are recorded against a finalized month only, the same rule as marking a single line paid.
-            'can_record' => $run->status === PayrollRun::STATUS_FINALIZED,
+            // Payments are recorded against a FINALIZED company only (each workplace says so itself in `can_record`); the month is "open for payments"
+            // as soon as one company is, even while other companies are still draft.
+            'can_record' => $run->status === PayrollRun::STATUS_FINALIZED || array_filter($summaries, fn (array $s): bool => $s['payable'] && $s['can_record']) !== [],
             'totals' => [
                 'total' => PayrollMoney::format($sum('total_cents')),
                 'paid' => PayrollMoney::format($sum('paid_cents')),
@@ -189,6 +196,29 @@ final class WorkplacePayroll
             ],
             'workplaces' => array_map(fn (array $s): array => self::presentOne($s), $summaries),
         ];
+    }
+
+    /**
+     * What each COMPANY of the month has been paid and still owes (every workplace of the company added up; key "none" = no company), in one pass
+     * over the month, for the company table.
+     *
+     * @return array<string, array{total_cents: int, paid_cents: int, outstanding_cents: int}>
+     */
+    public static function companyTotals(PayrollRun $run): array
+    {
+        $byCompany = [];
+
+        foreach (self::summaries($run) as $s) {
+            $key = $s['client_company_id'] === null ? 'none' : (string) $s['client_company_id'];
+            $row = $byCompany[$key] ?? ['total_cents' => 0, 'paid_cents' => 0, 'outstanding_cents' => 0];
+            $byCompany[$key] = [
+                'total_cents' => $row['total_cents'] + $s['total_cents'],
+                'paid_cents' => $row['paid_cents'] + $s['paid_cents'],
+                'outstanding_cents' => $row['outstanding_cents'] + $s['outstanding_cents'],
+            ];
+        }
+
+        return $byCompany;
     }
 
     /**

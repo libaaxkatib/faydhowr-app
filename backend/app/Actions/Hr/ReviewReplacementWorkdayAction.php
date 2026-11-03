@@ -28,7 +28,7 @@ class ReviewReplacementWorkdayAction
             $this->fail("Only a recorded workday can be verified (this one is {$workday->status}).", 'WORKDAY_NOT_VERIFIABLE');
         }
 
-        $this->lock->assertDateEditable($workday->work_date->toDateString(), 'This workday');
+        $this->lock->assertDateEditable($workday->work_date->toDateString(), 'This workday', null, (int) $workday->work_assignment_id);
 
         $workday->update(['status' => TemporaryReplacementWorkday::STATUS_VERIFIED, 'verified_at' => now(), 'verified_by' => $actor->id]);
 
@@ -49,7 +49,7 @@ class ReviewReplacementWorkdayAction
             $this->fail('This workday is already void.', 'WORKDAY_ALREADY_VOID');
         }
 
-        $this->lock->assertDateEditable($workday->work_date->toDateString(), 'This workday');
+        $this->lock->assertDateEditable($workday->work_date->toDateString(), 'This workday', null, (int) $workday->work_assignment_id);
 
         $workday->update([
             'status' => TemporaryReplacementWorkday::STATUS_VOID,

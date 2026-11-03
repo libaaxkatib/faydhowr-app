@@ -20,6 +20,7 @@ use App\Support\ApiResponse;
 use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\Payroll\PayrollPeriodLock;
 use App\Support\Hr\Payroll\PayrollRunCalculator;
+use App\Support\Hr\Payroll\PayrollSections;
 use App\Support\Hr\PositionSuccession;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -90,7 +91,7 @@ final class AssignmentRecovery
         $absences = AssignmentAbsence::query()->where('work_assignment_id', $a->id)->orderBy('absent_from')->get();
         $events = AssignmentCycleEvent::query()->where('work_assignment_id', $a->id)->orderBy('id')->get();
         $lines = PayrollItem::query()->where('work_assignment_id', $a->id)->orderBy('period')->get();
-        $runs = PayrollRun::query()->whereIn('period', $lines->pluck('period')->unique()->all())->pluck('status', 'period');
+        $runs = PayrollRun::query()->whereIn('period', $lines->pluck('period')->unique()->all())->get()->mapWithKeys(fn (PayrollRun $r): array => [$r->period => PayrollSections::lockStatus($r)]);
 
         $workflows = [];
 
@@ -150,10 +151,10 @@ final class AssignmentRecovery
 
         return [
             'month' => $month, 'run_status' => $run?->status, 'generated_at' => $run?->generated_at?->toIso8601String(),
-            'locked' => $run !== null && in_array($run->status, PayrollPeriodLock::LOCKED_STATUSES, true),
+            'locked' => $run !== null && in_array(PayrollSections::lockStatus($run), PayrollPeriodLock::LOCKED_STATUSES, true),
             'comparison' => $this->compare($stored, $live),
             'guidance' => $run === null ? 'There is no payroll run for this month yet: press Generate on the Payroll page to create the draft.'
-                : (in_array($run->status, PayrollPeriodLock::LOCKED_STATUSES, true) ? 'This payroll is approved or finalized. It is never rewritten: any difference is handled by the existing Super Admin payroll correction.' : 'Nothing was saved. To bring the stored draft up to date press Generate on the Payroll page; it is never approved, finalized or paid automatically.'),
+                : (in_array(PayrollSections::lockStatus($run), PayrollPeriodLock::LOCKED_STATUSES, true) ? 'This payroll is approved or finalized. It is never rewritten: any difference is handled by the existing Super Admin payroll correction.' : 'Nothing was saved. To bring the stored draft up to date press Generate on the Payroll page; it is never approved, finalized or paid automatically.'),
         ];
     }
 
@@ -874,8 +875,8 @@ final class AssignmentRecovery
         $reviewed = [];
 
         foreach (PayrollRun::query()->whereIn('period', $periods === [] ? ['0000-00'] : $periods)->get() as $run) {
-            if (in_array($run->status, PayrollPeriodLock::LOCKED_STATUSES, true)) {
-                $locked[] = $run->period.' ('.$run->status.')';
+            if (in_array(PayrollSections::lockStatus($run), PayrollPeriodLock::LOCKED_STATUSES, true)) {
+                $locked[] = $run->period.' ('.PayrollSections::lockStatus($run).')';
             } elseif ($run->status === PayrollRun::STATUS_REVIEWED) {
                 $reviewed[] = $run->period;
             }

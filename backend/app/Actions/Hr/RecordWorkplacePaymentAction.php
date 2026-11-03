@@ -46,14 +46,20 @@ class RecordWorkplacePaymentAction
                 return ['payment' => $existing, 'summary' => WorkplacePayroll::summaryFor($run, $companyId, $locationId) ?? [], 'replayed' => true];
             }
 
-            if ($run->status !== PayrollRun::STATUS_FINALIZED) {
-                $this->fail('Payments can only be recorded for a finalized payroll month.', 'PAYROLL_RUN_NOT_FINALIZED');
-            }
-
             $summary = WorkplacePayroll::summaryFor($run, $companyId, $locationId);
 
+            // Payments follow the company: only a workplace whose own company section is finalized (or, for a run from before company sections, a
+            // finalized run) can be paid. A month that is partly finalized does not stop the companies that are finalized.
+            if ($summary !== null && $summary['payable'] && ! $summary['can_record']) {
+                $this->fail($run->sections()->exists()
+                    ? 'This company\'s payroll is not finalized yet. Payments can only be recorded for a finalized company.'
+                    : 'Payments can only be recorded for a finalized payroll month.', 'PAYROLL_RUN_NOT_FINALIZED');
+            }
+
             if ($summary === null || ! $summary['payable']) {
-                $this->fail('This workplace has no payroll lines to pay in this month.', 'WORKPLACE_NOT_IN_PAYROLL');
+                $this->fail($run->status !== PayrollRun::STATUS_FINALIZED && ! $run->sections()->exists()
+                    ? 'Payments can only be recorded for a finalized payroll month.'
+                    : 'This workplace has no payroll lines to pay in this month.', $run->status !== PayrollRun::STATUS_FINALIZED && ! $run->sections()->exists() ? 'PAYROLL_RUN_NOT_FINALIZED' : 'WORKPLACE_NOT_IN_PAYROLL');
             }
 
             $outstanding = (int) $summary['outstanding_cents'];

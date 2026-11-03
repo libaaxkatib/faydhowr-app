@@ -214,8 +214,11 @@ class ListCompanyEmployeesAction
         }
 
         $paid = [];
-        if ($view['run_id'] !== null && ! $view['is_estimate']) {
-            foreach (PayrollItem::query()->where('payroll_run_id', $view['run_id'])->whereIn('work_assignment_id', $usd->pluck('id'))->get() as $item) {
+        // What is stored (approved / finalized) carries its payment state; a month's estimate lines do not. The view says it line by line.
+        $storedIds = collect($view['lines'])->where('line_source', PayrollPeriodView::LINE_STORED)->pluck('work_assignment_id')->all();
+
+        if ($view['run_id'] !== null && $storedIds !== []) {
+            foreach (PayrollItem::query()->where('payroll_run_id', $view['run_id'])->whereIn('work_assignment_id', array_values(array_intersect($usd->pluck('id')->all(), $storedIds)))->get() as $item) {
                 $paid[(int) $item->work_assignment_id] = ['status' => $item->payment_status ?? 'unpaid', 'paid_at' => $item->paid_at?->toIso8601String()];
             }
         }
@@ -257,9 +260,10 @@ class ListCompanyEmployeesAction
                 'adjustment_cents' => (int) ($line['adjustment_cents'] ?? 0),
                 'net_cents' => (int) $line['net_cents'],
                 'eligible_days' => (int) $line['eligible_days'],
-                'source' => $info['source'],
-                'is_estimate' => $info['source'] === PayrollPeriodView::SOURCE_ESTIMATE,
-                'run_status' => $info['run_status'],
+                // Each line says where it comes from (a month can mix finalized companies with companies still in draft).
+                'source' => isset($line['line_source']) ? ($line['line_source'] === PayrollPeriodView::LINE_STORED ? PayrollPeriodView::SOURCE_STORED : PayrollPeriodView::SOURCE_ESTIMATE) : $info['source'],
+                'is_estimate' => isset($line['line_source']) ? $line['line_source'] === PayrollPeriodView::LINE_ESTIMATE : $info['source'] === PayrollPeriodView::SOURCE_ESTIMATE,
+                'run_status' => $line['section_status'] ?? $info['run_status'],
             ],
             'payment' => $info['paid'][$a->id] ?? null,
             'unavailable_reason' => null,
@@ -333,7 +337,7 @@ class ListCompanyEmployeesAction
                 'calculated_pay_by_currency' => $calculated,
                 'calculated_pay_unavailable_count' => $unavailable,
                 'calculated_pay_source' => $payrollInfo['source'] ?? null,
-                'calculated_pay_is_estimate' => ($payrollInfo['source'] ?? null) === PayrollPeriodView::SOURCE_ESTIMATE,
+                'calculated_pay_is_estimate' => collect($rows)->contains(fn (array $r): bool => (bool) ($r['payroll']['calculated']['is_estimate'] ?? false)) || (($payrollInfo['source'] ?? null) === PayrollPeriodView::SOURCE_ESTIMATE && $rows === []),
                 'paid_net_cents_by_currency' => $paid,
                 'payroll_warnings' => $payrollInfo['warnings'] ?? [],
             ];

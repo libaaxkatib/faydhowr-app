@@ -16,7 +16,7 @@ import { useI18n } from '@/i18n/useI18n';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import { newIdempotencyKey } from '@/utils/payrollCorrections';
-import { WORKPLACE_STATUS, canRecordPayment, paymentPayload, validatePartialAmount, validateVoidReason, workplaceName } from '@/utils/workplacePayments';
+import { WORKPLACE_STATUS, canRecordPayment, paymentPayload, validatePartialAmount, validateVoidReason, waitsForCompanyFinalization, workplaceName } from '@/utils/workplacePayments';
 import type { PayrollRun, WorkplacePaymentRecord, WorkplacePayrollSummary } from '@/types/payroll';
 
 function money(value: string): string {
@@ -96,7 +96,8 @@ export function WorkplacePaymentsPanel({ run, canRecord, canVoid }: { run: Payro
                   {data.workplaces.map((workplace) => {
                     const status = WORKPLACE_STATUS[workplace.status];
                     const expanded = open.has(workplace.key);
-                    const payable = canRecordPayment(workplace, data.can_record, canRecord);
+                    const payable = canRecordPayment(workplace, canRecord);
+                    const waiting = waitsForCompanyFinalization(workplace);
 
                     return (
                       <Fragment key={workplace.key}>
@@ -113,6 +114,7 @@ export function WorkplacePaymentsPanel({ run, canRecord, canVoid }: { run: Payro
                           </td>
                           <td className="py-2 pl-3">
                             <div className="flex flex-wrap justify-end gap-2">
+                              {waiting && <span className="self-center text-xs text-ink-muted" data-testid="wp-company-not-finalized">{t('warning.payroll.wpCompanyNotFinalized')}</span>}
                               {payable && (
                                 <>
                                   <Button size="sm" onClick={() => setPaying({ workplace, mode: 'full' })}>{t('action.payroll.wpPayFull')}</Button>
@@ -154,7 +156,7 @@ export function WorkplacePaymentsPanel({ run, canRecord, canVoid }: { run: Payro
                                           {payment.voided ? (
                                             <span className="text-ink-muted no-underline">{t('option.payroll.wpVoidedMark', { reason: payment.void_reason ?? '' })}</span>
                                           ) : (
-                                            canVoid && data.can_record && (
+                                            canVoid && workplace.can_record && (
                                               <Button size="sm" variant="ghost" onClick={() => setVoiding({ workplace, payment })}>{t('action.payroll.wpVoid')}</Button>
                                             )
                                           )}

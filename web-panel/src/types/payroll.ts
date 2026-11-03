@@ -124,6 +124,8 @@ export interface PayrollItem {
   employee_number: string | null;
   employee_name: string | null;
   work_assignment_id?: number | null;
+  /** The company section this line belongs to; null for a line of a month created before company-level finalization. */
+  section_id?: number | null;
   company_name: string | null;
   workplace_name: string | null;
   eligible_days: number;
@@ -141,10 +143,44 @@ export interface PayrollItem {
   calc_snapshot?: PayrollCalcSnapshot | null;
 }
 
+/**
+ * One company's part of a payroll month, with its own status (draft -> reviewed -> approved -> finalized), its own stamps and totals, and what has
+ * been paid / is outstanding for it. Amounts are USD strings from the server.
+ */
+export interface PayrollRunSection {
+  id: number;
+  client_company_id: number | null;
+  /** Null for the lines whose assignment names no company. */
+  company_name: string | null;
+  category: 'company' | 'guri' | null;
+  status: PayrollRunStatus;
+  employee_count: number;
+  item_count: number;
+  gross: string;
+  net: string;
+  paid: string;
+  outstanding: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  approved_at: string | null;
+  approved_by: string | null;
+  finalized_at: string | null;
+  finalized_by: string | null;
+}
+
 export interface PayrollRun {
   id: number;
   period: string;
+  /** The month's own status: its least advanced company's (a month is finalized only when every company is). */
   status: PayrollRunStatus;
+  /** True when the month has company sections (a month created before company-level finalization has none and moves as a whole). */
+  sectioned?: boolean;
+  sections_total?: number;
+  sections_finalized?: number;
+  /** Some, but not all, companies are finalized. */
+  is_partially_finalized?: boolean;
+  /** The companies of the month (only in the single-month view). */
+  sections?: PayrollRunSection[];
   currency: string;
   item_count: number;
   totals: PayrollRunTotals;
@@ -195,12 +231,15 @@ export interface WorkplacePaymentRecord {
 }
 
 export type WorkplacePaymentStatus = 'unpaid' | 'partial' | 'paid';
+// (a workplace's `can_record` is true when ITS company's payroll is finalized)
 
 /** What one workplace (a company or guri, or one of its work locations) is owed and has been paid for a payroll month. */
 export interface WorkplacePayrollSummary {
   key: string;
   /** False for the lines that name no workplace: they can only be paid line by line. */
   payable: boolean;
+  /** This workplace's company is finalized, so payments can be recorded for it. */
+  can_record: boolean;
   client_company_id: number | null;
   work_location_id: number | null;
   company_name: string | null;
@@ -221,7 +260,7 @@ export interface WorkplacePayments {
   payroll_run_id: number;
   period: string;
   run_status: PayrollRunStatus;
-  /** Payments are recorded against a finalized month only. */
+  /** Payments are recorded for a FINALIZED company only; true as soon as one company (or the whole month) is. Each workplace says so itself in `can_record`. */
   can_record: boolean;
   totals: { total: string; paid: string; outstanding: string };
   workplaces: WorkplacePayrollSummary[];

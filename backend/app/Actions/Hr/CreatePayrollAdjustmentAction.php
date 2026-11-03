@@ -7,9 +7,9 @@ use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\PayrollAdjustment;
 use App\Models\PayrollItem;
-use App\Models\PayrollRun;
 use App\Support\ApiResponse;
 use App\Support\Hr\Payroll\PayrollMoney;
+use App\Support\Hr\Payroll\PayrollSections;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
@@ -25,7 +25,7 @@ class CreatePayrollAdjustmentAction
     {
         $item->loadMissing('run');
 
-        if ($item->run->status !== PayrollRun::STATUS_FINALIZED) {
+        if (! PayrollSections::itemFinalized($item)) {
             $this->fail('Adjustments are only for finalized payroll; edit a draft or reopen an approved run instead.', 'PAYROLL_RUN_NOT_FINALIZED');
         }
 
@@ -33,7 +33,10 @@ class CreatePayrollAdjustmentAction
             $this->fail('An adjustment must apply in a payroll month after the one it corrects.', 'ADJUSTMENT_PERIOD_NOT_LATER');
         }
 
-        if (PayrollRun::query()->where('period', $appliesInPeriod)->whereIn('status', ['approved', 'finalized'])->exists()) {
+        // The month the adjustment will apply in must still be open FOR THIS LINE'S COMPANY (other companies of that month may already be finalized).
+        $companyId = PayrollSections::companyIdsByAssignment([(int) $item->work_assignment_id])[(int) $item->work_assignment_id] ?? null;
+
+        if (PayrollSections::periodLockedForCompany($appliesInPeriod, $companyId)) {
             $this->fail("Payroll {$appliesInPeriod} is already approved or finalized; choose a later month.", 'ADJUSTMENT_PERIOD_LOCKED');
         }
 

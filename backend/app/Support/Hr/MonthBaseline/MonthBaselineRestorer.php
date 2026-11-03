@@ -16,6 +16,7 @@ use App\Models\PayrollRun;
 use App\Models\TemporaryReplacement;
 use App\Support\Hr\Payroll\PayrollPeriodLock;
 use App\Support\Hr\Payroll\PayrollRunCalculator;
+use App\Support\Hr\Payroll\PayrollSections;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -482,8 +483,8 @@ final class MonthBaselineRestorer
         $run = PayrollRun::query()->where('period', $month)->first();
         $changes = array_filter($items, fn (array $i): bool => in_array($i['action'], ['reopen', 'retire'], true));
 
-        if ($run !== null && in_array($run->status, PayrollPeriodLock::LOCKED_STATUSES, true) && $changes !== []) {
-            $blockers[] = ['code' => 'PAYROLL_LOCKED', 'message' => "Payroll for {$month} is {$run->status}. This restart never changes approved or finalized payroll. The safe procedure is the existing Super Admin payroll correction (reason required, the closed month is never rewritten); nothing was changed."];
+        if ($run !== null && in_array(PayrollSections::lockStatus($run), PayrollPeriodLock::LOCKED_STATUSES, true) && $changes !== []) {
+            $blockers[] = ['code' => 'PAYROLL_LOCKED', 'message' => "Payroll for {$month} is ".PayrollSections::lockStatus($run).'. This restart never changes approved or finalized payroll. The safe procedure is the existing Super Admin payroll correction (reason required, the closed month is never rewritten); nothing was changed.'];
         } elseif ($run !== null && $run->status === PayrollRun::STATUS_REVIEWED && $changes !== []) {
             $blockers[] = ['code' => 'PAYROLL_REVIEWED', 'message' => "Payroll for {$month} is reviewed. Reopen or regenerate it as a draft first; this restart only works on a draft or on a month with no payroll."];
         }

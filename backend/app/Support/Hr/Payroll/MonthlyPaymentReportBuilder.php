@@ -7,7 +7,6 @@ use App\Enums\EmployeeStatus;
 use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
-use App\Models\PayrollRun;
 use App\Models\TemporaryReplacement;
 use App\Models\TemporaryReplacementPayment;
 use Carbon\CarbonImmutable;
@@ -85,7 +84,8 @@ class MonthlyPaymentReportBuilder
         $paymentStatusByAssignment = [];
         $voidedAssignmentIds = [];
 
-        if ($view['source'] === PayrollPeriodView::SOURCE_STORED && $view['run_id'] !== null) {
+        // The payment state of a line is read where the month holds stored lines (approved / finalized companies, or a whole stored run).
+        if ($view['run_id'] !== null && $lines->contains(fn (array $line): bool => ($line['line_source'] ?? null) === PayrollPeriodView::LINE_STORED)) {
             $items = PayrollItem::query()->where('payroll_run_id', $view['run_id'])->get(['work_assignment_id', 'payment_status', 'voided_at']);
             $voidedAssignmentIds = $items->whereNotNull('voided_at')->pluck('work_assignment_id')->all();
             $paymentStatusByAssignment = $items->whereNull('voided_at')->pluck('payment_status', 'work_assignment_id')->all();
@@ -108,6 +108,15 @@ class MonthlyPaymentReportBuilder
 
                 return $company !== null && (int) $company->id === $clientCompanyId;
             })->values();
+        }
+
+        // What the workbook says about its figures follows the lines it INCLUDES: stored (approved / finalized companies), estimate (companies still
+        // in draft or reviewed), or both. A list for one finalized company is therefore stored, never an estimate, even in a month that is partly draft.
+        if ($lines->isNotEmpty()) {
+            $stored = $lines->contains(fn (array $line): bool => ($line['line_source'] ?? null) === PayrollPeriodView::LINE_STORED);
+            $estimate = $lines->contains(fn (array $line): bool => ($line['line_source'] ?? PayrollPeriodView::LINE_ESTIMATE) === PayrollPeriodView::LINE_ESTIMATE);
+            $view['is_estimate'] = $estimate;
+            $view['source'] = $stored && $estimate ? PayrollPeriodView::SOURCE_MIXED : ($stored ? PayrollPeriodView::SOURCE_STORED : PayrollPeriodView::SOURCE_ESTIMATE);
         }
 
         $employees = Employee::query()->whereIn('id', $lines->pluck('employee_id')->unique()->all() ?: [0])->get()->keyBy('id');
@@ -153,6 +162,7 @@ class MonthlyPaymentReportBuilder
                 'adjustment_cents' => 0,
                 'net_cents' => 0,
                 'line_count' => 0,
+                'recorded' => true,
                 'paid_cents' => 0,
                 'payment_statuses' => [],
                 'company_missing' => false,
@@ -169,6 +179,8 @@ class MonthlyPaymentReportBuilder
             $row['adjustment_cents'] += (int) $line['adjustment_cents'];
             $row['net_cents'] += (int) $line['net_cents'];
             $row['line_count']++;
+            // What has been paid is a recorded fact only when EVERY line of this person's row is in a finalized company (or run).
+            $row['recorded'] = $row['recorded'] && (bool) ($line['payment_recorded'] ?? false);
             $row['payment_statuses'][] = $paymentStatusByAssignment[$line['work_assignment_id']] ?? null;
             // What has been paid of this line: only a line marked paid in a finalized run counts (see finishRow).
             $row['paid_cents'] += ($paymentStatusByAssignment[$line['work_assignment_id']] ?? null) === 'paid' ? (int) $line['net_cents'] : 0;
@@ -348,10 +360,10 @@ class MonthlyPaymentReportBuilder
     private function replacementRows(array $replacementLines, Collection $assignments, Collection $employees, array $paymentStatusByAssignment, array $view, \DateTimeImmutable $monthStart, \DateTimeImmutable $monthEnd, array $permanentRows): array
     {
         $listed = array_flip(array_column($permanentRows, 'employee_id'));
-        $recorded = $view['source'] === PayrollPeriodView::SOURCE_STORED && $view['run_status'] === PayrollRun::STATUS_FINALIZED;
         $rows = [];
 
         foreach ($replacementLines as $line) {
+            $recorded = (bool) ($line['payment_recorded'] ?? false);
             $assignment = $assignments->get($line['work_assignment_id']);
             $employee = $employees->get($line['employee_id']);
             $covered = $assignment === null ? null : $this->coveredPermanent($assignment);
@@ -418,7 +430,7 @@ class MonthlyPaymentReportBuilder
                 'payment_account' => $payment['number'],
                 'payment_account_source' => $payment['label'],
                 'payment_from_phone' => $payment['from_phone'],
-                'payment_status' => $this->paymentStatus([$status], $view),
+                'payment_status' => $this->paymentStatus([$status], $recorded),
                 'flags' => $flags,
             ];
         }
@@ -622,8 +634,8 @@ class MonthlyPaymentReportBuilder
             $flags[] = self::FLAG_MULTIPLE;
         }
 
-        // "Paid to date" is only a recorded fact once the run is finalized; before that it is not known, and is reported as such (null), never as 0.
-        $recorded = $view['source'] === PayrollPeriodView::SOURCE_STORED && $view['run_status'] === PayrollRun::STATUS_FINALIZED;
+        // "Paid to date" is only a recorded fact once the line's company (or run) is finalized; before that it is not known, and is reported as such (null), never as 0.
+        $recorded = (bool) $row['recorded'];
 
         return [
             'row_type' => 'permanent',
@@ -645,7 +657,7 @@ class MonthlyPaymentReportBuilder
             'payment_account' => $row['payment']['number'],
             'payment_account_source' => $row['payment']['label'],
             'payment_from_phone' => $row['payment']['from_phone'],
-            'payment_status' => $this->paymentStatus($row['payment_statuses'], $view),
+            'payment_status' => $this->paymentStatus($row['payment_statuses'], $recorded),
             'flags' => $flags,
         ];
     }
@@ -655,11 +667,11 @@ class MonthlyPaymentReportBuilder
      * else it says so plainly instead of showing "unpaid", which would be a claim nobody recorded.
      *
      * @param  list<?string>  $statuses
-     * @param  array<string, mixed>  $view
+     * @param  bool  $recorded  every line of the row is in a finalized company (or run)
      */
-    private function paymentStatus(array $statuses, array $view): string
+    private function paymentStatus(array $statuses, bool $recorded): string
     {
-        if ($view['source'] !== PayrollPeriodView::SOURCE_STORED || $view['run_status'] !== PayrollRun::STATUS_FINALIZED) {
+        if (! $recorded) {
             return 'Not recorded (payroll not finalized)';
         }
 
@@ -760,9 +772,11 @@ class MonthlyPaymentReportBuilder
             'not_in_payroll' => count($notInPayroll),
             'by_category' => $byCategory,
             'by_company' => $byCompany,
-            'source_label' => $view['source'] === PayrollPeriodView::SOURCE_STORED
-                ? 'Payroll run '.($view['run_status'] ?? '').' (stored amounts)'
-                : 'ESTIMATE - calculated live, no approved payroll run exists for this month',
+            'source_label' => match ($view['source']) {
+                PayrollPeriodView::SOURCE_STORED => 'Payroll run '.($view['run_status'] ?? '').' (stored amounts)',
+                PayrollPeriodView::SOURCE_MIXED => 'MIXED - companies whose payroll is approved or finalized use their stored amounts; the others are an ESTIMATE calculated live (their payroll is not finalized yet)',
+                default => 'ESTIMATE - calculated live, no approved payroll run exists for this month',
+            },
         ];
     }
 

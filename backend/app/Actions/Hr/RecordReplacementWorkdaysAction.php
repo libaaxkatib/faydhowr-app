@@ -74,7 +74,7 @@ class RecordReplacementWorkdaysAction
                 $this->fail("No salary is defined for the covered employee on {$date}; the cost cannot be calculated.", 'WORKDAY_NO_PERMANENT_SALARY');
             }
 
-            $this->lock->assertDateEditable($date, "Workday {$date}");
+            $this->lock->assertDateEditable($date, "Workday {$date}", null, $assignment->id);
 
             $live = TemporaryReplacementWorkday::query()->where('status', '!=', TemporaryReplacementWorkday::STATUS_VOID)->whereDate('work_date', $date);
 

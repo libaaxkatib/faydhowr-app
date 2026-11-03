@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 import { CATALOGUE } from '../i18n/messages/index.ts';
 import { placeholdersOf } from '../i18n/catalog.ts';
-import { WORKPLACE_STATUS, amountToCents, canRecordPayment, paymentPayload, validatePartialAmount, validateVoidReason, workplaceName } from './workplacePayments.ts';
+import { WORKPLACE_STATUS, amountToCents, canRecordPayment, paymentPayload, validatePartialAmount, validateVoidReason, waitsForCompanyFinalization, workplaceName } from './workplacePayments.ts';
 
 /**
  * Payments by workplace. The server calculates every total, balance and status (tested in WorkplacePaymentsTest); these checks cover what the panel
@@ -25,7 +25,7 @@ const KEYS = [
   'validation.payroll.wpVoidReason', 'warning.payroll.wpNotFinalized', 'notify.payroll.wpRecorded', 'notify.payroll.wpVoided', 'notify.payroll.wpFailed',
 ] as const;
 
-const workplace = { client_company_id: 7, work_location_id: null, company_name: 'Acme Co', workplace_name: null, payable: true, outstanding_cents: 12_500 };
+const workplace = { client_company_id: 7, work_location_id: null, company_name: 'Acme Co', workplace_name: null, payable: true, can_record: true, outstanding_cents: 12_500 };
 
 test('the status words are UNPAID, PARTIAL and PAID with their own colours', () => {
   assert.deepEqual(Object.keys(WORKPLACE_STATUS), ['unpaid', 'partial', 'paid']);
@@ -35,12 +35,20 @@ test('the status words are UNPAID, PARTIAL and PAID with their own colours', () 
   assert.deepEqual([WORKPLACE_STATUS.unpaid.tone, WORKPLACE_STATUS.partial.tone, WORKPLACE_STATUS.paid.tone], ['danger', 'warning', 'success']);
 });
 
-test('the payment buttons are offered only for a finalized month, to someone allowed, for a workplace with a balance', () => {
-  assert.equal(canRecordPayment(workplace, true, true), true);
-  assert.equal(canRecordPayment(workplace, false, true), false, 'month not finalized');
-  assert.equal(canRecordPayment(workplace, true, false), false, 'no payroll approval permission');
-  assert.equal(canRecordPayment({ ...workplace, outstanding_cents: 0 }, true, true), false, 'already fully paid');
-  assert.equal(canRecordPayment({ ...workplace, payable: false }, true, true), false, 'lines with no workplace');
+test('the payment buttons are offered only for a workplace whose own company is finalized, to someone allowed, with a balance', () => {
+  assert.equal(canRecordPayment(workplace, true), true);
+  assert.equal(canRecordPayment({ ...workplace, can_record: false }, true), false, 'its company is not finalized yet (other companies of the month may be)');
+  assert.equal(canRecordPayment(workplace, false), false, 'no payroll approval permission');
+  assert.equal(canRecordPayment({ ...workplace, outstanding_cents: 0 }, true), false, 'already fully paid');
+  assert.equal(canRecordPayment({ ...workplace, payable: false }, true), false, 'lines with no workplace');
+});
+
+test('a workplace whose company is not finalized says "Company not finalized yet"; a finalized or fully paid one does not', () => {
+  assert.equal(waitsForCompanyFinalization({ ...workplace, can_record: false }), true);
+  assert.equal(waitsForCompanyFinalization(workplace), false);
+  assert.equal(waitsForCompanyFinalization({ ...workplace, can_record: false, outstanding_cents: 0 }), false);
+  assert.equal(waitsForCompanyFinalization({ ...workplace, can_record: false, payable: false }), false);
+  assert.equal(CATALOGUE['warning.payroll.wpCompanyNotFinalized'].en, 'Company not finalized yet');
 });
 
 test('an amount typed in dollars means whole cents, with at most two decimals', () => {
@@ -101,8 +109,9 @@ test('a retry or a double click is recorded once: one key per dialog opening, an
 
 test('recording and voiding are offered by permission, and the lists refresh afterwards', () => {
   assert.match(page, /<WorkplacePaymentsPanel run=\{run\} canRecord=\{canApprove\} canVoid=\{canVoid\} \/>/);
-  assert.match(panel, /canRecordPayment\(workplace, data\.can_record, canRecord\)/);
-  assert.match(panel, /canVoid && data\.can_record/);
+  assert.match(panel, /canRecordPayment\(workplace, canRecord\)/);
+  assert.match(panel, /canVoid && workplace\.can_record/);
+  assert.match(panel, /waitsForCompanyFinalization\(workplace\)/);
   assert.match(panel, /queryClient\.invalidateQueries\(\{ queryKey: \['workplace-payments'\] \}\)/);
   assert.match(page, /queryClient\.invalidateQueries\(\{ queryKey: \['workplace-payments'\] \}\)/, 'paying or voiding a single line refreshes the workplace figures');
 });
