@@ -70,8 +70,8 @@ export const replacementFixes = defineMessages({
     'Tani waxay gaadhaysaa {months}, oo ah mushahar la ansixiyay ama la xiray. Waa sax-bixin mushahar xiran.',
   ),
   'warning.pipeline.superAdminOnly': message(
-    'Only a Super Admin can make this change. Nothing has been changed.',
-    'Super Admin keliya ayaa samayn kara isbeddelkan. Waxba lama beddelin.',
+    'Only a Super Admin or an HR Manager can make this change. Nothing has been changed.',
+    'Super Admin ama HR Manager keliya ayaa samayn kara isbeddelkan. Waxba lama beddelin.',
   ),
   'option.pipeline.closedPayrollReason': message('Reason for correcting closed payroll', 'Sababta sax-bixinta mushaharka xiran'),
   'validation.pipeline.closedPayrollReasonHint': message(
