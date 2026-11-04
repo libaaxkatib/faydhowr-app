@@ -15,6 +15,7 @@ use App\Models\Position;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Tests\Support\FinalizesCompanies;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
@@ -184,7 +185,7 @@ class PayrollCorrectionSupersessionTest extends TestCase
         $other = $this->otherCo;
         $this->addNewcomer();
         $foreign = PayrollCorrection::query()->create([
-            'batch_key' => 'x', 'payroll_run_id' => $this->novRunId, 'employee_id' => $this->newcomer->id, 'client_company_id' => $other->id, 'period' => '2026-11', 'kind' => 'underpayment', 'action' => 'assigned',
+            'batch_key' => (string) Str::uuid(), 'payroll_run_id' => $this->novRunId, 'employee_id' => $this->newcomer->id, 'client_company_id' => $other->id, 'period' => '2026-11', 'kind' => 'underpayment', 'action' => 'assigned',
             'recorded_net_cents' => 0, 'corrected_net_cents' => 1000, 'difference_cents' => -1000, 'outstanding_cents' => 1000, 'status' => 'open', 'reason' => 'another company', 'corrected_by' => null,
         ]);
 
