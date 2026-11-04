@@ -141,7 +141,7 @@ export const replacementFixes = defineMessages({
   // The NEW-cover form only (owner wording 2026-11-04): it also accepts a Waiting or Applicant person. The sentence above stays for the form that corrects a cover, which still needs an Active person.
   'option.pipeline.searchFindsAnyoneTemporaryNewCover': message(
     'Select an Active Temporary employee, Waiting employee, or Applicant. Waiting and Applicant employees become Active and Temporary only after the replacement is successfully saved.',
-    'Dooro shaqaale ku-meel-gaar ah oo Active ah, shaqaale Waiting ah, ama Applicant. Shaqaalaha Waiting iyo Applicant waxay noqonayaan Active iyo ku-meel-gaar kaliya marka beddelka si guul leh loo kaydiyo.',
+    'Dooro shaqaale Temporary ah oo Active ah, shaqaale Waiting ah, ama Applicant. Shaqaalaha Waiting iyo Applicant waxay noqonayaan Active, noocooda shaqaalenimaduna wuxuu noqonayaa Temporary, kaddib marka beddelka si guul leh loo kaydiyo.',
   ),
   'option.pipeline.searchFindsAnyonePermanent': message(
     'Search finds any employee. Only an Active Permanent employee can be covered; the others are shown in grey with the reason.',

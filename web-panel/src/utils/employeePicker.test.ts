@@ -204,4 +204,15 @@ test('the new-cover form says Waiting and Applicant people can be chosen; the fo
   // The corrections form is unchanged and still true there (it passes no allowNotYetActive, see the test above), so its sentence is not touched.
   assert.match(messages, /'option\.pipeline\.searchFindsAnyoneTemporary': message\(\s*'Search finds any employee\. Only an Active, registered Temporary employee can be chosen; the others are shown in grey with the reason\.',/);
   assert.equal((messages.match(/searchFindsAnyoneTemporaryNewCover/g) ?? []).length, 1, 'one new message');
+  // The owner-approved Somali wording (2026-11-04), verbatim, and the Somali sentence of the corrections form untouched.
+  assert.ok(
+    messages.includes(
+      "'Dooro shaqaale Temporary ah oo Active ah, shaqaale Waiting ah, ama Applicant. Shaqaalaha Waiting iyo Applicant waxay noqonayaan Active, noocooda shaqaalenimaduna wuxuu noqonayaa Temporary, kaddib marka beddelka si guul leh loo kaydiyo.',",
+    ),
+  );
+  assert.ok(
+    messages.includes(
+      "'Raadintu waxay heshaa shaqaale kasta. Kaliya shaqaale ku-meel-gaar ah oo Active ah oo diiwaangelintiisa dhammaystiran ayaa la dooran karaa; kuwa kale waa la muujiyaa oo sababta ayaa lagu qoraa.',",
+    ),
+  );
 });
