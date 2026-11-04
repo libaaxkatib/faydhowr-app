@@ -105,7 +105,9 @@ export function EmployeePicker({
       />
       {searching && (
         <p className="text-xs text-ink-muted" data-testid={`${id}-search-note`}>
-          {employmentType === 'temporary' ? t('option.pipeline.searchFindsAnyoneTemporary') : t('option.pipeline.searchFindsAnyonePermanent')}
+          {employmentType === 'temporary'
+            ? t(allowNotYetActive ? 'option.pipeline.searchFindsAnyoneTemporaryNewCover' : 'option.pipeline.searchFindsAnyoneTemporary')
+            : t('option.pipeline.searchFindsAnyonePermanent')}
         </p>
       )}
       <Select

@@ -186,3 +186,22 @@ test('only the NEW-cover form turns the option on; the form that corrects a cove
   assert.equal(/allowNotYetActive/.test(dialogs), false, 'correcting a cover still needs an Active person');
   assert.match(page, /employmentType="temporary"[\s\S]{0,260}allowNotYetActive/);
 });
+
+// ------------------------------------------------------------------ the search help sentence of the NEW-cover form (owner wording 2026-11-04)
+
+test('the new-cover form says Waiting and Applicant people can be chosen; the form that corrects a cover keeps the Active-only sentence', async () => {
+  const { readFileSync } = await import('node:fs');
+  const messages = readFileSync(new URL('../i18n/messages/replacementFixes.ts', import.meta.url), 'utf8');
+  const picker = readFileSync(new URL('../features/hrm/ReplacementEmployeePicker.tsx', import.meta.url), 'utf8');
+
+  // The approved wording, word for word, under its own key.
+  assert.match(
+    messages,
+    /'option\.pipeline\.searchFindsAnyoneTemporaryNewCover': message\(\s*'Select an Active Temporary employee, Waiting employee, or Applicant\. Waiting and Applicant employees become Active and Temporary only after the replacement is successfully saved\.',/,
+  );
+  // The outdated claim is gone from the new-cover form: that key is used only when the picker does not accept Waiting / Applicant people.
+  assert.match(picker, /t\(allowNotYetActive \? 'option\.pipeline\.searchFindsAnyoneTemporaryNewCover' : 'option\.pipeline\.searchFindsAnyoneTemporary'\)/);
+  // The corrections form is unchanged and still true there (it passes no allowNotYetActive, see the test above), so its sentence is not touched.
+  assert.match(messages, /'option\.pipeline\.searchFindsAnyoneTemporary': message\(\s*'Search finds any employee\. Only an Active, registered Temporary employee can be chosen; the others are shown in grey with the reason\.',/);
+  assert.equal((messages.match(/searchFindsAnyoneTemporaryNewCover/g) ?? []).length, 1, 'one new message');
+});
