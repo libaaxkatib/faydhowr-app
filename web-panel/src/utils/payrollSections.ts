@@ -1,26 +1,60 @@
 /**
- * Pure helpers of the company-level payroll screen. The server decides every status, total and permission (a company is reviewed, approved and
- * finalized on its own; the month's own status is its least advanced company's); these helpers only decide which buttons the screen offers and how a
- * month and its lines are grouped for display. Visible wording comes from the language catalogue.
+ * Pure helpers of the company-level payroll screen. The server decides every status, total and permission (a company is reviewed and finalized on its
+ * own, and APPROVED by being paid in full; the month's own status is its least advanced company's); these helpers only decide which buttons the screen
+ * offers and how a month and its lines are grouped for display. Visible wording comes from the language catalogue.
+ *
+ * There is no Approve button for a company or for the month (owner decision 2026-11-04): Reviewed and Finalized describe the PAYROLL, Unpaid / Partially
+ * paid / Approved describe the PAYMENT, and the screen shows the two side by side so they are never confused.
  */
 
 import type { MessageKey } from '../i18n/messages/index.ts';
-import type { PayrollItem, PayrollRun, PayrollRunSection, PayrollRunStatus } from '../types/payroll.ts';
+import type { CompanyPaymentStatus, PayrollItem, PayrollRun, PayrollRunSection, PayrollRunStatus, RecordCompanyPaymentPayload } from '../types/payroll.ts';
 
-export type SectionAction = 'review' | 'approve' | 'finalize' | 'reopen';
+export type SectionAction = 'review' | 'finalize' | 'reopen';
 
-/** The buttons a company row offers: review needs hr.payroll.manage; approve, finalize and reopen need hr.payroll.approve; a finalized company offers none. */
+/** The payroll buttons a company row offers: review needs hr.payroll.manage; finalize and reopen need hr.payroll.approve; a finalized company offers none. */
 export function sectionActions(status: PayrollRunStatus, canManage: boolean, canApprove: boolean): SectionAction[] {
   switch (status) {
     case 'draft':
       return canManage ? ['review'] : [];
     case 'reviewed':
-      return canApprove ? ['approve'] : [];
     case 'approved':
+      // "approved" can only be a company an earlier version left there: it is finalized exactly like a reviewed one.
       return canApprove ? ['finalize', 'reopen'] : [];
     case 'finalized':
       return [];
   }
+}
+
+export type PaymentAction = 'approve_paid' | 'approve_partial';
+
+/**
+ * The payment buttons: "Approve Paid" (the whole balance) and "Approve Partial" (an amount). Offered only to someone who may record payments, for a
+ * company that is finalized and still owes something (the server says so in `can_pay`; it checks everything again).
+ */
+export function paymentActions(section: Pick<PayrollRunSection, 'can_pay' | 'outstanding_cents'>, canApprove: boolean): PaymentAction[] {
+  return canApprove && section.can_pay && section.outstanding_cents > 0 ? ['approve_paid', 'approve_partial'] : [];
+}
+
+/** How a company's payment / approval state is shown: Partially paid is a warning, never the green of Approved. */
+export const PAYMENT_STATUS_LABEL: Record<CompanyPaymentStatus, { labelKey: MessageKey; tone: 'danger' | 'warning' | 'success' }> = {
+  unpaid: { labelKey: 'status.payroll.apUnpaid', tone: 'danger' },
+  partially_paid: { labelKey: 'status.payroll.apPartial', tone: 'warning' },
+  approved: { labelKey: 'status.payroll.apApproved', tone: 'success' },
+};
+
+/**
+ * The request of "Approve Paid" (no amount: the server pays exactly the outstanding balance at that moment) or "Approve Partial" (the typed amount, in
+ * dollars with at most two decimals). The key is made once per dialog, so a retry or a double click is recorded once.
+ */
+export function companyPaymentPayload(mode: 'full' | 'partial', typedAmount: string, paymentDate: string, note: string, idempotencyKey: string): RecordCompanyPaymentPayload {
+  return {
+    mode,
+    ...(mode === 'partial' ? { amount: typedAmount.trim() } : {}),
+    payment_date: paymentDate,
+    note: note.trim() === '' ? null : note.trim(),
+    idempotency_key: idempotencyKey,
+  };
 }
 
 /** How the month is shown: "partially finalized" while some, but not all, of its companies are finalized; otherwise its own status. */

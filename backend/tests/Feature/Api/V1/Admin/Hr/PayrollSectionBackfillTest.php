@@ -175,7 +175,7 @@ class PayrollSectionBackfillTest extends TestCase
         PayrollSectionBackfill::run();
         $alpha = PayrollRunSection::query()->whereHas('clientCompany', fn ($q) => $q->where('name', 'Alpha Co'))->firstOrFail();
 
-        foreach (['review', 'approve', 'finalize'] as $step) {
+        foreach (['review', 'finalize'] as $step) {
             $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$alpha->id}/{$step}")->assertOk();
         }
 

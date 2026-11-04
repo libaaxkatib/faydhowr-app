@@ -6,7 +6,7 @@ import { defineMessages, message } from '../catalog.ts';
 export const payroll = defineMessages({
   // Run status explanations (the labels reuse option.payrollStatus.*)
   'status.payroll.helpDraft': message('Still being prepared. It can be regenerated.', 'Weli waa la diyaarinayaa. Dib ayaa loo samayn karaa.'),
-  'status.payroll.helpReviewed': message('Checked. Next step: approve it.', 'Waa la hubiyey. Tallaabada xigta: ansixi.'),
+  'status.payroll.helpReviewed': message('Checked. Next step: finalize each company.', 'Waa la hubiyey. Tallaabada xigta: shirkad kasta dhammaystir.'),
   'status.payroll.helpApproved': message(
     'The month is locked. Finalize each company on its own; until then it can still be reopened.',
     'Bisha waa la xidhay. Shirkad kasta si gaar ah u dhammaystir; ilaa markaas dib ayaa loo furi karaa.',
@@ -105,10 +105,10 @@ export const payroll = defineMessages({
     'Waxay samaysaa mushaharka qabyada ah ee bisha iyadoo laga duulayo mushaharyada, maqnaanshaha, ganaaxyada, lacagaha hormarka ah iyo beddelaadka ku-meel-gaarka ah ee la ansixiyey. Haddii mar kale la socodsiiyo, qabyada waa la cusboonaysiiyaa.',
   ),
   'warning.payroll.paymentListNote': message(
-    'The payment list is an Excel file of who to pay for the selected month (an estimate until the month is approved); choose a company to get only that company. Downloading it does not mark anything paid or change anything.',
-    'Liiska lacag-bixinta waa fayl Excel ah oo muujinaya cidda la bixinayo bisha la doortay (qiyaas ilaa bisha la ansixiyo); dooro shirkad si aad u hesho shirkaddaas oo keliya. Soo dejintiisu waxba kuma calaamadeyso in la bixiyey, waxna ma beddesho.',
+    'The payment list is an Excel file of who to pay for the selected month (an estimate until the month is finalized); choose a company to get only that company. Downloading it does not mark anything paid or change anything.',
+    'Liiska lacag-bixinta waa fayl Excel ah oo muujinaya cidda la bixinayo bisha la doortay (qiyaas ilaa bisha la dhammaystiro); dooro shirkad si aad u hesho shirkaddaas oo keliya. Soo dejintiisu waxba kuma calaamadeyso in la bixiyey, waxna ma beddesho.',
   ),
-  'warning.payroll.checkBeforeApproving': message('Please check before approving', 'Fadlan hubi ka hor inta aan la ansixin'),
+  'warning.payroll.checkBeforeApproving': message('Please check before finalizing', 'Fadlan hubi ka hor inta aan la dhammaystirin'),
   'warning.payroll.temporaryCoverWaiting': message('Temporary cover waiting for approval', 'Beddelaad ku-meel-gaar ah oo ansixin sugaya'),
   'warning.payroll.notDeductedYet': message(
     '{summary}. It was calculated but is NOT deducted until the replacement is approved.',

@@ -37,7 +37,7 @@ use Tests\TestCase;
 
 /**
  * Independent payroll finalization per COMPANY inside one monthly run (owner decision, Option A): each company has its own section with its own
- * Draft -> Reviewed -> Approved -> Finalized lifecycle, its own totals and payments; the month follows its sections (least advanced) and finalizes
+ * Draft -> Reviewed -> Finalized lifecycle (approval is payment, see CompanyPaymentApprovalTest), its own totals and payments; the month follows its sections (least advanced) and finalizes
  * itself when the last company does. Synthetic data only.
  *
  * September 2026 (30 days), everybody assigned the whole month, so a line is exactly the monthly salary:
@@ -143,7 +143,6 @@ class CompanyPayrollSectionsTest extends TestCase
     private function finalizeCompany(ClientCompany $company): void
     {
         $this->move($company, 'review')->assertOk();
-        $this->move($company, 'approve')->assertOk();
         $this->move($company, 'finalize')->assertOk();
     }
 
@@ -206,16 +205,15 @@ class CompanyPayrollSectionsTest extends TestCase
         $this->assertSame('draft', $this->monthRun()->status, 'the month is as far along as its least advanced company');
     }
 
-    public function test_approving_one_company_does_not_approve_the_others(): void
+    public function test_there_is_no_approve_step_for_a_company(): void
     {
         $this->generate();
         $this->move($this->gury, 'review')->assertOk();
-        $this->move($this->gury, 'approve')->assertOk();
+        $this->move($this->gury, 'approve')->assertNotFound();
         $this->move($this->alpha, 'review')->assertOk();
 
-        $this->assertSame(['Alpha Co' => 'reviewed', 'Bravo Co' => 'draft', 'Gury One' => 'approved'], $this->statuses());
-        $this->assertNotNull($this->section($this->gury)->approved_at);
-        $this->assertNull($this->section($this->alpha)->approved_at);
+        $this->assertSame(['Alpha Co' => 'reviewed', 'Bravo Co' => 'draft', 'Gury One' => 'reviewed'], $this->statuses());
+        $this->assertNull($this->section($this->gury)->approved_at, 'approval is payment, never a button');
         $this->assertSame('draft', $this->monthRun()->status);
     }
 
@@ -223,7 +221,6 @@ class CompanyPayrollSectionsTest extends TestCase
     {
         $this->generate();
 
-        $this->move($this->alpha, 'approve')->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_WRONG_STATE');
         $this->move($this->alpha, 'finalize')->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_WRONG_STATE');
         $this->move($this->alpha, 'review')->assertOk();
         $this->move($this->alpha, 'review')->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_WRONG_STATE');
@@ -266,7 +263,7 @@ class CompanyPayrollSectionsTest extends TestCase
         $this->assertSame([3, 1, true], [$list['sections_total'], $list['sections_finalized'], $list['is_partially_finalized']]);
     }
 
-    public function test_the_month_level_review_and_approve_move_every_company_in_the_previous_state_and_finalize_stays_company_by_company(): void
+    public function test_the_month_level_review_moves_every_company_there_is_no_month_approve_and_finalize_stays_company_by_company(): void
     {
         $this->generate();
 
@@ -274,16 +271,18 @@ class CompanyPayrollSectionsTest extends TestCase
         $this->assertSame(['reviewed'], array_values(array_unique($this->statuses())));
         $this->assertSame('reviewed', $this->monthRun()->status);
 
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/approve")->assertOk();
-        $this->assertSame('approved', $this->monthRun()->status);
+        // There is no month-level Approve (owner decision 2026-11-04): the month is approved by itself when every company is paid in full.
+        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/approve")->assertNotFound();
+        $this->assertSame('reviewed', $this->monthRun()->status);
 
+        // A company is finalized straight from reviewed.
         $this->move($this->alpha, 'finalize')->assertOk();
-        $this->assertSame('approved', $this->monthRun()->status, 'least advanced: Bravo and Gury are approved');
-        $this->assertSame(['Alpha Co' => 'finalized', 'Bravo Co' => 'approved', 'Gury One' => 'approved'], $this->statuses());
+        $this->assertSame('reviewed', $this->monthRun()->status, 'least advanced: Bravo and Gury are reviewed');
+        $this->assertSame(['Alpha Co' => 'finalized', 'Bravo Co' => 'reviewed', 'Gury One' => 'reviewed'], $this->statuses());
 
         // The rest can only be finalized one company at a time; the month finalizes itself with the last one.
         $this->move($this->bravo, 'finalize')->assertOk();
-        $this->assertSame('approved', $this->monthRun()->status);
+        $this->assertSame('reviewed', $this->monthRun()->status);
         $this->move($this->gury, 'finalize')->assertOk();
         $this->assertSame('finalized', $this->monthRun()->status);
     }
@@ -291,9 +290,7 @@ class CompanyPayrollSectionsTest extends TestCase
     public function test_there_is_no_month_level_finalize_and_no_bulk_finalize_anywhere(): void
     {
         $this->generate();
-        foreach (['review', 'approve'] as $step) {
-            $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/{$step}")->assertOk();
-        }
+        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/review")->assertOk();
 
         // The route is gone (not merely hidden): every method and every spelling is refused, for the highest-privileged user too, and nothing changes.
         foreach (['finalize', 'finalise', 'finalize-all', 'finalize-companies', 'bulk-finalize'] as $path) {
@@ -304,8 +301,8 @@ class CompanyPayrollSectionsTest extends TestCase
         }
         $this->as($this->super)->patchJson('/api/v1/admin/hr/payroll-run-sections/finalize')->assertNotFound();
         $this->as($this->super)->patchJson('/api/v1/admin/hr/payroll-run-sections/finalize-all')->assertNotFound();
-        $this->assertSame(['Alpha Co' => 'approved', 'Bravo Co' => 'approved', 'Gury One' => 'approved'], $this->statuses());
-        $this->assertSame('approved', $this->monthRun()->status);
+        $this->assertSame(['Alpha Co' => 'reviewed', 'Bravo Co' => 'reviewed', 'Gury One' => 'reviewed'], $this->statuses());
+        $this->assertSame('reviewed', $this->monthRun()->status);
 
         // No registered route finalizes more than one company: the only finalize route names exactly one section.
         $finalizeRoutes = collect($this->app['router']->getRoutes()->getRoutes())->filter(fn ($route): bool => str_contains($route->uri(), 'payroll') && str_contains(strtolower($route->uri().$route->getActionName()), 'finali'));
@@ -315,14 +312,13 @@ class CompanyPayrollSectionsTest extends TestCase
 
         // The shared bulk path itself refuses to finalize.
         $this->expectException(\LogicException::class);
-        app(TransitionPayrollRunSectionAction::class)->bulk($this->monthRun(), 'approved', 'finalized', $this->superAdmin);
+        app(TransitionPayrollRunSectionAction::class)->bulk($this->monthRun(), 'reviewed', 'finalized', $this->superAdmin);
     }
 
-    public function test_an_approved_company_can_be_reopened_with_a_reason_a_finalized_one_cannot_and_nothing_else_changes(): void
+    public function test_a_reviewed_company_can_be_reopened_with_a_reason_a_finalized_one_cannot_and_nothing_else_changes(): void
     {
         $this->generate();
         $this->move($this->alpha, 'review')->assertOk();
-        $this->move($this->alpha, 'approve')->assertOk();
         $this->finalizeCompany($this->bravo);
 
         $this->move($this->alpha, 'reopen', ['reason' => 'short'])->assertStatus(422);
@@ -342,8 +338,8 @@ class CompanyPayrollSectionsTest extends TestCase
 
         $events = AuditLog::query()->where('entity_type', PayrollRunSection::class)->where('entity_id', $section->id)->get()->map(fn ($log) => $log->metadata)->filter()->values();
         $finalize = $events->firstWhere('event', 'payroll_section_finalized');
-        $this->assertSame(['draft', 'reviewed', 'approved'], $events->pluck('previous_status')->all());
-        $this->assertSame(['reviewed', 'approved', 'finalized'], $events->pluck('new_status')->all());
+        $this->assertSame(['draft', 'reviewed'], $events->pluck('previous_status')->all());
+        $this->assertSame(['reviewed', 'finalized'], $events->pluck('new_status')->all());
         $this->assertSame([self::P, 'Alpha Co', $this->alpha->id, $this->monthRun()->id], [$finalize['period'], $finalize['company'], $finalize['client_company_id'], $finalize['payroll_run_id']]);
         $this->assertSame($this->superAdmin->id, AuditLog::query()->where('entity_type', PayrollRunSection::class)->where('entity_id', $section->id)->orderByDesc('id')->first()->admin_id);
     }
@@ -357,8 +353,7 @@ class CompanyPayrollSectionsTest extends TestCase
 
         $this->move($this->alpha, 'review', [], $viewer)->assertForbidden();
         $this->move($this->alpha, 'review', [], $preparer)->assertOk();
-        $this->move($this->alpha, 'approve', [], $preparer)->assertForbidden();
-        $this->move($this->alpha, 'approve', [], $manager)->assertOk();
+        $this->move($this->alpha, 'finalize', [], $preparer)->assertForbidden();
         $this->move($this->alpha, 'finalize', [], $viewer)->assertForbidden();
         $this->move($this->alpha, 'finalize', [], $manager)->assertOk();
         $this->assertSame('finalized', $this->section($this->alpha)->status);
@@ -395,25 +390,6 @@ class CompanyPayrollSectionsTest extends TestCase
         $this->assertSame(50000, (int) PayrollItem::query()->where('work_assignment_id', $this->b1->id)->value('net_cents'));
         $this->assertSame(60000 + 65000 + 25000, (int) $this->monthRun()->totals['net_cents'], 'stored lines: Alpha as finalized, Bravo and Gury as regenerated');
         $this->assertTrue(collect($this->monthRun()->totals['warnings'])->contains(fn (string $w): bool => str_contains($w, 'kept exactly as stored') && str_contains($w, 'Alpha Co')), 'HR is told the live calculation differs');
-    }
-
-    public function test_generate_never_overwrites_an_approved_company_unless_it_was_reopened(): void
-    {
-        $this->generate();
-        $this->move($this->alpha, 'review')->assertOk();
-        $this->move($this->alpha, 'approve')->assertOk();
-        $before = $this->linesFingerprint($this->section($this->alpha));
-
-        $this->a1->update(['salary_amount' => 999]);
-        $this->a1->salaryHistories()->update(['amount' => 999]);
-        $this->generate();
-        $this->assertSame($before, $this->linesFingerprint($this->section($this->alpha)));
-        $this->assertSame('approved', $this->section($this->alpha)->status);
-
-        $this->move($this->alpha, 'reopen', ['reason' => 'The salary of a1 was corrected'])->assertOk();
-        $this->generate();
-        $this->assertSame(99900, (int) PayrollItem::query()->where('work_assignment_id', $this->a1->id)->value('net_cents'), 'once reopened it is rebuilt');
-        $this->assertSame('draft', $this->section($this->alpha)->status);
     }
 
     public function test_generate_refuses_a_month_whose_every_company_is_finalized(): void
@@ -650,26 +626,26 @@ class CompanyPayrollSectionsTest extends TestCase
         $this->assertSame($this->alpha->id, $log->metadata['client_company_id']);
     }
 
-    public function test_a_company_with_a_shared_employees_unowned_record_cannot_be_approved_until_the_record_is_assigned(): void
+    public function test_a_company_with_a_shared_employees_unowned_record_cannot_be_finalized_until_the_record_is_assigned(): void
     {
         // A penalty from before company ownership names no company, and X works for two: nothing is charged and neither company may be locked in.
         $penalty = EmployeePenalty::query()->create(['employee_id' => $this->x->id, 'penalty_date' => '2026-09-05', 'reason' => 'Late', 'deduction_amount' => 15, 'currency' => 'USD', 'payroll_period' => self::P]);
         $this->generate();
         $this->move($this->alpha, 'review')->assertOk();
 
-        $this->move($this->alpha, 'approve')->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_AMBIGUOUS_COMPANY_INPUT')
+        $this->move($this->alpha, 'finalize')->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_AMBIGUOUS_COMPANY_INPUT')
             ->assertJsonPath('errors.unowned_inputs.0.kind', 'penalty')->assertJsonPath('errors.unowned_inputs.0.id', $penalty->id);
         $this->assertSame('reviewed', $this->section($this->alpha)->status);
 
         // A company that does not employ X is not blocked by it.
         $this->move($this->gury, 'review')->assertOk();
-        $this->move($this->gury, 'approve')->assertOk();
+        $this->move($this->gury, 'finalize')->assertOk();
 
-        // HR assigns the penalty to Bravo and generates again: it is now charged to Bravo only, and Alpha can be approved.
+        // HR assigns the penalty to Bravo and generates again: it is now charged to Bravo only, and Alpha can be finalized.
         $penalty->update(['client_company_id' => $this->bravo->id]);
         $this->generate();
         $this->move($this->alpha, 'review')->assertOk();
-        $this->move($this->alpha, 'approve')->assertOk();
+        $this->move($this->alpha, 'finalize')->assertOk();
         $this->assertSame(15000 - 1500, (int) PayrollItem::query()->where('work_assignment_id', $this->xBravo->id)->value('net_cents'));
         $this->assertSame(10000, (int) PayrollItem::query()->where('work_assignment_id', $this->xAlpha->id)->value('net_cents'));
     }
@@ -866,13 +842,12 @@ class CompanyPayrollSectionsTest extends TestCase
             'company_name' => 'Alpha Co', 'eligible_days' => 31, 'days_in_month' => 31, 'gross_cents' => 30000, 'net_cents' => 30000, 'calc_snapshot' => [],
         ]);
 
-        // Reviewing and approving the month still work for a run that has no sections yet; there is no month-level Finalize to finish it.
-        foreach (['review', 'approve'] as $step) {
-            $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/{$step}")->assertOk();
-        }
+        // Reviewing the month still works for a run that has no sections yet; there is no month-level Approve or Finalize to go on with.
+        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/review")->assertOk();
+        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/approve")->assertNotFound();
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/finalize")->assertNotFound();
 
-        $this->assertSame('approved', $run->fresh()->status);
+        $this->assertSame('reviewed', $run->fresh()->status);
         $this->assertSame(0, PayrollRunSection::query()->where('payroll_run_id', $run->id)->count());
     }
 

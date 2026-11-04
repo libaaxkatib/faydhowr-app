@@ -14,9 +14,8 @@ import { monthYearLabel } from '@/i18n/dates';
 import { getActiveLanguage } from '@/i18n/active';
 import { useI18n } from '@/i18n/useI18n';
 import { formatCurrency, formatDate } from '@/utils/formatters';
-import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
-import { newIdempotencyKey } from '@/utils/payrollCorrections';
-import { WORKPLACE_STATUS, canRecordPayment, paymentPayload, validatePartialAmount, validateVoidReason, waitsForCompanyFinalization, workplaceName } from '@/utils/workplacePayments';
+import { friendlyErrorMessage } from '@/utils/hrHelpers';
+import { WORKPLACE_STATUS, validateVoidReason, waitsForCompanyFinalization, workplaceName } from '@/utils/workplacePayments';
 import type { PayrollRun, WorkplacePaymentRecord, WorkplacePayrollSummary } from '@/types/payroll';
 
 function money(value: string): string {
@@ -25,17 +24,16 @@ function money(value: string): string {
   return Number.isFinite(number) ? formatCurrency(number) : value;
 }
 
-type Paying = { workplace: WorkplacePayrollSummary; mode: 'full' | 'partial' };
 type Voiding = { workplace: WorkplacePayrollSummary; payment: WorkplacePaymentRecord };
 
 /**
- * Payments by workplace for the month: each workplace's total payroll, total paid and outstanding balance with its own status (UNPAID / PARTIAL /
- * PAID), a full or partial payment for that workplace alone, and its payment history. The server calculates every figure; this panel only shows them
- * and sends the person's request. Paying one workplace never changes another, and the payroll lines are not touched.
+ * Payments by workplace for the month (read-only, plus the void of a mistaken payment): each workplace's total payroll, total paid and outstanding balance
+ * with its own status (UNPAID / PARTIAL / PAID) and its payment history. Payments are RECORDED from the company list above ("Approve Paid" / "Approve
+ * Partial": owner decision 2026-11-04), which also approves a company when it is paid in full. The server calculates every figure; this panel only shows
+ * them. Paying one workplace never changes another, and the payroll lines are not touched.
  */
-export function WorkplacePaymentsPanel({ run, canRecord, canVoid }: { run: PayrollRun; canRecord: boolean; canVoid: boolean }) {
+export function WorkplacePaymentsPanel({ run, canVoid }: { run: PayrollRun; canVoid: boolean }) {
   const { t } = useI18n();
-  const [paying, setPaying] = useState<Paying | null>(null);
   const [voiding, setVoiding] = useState<Voiding | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
 
@@ -96,7 +94,6 @@ export function WorkplacePaymentsPanel({ run, canRecord, canVoid }: { run: Payro
                   {data.workplaces.map((workplace) => {
                     const status = WORKPLACE_STATUS[workplace.status];
                     const expanded = open.has(workplace.key);
-                    const payable = canRecordPayment(workplace, canRecord);
                     const waiting = waitsForCompanyFinalization(workplace);
 
                     return (
@@ -115,12 +112,6 @@ export function WorkplacePaymentsPanel({ run, canRecord, canVoid }: { run: Payro
                           <td className="py-2 pl-3">
                             <div className="flex flex-wrap justify-end gap-2">
                               {waiting && <span className="self-center text-xs text-ink-muted" data-testid="wp-company-not-finalized">{t('warning.payroll.wpCompanyNotFinalized')}</span>}
-                              {payable && (
-                                <>
-                                  <Button size="sm" onClick={() => setPaying({ workplace, mode: 'full' })}>{t('action.payroll.wpPayFull')}</Button>
-                                  <Button size="sm" variant="outline" onClick={() => setPaying({ workplace, mode: 'partial' })}>{t('action.payroll.wpPayPartial')}</Button>
-                                </>
-                              )}
                               {workplace.payable && (
                                 <Button size="sm" variant="ghost" aria-expanded={expanded} onClick={() => toggle(workplace.key)}>
                                   {t('option.payroll.wpHistory')} ({workplace.payments.length})
@@ -179,7 +170,6 @@ export function WorkplacePaymentsPanel({ run, canRecord, canVoid }: { run: Payro
         </div>
       )}
 
-      {paying && <PaymentDialog run={run} month={month} paying={paying} onClose={() => setPaying(null)} />}
       {voiding && <VoidDialog month={month} voiding={voiding} onClose={() => setVoiding(null)} />}
     </section>
   );
@@ -189,68 +179,6 @@ function useRefreshWorkplaces() {
   const queryClient = useQueryClient();
 
   return () => queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
-}
-
-/** Full payment (the whole outstanding balance, no amount typed) or partial payment (any amount up to the balance), for one workplace. */
-function PaymentDialog({ run, month, paying, onClose }: { run: PayrollRun; month: string; paying: Paying; onClose: () => void }) {
-  const { t } = useI18n();
-  const { show } = useToast();
-  const refresh = useRefreshWorkplaces();
-  const { workplace, mode } = paying;
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(localToday());
-  const [note, setNote] = useState('');
-  // One key per dialog opening: a retry or a double click of the same submission is recorded once.
-  const [key] = useState(newIdempotencyKey);
-  const [serverError, setServerError] = useState<string | null>(null);
-  const name = workplaceName(workplace);
-  const problem = mode === 'partial' && amount !== '' ? validatePartialAmount(amount, workplace.outstanding_cents) : null;
-  const ready = date !== '' && date <= localToday() && (mode === 'full' || (amount !== '' && validatePartialAmount(amount, workplace.outstanding_cents) === null));
-
-  const mutation = useMutation({
-    mutationFn: () => hrApi.payrollRuns.recordWorkplacePayment(run.id, paymentPayload(workplace, mode, amount, date, note, key)),
-    onSuccess: () => {
-      void refresh();
-      show(t('notify.payroll.wpRecorded'));
-      onClose();
-    },
-    onError: (err) => setServerError(friendlyErrorMessage(err, t('notify.payroll.wpFailed'))),
-  });
-
-  return (
-    <Modal
-      isOpen
-      onClose={mutation.isPending ? () => undefined : onClose}
-      title={mode === 'full' ? t('confirm.payroll.wpFullTitle', { name }) : t('confirm.payroll.wpPartialTitle', { name })}
-      size="sm"
-      footer={
-        <>
-          <Button variant="outline" size="sm" onClick={onClose} disabled={mutation.isPending}>{t('action.cancel')}</Button>
-          <Button size="sm" isLoading={mutation.isPending} disabled={!ready} onClick={() => { setServerError(null); mutation.mutate(); }}>
-            {mode === 'full' ? t('action.payroll.wpRecordFull') : t('action.payroll.wpRecordPartial')}
-          </Button>
-        </>
-      }
-    >
-      {serverError && <div role="alert" className="mb-4 rounded-md border border-danger/30 bg-danger-soft px-3.5 py-2.5 text-sm text-danger">{serverError}</div>}
-      <p className="mb-3 text-sm text-ink-muted">
-        {mode === 'full'
-          ? t('confirm.payroll.wpFullBody', { amount: money(workplace.outstanding), name, month })
-          : t('confirm.payroll.wpPartialBody', { amount: money(workplace.outstanding) })}
-      </p>
-      {mode === 'partial' && (
-        <FormField label={t('option.payroll.amountUsd')} htmlFor="wp-amount" required error={problem ?? undefined}>
-          <input id="wp-amount" type="text" inputMode="decimal" autoComplete="off" className={inputClasses} value={amount} onChange={(e) => setAmount(e.target.value)} />
-        </FormField>
-      )}
-      <FormField label={t('option.payroll.paymentDate')} htmlFor="wp-date" required hint={t('option.payroll.datesMogadishu')}>
-        <input id="wp-date" type="date" max={localToday()} className={inputClasses} value={date} onChange={(e) => setDate(e.target.value)} />
-      </FormField>
-      <FormField label={t('option.payroll.noteOptional')} htmlFor="wp-note">
-        <input id="wp-note" maxLength={500} className={inputClasses} value={note} onChange={(e) => setNote(e.target.value)} />
-      </FormField>
-    </Modal>
-  );
 }
 
 /** Voids a workplace payment recorded by mistake: a reason is required, the payment stays in the history and stops counting. */

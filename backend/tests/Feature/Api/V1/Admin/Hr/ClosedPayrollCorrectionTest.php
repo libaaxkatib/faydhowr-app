@@ -65,16 +65,11 @@ class ClosedPayrollCorrectionTest extends TestCase
         return $this->as($token)->putJson("/api/v1/admin/hr/work-assignments/{$assignment->id}", $payload);
     }
 
-    /** Generates, reviews and approves (and optionally finalizes) a month through the real endpoints. */
-    private function close(string $period, bool $finalize = true): PayrollRun
+    /** Generates, reviews and finalizes a month through the real endpoints (finalized is the only closed state: there is no Approve step). */
+    private function close(string $period): PayrollRun
     {
         $id = $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => $period])->assertCreated()->json('data.id');
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/review")->assertOk();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/approve")->assertOk();
-
-        if ($finalize) {
-            $this->finalizeEveryCompany($id, $this->super);
-        }
+        $this->finalizeEveryCompany($id, $this->super);
 
         return PayrollRun::query()->findOrFail($id);
     }
@@ -179,7 +174,7 @@ class ClosedPayrollCorrectionTest extends TestCase
         $this->edit($this->super, $assignment, ['start_date' => '2026-09-21', 'correction_reason' => 'Wrong start date in the file'])->assertOk();
         $correction = PayrollCorrection::query()->sole();
 
-        $october = $this->close('2026-10', false);
+        $october = $this->close('2026-10');
         $line = $this->line('2026-10', $assignment);
 
         $this->assertSame(30000, (int) $line->gross_cents);
@@ -200,11 +195,11 @@ class ClosedPayrollCorrectionTest extends TestCase
         $this->assertSame('recovered', $correction->status);
 
         // No further deductions once the balance is zero.
-        $this->close('2026-11', false);
+        $this->close('2026-11');
         $this->assertSame(0, PayrollItemDeduction::query()->where('kind', 'overpayment_recovery')->where('period', '2026-11')->count());
         $this->assertSame(30000, (int) $this->line('2026-11', $assignment)->net_cents);
         $this->assertSame('finalized', PayrollRun::query()->where('period', '2026-09')->value('status'));
-        $this->assertSame('approved', $october->fresh()->status);
+        $this->assertSame('finalized', $october->fresh()->status);
     }
 
     // ------------------------------------------------------------------ carrying the balance forward
@@ -230,7 +225,7 @@ class ClosedPayrollCorrectionTest extends TestCase
         $expected = [['2026-10', 20000, 0, 30000], ['2026-11', 20000, 0, 10000], ['2026-12', 10000, 10000, 0]];
 
         foreach ($expected as [$period, $deducted, $net, $outstandingAfter]) {
-            $this->close($period, false);
+            $this->close($period);
             $line = $this->line($period, $assignment);
 
             $this->assertSame($deducted, (int) $line->other_deduction_cents, "{$period}: the lesser of what is owed and the payable salary");
@@ -241,7 +236,7 @@ class ClosedPayrollCorrectionTest extends TestCase
         $this->assertSame('recovered', $correction->fresh()->status);
         $this->assertSame(10000, (int) $this->line('2026-12', $assignment)->net_cents, 'in the final month the employee keeps the rest of the salary (100.00)');
 
-        $this->close('2027-01', false);
+        $this->close('2027-01');
         $this->assertSame(0, PayrollItemDeduction::query()->where('kind', 'overpayment_recovery')->where('period', '2027-01')->count());
         $this->assertSame(
             50000,
@@ -258,7 +253,7 @@ class ClosedPayrollCorrectionTest extends TestCase
         $second = $this->makeAssignment($employee, $this->company, null, 200, '2026-12-01');
         $correction = $this->owed($employee, 30000);
 
-        $this->close('2026-10', false);
+        $this->close('2026-10');
         $this->assertSame(10000, (int) $correction->fresh()->outstanding_cents, 'October pays back 200.00');
 
         $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-11'])->assertCreated();
@@ -266,7 +261,7 @@ class ClosedPayrollCorrectionTest extends TestCase
         $this->assertSame(0, PayrollRecoveryDeduction::query()->where('period', '2026-11')->count(), 'so there is no deduction for November');
         $this->assertSame(10000, (int) $correction->fresh()->outstanding_cents, 'the full balance carries forward');
 
-        $this->close('2026-12', false);
+        $this->close('2026-12');
         $this->assertSame(10000, (int) $this->line('2026-12', $second)->other_deduction_cents);
         $this->assertSame(10000, (int) $this->line('2026-12', $second)->net_cents);
         $this->assertSame(0, (int) $correction->fresh()->outstanding_cents);
@@ -286,16 +281,14 @@ class ClosedPayrollCorrectionTest extends TestCase
         $this->assertSame('scheduled', PayrollRecoveryDeduction::query()->sole()->status);
         $this->assertSame(20000, (int) $correction->fresh()->outstanding_cents, 'a draft month has not recovered anything yet');
 
-        // Approve, reopen, regenerate, approve again: still exactly one deduction of 200.00.
+        // Review, reopen, regenerate, review and finalize: still exactly one deduction of 200.00, recovered only when the month is finalized.
         $run = PayrollRun::query()->where('period', '2026-10')->firstOrFail();
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/review")->assertOk();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/approve")->assertOk();
-        $this->assertSame(0, (int) $correction->fresh()->outstanding_cents);
+        $this->assertSame(20000, (int) $correction->fresh()->outstanding_cents, 'a reviewed month has not recovered anything yet');
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/reopen", ['reason' => 'Check the totals again'])->assertOk();
-        $this->assertSame(20000, (int) $correction->fresh()->outstanding_cents, 'reopening puts the deduction back to scheduled');
+        $this->assertSame(20000, (int) $correction->fresh()->outstanding_cents, 'the deduction is still scheduled');
         $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-10'])->assertCreated();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/review")->assertOk();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/approve")->assertOk();
+        $this->finalizeEveryCompany($run->id, $this->super);
 
         $this->assertSame(1, PayrollRecoveryDeduction::query()->count());
         $this->assertSame(10000, (int) $this->line('2026-10', $assignment)->net_cents);
@@ -366,7 +359,7 @@ class ClosedPayrollCorrectionTest extends TestCase
         $this->assertSame(15000, (int) $under->outstanding_cents, 'the amount owed is recorded separately from the closed payroll month');
 
         // No automatic payment appears in the next month for the underpaid employee.
-        $this->close('2026-10', false);
+        $this->close('2026-10');
         $this->assertSame(0, PayrollRecoveryDeduction::query()->where('payroll_correction_id', $under->id)->count());
         $this->assertSame(0, (int) PayrollItem::query()->where('period', '2026-10')->where('employee_id', $standIn->id)->sum('adjustment_cents'));
     }

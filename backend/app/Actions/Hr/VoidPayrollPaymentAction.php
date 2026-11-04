@@ -11,6 +11,7 @@ use App\Models\PayrollItem;
 use App\Models\PayrollPaymentVoid;
 use App\Support\ApiResponse;
 use App\Support\Hr\Facility\FacilityCalendar;
+use App\Support\Hr\Payroll\PayrollApproval;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\Payroll\PayrollSections;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -84,7 +85,8 @@ class VoidPayrollPaymentAction
             ]);
 
             // The line goes back to unpaid so it can be paid again; the original payment row is not touched.
-            $item->update(['payment_status' => 'unpaid', 'paid_at' => null, 'employee_payment_id' => null]);
+            // Voiding can take the company (and the month) back out of Approved: PayrollApproval records it.
+            PayrollApproval::track($item->run, fn () => $item->update(['payment_status' => 'unpaid', 'paid_at' => null, 'employee_payment_id' => null]), $actor, ['source' => 'line_payment_voided', 'payroll_item_id' => $item->id]);
 
             event(AuditEvent::record(
                 action: AuditAction::Payment,

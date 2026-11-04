@@ -12,7 +12,7 @@ use App\Support\Hr\Payroll\RecoveryLedger;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
- * Moves a payroll run through draft -> reviewed -> approved (and back to draft by reopening an approved one). Finalizing is NOT done here: it is only
+ * Moves a payroll run through draft -> reviewed (and back to draft by reopening a reviewed one). There is NO Approve (approval is payment, PayrollApproval) and finalizing is NOT done here: it is only
  * done company by company (TransitionPayrollRunSectionAction), and the month finalizes itself when the last company is finalized.
  * Each step must start from the exact previous state. Owner decision (2026-10-29): the authorized HR Manager prepares, reviews, approves and
  * finalizes payroll; a second person is NOT required, so the same person may do every step. Who did each step and when is stored on the run and in
@@ -26,7 +26,7 @@ class TransitionPayrollRunAction
      * previous state and leave the others as they are, and the month's own status is the least advanced section's. A run without sections (created
      * before company-level finalization) is moved as a whole, exactly as before.
      */
-    private function bulk(PayrollRun $run, string $from, string $to, Admin $actor, string $word, ?string $reason = null): ?PayrollRun
+    private function bulk(PayrollRun $run, string|array $from, string $to, Admin $actor, string $word, ?string $reason = null): ?PayrollRun
     {
         if (! $run->sections()->exists()) {
             return null;
@@ -37,12 +37,13 @@ class TransitionPayrollRunAction
         }
 
         // The month-level step, like the company-level one, starts from the exact previous state - here the MONTH's (its least advanced company).
-        if ($run->status !== $from) {
-            if ($to === PayrollRun::STATUS_DRAFT) {
-                $this->fail("Only an approved payroll can be reopened (this one is {$run->status}). Finalized payroll is corrected with adjustments.", 'PAYROLL_RUN_NOT_REOPENABLE');
-            }
-
+        // Reopening is different: it moves every company that is reviewed (the states before finalizing) back to draft, so it needs only one such company.
+        if ($to !== PayrollRun::STATUS_DRAFT && $run->status !== $from) {
             $this->require($run, $from, $word);
+        }
+
+        if ($to === PayrollRun::STATUS_DRAFT && ! $run->sections()->whereIn('status', (array) $from)->exists()) {
+            $this->fail("Only a reviewed payroll can be reopened (this one is {$run->status}). Finalized payroll is corrected with adjustments.", 'PAYROLL_RUN_NOT_REOPENABLE');
         }
 
         $moved = app(TransitionPayrollRunSectionAction::class)->bulk($run, $from, $to, $actor, $reason);
@@ -79,28 +80,18 @@ class TransitionPayrollRunAction
         return $this->audited($run, $actor, AuditAction::Update, "Payroll {$run->period} marked reviewed.");
     }
 
-    public function approve(PayrollRun $run, Admin $actor): PayrollRun
-    {
-        if (($bulk = $this->bulk($run, PayrollRun::STATUS_REVIEWED, PayrollRun::STATUS_APPROVED, $actor, 'approved')) !== null) {
-            return $bulk;
-        }
-
-        $this->require($run, PayrollRun::STATUS_REVIEWED, 'approved');
-
-        $run->update(['status' => PayrollRun::STATUS_APPROVED, 'approved_at' => now(), 'approved_by' => $actor->id]);
-        RecoveryLedger::markApplied($run);
-
-        return $this->audited($run, $actor, AuditAction::Approve, "Payroll {$run->period} approved.");
-    }
+    // There is NO month-level Approve (owner decision 2026-11-04): the month is approved by itself when every company has been paid in full (PayrollApproval).
 
     public function reopen(PayrollRun $run, string $reason, Admin $actor): PayrollRun
     {
-        if (($bulk = $this->bulk($run, PayrollRun::STATUS_APPROVED, PayrollRun::STATUS_DRAFT, $actor, 'reopened', $reason)) !== null) {
+        $before = [PayrollRun::STATUS_REVIEWED, PayrollRun::STATUS_APPROVED];
+
+        if (($bulk = $this->bulk($run, $before, PayrollRun::STATUS_DRAFT, $actor, 'reopened', $reason)) !== null) {
             return $bulk;
         }
 
-        if ($run->status !== PayrollRun::STATUS_APPROVED) {
-            $this->fail("Only an approved payroll can be reopened (this one is {$run->status}). Finalized payroll is corrected with adjustments.", 'PAYROLL_RUN_NOT_REOPENABLE');
+        if (! in_array($run->status, $before, true)) {
+            $this->fail("Only a reviewed payroll can be reopened (this one is {$run->status}). Finalized payroll is corrected with adjustments.", 'PAYROLL_RUN_NOT_REOPENABLE');
         }
 
         $run->update(['status' => PayrollRun::STATUS_DRAFT, 'reviewed_at' => null, 'reviewed_by' => null, 'approved_at' => null, 'approved_by' => null]);

@@ -144,9 +144,31 @@ export interface PayrollItem {
 }
 
 /**
- * One company's part of a payroll month, with its own status (draft -> reviewed -> approved -> finalized), its own stamps and totals, and what has
- * been paid / is outstanding for it. Amounts are USD strings from the server.
+ * One company's part of a payroll month, with its own PAYROLL status (draft -> reviewed -> finalized), its own stamps and totals, and what has been paid /
+ * is outstanding for it. Approval is payment (owner decision 2026-11-04): `payment_status` is unpaid / partially_paid / approved, and a company is approved
+ * only when it is finalized and fully paid. Amounts are USD strings from the server, the cents next to them.
  */
+export type CompanyPaymentStatus = 'unpaid' | 'partially_paid' | 'approved';
+
+/** The month's payment / approval picture, derived by the server from the payments (it is not a status of the run). */
+export interface PayrollMonthApproval {
+  total_companies: number;
+  approved_companies: number;
+  /** Finalized and nothing paid yet. */
+  unpaid_companies: number;
+  partially_paid_companies: number;
+  /** Not finalized yet: cannot be paid, so cannot be approved. */
+  not_finalized_companies: number;
+  total_cents: number;
+  paid_cents: number;
+  outstanding_cents: number;
+  total: string;
+  paid: string;
+  outstanding: string;
+  /** True only when there are companies and every one of them is approved (fully paid). */
+  fully_approved: boolean;
+}
+
 export interface PayrollRunSection {
   id: number;
   client_company_id: number | null;
@@ -158,8 +180,18 @@ export interface PayrollRunSection {
   item_count: number;
   gross: string;
   net: string;
+  /** What there is to pay (the lines with a positive net). */
+  payable: string;
+  payable_cents: number;
   paid: string;
+  paid_cents: number;
   outstanding: string;
+  outstanding_cents: number;
+  /** Derived from the payments: Approved only when finalized and fully paid. Never changes the payroll status. */
+  payment_status: CompanyPaymentStatus;
+  approved: boolean;
+  /** Finalized and something is still owed: "Approve Paid" / "Approve Partial" are offered. */
+  can_pay: boolean;
   reviewed_at: string | null;
   reviewed_by: string | null;
   approved_at: string | null;
@@ -181,6 +213,8 @@ export interface PayrollRun {
   is_partially_finalized?: boolean;
   /** The companies of the month (only in the single-month view). */
   sections?: PayrollRunSection[];
+  /** Only in the single-month view (null while the lines are not loaded). */
+  approval?: PayrollMonthApproval | null;
   currency: string;
   item_count: number;
   totals: PayrollRunTotals;
@@ -264,6 +298,23 @@ export interface WorkplacePayments {
   can_record: boolean;
   totals: { total: string; paid: string; outstanding: string };
   workplaces: WorkplacePayrollSummary[];
+}
+
+/** "Approve Paid" (mode full: the whole outstanding balance) or "Approve Partial" (an amount in dollars) for one finalized company. */
+export interface RecordCompanyPaymentPayload {
+  mode: 'full' | 'partial';
+  /** Dollars, only for a partial payment. */
+  amount?: string;
+  payment_date: string;
+  note?: string | null;
+  idempotency_key: string;
+}
+
+export interface RecordCompanyPaymentResult {
+  replayed: boolean;
+  payment_ids: number[];
+  company: { section_id: number; payment_status: CompanyPaymentStatus; approved: boolean; paid_cents: number; outstanding_cents: number } | null;
+  month: Omit<PayrollMonthApproval, 'total' | 'paid' | 'outstanding'>;
 }
 
 export interface RecordWorkplacePaymentPayload {

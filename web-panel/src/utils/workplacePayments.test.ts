@@ -19,10 +19,9 @@ const api = readFileSync(new URL('../api/hr.ts', import.meta.url), 'utf8');
 const KEYS = [
   'option.payroll.wpTitle', 'option.payroll.wpHelp', 'option.payroll.wpWorkplace', 'option.payroll.wpTotal', 'option.payroll.wpPaid', 'option.payroll.wpOutstanding',
   'option.payroll.wpNone', 'option.payroll.wpUnassigned', 'option.payroll.wpHistory', 'option.payroll.wpNoPayments', 'option.payroll.wpRecordedBy', 'option.payroll.wpNote',
-  'option.payroll.wpVoidedMark', 'status.payroll.wpUnpaid', 'status.payroll.wpPartial', 'status.payroll.wpPaid', 'action.payroll.wpPayFull', 'action.payroll.wpPayPartial',
-  'action.payroll.wpRecordFull', 'action.payroll.wpRecordPartial', 'action.payroll.wpVoid', 'confirm.payroll.wpFullTitle', 'confirm.payroll.wpFullBody',
-  'confirm.payroll.wpPartialTitle', 'confirm.payroll.wpPartialBody', 'confirm.payroll.wpVoidTitle', 'confirm.payroll.wpVoidBody', 'option.payroll.wpVoidReason',
-  'validation.payroll.wpVoidReason', 'warning.payroll.wpNotFinalized', 'notify.payroll.wpRecorded', 'notify.payroll.wpVoided', 'notify.payroll.wpFailed',
+  'option.payroll.wpVoidedMark', 'status.payroll.wpUnpaid', 'status.payroll.wpPartial', 'status.payroll.wpPaid',
+  'action.payroll.wpVoid', 'confirm.payroll.wpVoidTitle', 'confirm.payroll.wpVoidBody', 'option.payroll.wpVoidReason',
+  'validation.payroll.wpVoidReason', 'warning.payroll.wpNotFinalized', 'notify.payroll.wpVoided', 'notify.payroll.wpFailed',
 ] as const;
 
 const workplace = { client_company_id: 7, work_location_id: null, company_name: 'Acme Co', workplace_name: null, payable: true, can_record: true, outstanding_cents: 12_500 };
@@ -100,16 +99,18 @@ test('the panel only displays the server\'s figures and sends the person\'s requ
   assert.ok(!/reduce\(/.test(panel), 'nothing is summed in the panel');
 });
 
-test('a retry or a double click is recorded once: one key per dialog opening, and the buttons lock while it is sent', () => {
-  assert.match(panel, /const \[key\] = useState\(newIdempotencyKey\)/);
-  assert.match(panel, /paymentPayload\(workplace, mode, amount, date, note, key\)/);
-  assert.match(panel, /isLoading=\{mutation\.isPending\}/);
-  assert.match(panel, /onClose=\{mutation\.isPending \? \(\) => undefined : onClose\}/);
+test('a retry or a double click is recorded once: one key per dialog opening, and the buttons lock while it is sent (the company payment dialog)', () => {
+  const dialog = readFileSync(new URL('../features/hrm/CompanyPaymentDialog.tsx', import.meta.url), 'utf8');
+  assert.match(dialog, /const \[key\] = useState\(newIdempotencyKey\)/);
+  assert.match(dialog, /companyPaymentPayload\(mode, amount, date, note, key\)/);
+  assert.match(dialog, /isLoading=\{mutation\.isPending\}/);
+  assert.match(dialog, /onClose=\{mutation\.isPending \? \(\) => undefined : onClose\}/);
 });
 
 test('recording and voiding are offered by permission, and the lists refresh afterwards', () => {
-  assert.match(page, /<WorkplacePaymentsPanel run=\{run\} canRecord=\{canApprove\} canVoid=\{canVoid\} \/>/);
-  assert.match(panel, /canRecordPayment\(workplace, canRecord\)/);
+  // Payments are recorded from the company list ("Approve Paid" / "Approve Partial"); this panel keeps the history and the void of a mistaken payment.
+  assert.match(page, /<WorkplacePaymentsPanel run=\{run\} canVoid=\{canVoid\} \/>/);
+  assert.ok(!/canRecord|setPaying|PaymentDialog|wpPayFull|wpPayPartial/.test(panel), 'no payment buttons in the workplace history panel');
   assert.match(panel, /canVoid && workplace\.can_record/);
   assert.match(panel, /waitsForCompanyFinalization\(workplace\)/);
   assert.match(panel, /queryClient\.invalidateQueries\(\{ queryKey: \['workplace-payments'\] \}\)/);
@@ -125,7 +126,7 @@ test('every word of the panel is a catalogue message with English and Somali, wr
     assert.deepEqual(placeholdersOf(entry.en), placeholdersOf(entry.so), `${key}: the same placeholders in both languages`);
     assert.ok(panel.includes(`'${key}'`) || readFileSync(new URL('./workplacePayments.ts', import.meta.url), 'utf8').includes(`'${key}'`), `${key} is used`);
   }
-  assert.deepEqual(placeholdersOf(CATALOGUE['confirm.payroll.wpFullBody'].en), ['amount', 'month', 'name']);
+  assert.deepEqual(placeholdersOf(CATALOGUE['confirm.payroll.apPaidBody'].en), ['amount', 'month', 'name']);
 });
 
 test('the panel writes no English text and no colour of its own (theme tokens only, so Light and Dark both work)', () => {

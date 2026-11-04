@@ -6,6 +6,7 @@ use App\Enums\AdminRole;
 use App\Enums\AuditAction;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
+use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollCorrection;
 use App\Models\PayrollItem;
 use App\Models\PayrollRun;
@@ -22,8 +23,8 @@ use Illuminate\Support\Str;
  *  1. Only months that are approved or finalized are looked at, and only from the first date the change can reach.
  *  2. Each of those months is calculated for the employees involved BEFORE the change and AFTER it (the same calculator the payroll
  *     run uses). If no closed month changes, the change is allowed for whoever may make it - months it does not touch are not locked.
- *  3. If a closed month WOULD change, the change is accepted only from a Super Admin, with a reason; for anyone else the whole change
- *     is rolled back. The closed run and its lines are never edited: the difference is recorded as a PayrollCorrection.
+ *  3. If a closed month WOULD change, the change is accepted only from a Super Admin (an HR Manager too, but only for adding an employee to a
+ *     position: HR_MANAGER_ACTIONS), with a reason; for anyone else the whole change is rolled back. The closed run and its lines are never edited: the difference is recorded as a PayrollCorrection.
  *  4. An overpayment is recovered from later salaries (see PayrollRunCalculator::applyOverpaymentRecovery); what payroll cannot take
  *     stays as an outstanding debt. An underpayment is recorded as an amount owed to the employee; it is paid ONLY by a Super Admin as a
  *     separate, traceable transaction (RecordCorrectionTransactionAction) - never inside payroll and never by rewriting the closed month.
@@ -32,7 +33,21 @@ class ClosedPayrollCorrection
 {
     private static bool $active = false;
 
+    /**
+     * What an HR Manager may record as a correction of closed payroll besides a Super Admin (owner decision 2026-11-04): ONLY adding an employee to a
+     * position ('assigned' - the Add Employee to Company workflow). Editing, stopping, replacing or returning an assignment, changing a salary and every other
+     * correction stay Super Admin only, and so does paying an underpayment (RecordCorrectionTransactionAction). The correction is recorded exactly as for a
+     * Super Admin - the closed run is never edited - and names the HR Manager who did it.
+     */
+    public const HR_MANAGER_ACTIONS = ['assigned'];
+
     public function __construct(private readonly PayrollRunCalculator $calculator = new PayrollRunCalculator) {}
+
+    private function mayCorrect(Admin $actor, string $action): bool
+    {
+        return $actor->role === AdminRole::SuperAdmin
+            || ($actor->role === AdminRole::HrManager && in_array($action, self::HR_MANAGER_ACTIONS, true));
+    }
 
     /**
      * @template T
@@ -83,12 +98,18 @@ class ClosedPayrollCorrection
 
                 $months = implode(', ', array_keys($differences));
 
-                if ($actor->role !== AdminRole::SuperAdmin) {
+                if (! $this->mayCorrect($actor, $action)) {
                     throw new HttpResponseException(ApiResponse::error(
                         "This change would alter payroll for {$months}, which is approved or finalized. Only a Super Admin can correct approved or finalized payroll. Nothing was changed.",
                         'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY',
                         403,
                     ));
+                }
+
+                // The new assignment is only known now: the correction names it (and where it is), so it can be traced from the payroll side.
+                if ($result instanceof EmployeeWorkAssignment) {
+                    $context['assignment_id'] ??= $result->id;
+                    $context['new'] = [...($context['new'] ?? []), 'assignment_id' => $result->id, 'position_id' => $result->position_id, 'client_company_id' => $result->client_company_id, 'work_location_id' => $result->work_location_id];
                 }
 
                 if ($reason === null || mb_strlen($reason) < 5) {
@@ -245,6 +266,9 @@ class ClosedPayrollCorrection
                     metadata: [
                         'event' => 'payroll_corrected',
                         'action' => $action,
+                        // Who recorded it and in which role: an HR Manager may record an assignment correction (HR_MANAGER_ACTIONS), a Super Admin any.
+                        'corrected_by_admin_id' => $actor->id,
+                        'corrected_by_role' => $actor->role->value,
                         'employee_id' => $employeeId,
                         'period' => $period,
                         'payroll_run_id' => $run->id,

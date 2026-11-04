@@ -96,7 +96,6 @@ class WorkplacePaymentsTest extends TestCase
     {
         $id = $this->draft();
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/review")->assertOk();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/approve")->assertOk();
         $this->finalizeEveryCompany($id, $this->super);
 
         return $id;
@@ -241,8 +240,7 @@ class WorkplacePaymentsTest extends TestCase
         $this->pay($acme)->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_NOT_FINALIZED');
 
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/review")->assertOk();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/approve")->assertOk();
-        $this->pay($acme)->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_NOT_FINALIZED');
+        $this->pay($acme)->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_NOT_FINALIZED'); // reviewed is still not finalized
         $this->finalizeEveryCompany($this->runId, $this->super);
         $this->assertTrue($this->as($this->super)->getJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/workplace-payments")->json('data.can_record'));
 

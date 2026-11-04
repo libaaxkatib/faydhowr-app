@@ -20,6 +20,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\FinalizesCompanies;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -32,6 +33,7 @@ use Tests\TestCase;
  */
 class OwnerDecisionsFinalTest extends TestCase
 {
+    use FinalizesCompanies;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -198,8 +200,7 @@ class OwnerDecisionsFinalTest extends TestCase
 
         $this->assertSame(10000, (int) $line->other_deduction_cents, 'only the 100.00 still owed is taken, not the 400.00 that was written off');
         $this->assertSame(10000, (int) $line->net_cents);
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/review")->assertOk();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/approve")->assertOk();
+        $this->finalizeEveryCompany($id, $this->super);
         $this->assertSame(0, (int) $debt->fresh()->outstanding_cents);
         $this->assertSame('written_off', $debt->fresh()->status);
     }

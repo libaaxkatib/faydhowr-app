@@ -9,6 +9,7 @@ use App\Models\Admin;
 use App\Models\PayrollRun;
 use App\Models\PayrollWorkplacePayment;
 use App\Support\ApiResponse;
+use App\Support\Hr\Payroll\PayrollApproval;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\Payroll\WorkplacePayroll;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -42,7 +43,8 @@ class VoidWorkplacePaymentAction
                 $this->fail('This payment was already voided.', 'PAYMENT_ALREADY_VOIDED');
             }
 
-            $payment->update(['voided_at' => now(), 'voided_by' => $actor->id, 'void_reason' => $reason]);
+            // Voiding can take a company (and the month) back out of Approved: PayrollApproval records it.
+            PayrollApproval::track($run, fn () => $payment->update(['voided_at' => now(), 'voided_by' => $actor->id, 'void_reason' => $reason]), $actor, ['source' => 'workplace_payment_voided', 'payment_id' => $payment->id]);
 
             $summary = WorkplacePayroll::summaryFor($run, $payment->client_company_id, $payment->work_location_id) ?? [];
 

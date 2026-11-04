@@ -14,6 +14,7 @@ use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
 use App\Models\PayrollItemDeduction;
 use App\Models\PayrollRun;
+use App\Models\PayrollRunSection;
 use App\Models\Permission;
 use App\Models\TemporaryReplacement;
 use App\Models\WorkLocation;
@@ -264,22 +265,34 @@ class PayrollLifecycleTest extends TestCase
         PayrollItemDeduction::query()->create(['payroll_item_id' => $item->id, 'period' => self::P, 'kind' => 'penalty', 'source_type' => 'employee_penalty', 'source_id' => $penalty->id, 'amount_cents' => 500, 'description' => 'duplicate']);
     }
 
-    public function test_full_lifecycle_review_approve_finalize_and_lock(): void
+    public function test_full_lifecycle_review_finalize_lock_and_approval_by_payment(): void
     {
         [, $token] = $this->superAdminToken();
         $this->permanentWith(300);
         $run = $this->generate($token)->assertCreated()->json('data.id');
 
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/approve")->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_WRONG_STATE');
+        // There is no Approve step at all (owner decision 2026-11-04): neither for the month nor for a company.
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/approve")->assertNotFound();
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review")->assertOk()->assertJsonPath('data.status', 'reviewed');
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/approve")->assertOk()->assertJsonPath('data.status', 'approved');
-
-        $this->generate($token)->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_LOCKED');
+        $sectionId = PayrollRunSection::query()->where('payroll_run_id', $run)->value('id');
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$sectionId}/approve")->assertNotFound();
 
         $this->assertSame('finalized', $this->finalizeEveryCompany($run, $token)->status);
+        $this->generate($token)->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_LOCKED');
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/reopen", ['reason' => 'Trying to undo a final month'])
             ->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_NOT_REOPENABLE');
-        $this->generate($token)->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_LOCKED');
+
+        // Finalized is not approved: the month and its company are approved only when they are paid in full.
+        $month = $this->withToken($token)->getJson("/api/v1/admin/hr/payroll-runs/{$run}")->assertOk()->json('data');
+        $this->assertSame('finalized', $month['status']);
+        $this->assertFalse($month['approval']['fully_approved']);
+        $this->assertSame([false, 'unpaid'], [$month['sections'][0]['approved'], $month['sections'][0]['payment_status']]);
+
+        $this->approvePaid($sectionId, $token)->assertCreated();
+        $paid = $this->withToken($token)->getJson("/api/v1/admin/hr/payroll-runs/{$run}")->assertOk()->json('data');
+        $this->assertTrue($paid['approval']['fully_approved']);
+        $this->assertSame([true, 'approved'], [$paid['sections'][0]['approved'], $paid['sections'][0]['payment_status']]);
+        $this->assertSame('finalized', $paid['status'], 'approval never changes the payroll status');
     }
 
     public function test_an_empty_run_cannot_be_reviewed(): void
@@ -290,13 +303,12 @@ class PayrollLifecycleTest extends TestCase
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review")->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_EMPTY');
     }
 
-    public function test_an_approved_run_can_be_reopened_with_a_reason_and_regenerated(): void
+    public function test_a_reviewed_run_can_be_reopened_with_a_reason_and_regenerated(): void
     {
         [, $token] = $this->superAdminToken();
         $this->permanentWith(300);
         $run = $this->generate($token)->json('data.id');
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review");
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/approve");
 
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/reopen", ['reason' => 'x'])->assertStatus(422)->assertJsonValidationErrors('reason');
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/reopen", ['reason' => 'A workday was entered wrongly'])
@@ -304,7 +316,7 @@ class PayrollLifecycleTest extends TestCase
         $this->generate($token)->assertCreated();
     }
 
-    public function test_one_hr_manager_prepares_reviews_approves_and_finalizes_payroll_without_a_second_person(): void
+    public function test_one_hr_manager_prepares_reviews_finalizes_and_pays_payroll_without_a_second_person(): void
     {
         // Owner decision 2026-10-29: the authorized HR Manager is responsible for the whole payroll; a second person is NOT required.
         $this->permanentWith(300);
@@ -318,30 +330,31 @@ class PayrollLifecycleTest extends TestCase
         $run = $this->generate($token)->assertCreated()->json('data.id');
 
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review")->assertOk()->assertJsonPath('data.status', 'reviewed');
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/approve")->assertOk()->assertJsonPath('data.status', 'approved');
         $this->assertSame('finalized', $this->finalizeEveryCompany($run, $token)->status);
 
-        // Who did each step, and when, is kept on the run and in the audit log.
+        // Who did each step, and when, is kept on the run and in the audit log. There is no approver: approval is payment.
         $stored = PayrollRun::query()->findOrFail($run);
-        $this->assertSame([$hrManager->id, $hrManager->id, $hrManager->id], [(int) $stored->reviewed_by, (int) $stored->approved_by, (int) $stored->finalized_by]);
+        $this->assertSame([$hrManager->id, $hrManager->id], [(int) $stored->reviewed_by, (int) $stored->finalized_by]);
+        $this->assertNull($stored->approved_by);
         $this->assertNotNull($stored->reviewed_at);
-        $this->assertNotNull($stored->approved_at);
         $this->assertNotNull($stored->finalized_at);
-        $this->assertGreaterThanOrEqual(3, AuditLog::query()->where('admin_id', $hrManager->id)->where('entity_type', PayrollRun::class)->where('entity_id', $run)->count());
+        $this->assertGreaterThanOrEqual(2, AuditLog::query()->where('admin_id', $hrManager->id)->where('entity_type', PayrollRun::class)->where('entity_id', $run)->count());
 
         // Finalizing is not paying: every line is still unpaid.
         $this->assertSame(0, PayrollItem::query()->where('payroll_run_id', $run)->where('payment_status', '!=', 'unpaid')->count());
     }
 
-    public function test_a_role_without_the_approve_permission_still_cannot_approve_or_finalize(): void
+    public function test_a_role_without_the_approve_permission_still_cannot_finalize_or_pay(): void
     {
         $this->permanentWith(300);
         $preparer = $this->tokenWithOnly(['hr.view', 'hr.payroll.view', 'hr.payroll.manage']);
         $run = $this->generate($preparer)->assertCreated()->json('data.id');
         $this->withToken($preparer)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review")->assertOk();
+        $sectionId = PayrollRunSection::query()->where('payroll_run_id', $run)->value('id');
 
-        $this->withToken($preparer)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/approve")->assertForbidden();
-        // There is no month-level finalize any more (tested in CompanyPayrollSectionsTest).
+        $this->withToken($preparer)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$sectionId}/finalize")->assertForbidden();
+        $this->approvePaid($sectionId, $preparer)->assertForbidden();
+        // There is no month-level finalize and no approve at all (tested in CompanyPayrollSectionsTest).
     }
 
     public function test_permissions_separate_viewing_preparing_and_approving(): void
@@ -354,14 +367,14 @@ class PayrollLifecycleTest extends TestCase
         $this->withToken($hrOnly)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => self::P])->assertForbidden();
     }
 
-    public function test_a_payroll_viewer_cannot_prepare_or_approve(): void
+    public function test_a_payroll_viewer_cannot_prepare_or_reopen(): void
     {
         $run = PayrollRun::query()->create(['period' => self::P, 'status' => 'draft']);
         $viewer = $this->tokenWithOnly(['hr.payroll.view']);
 
         $this->withToken($viewer)->getJson('/api/v1/admin/hr/payroll-runs')->assertOk();
         $this->withToken($viewer)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-08'])->assertForbidden();
-        $this->withToken($viewer)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/approve")->assertForbidden();
+        $this->withToken($viewer)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/reopen", ['reason' => 'Trying as a viewer'])->assertForbidden();
     }
 
     public function test_adjustments_need_a_finalized_month_and_apply_in_a_later_run_once(): void
@@ -376,7 +389,6 @@ class PayrollLifecycleTest extends TestCase
             ->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_NOT_FINALIZED');
 
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review");
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/approve");
         $this->finalizeEveryCompany($run, $token);
 
         $this->withToken($token)->postJson("/api/v1/admin/hr/payroll-items/{$itemId}/adjustments", [...$body, 'applies_in_period' => '2026-09'])

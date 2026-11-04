@@ -134,13 +134,14 @@ function useMoney() {
  * Shown only after the server said this change reaches an approved or finalized payroll month. Only a Super Admin can record such a
  * change, and only with a reason; the closed month itself is never edited.
  */
-function CorrectionReasonField({ visible, value, onChange, error }: { visible: boolean; value: string; onChange: (value: string) => void; error?: string }) {
+/** `notice` is the warning above the reason: the default says only a Super Admin can record the correction; the Add Employee dialog says an HR Manager can too (owner decision 2026-11-04). */
+function CorrectionReasonField({ visible, value, onChange, error, notice = 'warning.company.correctionNotice' }: { visible: boolean; value: string; onChange: (value: string) => void; error?: string; notice?: 'warning.company.correctionNotice' | 'warning.company.correctionNoticeAdd' }) {
   const { t } = useI18n();
   if (!visible) return null;
   return (
     <div className="mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-3" data-testid="correction-reason">
       <p className="mb-2 text-xs text-warning">
-        {t('warning.company.correctionNotice')}
+        {t(notice)}
       </p>
       <FormField label={t('confirm.company.correctionReasonLabel')} htmlFor="correction-reason" required error={error} hint={t('confirm.company.correctionReasonHint')}>
         <input id="correction-reason" className={inputClasses} value={value} onChange={(event) => onChange(event.target.value)} />
@@ -300,7 +301,7 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
         <FormField label={t('confirm.company.note')} htmlFor="assign-notes">
           <input id="assign-notes" className={inputClasses} value={notes} onChange={(event) => setNotes(event.target.value)} />
         </FormField>
-        <CorrectionReasonField visible={state.needsCorrection} value={correctionReason} onChange={setCorrectionReason} error={err('correction_reason')} />
+        <CorrectionReasonField visible={state.needsCorrection} value={correctionReason} onChange={setCorrectionReason} error={err('correction_reason')} notice="warning.company.correctionNoticeAdd" />
         <p className="text-xs text-ink-muted">{t('warning.company.addEmployeeNote')}</p>
       </form>
     </Modal>

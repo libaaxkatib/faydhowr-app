@@ -9,11 +9,12 @@ import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { TABLE_SCROLL_CLASS } from '@/components/ui/TableScroll';
 import { useToast } from '@/components/ui/useToast';
+import { CompanyPaymentDialog } from '@/features/hrm/CompanyPaymentDialog';
 import { useI18n } from '@/i18n/useI18n';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
-import { MONTH_STATUS_LABEL, monthDisplayStatus, sectionActions, sectionName, type SectionAction } from '@/utils/payrollSections';
-import type { PayrollRun, PayrollRunSection } from '@/types/payroll';
+import { MONTH_STATUS_LABEL, PAYMENT_STATUS_LABEL, monthDisplayStatus, paymentActions, sectionActions, sectionName, type PaymentAction, type SectionAction } from '@/utils/payrollSections';
+import type { PayrollMonthApproval, PayrollRun, PayrollRunSection } from '@/types/payroll';
 
 function money(value: string): string {
   const number = Number(value);
@@ -36,9 +37,10 @@ interface CompanySectionsPanelProps {
 }
 
 /**
- * Payroll by company for a month: every company's own status, employee count, totals, paid and outstanding amounts, who reviewed / approved / finalized
- * it and when, and the buttons that move THAT company one step (Review, Approve, Finalize, Reopen). Each button changes only its own row; the month
- * shows "N of M companies finalized" and is finalized by the server when the last company is. Everything shown comes from the server.
+ * Payroll by company for a month. Each company has TWO statuses, side by side so they are never confused: the PAYROLL status (Draft / Reviewed /
+ * Finalized, moved by Review and Finalize) and the PAYMENT status (Unpaid / Partially paid / Approved). A company is approved by being paid in full
+ * ("Approve Paid" pays the whole balance, "Approve Partial" an amount) and the month is approved by itself when every company is: there is no Approve
+ * button. Each button changes only its own row. Everything shown comes from the server.
  */
 export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, selectedSectionId, onSelect, finalizeLabel, finalizeConfirmLabel }: CompanySectionsPanelProps) {
   const { t } = useI18n();
@@ -46,6 +48,7 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
   const queryClient = useQueryClient();
   const [finalizing, setFinalizing] = useState<PayrollRunSection | null>(null);
   const [reopening, setReopening] = useState<PayrollRunSection | null>(null);
+  const [paying, setPaying] = useState<{ section: PayrollRunSection; mode: 'full' | 'partial' } | null>(null);
   const sections = run.sections ?? [];
 
   const refresh = () => {
@@ -59,8 +62,6 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
       switch (action) {
         case 'review':
           return hrApi.payrollRuns.reviewSection(section.id);
-        case 'approve':
-          return hrApi.payrollRuns.approveSection(section.id);
         case 'finalize':
           return hrApi.payrollRuns.finalizeSection(section.id);
         case 'reopen':
@@ -71,14 +72,11 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
       refresh();
       setFinalizing(null);
       setReopening(null);
-      show(t(action === 'review' ? 'notify.payroll.reviewed' : action === 'approve' ? 'notify.payroll.approved' : action === 'finalize' ? 'notify.payroll.finalized' : 'notify.payroll.reopened'));
+      show(t(action === 'review' ? 'notify.payroll.reviewed' : action === 'finalize' ? 'notify.payroll.finalized' : 'notify.payroll.reopened'));
     },
     onError: (err, { action }) => {
       setFinalizing(null);
-      show(
-        friendlyErrorMessage(err, t(action === 'review' ? 'notify.payroll.reviewFailed' : action === 'approve' ? 'notify.payroll.approveFailed' : action === 'finalize' ? 'notify.payroll.finalizeFailed' : 'notify.payroll.reopenFailed')),
-        'error',
-      );
+      show(friendlyErrorMessage(err, t(action === 'review' ? 'notify.payroll.reviewFailed' : action === 'finalize' ? 'notify.payroll.finalizeFailed' : 'notify.payroll.reopenFailed')), 'error');
     },
   });
 
@@ -91,10 +89,10 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
   const nameOf = (section: PayrollRunSection) => sectionName(section, t('option.payroll.sectionNoCompany'));
   const label: Record<SectionAction, string> = {
     review: t('action.markReviewed'),
-    approve: t('action.approvePayrollButton'),
     finalize: finalizeLabel,
     reopen: t('action.reopen'),
   };
+  const payLabel: Record<PaymentAction, string> = { approve_paid: t('action.payroll.approvePaid'), approve_partial: t('action.payroll.approvePartial') };
   const display = MONTH_STATUS_LABEL[monthDisplayStatus(run)];
 
   return (
@@ -112,6 +110,8 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
         </div>
       </div>
 
+      {run.approval && <MonthApproval approval={run.approval} />}
+
       {selectedSectionId !== null && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-primary-soft px-4 py-2 text-sm text-ink" data-testid="sections-filter-note">
           <span>{t('option.payroll.sectionFilteredBy', { name: nameOf(sections.find((s) => s.id === selectedSectionId) ?? sections[0]) })}</span>
@@ -120,7 +120,7 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
       )}
 
       <div className={TABLE_SCROLL_CLASS}>
-        <table className="w-full min-w-[64rem] text-sm">
+        <table className="w-full min-w-[72rem] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-ink-muted">
               <th className="px-4 py-2 font-medium">{t('option.payroll.fieldCompany')}</th>
@@ -129,7 +129,8 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
               <th className="px-3 py-2 text-right font-medium">{t('option.payroll.netPay')}</th>
               <th className="px-3 py-2 text-right font-medium">{t('option.payroll.wpPaid')}</th>
               <th className="px-3 py-2 text-right font-medium">{t('option.payroll.wpOutstanding')}</th>
-              <th className="px-3 py-2 font-medium">{t('option.label.status')}</th>
+              <th className="px-3 py-2 font-medium">{t('option.payroll.colPayrollStatus')}</th>
+              <th className="px-3 py-2 font-medium">{t('option.payroll.colPaymentStatus')}</th>
               <th className="px-3 py-2 font-medium">{t('option.payroll.sectionHistory')}</th>
               <th className="px-3 py-2" />
             </tr>
@@ -137,11 +138,13 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
           <tbody>
             {sections.map((section) => {
               const status = MONTH_STATUS_LABEL[section.status];
+              const payStatus = PAYMENT_STATUS_LABEL[section.payment_status];
               const actions = sectionActions(section.status, canManage, canApprove);
+              const payments = paymentActions(section, canApprove);
               const selected = selectedSectionId === section.id;
 
               return (
-                <tr key={section.id} className={`border-b border-border align-top ${selected ? 'bg-primary-soft' : ''}`} data-testid={`section-row-${section.id}`} data-status={section.status}>
+                <tr key={section.id} className={`border-b border-border align-top ${selected ? 'bg-primary-soft' : ''}`} data-testid={`section-row-${section.id}`} data-status={section.status} data-payment-status={section.payment_status}>
                   <td className="px-4 py-2 font-medium text-ink">{nameOf(section)}</td>
                   <td className="px-3 py-2 text-right text-ink">{section.employee_count}</td>
                   <td className="px-3 py-2 text-right text-ink">{money(section.gross)}</td>
@@ -151,9 +154,11 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
                   <td className="px-3 py-2">
                     <StatusBadge status={section.status} label={t(status.labelKey)} tone={status.tone} />
                   </td>
+                  <td className="px-3 py-2" data-testid="section-payment-status">
+                    <StatusBadge status={section.payment_status} label={t(payStatus.labelKey)} tone={payStatus.tone} />
+                  </td>
                   <td className="px-3 py-2 text-xs text-ink-muted">
                     {section.reviewed_at && <p>{t('option.payroll.trailReviewedBy', { name: section.reviewed_by ?? '—', date: formatDate(section.reviewed_at) })}</p>}
-                    {section.approved_at && <p>{t('option.payroll.trailApprovedBy', { name: section.approved_by ?? '—', date: formatDate(section.approved_at) })}</p>}
                     {section.finalized_at && <p>{t('option.payroll.trailFinalizedBy', { name: section.finalized_by ?? '—', date: formatDate(section.finalized_at) })}</p>}
                   </td>
                   <td className="px-3 py-2">
@@ -161,6 +166,18 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
                       {actions.map((action) => (
                         <Button key={action} size="sm" variant={action === 'reopen' ? 'outline' : 'primary'} disabled={busy} onClick={() => act(section, action)} data-testid={`section-${action}-${section.id}`}>
                           {label[action]}
+                        </Button>
+                      ))}
+                      {payments.map((action) => (
+                        <Button
+                          key={action}
+                          size="sm"
+                          variant={action === 'approve_paid' ? 'primary' : 'outline'}
+                          disabled={busy}
+                          onClick={() => setPaying({ section, mode: action === 'approve_paid' ? 'full' : 'partial' })}
+                          data-testid={`section-${action}-${section.id}`}
+                        >
+                          {payLabel[action]}
                         </Button>
                       ))}
                       <Button size="sm" variant="ghost" aria-pressed={selected} onClick={() => onSelect(selected ? null : section.id)}>
@@ -195,11 +212,50 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
           onConfirm={(reason) => mutation.mutate({ section: reopening, action: 'reopen', reason })}
         />
       )}
+
+      {paying && <CompanyPaymentDialog section={paying.section} mode={paying.mode} monthLabel={monthLabel} onClose={() => setPaying(null)} />}
     </section>
   );
 }
 
-/** Reopening one approved company needs a reason of at least ten characters (the server checks it again). */
+/** The month's approval picture: how many companies are fully paid and approved, unpaid, partially paid or not finalized, what is still owed, and whether the month is approved. */
+function MonthApproval({ approval }: { approval: PayrollMonthApproval }) {
+  const { t } = useI18n();
+  const cells: [string, string | number][] = [
+    [t('option.payroll.approvalCompanies'), approval.total_companies],
+    [t('option.payroll.approvalApproved'), approval.approved_companies],
+    [t('option.payroll.approvalUnpaid'), approval.unpaid_companies],
+    [t('option.payroll.approvalPartial'), approval.partially_paid_companies],
+    [t('option.payroll.approvalNotFinalized'), approval.not_finalized_companies],
+    [t('option.payroll.approvalOutstanding'), money(approval.outstanding)],
+  ];
+
+  return (
+    <div className="border-b border-border px-4 py-3" data-testid="month-approval" data-fully-approved={approval.fully_approved}>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h5 className="text-sm font-semibold text-ink">{t('option.payroll.approvalTitle')}</h5>
+          <p className="text-xs text-ink-muted">{t('option.payroll.approvalHelp')}</p>
+        </div>
+        <StatusBadge
+          status={approval.fully_approved ? 'approved' : 'pending'}
+          label={t(approval.fully_approved ? 'status.payroll.monthApproved' : 'status.payroll.monthPending')}
+          tone={approval.fully_approved ? 'success' : 'warning'}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
+        {cells.map(([cellLabel, value]) => (
+          <div key={cellLabel} className="rounded-sm border border-border px-3 py-1.5">
+            <p className="text-xs text-ink-faint">{cellLabel}</p>
+            <p className="font-display text-sm font-bold text-ink">{value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Reopening one reviewed company needs a reason of at least ten characters (the server checks it again). */
 function ReopenSectionDialog({ name, monthLabel, isLoading, onClose, onConfirm }: { name: string; monthLabel: string; isLoading: boolean; onClose: () => void; onConfirm: (reason: string) => void }) {
   const { t } = useI18n();
   const [reason, setReason] = useState('');

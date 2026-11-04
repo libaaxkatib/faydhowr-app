@@ -4,7 +4,7 @@ import type { OfficeStaffSummary } from '@/utils/officeStaff';
 import type { CompanyListMeta } from '@/utils/clientCompanyFilter';
 import type { CoverConflict } from '@/utils/coverConflict';
 import { downloadQuery, fileName as paymentListFileName, type PaymentListFilterOptions, type PaymentListOption, type PaymentListScope, type PaymentListWorkbookPreview } from '@/utils/paymentListFilter';
-import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollCorrectionsResponse, PayrollItem, PayrollRun, RecordWorkplacePaymentPayload, WorkplacePayments, WorkplacePayrollSummary } from '@/types/payroll';
+import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollCorrectionsResponse, PayrollItem, PayrollRun, RecordCompanyPaymentPayload, RecordCompanyPaymentResult, RecordWorkplacePaymentPayload, WorkplacePayments, WorkplacePayrollSummary } from '@/types/payroll';
 import type {
   AttendanceRosterEntry,
   ClientCompany,
@@ -349,12 +349,11 @@ export const hrApi = {
     /** Creates the draft for a month, or regenerates it if one already exists (refused once approved/finalized). */
     generate: (period: string) => apiRequest<PayrollRun>('admin/hr/payroll-runs', { method: 'POST', body: { period } }),
     review: (id: number) => apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/review`, { method: 'PATCH' }),
-    approve: (id: number) => apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/approve`, { method: 'PATCH' }),
     reopen: (id: number, reason: string) =>
       apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/reopen`, { method: 'PATCH', body: { reason } }),
-    /** ONE company's part of the month: review / approve / finalize / reopen it without touching the other companies (the answer is the whole month). */
+    /** ONE company's part of the month: review / finalize / reopen it without touching the other companies (the answer is the whole month). There is no Approve:
+     a company is approved by being paid in full (payCompany) and the month by every company being approved. */
     reviewSection: (sectionId: number) => apiRequest<PayrollRun>(`admin/hr/payroll-run-sections/${sectionId}/review`, { method: 'PATCH' }),
-    approveSection: (sectionId: number) => apiRequest<PayrollRun>(`admin/hr/payroll-run-sections/${sectionId}/approve`, { method: 'PATCH' }),
     finalizeSection: (sectionId: number) => apiRequest<PayrollRun>(`admin/hr/payroll-run-sections/${sectionId}/finalize`, { method: 'PATCH' }),
     reopenSection: (sectionId: number, reason: string) => apiRequest<PayrollRun>(`admin/hr/payroll-run-sections/${sectionId}/reopen`, { method: 'PATCH', body: { reason } }),
     exportExcel: (run: Pick<PayrollRun, 'id' | 'period'>) =>
@@ -379,6 +378,9 @@ export const hrApi = {
       ),
     /** Each workplace's total / paid / outstanding / status and payment history for a month (hr.payroll.view). */
     workplacePayments: (runId: number) => apiRequest<WorkplacePayments>(`admin/hr/payroll-runs/${runId}/workplace-payments`),
+    /** "Approve Paid" / "Approve Partial" for one finalized company (hr.payroll.approve). Safe to retry with the same idempotency key. */
+    payCompany: (sectionId: number, payload: RecordCompanyPaymentPayload) =>
+      apiRequest<RecordCompanyPaymentResult>(`admin/hr/payroll-run-sections/${sectionId}/payments`, { method: 'POST', body: payload }),
     /** A full or partial payment for one workplace of a finalized month (hr.payroll.approve). Safe to retry with the same idempotency key. */
     recordWorkplacePayment: (runId: number, payload: RecordWorkplacePaymentPayload) =>
       apiRequest<{ payment_id: number; replayed: boolean; workplace: WorkplacePayrollSummary }>(`admin/hr/payroll-runs/${runId}/workplace-payments`, { method: 'POST', body: payload }),

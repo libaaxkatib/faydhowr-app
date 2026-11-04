@@ -58,11 +58,6 @@ class PayrollRunController extends Controller
         return ApiResponse::success('Payroll marked reviewed.', new PayrollRunResource($action->review($payrollRun, $request->user())->loadCount(self::sectionCounts())));
     }
 
-    public function approve(PayrollRun $payrollRun, TransitionPayrollRunAction $action, Request $request): JsonResponse
-    {
-        return ApiResponse::success('Payroll approved.', new PayrollRunResource($action->approve($payrollRun, $request->user())->loadCount(self::sectionCounts())));
-    }
-
     public function reopen(ReopenPayrollRunRequest $request, PayrollRun $payrollRun, TransitionPayrollRunAction $action): JsonResponse
     {
         return ApiResponse::success('Payroll reopened to draft.', new PayrollRunResource($action->reopen($payrollRun, $request->validated('reason'), $request->user())->loadCount(self::sectionCounts())));

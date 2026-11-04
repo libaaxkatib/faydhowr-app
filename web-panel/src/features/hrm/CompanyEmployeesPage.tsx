@@ -20,12 +20,12 @@ import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { useI18n } from '@/i18n/useI18n';
 import { formatDate } from '@/utils/formatters';
+import { defaultPayrollMonth } from '@/utils/payrollMonth';
 import { replacedEmployeeDisplay } from '@/utils/replacedEmployee';
 import {
   ASSIGNMENT_TYPE_OPTIONS,
   assignmentShiftLabel,
   assignmentTypeLabel,
-  currentPeriod,
   formatCents,
   formatMoney,
   isValidPeriod,
@@ -56,13 +56,13 @@ export function CompanyEmployeesPage() {
   // Month, filters and search live in the address bar, so Back from an employee returns to the same view.
   const url = useUrlFilters();
   const periodParam = url.get('month');
-  const period = isValidPeriod(periodParam) ? periodParam : currentPeriod();
+  const period = isValidPeriod(periodParam) ? periodParam : defaultPayrollMonth();
   const status = (['active', 'ended'].includes(url.get('status')) ? url.get('status') : '') as CompanyAssignmentStatus | '';
   const positionParam = url.get('position');
   const positionId: number | '' = /^\d+$/.test(positionParam) ? Number(positionParam) : '';
   const type = (['permanent', 'replacement'].includes(url.get('type')) ? url.get('type') : '') as AssignmentType | '';
   const search = url.get('q');
-  const setPeriod = (value: string) => url.set('month', value === currentPeriod() ? '' : value);
+  const setPeriod = (value: string) => url.set('month', value === defaultPayrollMonth() ? '' : value);
   const setStatus = (value: CompanyAssignmentStatus | '') => url.set('status', value);
   const setPositionId = (value: number | '') => url.set('position', value === '' ? '' : String(value));
   const setType = (value: AssignmentType | '') => url.set('type', value);

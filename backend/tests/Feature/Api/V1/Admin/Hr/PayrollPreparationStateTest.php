@@ -11,9 +11,9 @@ use Tests\TestCase;
 
 /**
  * The October payroll was marked "Reviewed" by mistake and the owner wants it back in the state before review. The application's workflow is
- * draft -> reviewed -> approved -> finalized, and "reopen" exists only for an APPROVED run. These tests pin, on local data only, what the
- * workflow allows: the preparation state is "draft"; marking a run reviewed changes the run's status and reviewer stamps and nothing else (no
- * amount, day count, deduction, assignment or payment); and a reviewed run cannot be sent back without approving it first.
+ * draft -> reviewed -> finalized (there is no Approve step: approval is payment), and "reopen" sends a REVIEWED run back to draft with a reason. These
+ * tests pin, on local data only, what the workflow allows: the preparation state is "draft"; marking a run reviewed changes the run's status and reviewer
+ * stamps and nothing else (no amount, day count, deduction, assignment or payment); and a reviewed run can be sent back to draft, again changing nothing else.
  */
 class PayrollPreparationStateTest extends TestCase
 {
@@ -70,18 +70,20 @@ class PayrollPreparationStateTest extends TestCase
         $this->assertNull($after->finalized_by, 'nothing was finalized');
     }
 
-    public function test_a_reviewed_run_cannot_be_sent_back_by_the_workflow_without_approving_it_first(): void
+    public function test_a_reviewed_run_can_be_sent_back_to_draft_with_a_reason_and_nothing_else_changes(): void
     {
         [, $token] = $this->superAdminToken();
         $run = $this->newOctoberRun($token);
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/review")->assertOk();
         $lines = $this->lines();
 
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/reopen", ['reason' => 'Reviewed by mistake'])
-            ->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_NOT_REOPENABLE');
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/reopen", ['reason' => 'x'])->assertStatus(422)->assertJsonValidationErrors('reason');
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/reopen", ['reason' => 'Reviewed by mistake'])->assertOk()->assertJsonPath('data.status', 'draft');
 
-        $this->assertSame(PayrollRun::STATUS_REVIEWED, $run->fresh()->status, 'still reviewed: the refusal changed nothing');
-        $this->assertSame($lines, $this->lines());
+        $back = $run->fresh();
+        $this->assertSame(PayrollRun::STATUS_DRAFT, $back->status);
+        $this->assertNull($back->reviewed_by);
+        $this->assertSame($lines, $this->lines(), 'the payroll lines are exactly as they were');
     }
 
     public function test_a_run_put_back_to_its_pre_review_values_behaves_like_a_run_that_was_never_reviewed(): void
@@ -100,8 +102,8 @@ class PayrollPreparationStateTest extends TestCase
         $this->assertNull($restored->reviewed_at);
         $this->assertNull($restored->reviewed_by);
         $this->assertSame($lines, $this->lines(), 'the payroll lines are exactly as they were');
-        // From draft the normal workflow works again, and approval is still a separate, later step.
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/approve")->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_WRONG_STATE');
+        // From draft the normal workflow works again; there is no Approve step to go on with (approval is payment).
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/approve")->assertNotFound();
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/review")->assertOk()->assertJsonPath('data.status', 'reviewed');
     }
 }

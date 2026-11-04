@@ -6,7 +6,6 @@ import { hrApi } from '@/api/hr';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DataTable } from '@/components/ui/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -26,7 +25,8 @@ import { useI18n } from '@/i18n/useI18n';
 import { TABLE_SCROLL_CLASS } from '@/components/ui/TableScroll';
 import type { MessageKey } from '@/i18n/messages';
 import { formatCurrency, formatDate } from '@/utils/formatters';
-import { draftFailureMessage, friendlyErrorMessage, localMonth, localToday, nextMonth } from '@/utils/hrHelpers';
+import { draftFailureMessage, friendlyErrorMessage, localToday, nextMonth } from '@/utils/hrHelpers';
+import { defaultPayrollMonth } from '@/utils/payrollMonth';
 import { PayrollCorrectionsPanel } from '@/features/hrm/PayrollCorrectionsPanel';
 import { useAuth } from '@/features/auth/useAuth';
 import { canVoidPayrollPayment, validateWriteOffReason } from '@/utils/payrollCorrections';
@@ -108,9 +108,9 @@ export function PayrollRunsPage() {
   // The list contains employees' payment numbers, so the server requires hr.manage as well as payroll access.
   const canDownloadPaymentList = hasPermission('hr.manage');
 
-  const [period, setPeriod] = useState(localMonth());
+  // Opens on the PREVIOUS calendar month (owner decision 2026-11-04); any other month can still be picked.
+  const [period, setPeriod] = useState(defaultPayrollMonth());
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [confirming, setConfirming] = useState<'approve' | null>(null);
   const [isReopenOpen, setIsReopenOpen] = useState(false);
   const [adjustingItem, setAdjustingItem] = useState<PayrollItem | null>(null);
   const [payingItem, setPayingItem] = useState<PayrollItem | null>(null);
@@ -156,19 +156,6 @@ export function PayrollRunsPage() {
       show(t('notify.payroll.reviewed'));
     },
     onError: (err) => show(friendlyErrorMessage(err, t('notify.payroll.reviewFailed')), 'error'),
-  });
-
-  const approveMutation = useMutation({
-    mutationFn: (id: number) => hrApi.payrollRuns.approve(id),
-    onSuccess: (updated) => {
-      refresh(updated.id);
-      setConfirming(null);
-      show(t('notify.payroll.approved'));
-    },
-    onError: (err) => {
-      setConfirming(null);
-      show(friendlyErrorMessage(err, t('notify.payroll.approveFailed')), 'error');
-    },
   });
 
   const reopenMutation = useMutation({
@@ -434,7 +421,6 @@ export function PayrollRunsPage() {
             export: exportMutation.isPending,
           }}
           onReview={() => reviewMutation.mutate(run.id)}
-          onApprove={() => setConfirming('approve')}
           onReopen={() => setIsReopenOpen(true)}
           onExport={() => exportMutation.mutate(run)}
           onAdjust={setAdjustingItem}
@@ -445,16 +431,6 @@ export function PayrollRunsPage() {
       )}
 
       <PayrollCorrectionsPanel />
-
-      <ConfirmDialog
-        isOpen={confirming === 'approve'}
-        title={t('confirm.payroll.approveTitle')}
-        description={t('confirm.payroll.approveBody', { month: run ? monthLabel(run.period) : t('confirm.payroll.theMonth') })}
-        confirmLabel={t('action.approvePayroll')}
-        isLoading={approveMutation.isPending}
-        onConfirm={() => run && approveMutation.mutate(run.id)}
-        onCancel={() => setConfirming(null)}
-      />
 
       {isReopenOpen && run && (
         <ReopenModal
@@ -501,7 +477,6 @@ function RunDetail({
   canApprove,
   busy,
   onReview,
-  onApprove,
   onReopen,
   onExport,
   onAdjust,
@@ -514,7 +489,6 @@ function RunDetail({
   canApprove: boolean;
   busy: { review: boolean; export: boolean };
   onReview: () => void;
-  onApprove: () => void;
   onReopen: () => void;
   onExport: () => void;
   onAdjust: (item: PayrollItem) => void;
@@ -571,11 +545,9 @@ function RunDetail({
               {t('action.markReviewed')}
             </Button>
           )}
-          {run.status === 'reviewed' && canApprove && (
-            <Button size="sm" onClick={onApprove}>{t('action.approvePayrollButton')}</Button>
-          )}
-          {/* There is no month-level Finalize: each company is finalized on its own, in the company list below. */}
-          {run.status === 'approved' && canApprove && (
+          {/* There is no month-level Approve and no month-level Finalize: each company is finalized on its own and approved by being paid in full (the
+              company list below); the month is approved by itself when every company is. A reviewed month can be sent back to draft. */}
+          {(run.status === 'reviewed' || run.status === 'approved') && canApprove && (
             <Button size="sm" variant="outline" onClick={onReopen}>{t('action.reopen')}</Button>
           )}
           <Button size="sm" variant="outline" isLoading={busy.export} onClick={onExport}>
@@ -612,7 +584,7 @@ function RunDetail({
           <CompanySectionsPanel run={run} monthLabel={monthLabel(run.period)} canManage={canManage} canApprove={canApprove} selectedSectionId={shownSectionId} onSelect={setSelectedSectionId} finalizeLabel={t('action.finalize')} finalizeConfirmLabel={t('action.finalizePayroll')} />
         )}
 
-        {run.items && run.items.length > 0 && <WorkplacePaymentsPanel run={run} canRecord={canApprove} canVoid={canVoid} />}
+        {run.items && run.items.length > 0 && <WorkplacePaymentsPanel run={run} canVoid={canVoid} />}
 
         {!run.items || run.items.length === 0 ? (
           <EmptyState icon="credit-card" title={t('option.payroll.noLines')} description={t('option.payroll.noLinesRun')} />

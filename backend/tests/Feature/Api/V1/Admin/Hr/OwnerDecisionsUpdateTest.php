@@ -90,15 +90,11 @@ class OwnerDecisionsUpdateTest extends TestCase
         return PayrollRun::query()->findOrFail($id);
     }
 
-    private function close(string $period, bool $finalize = true): PayrollRun
+    /** Generates, reviews and finalizes a month (finalized is the only closed state: there is no Approve step). */
+    private function close(string $period): PayrollRun
     {
         $run = $this->generate($period);
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/review")->assertOk();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/approve")->assertOk();
-
-        if ($finalize) {
-            $this->finalizeEveryCompany($run->id, $this->super);
-        }
+        $this->finalizeEveryCompany($run->id, $this->super);
 
         return $run->refresh();
     }
@@ -202,7 +198,7 @@ class OwnerDecisionsUpdateTest extends TestCase
         $employee->update(['status' => 'inactive']);
         $correction = $this->owed($employee, 50000);
 
-        $run = $this->close('2026-10', false);
+        $run = $this->close('2026-10');
         $line = $this->line('2026-10', $assignment);
 
         $this->assertSame(9677, (int) $line->gross_cents, 'final salary: 15 of 31 days of 200.00');
@@ -215,7 +211,7 @@ class OwnerDecisionsUpdateTest extends TestCase
         $this->generate('2026-11');
         $this->assertSame(0, PayrollRecoveryDeduction::query()->where('period', '2026-11')->count());
         $this->assertSame(40323, (int) $correction->fresh()->outstanding_cents);
-        $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-10'])->assertUnprocessable(); // an approved month cannot be regenerated: nothing is stacked
+        $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-10'])->assertUnprocessable(); // a finalized month cannot be regenerated: nothing is stacked
         $this->assertSame(1, PayrollRecoveryDeduction::query()->where('payroll_correction_id', $correction->id)->count());
 
         // The ledger flags it for follow-up.
@@ -293,8 +289,7 @@ class OwnerDecisionsUpdateTest extends TestCase
         $this->assertSame(20000, (int) $this->line('2026-10', $assignment)->other_deduction_cents, 'the draft deducts the remaining 200.00 only once');
         $this->assertSame(20000, (int) PayrollRecoveryDeduction::query()->where('payroll_correction_id', $correction->id)->sum('amount_cents'));
         $run = PayrollRun::query()->where('period', '2026-10')->firstOrFail();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/review")->assertOk();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/approve")->assertOk();
+        $this->finalizeEveryCompany($run->id, $this->super);
         $this->assertSame(0, (int) $correction->fresh()->outstanding_cents, '300.00 by hand + 200.00 from payroll = 500.00');
         $this->assertSame('recovered', $correction->fresh()->status);
     }

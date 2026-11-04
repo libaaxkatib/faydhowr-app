@@ -33,6 +33,13 @@ const OWNER_APPROVED_ADDITIONS: Record<string, { id: string; so: string }> = {
   },
 };
 
+/**
+ * Owner decision 2026-11-04: the Monthly Approve button and the company Approve step were REMOVED (approval is now payment: Approve Paid / Approve
+ * Partial). These two approved messages were the words of those buttons, so no screen shows them any more. Their wording stays exactly as locked (key,
+ * owner id, English and Somali are still pinned by the baseline checks above); only the "still shown on its screen" checks skip them. Nothing else is exempt.
+ */
+const RETIRED_FROM_SCREEN = new Set(['action.approvePayroll', 'action.approvePayrollButton']);
+
 interface BaselineMessage {
   key: string;
   id: string;
@@ -112,13 +119,14 @@ function refersTo(text: string, key: string): boolean {
 }
 
 test('every locked message is used by the code at all', () => {
-  const unused = baseline.messages.filter((m) => !files.some((f) => refersTo(f.text, m.key))).map((m) => m.key);
+  const unused = baseline.messages.filter((m) => !RETIRED_FROM_SCREEN.has(m.key) && !files.some((f) => refersTo(f.text, m.key))).map((m) => m.key);
   assert.deepEqual(unused, [], `These approved messages are no longer used by any screen:\n${unused.join('\n')}`);
 });
 
 test('every locked message is still used by each screen that used it when it was approved', () => {
   const lost: string[] = [];
   for (const m of baseline.messages) {
+    if (RETIRED_FROM_SCREEN.has(m.key)) continue;
     for (const screen of m.screens) {
       const candidates = files.filter((f) => f.path.endsWith(`/${screen}`) || f.path === screen);
       if (candidates.length === 0) {

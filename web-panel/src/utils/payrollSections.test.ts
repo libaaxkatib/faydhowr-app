@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 import { CATALOGUE } from '../i18n/messages/index.ts';
 import { placeholdersOf } from '../i18n/catalog.ts';
-import { MONTH_STATUS_LABEL, itemsOfSection, lineIsFinalized, monthDisplayStatus, sectionActions, sectionName, selectedSection } from './payrollSections.ts';
+import { MONTH_STATUS_LABEL, PAYMENT_STATUS_LABEL, companyPaymentPayload, itemsOfSection, lineIsFinalized, monthDisplayStatus, paymentActions, sectionActions, sectionName, selectedSection } from './payrollSections.ts';
 import type { PayrollItem, PayrollRunSection } from '../types/payroll.ts';
 
 /**
@@ -25,17 +25,18 @@ const KEYS = [
 
 function section(overrides: Partial<PayrollRunSection> = {}): PayrollRunSection {
   return {
-    id: 1, client_company_id: 5, company_name: 'Alpha Co', category: 'company', status: 'draft', employee_count: 3, item_count: 3, gross: '600.00', net: '600.00', paid: '0.00', outstanding: '0.00',
-    reviewed_at: null, reviewed_by: null, approved_at: null, approved_by: null, finalized_at: null, finalized_by: null, ...overrides,
+    id: 1, client_company_id: 5, company_name: 'Alpha Co', category: 'company', status: 'draft', employee_count: 3, item_count: 3, gross: '600.00', net: '600.00', payable: '600.00', payable_cents: 60000, paid: '0.00', paid_cents: 0, outstanding: '600.00', outstanding_cents: 60000,
+    payment_status: 'unpaid', approved: false, can_pay: false, reviewed_at: null, reviewed_by: null, approved_at: null, approved_by: null, finalized_at: null, finalized_by: null, ...overrides,
   };
 }
 
 test('each company row offers only the next step, only to someone allowed, and a finalized company offers none', () => {
   assert.deepEqual(sectionActions('draft', true, true), ['review']);
   assert.deepEqual(sectionActions('draft', false, true), [], 'review needs hr.payroll.manage');
-  assert.deepEqual(sectionActions('reviewed', true, true), ['approve']);
-  assert.deepEqual(sectionActions('reviewed', true, false), [], 'approve needs hr.payroll.approve');
-  assert.deepEqual(sectionActions('approved', true, true), ['finalize', 'reopen']);
+  // There is no Approve step: a reviewed company is finalized straight away (or sent back to draft).
+  assert.deepEqual(sectionActions('reviewed', true, true), ['finalize', 'reopen']);
+  assert.deepEqual(sectionActions('reviewed', true, false), [], 'finalize and reopen need hr.payroll.approve');
+  assert.deepEqual(sectionActions('approved', true, true), ['finalize', 'reopen'], 'a company an earlier version left approved is treated like a reviewed one');
   assert.deepEqual(sectionActions('approved', true, false), []);
   assert.deepEqual(sectionActions('finalized', true, true), [], 'a finalized company is never reopened');
 });
@@ -78,12 +79,14 @@ test('selecting a company shows only its lines; an unknown company shows all', (
 
 test('every button calls the endpoint of ITS company only', () => {
   assert.match(api, /reviewSection: \(sectionId: number\) => apiRequest<PayrollRun>\(`admin\/hr\/payroll-run-sections\/\$\{sectionId\}\/review`, \{ method: 'PATCH' \}\)/);
-  assert.match(api, /approveSection[\s\S]{0,140}payroll-run-sections\/\$\{sectionId\}\/approve/);
+  assert.ok(!/approveSection|payroll-run-sections\/\$\{sectionId\}\/approve|payroll-runs\/\$\{id\}\/approve/.test(api), 'there is no Approve call for a company or for the month');
+  assert.match(api, /payCompany: \(sectionId: number, payload: RecordCompanyPaymentPayload\)[\s\S]{0,160}payroll-run-sections\/\$\{sectionId\}\/payments/);
   assert.match(api, /finalizeSection[\s\S]{0,140}payroll-run-sections\/\$\{sectionId\}\/finalize/);
   assert.match(api, /reopenSection[\s\S]{0,200}payroll-run-sections\/\$\{sectionId\}\/reopen[\s\S]{0,80}body: \{ reason \}/);
   assert.match(panel, /hrApi\.payrollRuns\.reviewSection\(section\.id\)/);
   assert.match(panel, /hrApi\.payrollRuns\.finalizeSection\(section\.id\)/);
   assert.ok(!/payrollRuns\.(review|approve|finalize|reopen)\(/.test(panel), 'the company table never calls a month-level action');
+  assert.match(readFileSync(new URL('../features/hrm/CompanyPaymentDialog.tsx', import.meta.url), 'utf8'), /hrApi\.payrollRuns\.payCompany\(section\.id, companyPaymentPayload\(mode, amount, date, note, key\)\)/);
 });
 
 test('finalizing asks for confirmation naming the company, reopening asks for a reason, and nothing runs twice at once', () => {
@@ -121,11 +124,57 @@ test('every word of the company screen is a catalogue message with English and S
   assert.deepEqual(placeholdersOf(CATALOGUE['option.payroll.companiesFinalized'].en), ['finalized', 'total']);
   assert.deepEqual(placeholdersOf(CATALOGUE['confirm.payroll.sectionFinalizeBody'].en), ['month', 'name']);
   // The existing approved words are reused, never reworded.
-  for (const key of ['action.finalize', 'action.reopen', 'action.approvePayrollButton', 'action.markReviewed']) assert.equal(CATALOGUE[key as 'action.finalize'].review, 'approved', key);
+  for (const key of ['action.finalize', 'action.reopen', 'action.markReviewed']) assert.equal(CATALOGUE[key as 'action.finalize'].review, 'approved', key);
 });
 
 test('the company panel writes no English text and no colour of its own (theme tokens only, so Light and Dark both work)', () => {
   const jsxText = [...panel.matchAll(/>\s*([A-Z][A-Za-z ,.'-]{3,})\s*</g)].map((match) => match[1]);
   assert.deepEqual(jsxText, [], 'no English words between tags');
   assert.ok(!/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|\b(?:bg|text|border)-(?:gray|red|green|blue|yellow|amber|black|slate)/.test(panel));
+});
+
+// ------------------------------------------------------------------ payment-based approval (owner decision 2026-11-04)
+
+test('"Approve Paid" and "Approve Partial" are offered only for a finalized company that still owes money, and only to someone who may record payments', () => {
+  const owing = section({ status: 'finalized', can_pay: true, outstanding_cents: 60000, payment_status: 'unpaid' });
+
+  assert.deepEqual(paymentActions(owing, true), ['approve_paid', 'approve_partial']);
+  assert.deepEqual(paymentActions(owing, false), [], 'needs hr.payroll.approve');
+  assert.deepEqual(paymentActions(section({ status: 'reviewed', can_pay: false }), true), [], 'a company that is not finalized cannot be paid');
+  assert.deepEqual(paymentActions(section({ status: 'finalized', can_pay: true, outstanding_cents: 0, payment_status: 'approved', approved: true }), true), [], 'a fully paid company has nothing left to pay');
+});
+
+test('the two statuses of a company are worded and coloured apart: Partially paid is never the green of Approved', () => {
+  assert.equal(CATALOGUE[PAYMENT_STATUS_LABEL.unpaid.labelKey].en, 'Unpaid');
+  assert.equal(CATALOGUE[PAYMENT_STATUS_LABEL.partially_paid.labelKey].en, 'Partially paid');
+  assert.equal(CATALOGUE[PAYMENT_STATUS_LABEL.approved.labelKey].en, 'Approved · Paid');
+  assert.deepEqual([PAYMENT_STATUS_LABEL.unpaid.tone, PAYMENT_STATUS_LABEL.partially_paid.tone, PAYMENT_STATUS_LABEL.approved.tone], ['danger', 'warning', 'success']);
+  assert.match(panel, /option\.payroll\.colPayrollStatus[\s\S]{0,200}option\.payroll\.colPaymentStatus/, 'both columns are shown side by side');
+  assert.match(panel, /data-testid="section-payment-status"/);
+});
+
+test('there is no Approve button: not for the month and not for a company', () => {
+  assert.ok(!/approvePayroll|approvePayrollButton|onApprove|approveMutation|confirming === 'approve'/.test(page), 'the month page has no Approve');
+  assert.ok(!/approvePayroll|approvePayrollButton|'approve'/.test(panel.replace(/approve_paid|approve_partial|section-approve/g, '')), 'the company panel has no Approve step');
+  assert.ok(!/sectionActions[\s\S]{0,40}'approve'/.test(panel));
+});
+
+test('the payment request sends the amount only for a partial payment, trims the note and carries the once-per-dialog key', () => {
+  assert.deepEqual(companyPaymentPayload('full', '123', '2026-11-04', '  ', 'key-1234567'), { mode: 'full', payment_date: '2026-11-04', note: null, idempotency_key: 'key-1234567' });
+  assert.deepEqual(companyPaymentPayload('partial', ' 200.50 ', '2026-11-04', ' cash ', 'key-1234567'), { mode: 'partial', amount: '200.50', payment_date: '2026-11-04', note: 'cash', idempotency_key: 'key-1234567' });
+
+  const dialog = readFileSync(new URL('../features/hrm/CompanyPaymentDialog.tsx', import.meta.url), 'utf8');
+  assert.match(dialog, /useState\(newIdempotencyKey\)/, 'one key per dialog opening');
+  assert.match(dialog, /validatePartialAmount\(amount, section\.outstanding_cents\)/, 'greater than zero and not more than the outstanding balance');
+  for (const field of ['section.payable', 'section.paid', 'section.outstanding']) assert.ok(dialog.includes(field), `the dialog shows ${field}`);
+});
+
+test('the month approval summary shows the companies, who is approved, unpaid, partial, not finalized, what is outstanding and whether the month is approved', () => {
+  for (const key of ['option.payroll.approvalCompanies', 'option.payroll.approvalApproved', 'option.payroll.approvalUnpaid', 'option.payroll.approvalPartial', 'option.payroll.approvalNotFinalized', 'option.payroll.approvalOutstanding', 'status.payroll.monthApproved', 'status.payroll.monthPending'] as const) {
+    assert.ok(panel.includes(key), key);
+    assert.equal(CATALOGUE[key].review, 'proposed', `${key}: the new wording is a proposal`);
+    assert.notEqual(CATALOGUE[key].en, CATALOGUE[key].so);
+  }
+  assert.match(panel, /approval\.fully_approved/);
+  assert.match(panel, /\{run\.approval && <MonthApproval approval=\{run\.approval\} \/>\}/);
 });

@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\EmployeePenalty;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
+use App\Models\PayrollRunSection;
 use App\Models\WorkLocation;
 use App\Support\Hr\Payroll\MonthlyPaymentReportBuilder;
 use App\Support\Hr\Payroll\PaymentNumber;
@@ -460,16 +461,17 @@ class MonthlyPaymentReportTest extends TestCase
         $this->assertStringContainsString('finalized', (string) $final->getSheetByName('Summary')->getCell('B4')->getValue());
     }
 
-    public function test_the_report_follows_the_stored_run_once_it_is_approved(): void
+    public function test_the_report_follows_the_stored_run_once_it_is_finalized(): void
     {
         [, $token] = $this->superAdminToken();
         $e = $this->staff('active', '0615990070');
         $assignment = $this->makeAssignment($e, $this->company('Alpha'), null, 300);
         $run = $this->asToken($token)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => self::P])->assertCreated()->json('data.id');
-        foreach (['review', 'approve'] as $step) {
-            $this->asToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/{$step}")->assertOk();
+        $this->asToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review")->assertOk();
+        foreach (PayrollRunSection::query()->where('payroll_run_id', $run)->pluck('id') as $sectionId) {
+            $this->asToken($token)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$sectionId}/finalize")->assertOk();
         }
-        // A raise after approval must not change the approved month in the report.
+        // A raise after finalization must not change the finalized month in the report.
         $assignment->salaryHistories()->create(['effective_from' => '2026-10-02', 'amount' => 900, 'currency' => 'USD', 'frequency' => 'monthly']);
 
         $this->assertEquals(300.0, $this->rowFor($this->workbook($token), $e->employee_number)['Payment amount (USD)']);

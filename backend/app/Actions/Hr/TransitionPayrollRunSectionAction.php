@@ -30,37 +30,39 @@ class TransitionPayrollRunSectionAction
         return $this->single($section, PayrollRunSection::STATUS_DRAFT, PayrollRunSection::STATUS_REVIEWED, $actor, null, 'reviewed');
     }
 
-    public function approve(PayrollRunSection $section, Admin $actor): PayrollRunSection
-    {
-        return $this->single($section, PayrollRunSection::STATUS_REVIEWED, PayrollRunSection::STATUS_APPROVED, $actor, null, 'approved');
-    }
+    // There is NO approve step (owner decision 2026-11-04): a company is approved by being paid in full (PayrollApproval), never by a button. A company is
+    // finalized straight from reviewed. A section that an earlier version left "approved" is still accepted wherever "reviewed" is.
 
     public function reopen(PayrollRunSection $section, string $reason, Admin $actor): PayrollRunSection
     {
-        return $this->single($section, PayrollRunSection::STATUS_APPROVED, PayrollRunSection::STATUS_DRAFT, $actor, $reason, 'reopened');
+        return $this->single($section, self::BEFORE_FINAL, PayrollRunSection::STATUS_DRAFT, $actor, $reason, 'reopened');
     }
 
     public function finalize(PayrollRunSection $section, Admin $actor): PayrollRunSection
     {
-        return $this->single($section, PayrollRunSection::STATUS_APPROVED, PayrollRunSection::STATUS_FINALIZED, $actor, null, 'finalized');
+        return $this->single($section, self::BEFORE_FINAL, PayrollRunSection::STATUS_FINALIZED, $actor, null, 'finalized');
     }
 
     /**
      * The month-level action: every section that is in $from moves to $to. Returns how many moved (zero when none was in $from).
      */
-    public function bulk(PayrollRun $run, string $from, string $to, Admin $actor, ?string $reason = null): int
+    public function bulk(PayrollRun $run, string|array $from, string $to, Admin $actor, ?string $reason = null): int
     {
         // Finalizing is ONE company at a time, by design (owner decision 2026-11-03): there is no way to finalize several companies together.
         if ($to === PayrollRunSection::STATUS_FINALIZED) {
             throw new \LogicException('Companies are finalized one at a time; there is no bulk finalize.');
         }
 
+        if ($to === PayrollRunSection::STATUS_APPROVED) {
+            throw new \LogicException('There is no approve step: a company is approved by being paid in full.');
+        }
+
         return DB::transaction(function () use ($run, $from, $to, $actor, $reason): int {
             $run = PayrollRun::query()->lockForUpdate()->findOrFail($run->id);
-            $sections = $run->sections()->where('status', $from)->lockForUpdate()->get();
+            $sections = $run->sections()->whereIn('status', (array) $from)->lockForUpdate()->get();
 
             foreach ($sections as $section) {
-                $this->apply($section, $run, $from, $to, $actor, $reason);
+                $this->apply($section, $run, $section->status, $to, $actor, $reason);
             }
 
             // The month-level caller (TransitionPayrollRunAction) writes the run's own audit entry.
@@ -72,21 +74,25 @@ class TransitionPayrollRunSectionAction
         });
     }
 
-    private function single(PayrollRunSection $section, string $from, string $to, Admin $actor, ?string $reason, string $word): PayrollRunSection
+    /** The states a company may be in before it is finalized or sent back to draft: reviewed (or "approved", which only an older version could leave behind). */
+    private const BEFORE_FINAL = [PayrollRunSection::STATUS_REVIEWED, PayrollRunSection::STATUS_APPROVED];
+
+    /** @param  string|list<string>  $from */
+    private function single(PayrollRunSection $section, string|array $from, string $to, Admin $actor, ?string $reason, string $word): PayrollRunSection
     {
         return DB::transaction(function () use ($section, $from, $to, $actor, $reason, $word): PayrollRunSection {
             // The run first, then the section: the same order Generate and the payment actions lock in, so they are decided one after the other.
             $run = PayrollRun::query()->lockForUpdate()->findOrFail($section->payroll_run_id);
             $section = PayrollRunSection::query()->lockForUpdate()->findOrFail($section->id);
 
-            if ($section->status !== $from) {
+            if (! in_array($section->status, (array) $from, true)) {
                 $name = $section->clientCompany?->name ?? 'this company';
                 $this->fail($to === PayrollRunSection::STATUS_DRAFT
-                    ? "Only an approved company payroll can be reopened ({$name} is {$section->status}). Finalized payroll is corrected with adjustments."
-                    : "Payroll {$run->period} for {$name} is {$section->status}; it must be {$from} before it can be {$word}.", $to === PayrollRunSection::STATUS_DRAFT ? 'PAYROLL_RUN_NOT_REOPENABLE' : 'PAYROLL_RUN_WRONG_STATE');
+                    ? "Only a reviewed company payroll can be reopened ({$name} is {$section->status}). Finalized payroll is corrected with adjustments."
+                    : "Payroll {$run->period} for {$name} is {$section->status}; it must be ".implode(' or ', (array) $from)." before it can be {$word}.", $to === PayrollRunSection::STATUS_DRAFT ? 'PAYROLL_RUN_NOT_REOPENABLE' : 'PAYROLL_RUN_WRONG_STATE');
             }
 
-            $this->apply($section, $run, $from, $to, $actor, $reason);
+            $this->apply($section, $run, $section->status, $to, $actor, $reason);
             $this->afterChange($run, $actor, true);
 
             return $section->refresh();

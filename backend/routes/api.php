@@ -1671,18 +1671,18 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.approve', 'th
     Route::patch('v1/admin/hr/temporary-replacements/{temporaryReplacement}/approve', [AdminTemporaryReplacementWorkdayController::class, 'approve'])
         ->whereNumber('temporaryReplacement')
         ->name('api.v1.admin.hr.temporary-replacements.approve');
-    Route::patch('v1/admin/hr/payroll-runs/{payrollRun}/approve', [AdminPayrollRunController::class, 'approve'])
-        ->whereNumber('payrollRun')
-        ->name('api.v1.admin.hr.payroll-runs.approve');
+    // There is deliberately NO Approve at all (owner decision 2026-11-04): neither a month-level nor a company-level Approve step. A company is APPROVED by
+    // being paid in full (Approve Paid / Approve Partial below, PayrollApproval) and the month is approved by itself when every company is.
     Route::patch('v1/admin/hr/payroll-runs/{payrollRun}/reopen', [AdminPayrollRunController::class, 'reopen'])
         ->whereNumber('payrollRun')
         ->name('api.v1.admin.hr.payroll-runs.reopen');
     // There is deliberately NO month-level Finalize and no bulk finalize: a company is finalized only through its own section below, and the month
     // finalizes itself when the last company is (owner decision 2026-11-03).
     // ONE company's part of the month: same permission as the month-level actions (hr.payroll.approve).
-    Route::patch('v1/admin/hr/payroll-run-sections/{payrollRunSection}/approve', [AdminPayrollRunSectionController::class, 'approve'])
+    // Approve Paid (the whole outstanding balance) or Approve Partial (an amount) for ONE finalized company.
+    Route::post('v1/admin/hr/payroll-run-sections/{payrollRunSection}/payments', [AdminPayrollRunSectionController::class, 'pay'])
         ->whereNumber('payrollRunSection')
-        ->name('api.v1.admin.hr.payroll-run-sections.approve');
+        ->name('api.v1.admin.hr.payroll-run-sections.payments.store');
     Route::patch('v1/admin/hr/payroll-run-sections/{payrollRunSection}/reopen', [AdminPayrollRunSectionController::class, 'reopen'])
         ->whereNumber('payrollRunSection')
         ->name('api.v1.admin.hr.payroll-run-sections.reopen');

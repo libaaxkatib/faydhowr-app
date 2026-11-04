@@ -83,12 +83,12 @@ class CompanyPayrollInputLocksTest extends TestCase
         $this->runId = (int) $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => self::P])->assertCreated()->json('data.id');
     }
 
-    /** Takes ONE company through review / approve / finalize (or stops at approve). */
-    private function close(ClientCompany $company, bool $finalize = true): void
+    /** Takes ONE company through review and finalize: the only way to lock it (there is no approve step). */
+    private function close(ClientCompany $company): void
     {
         $section = PayrollRunSection::query()->where('payroll_run_id', $this->runId)->where('client_company_id', $company->id)->firstOrFail();
 
-        foreach ($finalize ? ['review', 'approve', 'finalize'] : ['review', 'approve'] as $step) {
+        foreach (['review', 'finalize'] as $step) {
             $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/{$step}")->assertOk();
         }
     }
@@ -172,7 +172,7 @@ class CompanyPayrollInputLocksTest extends TestCase
         $this->leave($this->b)->assertStatus(201);
         $leaveA = EmployeeLeave::query()->where('employee_id', $this->a->id)->firstOrFail();
         $leaveB = EmployeeLeave::query()->where('employee_id', $this->b->id)->firstOrFail();
-        $this->close($this->alpha, false);
+        $this->close($this->alpha);
 
         $this->refused($this->as($this->super)->patchJson("/api/v1/admin/hr/employees/{$this->a->id}/leaves/{$leaveA->id}/approve", ['note' => 'Agreed']));
         $this->as($this->super)->patchJson("/api/v1/admin/hr/employees/{$this->b->id}/leaves/{$leaveB->id}/approve", ['note' => 'Agreed'])->assertOk();
@@ -303,36 +303,38 @@ class CompanyPayrollInputLocksTest extends TestCase
         $lock->assertMonthEditable(self::P, 'Legacy record', $this->x->id);
     }
 
-    public function test_a_month_whose_every_company_is_approved_is_locked_for_everyone_and_other_months_stay_open(): void
+    public function test_a_company_that_is_finalized_is_locked_and_other_months_stay_open(): void
     {
         $this->generate();
-        $this->close($this->alpha, false);
+        $this->close($this->alpha);
         $this->close($this->bravo);
 
         $this->refused($this->attendance($this->a));
         $this->refused($this->attendance($this->b));
         $this->attendance($this->a, '2026-10-05')->assertOk();
-        $this->assertSame('approved', PayrollRun::query()->findOrFail($this->runId)->status, 'least advanced: Alpha is approved');
+        $this->assertSame(['finalized', 'finalized'], [PayrollRunSection::query()->where('payroll_run_id', $this->runId)->where('client_company_id', $this->alpha->id)->value('status'), PayrollRunSection::query()->where('payroll_run_id', $this->runId)->where('client_company_id', $this->bravo->id)->value('status')]);
     }
 
-    public function test_an_approved_company_is_as_protected_as_a_finalized_one(): void
+    public function test_a_finalized_company_is_protected_and_the_others_are_not(): void
     {
         $this->generate();
-        $this->close($this->alpha, false);
+        $this->close($this->alpha);
 
         $this->refused($this->attendance($this->a));
         $this->attendance($this->b)->assertOk();
     }
 
-    public function test_reopening_a_company_unlocks_its_inputs(): void
+    public function test_a_reviewed_company_is_not_locked_and_a_finalized_one_can_never_be_reopened(): void
     {
         $this->generate();
-        $this->close($this->alpha, false);
-        $this->refused($this->attendance($this->a));
-
         $section = PayrollRunSection::query()->where('payroll_run_id', $this->runId)->where('client_company_id', $this->alpha->id)->firstOrFail();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/reopen", ['reason' => 'A salary has to be corrected first'])->assertOk();
-        $this->attendance($this->a)->assertOk();
+        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/review")->assertOk();
+        $this->attendance($this->a)->assertOk(); // reviewed is not locked
+
+        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/finalize")->assertOk();
+        $this->refused($this->attendance($this->a, '2026-09-11'));
+        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/reopen", ['reason' => 'A salary has to be corrected first'])->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_NOT_REOPENABLE');
+        $this->refused($this->attendance($this->a, '2026-09-12'));
     }
 
     public function test_a_run_without_sections_locks_the_whole_month_as_before(): void

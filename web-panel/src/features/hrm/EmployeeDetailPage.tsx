@@ -32,6 +32,7 @@ import { StatusOverrideDialog } from '@/features/hrm/StatusOverrideDialog';
 import { advanceBlockedByWorkflow, canOfferStageMove } from '@/utils/registrationWorkflow';
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { formatDate, formatDateTime, initialsOf } from '@/utils/formatters';
+import { defaultPayrollMonth } from '@/utils/payrollMonth';
 import { additionalCompanyQuestion, assignmentLabel, friendlyErrorMessage, isWorkplaceMissing, localToday, officeLabel } from '@/utils/hrHelpers';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { submitPracticalDecision } from '@/utils/practicalDecision';
@@ -2317,7 +2318,7 @@ function RecordPenaltyModal({
   const [reason, setReason] = useState('');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USD');
-  const [payrollPeriod, setPayrollPeriod] = useState(new Date().toISOString().slice(0, 7));
+  const [payrollPeriod, setPayrollPeriod] = useState(defaultPayrollMonth());
   const [notes, setNotes] = useState('');
   const [company, setCompany] = useState('');
 
@@ -2395,7 +2396,7 @@ function RecordAdvanceModal({
   const [advanceDate, setAdvanceDate] = useState(new Date().toISOString().slice(0, 10));
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USD');
-  const [payrollPeriod, setPayrollPeriod] = useState(new Date().toISOString().slice(0, 7));
+  const [payrollPeriod, setPayrollPeriod] = useState(defaultPayrollMonth());
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
   const [company, setCompany] = useState('');
@@ -2468,7 +2469,7 @@ function PayrollSummaryCard({ employeeId, employee }: { employeeId: number; empl
   const { t, tValue, language } = useI18n();
   // Every non-cancelled assignment is selectable, because a month can contain final pay for an assignment that has since ended.
   const activeAssignments = (employee.work_assignments ?? employee.active_work_assignments ?? []).filter((a) => a.status !== 'cancelled');
-  const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
+  const [period, setPeriod] = useState(defaultPayrollMonth());
   const [pickedAssignmentId, setWorkAssignmentId] = useState('');
   // Falls back to the first assignment so the card still works when an assignment is added after the page loaded.
   const workAssignmentId = activeAssignments.some((a) => String(a.id) === pickedAssignmentId) ? pickedAssignmentId : activeAssignments[0] ? String(activeAssignments[0].id) : '';

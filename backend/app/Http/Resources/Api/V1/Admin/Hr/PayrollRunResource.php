@@ -3,9 +3,9 @@
 namespace App\Http\Resources\Api\V1\Admin\Hr;
 
 use App\Models\PayrollRunSection;
+use App\Support\Hr\Payroll\PayrollApproval;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\Payroll\PayrollRunChecks;
-use App\Support\Hr\Payroll\WorkplacePayroll;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -20,7 +20,9 @@ class PayrollRunResource extends JsonResource
         $loaded = $this->relationLoaded('sections') ? $this->sections : null;
         $sectionsTotal = $loaded !== null ? $loaded->count() : (int) ($this->sections_count ?? 0);
         $sectionsFinalized = $loaded !== null ? $loaded->where('status', 'finalized')->count() : (int) ($this->sections_finalized_count ?? 0);
-        $paid = $loaded !== null && $this->relationLoaded('items') && $loaded->isNotEmpty() ? WorkplacePayroll::companyTotals($this->resource) : [];
+        // What each company has been paid and its derived payment / approval state (only when the lines are loaded, i.e. the single-month view).
+        $states = $loaded !== null && $this->relationLoaded('items') && $loaded->isNotEmpty() ? PayrollApproval::sections($this->resource) : [];
+        $byId = array_column($states, null, 'section_id');
 
         return [
             'id' => $this->id,
@@ -30,7 +32,10 @@ class PayrollRunResource extends JsonResource
             'sections_total' => $sectionsTotal,
             'sections_finalized' => $sectionsFinalized,
             'is_partially_finalized' => $sectionsTotal > 0 && $sectionsFinalized > 0 && $sectionsFinalized < $sectionsTotal,
-            'sections' => $loaded === null ? [] : $loaded->map(fn (PayrollRunSection $s): array => $this->section($s, $paid[$s->client_company_id ?? 'none'] ?? null))->sortBy(fn (array $row): string => mb_strtolower((string) $row['company_name']))->values()->all(),
+            'sections' => $loaded === null ? [] : $loaded->map(fn (PayrollRunSection $s): array => $this->section($s, $byId[$s->id] ?? null))->sortBy(fn (array $row): string => mb_strtolower((string) $row['company_name']))->values()->all(),
+            // Approval is payment (owner decision 2026-11-04): the month is approved by itself when every company is fully paid. Not a status of the run: it
+            // is derived from the payments, so finalizing never approves and a voided payment withdraws it. Null in the month list (no lines loaded).
+            'approval' => $states === [] ? null : $this->monthApproval($states),
             'status' => $this->status,
             'currency' => $this->currency,
             'item_count' => $totals['item_count'] ?? 0,
@@ -57,9 +62,27 @@ class PayrollRunResource extends JsonResource
     }
 
     /**
-     * One company's section: its own status, stamps, employee count and totals (stored with the section), and what has been paid / is outstanding.
+     * The month's payment / approval counts and amounts (decimal strings next to the cents).
      *
-     * @param  array{paid_cents: int, outstanding_cents: int}|null  $paid
+     * @param  list<array<string, mixed>>  $states
+     * @return array<string, mixed>
+     */
+    private function monthApproval(array $states): array
+    {
+        $month = PayrollApproval::month($this->resource, $states);
+
+        return $month + [
+            'total' => PayrollMoney::format($month['total_cents']),
+            'paid' => PayrollMoney::format($month['paid_cents']),
+            'outstanding' => PayrollMoney::format($month['outstanding_cents']),
+        ];
+    }
+
+    /**
+     * One company's section: its own payroll status (draft / reviewed / finalized), stamps, employee count and totals (stored with the section), what has
+     * been paid / is outstanding, and its payment status (unpaid / partially_paid / approved - approved only when fully paid).
+     *
+     * @param  array<string, mixed>|null  $paid  the company's derived payment state (PayrollApproval::sections)
      * @return array<string, mixed>
      */
     private function section(PayrollRunSection $s, ?array $paid): array
@@ -77,8 +100,16 @@ class PayrollRunResource extends JsonResource
             'item_count' => (int) ($t['item_count'] ?? 0),
             'gross' => $money('gross_cents'),
             'net' => $money('net_cents'),
+            // What there is to pay (lines with a positive net), what was paid, what is still owed; the cents are next to the decimal strings.
+            'payable' => PayrollMoney::format((int) ($paid['total_cents'] ?? 0)),
+            'payable_cents' => (int) ($paid['total_cents'] ?? 0),
             'paid' => PayrollMoney::format((int) ($paid['paid_cents'] ?? 0)),
+            'paid_cents' => (int) ($paid['paid_cents'] ?? 0),
             'outstanding' => PayrollMoney::format((int) ($paid['outstanding_cents'] ?? 0)),
+            'outstanding_cents' => (int) ($paid['outstanding_cents'] ?? 0),
+            'payment_status' => $paid['payment_status'] ?? PayrollApproval::UNPAID,
+            'approved' => (bool) ($paid['approved'] ?? false),
+            'can_pay' => (bool) ($paid['can_pay'] ?? false),
             'reviewed_at' => $s->reviewed_at?->toIso8601String(),
             'reviewed_by' => $s->reviewedBy?->full_name,
             'approved_at' => $s->approved_at?->toIso8601String(),

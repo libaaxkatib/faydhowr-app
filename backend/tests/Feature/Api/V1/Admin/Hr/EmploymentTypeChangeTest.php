@@ -5,6 +5,7 @@ namespace Tests\Feature\Api\V1\Admin\Hr;
 use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
+use App\Models\PayrollRunSection;
 use App\Models\TemporaryReplacement;
 use App\Support\Hr\EmploymentTypeChange;
 use Carbon\CarbonImmutable;
@@ -169,8 +170,9 @@ class EmploymentTypeChangeTest extends TestCase
         [, $token] = $this->superAdminToken();
         [$employee, $assignment] = $this->position(300);
         $runId = $this->withToken($token)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-08'])->assertCreated()->json('data.id');
-        foreach (['review', 'approve'] as $step) {
-            $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$runId}/{$step}")->assertOk();
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$runId}/review")->assertOk();
+        foreach (PayrollRunSection::query()->where('payroll_run_id', $runId)->pluck('id') as $sectionId) {
+            $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$sectionId}/finalize")->assertOk();
         }
         $augustStored = PayrollItem::query()->where('employee_id', $employee->id)->firstOrFail()->only(['gross_cents', 'net_cents']);
         $septemberBefore = $this->line($token, '2026-09', $employee);

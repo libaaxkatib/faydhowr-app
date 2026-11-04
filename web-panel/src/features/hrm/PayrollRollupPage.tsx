@@ -13,12 +13,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Msg } from '@/i18n/Msg';
 import { useI18n } from '@/i18n/useI18n';
 import { localizeServerMessage } from '@/i18n/serverMessages';
+import { defaultPayrollMonth } from '@/utils/payrollMonth';
 import type { PayrollRollupRow } from '@/types/employee';
-
-function currentPeriod(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
 
 /**
  * docs/HRM_MARKETING_SRS.md HR Phase 6: multi-employee payroll rollup. Every
@@ -30,7 +26,7 @@ function currentPeriod(): string {
  */
 export function PayrollRollupPage() {
   const { t, tValue, language } = useI18n();
-  const [period, setPeriod] = useState(currentPeriod());
+  const [period, setPeriod] = useState(defaultPayrollMonth());
   const [clientCompanyId, setClientCompanyId] = useState('');
   const [departmentId, setDepartmentId] = useState('');
 

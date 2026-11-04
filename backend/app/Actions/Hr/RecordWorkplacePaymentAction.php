@@ -9,6 +9,7 @@ use App\Models\PayrollRun;
 use App\Models\PayrollWorkplacePayment;
 use App\Support\ApiResponse;
 use App\Support\Hr\Facility\FacilityCalendar;
+use App\Support\Hr\Payroll\PayrollApproval;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\Payroll\WorkplacePayroll;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -81,7 +82,8 @@ class RecordWorkplacePaymentAction
                 $this->fail('The payment date cannot be in the future.', 'PAYMENT_DATE_IN_FUTURE');
             }
 
-            $payment = PayrollWorkplacePayment::query()->create([
+            // A payment that clears a company's last cent approves that company (and, if it was the last one, the month): PayrollApproval records it.
+            $payment = PayrollApproval::track($run, fn (): PayrollWorkplacePayment => PayrollWorkplacePayment::query()->create([
                 'payroll_run_id' => $run->id,
                 'period' => $run->period,
                 'client_company_id' => $companyId,
@@ -91,7 +93,7 @@ class RecordWorkplacePaymentAction
                 'note' => $note === null || trim($note) === '' ? null : trim($note),
                 'idempotency_key' => $idempotencyKey,
                 'recorded_by' => $actor->id,
-            ]);
+            ]), $actor, ['source' => 'workplace_payment', 'mode' => $mode]);
 
             $after = WorkplacePayroll::summaryFor($run, $companyId, $locationId) ?? [];
             $name = trim(($summary['company_name'] ?? '').' '.($summary['workplace_name'] ?? ''));

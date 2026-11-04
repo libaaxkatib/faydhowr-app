@@ -10,6 +10,7 @@ use App\Models\PayrollItem;
 use App\Models\PayrollRun;
 use App\Support\ApiResponse;
 use App\Support\Hr\Facility\FacilityCalendar;
+use App\Support\Hr\Payroll\PayrollApproval;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\Payroll\PayrollSections;
 use App\Support\Hr\Payroll\WorkplacePayroll;
@@ -62,7 +63,8 @@ class MarkPayrollItemPaidAction
                 'paid_by' => $actor->id,
             ]);
 
-            $item->update(['payment_status' => 'paid', 'paid_at' => now(), 'employee_payment_id' => $payment->id]);
+            // A line paid one by one can also clear a company's last cent: PayrollApproval records the approval that follows.
+            PayrollApproval::track($item->run, fn () => $item->update(['payment_status' => 'paid', 'paid_at' => now(), 'employee_payment_id' => $payment->id]), $actor, ['source' => 'line_payment', 'payroll_item_id' => $item->id]);
 
             event(AuditEvent::record(
                 action: AuditAction::Payment,

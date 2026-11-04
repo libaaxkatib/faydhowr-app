@@ -70,7 +70,6 @@ class PayrollReversalDatesTest extends TestCase
     {
         $id = $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-09'])->assertCreated()->json('data.id');
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/review")->assertOk();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/approve")->assertOk();
         $this->finalizeEveryCompany($id, $this->super);
 
         return PayrollItem::query()->where('payroll_run_id', $id)->where('work_assignment_id', $this->assignment->id)->firstOrFail();

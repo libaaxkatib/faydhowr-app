@@ -91,12 +91,11 @@ class TemporaryReplacementCorrectionTest extends TestCase
         return $this->as($token)->patchJson("/api/v1/admin/hr/temporary-replacements/{$cover->id}/end", $payload);
     }
 
-    /** Generates, reviews, approves and finalizes a month through the real endpoints. */
+    /** Generates, reviews and finalizes a month through the real endpoints (there is no Approve step). */
     private function close(string $period): PayrollRun
     {
         $id = $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => $period])->assertCreated()->json('data.id');
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/review")->assertOk();
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$id}/approve")->assertOk();
         $this->finalizeEveryCompany($id, $this->super);
 
         return PayrollRun::query()->findOrFail($id);
