@@ -26,7 +26,7 @@ final class PayrollRunChecks
         if ($nonPositive->isNotEmpty()) {
             $ids = $nonPositive->take(5)->map(fn ($item): string => '#'.$item->work_assignment_id)->implode(', ');
             $more = $nonPositive->count() > 5 ? ' and '.($nonPositive->count() - 5).' more' : '';
-            $checks[] = $nonPositive->count().' payroll line(s) have a net amount of zero or less (assignment '.$ids.$more.'). Check the deductions on these lines before approving.';
+            $checks[] = $nonPositive->count().' payroll line(s) have a net amount of zero or less (assignment '.$ids.$more.'). Check the deductions on these lines before finalizing.';
         }
 
         $net = (int) ($run->totals['net_cents'] ?? 0);
@@ -42,7 +42,7 @@ final class PayrollRunChecks
 
             if (abs($change) > self::UNUSUAL_TOTAL_SHARE) {
                 $checks[] = sprintf(
-                    'The total net pay of %s (%s USD) is %d%% %s than %s (%s USD). Check that this is expected before approving.',
+                    'The total net pay of %s (%s USD) is %d%% %s than %s (%s USD). Check that this is expected before finalizing.',
                     $run->period,
                     PayrollMoney::format($net),
                     (int) round(abs($change) * 100),

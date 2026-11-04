@@ -28,3 +28,19 @@ test('the screens use this one default, and the person can still choose another 
   // The month is still a normal input of the page: picking another month is not blocked.
   assert.match(read('../features/hrm/PayrollRunsPage.tsx'), /onChange=\{\(e\) => \{[\s\S]{0,160}setPeriod\(e\.target\.value\)/);
 });
+
+test('the Temporary Replacements page is NOT part of this change: it still opens on the CURRENT month (owner decision 2026-11-04)', () => {
+  const page = readFileSync(new URL('../features/hrm/TemporaryReplacementsPage.tsx', import.meta.url), 'utf8');
+
+  assert.match(page, /useState\(localMonth\(\)\)/);
+  assert.ok(!/defaultPayrollMonth|previousMonth/.test(page), 'it does not use the previous-month default');
+});
+
+test('the payment list and the Excel downloads use the month the person selected', () => {
+  const page = readFileSync(new URL('../features/hrm/PayrollRunsPage.tsx', import.meta.url), 'utf8');
+  const api = readFileSync(new URL('../api/hr.ts', import.meta.url), 'utf8');
+
+  assert.match(page, /hrApi\.payrollRuns\.downloadPaymentList\(period, listScope, listSelected, previewed\)/, 'the payment list follows the selected month');
+  assert.match(page, /hrApi\.payrollRuns\.exportExcel\(/, 'the payroll workbook is exported for the shown month');
+  assert.match(api, /exportExcel: \(run: Pick<PayrollRun, 'id' \| 'period'>\)/, 'the workbook is named and requested by the run\'s own period');
+});

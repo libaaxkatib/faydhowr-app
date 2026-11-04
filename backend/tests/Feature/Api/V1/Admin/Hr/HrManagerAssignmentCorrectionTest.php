@@ -222,6 +222,34 @@ class HrManagerAssignmentCorrectionTest extends TestCase
         $this->assertSame(1, EmployeeWorkAssignment::query()->where('employee_id', $this->newcomer->id)->count());
     }
 
+    public function test_the_other_assignment_route_enforces_the_same_narrow_permission_and_the_same_mandatory_reason(): void
+    {
+        $url = "/api/v1/admin/hr/employees/{$this->newcomer->id}/work-assignments";
+        $body = ['client_company_id' => $this->company->id, 'position_id' => $this->position->id, 'assignment_type' => 'permanent', 'start_date' => '2026-09-10', 'salary_amount' => 300, 'salary_currency' => 'USD', 'salary_frequency' => 'monthly'];
+        $editor = $this->tokenWithOnly(['hr.view', 'hr.manage']);
+        $counts = $this->counts();
+
+        // Other roles stay blocked; the HR Manager is refused without a (real) reason - the backend checks it - and nothing is saved.
+        $this->as($editor)->postJson($url, [...$body, 'correction_reason' => 'Trying to correct payroll'])->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        foreach ([[], ['correction_reason' => ''], ['correction_reason' => '   '], ['correction_reason' => 'ab']] as $reason) {
+            $this->as($this->hrManager)->postJson($url, [...$body, ...$reason])->assertStatus(422)->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');
+        }
+        $this->assertSame($counts, $this->counts());
+
+        $this->as($this->hrManager)->postJson($url, [...$body, 'correction_reason' => 'Started on 10 September'])->assertCreated();
+        $correction = PayrollCorrection::query()->sole();
+        $this->assertSame(['assigned', 'Started on 10 September', 21000], [$correction->action, $correction->reason, (int) $correction->outstanding_cents]);
+        $this->assertSame((int) Admin::query()->where('role', AdminRole::HrManager)->value('id'), (int) $correction->corrected_by);
+    }
+
+    public function test_the_reason_must_be_a_real_one_on_the_company_route_too(): void
+    {
+        foreach (['', '   ', 'ab', null] as $reason) {
+            $this->add($this->hrManager, ['correction_reason' => $reason])->assertStatus(422)->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');
+        }
+        $this->assertSame(0, PayrollCorrection::query()->count());
+    }
+
     public function test_existing_payroll_approval_finalization_and_payment_rules_are_intact(): void
     {
         $this->add($this->hrManager, ['correction_reason' => 'Started on 10 September'])->assertCreated();

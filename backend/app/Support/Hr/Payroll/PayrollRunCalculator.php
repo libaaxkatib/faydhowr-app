@@ -716,7 +716,7 @@ class PayrollRunCalculator
                     : 'it starts on '.$assignment->start_date->toDateString().' but the assignment it replaces is paid through '.$predecessor->end_date->toDateString();
                 $warnings[] = $assignment->assignment_type === AssignmentType::Replacement
                     ? "Assignment #{$assignment->id} (Replacement) takes over assignment #{$predecessor->id}, but {$overlap}. The days the Replacement holds were NOT paid to the replaced assignment, so nobody is paid twice; fix the dates so the history is accurate."
-                    : "DOUBLE PAY RISK: assignment #{$assignment->id} takes over assignment #{$predecessor->id}, but {$overlap}. Fix the dates before approving {$period}.";
+                    : "DOUBLE PAY RISK: assignment #{$assignment->id} takes over assignment #{$predecessor->id}, but {$overlap}. Fix the dates before finalizing {$period}.";
                 $result = ['replaces_assignment_id' => $predecessor->id, 'overlap' => true];
             } else {
                 $gap = PositionSuccession::gapDays($predecessor->end_date, $assignment->start_date);

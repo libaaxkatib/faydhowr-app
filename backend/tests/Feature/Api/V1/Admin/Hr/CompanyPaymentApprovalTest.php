@@ -8,6 +8,7 @@ use App\Enums\AdminRole;
 use App\Models\Admin;
 use App\Models\AuditLog;
 use App\Models\ClientCompany;
+use App\Models\EmployeePenalty;
 use App\Models\PayrollItem;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunSection;
@@ -297,6 +298,59 @@ class CompanyPaymentApprovalTest extends TestCase
 
         $this->assertSame([true, 'approved'], [$this->row($this->gury)['approved'], $this->row($this->gury)['payment_status']]);
         $this->assertContains('payroll_company_approved', $this->events(PayrollRunSection::class));
+    }
+
+    // ------------------------------------------------------------------------------------------------ a company with nothing to pay
+
+    /** A company whose only employee has a penalty equal to the salary: net pay 0, so its payroll obligation is zero. */
+    private function zeroPayrollCompany(): ClientCompany
+    {
+        $zero = $this->makeCompany('Zero Co');
+        $employee = $this->makeEmployee();
+        $this->makeAssignment($employee, $zero, null, 100);
+        EmployeePenalty::query()->create(['employee_id' => $employee->id, 'client_company_id' => $zero->id, 'penalty_date' => '2026-09-05', 'reason' => 'Equal to the salary', 'deduction_amount' => 100, 'currency' => 'USD', 'payroll_period' => self::P]);
+        $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => self::P])->assertCreated();
+
+        return $zero;
+    }
+
+    public function test_a_finalized_company_with_nothing_to_pay_is_approved_without_any_payment(): void
+    {
+        $zero = $this->zeroPayrollCompany();
+        $this->finalize($zero);
+
+        $row = $this->row($zero);
+        $this->assertSame([0, 0, 0, 'approved', true, false], [$row['payable_cents'], $row['paid_cents'], $row['outstanding_cents'], $row['payment_status'], $row['approved'], $row['can_pay']]);
+        $this->assertSame(0, PayrollWorkplacePayment::query()->count(), 'no fake payment is created');
+        $this->pay($zero, 'full')->assertStatus(422)->assertJsonPath('error_code', 'WORKPLACE_NOTHING_OUTSTANDING');
+        $this->assertSame(0, PayrollWorkplacePayment::query()->count());
+    }
+
+    public function test_a_company_with_nothing_to_pay_that_is_not_finalized_is_not_approved(): void
+    {
+        $zero = $this->zeroPayrollCompany();
+        $this->as($this->super)->patchJson('/api/v1/admin/hr/payroll-run-sections/'.$this->section($zero)->id.'/review')->assertOk();
+
+        $row = $this->row($zero);
+        $this->assertSame([false, 'reviewed', false], [$row['approved'], $row['status'], $row['can_pay']]);
+        $this->assertNotSame('approved', $row['payment_status']);
+        $this->assertFalse($this->month()['approval']['fully_approved']);
+    }
+
+    public function test_a_validly_zero_company_counts_toward_the_month_approval_and_a_company_with_a_balance_still_blocks_it(): void
+    {
+        $zero = $this->zeroPayrollCompany();
+        $this->finalize($zero, $this->alpha, $this->bravo, $this->gury);
+        $this->pay($this->alpha, 'full')->assertCreated();
+        $this->pay($this->bravo, 'full')->assertCreated();
+
+        $a = $this->month()['approval'];
+        $this->assertSame([4, 3, 1, false], [$a['total_companies'], $a['approved_companies'], $a['unpaid_companies'], $a['fully_approved']], 'Gury still owes money: the month is pending');
+
+        $this->pay($this->gury, 'full')->assertCreated();
+        $a = $this->month()['approval'];
+        $this->assertSame([4, 4, 0, 0, true], [$a['total_companies'], $a['approved_companies'], $a['unpaid_companies'], $a['outstanding_cents'], $a['fully_approved']]);
+        $this->assertSame(3, PayrollWorkplacePayment::query()->count(), 'only the three real payments exist: the zero company has none');
     }
 
     // ------------------------------------------------------------------------------------------------ several workplaces in one company
