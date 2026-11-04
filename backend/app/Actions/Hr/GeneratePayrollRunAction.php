@@ -45,7 +45,7 @@ class GeneratePayrollRunAction
 
             if (! $run->isEditable()) {
                 throw new HttpResponseException(ApiResponse::error(
-                    "Payroll for {$period} is {$run->status} and can no longer be regenerated. Use a payroll adjustment for corrections.",
+                    "Payroll for {$period} is {$run->status} and can no longer be regenerated. Reopen a company's payroll for correction (Super Admin or HR Manager, with a reason) or use a payroll adjustment.",
                     'PAYROLL_RUN_LOCKED',
                     422,
                 ));

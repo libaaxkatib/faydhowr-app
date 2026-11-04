@@ -12,8 +12,8 @@ export const payroll = defineMessages({
     'Bisha waa la xidhay. Shirkad kasta si gaar ah u dhammaystir; ilaa markaas dib ayaa loo furi karaa.',
   ),
   'status.payroll.helpFinalized': message(
-    'Final. It cannot be edited or reopened; corrections are recorded as adjustments in a later month.',
-    'Waa kama dambays. Lama wax-ka-beddeli karo lamana dib u furi karo; sixitaannada waxaa loo diiwaangeliyaa hagaajinno bil dambe ah.',
+    'Final. It is not edited in place. If it contains a mistake, a Super Admin or an HR Manager can reopen it for correction with a reason; payments are kept and every change is recorded.',
+    'Waa kama dambays. Si toos ah looma wax-ka-beddelo. Haddii khalad ku jiro, Super Admin ama HR Manager ayaa dib u furi kara si loo saxo isagoo sabab bixinaya; lacag-bixinnada waa la haynayaa, isbeddel kastana waa la diiwaangeliyaa.',
   ),
 
   // Payment status of a payroll line

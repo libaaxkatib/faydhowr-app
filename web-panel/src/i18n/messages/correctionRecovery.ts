@@ -81,5 +81,86 @@ export const correctionRecovery = defineMessages({
   'option.correction.notRestorable': message('Cannot be restored: {why}', 'Lama soo celin karo: {why}'),
   'option.correction.restoreCancelled': message('Was cancelled by the closure (it had not started)', 'Xiristaanka ayaa baajiyey (weli ma bilaabmin)'),
   'notify.correction.companyReopened': message('Company reopened.', 'Shirkadda dib ayaa loo furay.'),
+  // ---------------------------------------------------------------- the answers of the new endpoints (shown in Somali when the panel is in Somali)
+  'notify.error.FINALIZED_REOPEN_NOT_ALLOWED': message(
+    'Only a Super Admin or an HR Manager can reopen finalized payroll. Nothing was changed.',
+    'Keliya Super Admin ama HR Manager ayaa dib u furi kara mushahar la dhammaystiray. Waxba lama beddelin.',
+  ),
+  'notify.error.REOPEN_REASON_REQUIRED': message(
+    'Enter the reason for reopening finalized payroll (at least 10 characters). Nothing was changed.',
+    'Geli sababta dib loogu furayo mushaharka la dhammaystiray (ugu yaraan 10 xaraf). Waxba lama beddelin.',
+  ),
+  'notify.error.PAYROLL_LINES_PAID': message(
+    'Some payroll lines of this company were marked paid one by one. Void those payments first, then reopen. Nothing was changed.',
+    'Qaar ka mid ah safafka mushaharka shirkaddan ayaa la calaamadeeyey inay la bixiyey mid-mid. Marka hore ka noqo lacag-bixinadaas, ka dibna dib u fur. Waxba lama beddelin.',
+  ),
+  'notify.error.RECONCILIATION_NOT_ALLOWED': message(
+    'Only a Super Admin or an HR Manager can reconcile an overpayment. Nothing was recorded.',
+    'Keliya Super Admin ama HR Manager ayaa isku-xaajin kara lacag dheeraad ah. Waxba lama diiwaangelin.',
+  ),
+  'notify.error.RECONCILIATION_REASON_REQUIRED': message(
+    'A reason is required (at least 5 characters). Nothing was recorded.',
+    'Sabab ayaa loo baahan yahay (ugu yaraan 5 xaraf). Waxba lama diiwaangelin.',
+  ),
+  'notify.error.RECONCILIATION_METHOD_INVALID': message(
+    'Choose how the excess was settled: returned, carried forward or other.',
+    'Dooro sida dheeraadka loo xaliyey: la soo celiyey, loo wareejiyey ama kale.',
+  ),
+  'notify.error.NOTHING_TO_RECONCILE': message(
+    'This company has no overpayment left to reconcile. Nothing was recorded.',
+    'Shirkaddan lacag dheeraad ah oo isku-xaajin u baahan ma hadhin. Waxba lama diiwaangelin.',
+  ),
+  'notify.error.AMOUNT_EXCEEDS_OVERPAID': message(
+    'The amount is more than the overpayment still to be settled. Nothing was recorded.',
+    'Lacagtu waxay ka badan tahay lacagta dheeraadka ah ee weli la xalinayo. Waxba lama diiwaangelin.',
+  ),
+  'notify.error.RECONCILIATION_ALREADY_VOIDED': message(
+    'This reconciliation was already voided.',
+    'Isku-xaajintan horey looga noqday.',
+  ),
+  'notify.error.COMPANY_CLOSE_NOT_ALLOWED': message(
+    'Only a Super Admin or an HR Manager can close or reopen a company. Nothing was changed.',
+    'Keliya Super Admin ama HR Manager ayaa xiri kara ama dib u furi kara shirkad. Waxba lama beddelin.',
+  ),
+  'notify.error.CLOSURE_REASON_REQUIRED': message(
+    'Enter the reason (at least 5 characters). Nothing was changed.',
+    'Geli sababta (ugu yaraan 5 xaraf). Waxba lama beddelin.',
+  ),
+  'notify.error.COMPANY_ALREADY_CLOSED': message(
+    'This company is already closed.',
+    'Shirkaddan horey ayaa loo xiray.',
+  ),
+  'notify.error.COMPANY_NOT_CLOSED': message(
+    'This company is not closed.',
+    'Shirkaddan lama xirin.',
+  ),
+  'notify.error.RESTORE_NOT_OF_CLOSURE': message(
+    'Some of the assignments to restore do not belong to this closure. Nothing was changed.',
+    'Qaar ka mid ah meelaha shaqo ee la soo celinayo xiristaankan ma aha. Waxba lama beddelin.',
+  ),
+  'notify.error.RESTORE_CONFLICT': message(
+    'An assignment can no longer be restored because of a conflict. Nothing was changed.',
+    'Meel shaqo lama soo celin karo mar dambe sababo is-diid awgood. Waxba lama beddelin.',
+  ),
+  'notify.error.COMPANY_CLOSED': message(
+    'This company is closed, so it cannot receive new assignments. Reopen the company first.',
+    'Shirkaddan waa xiran tahay, sidaas darteed meelo shaqo cusub lama siin karo. Marka hore dib u fur shirkadda.',
+  ),
+  'notify.error.COMPANY_CLOSED_USE_REOPEN': message(
+    'This company was closed. Use Reopen company to open it again; that also decides which assignments come back.',
+    'Shirkaddan waa la xiray. Isticmaal Dib u fur shirkadda si aad u furto; taasi waxay go\'aamisaa meelaha shaqo ee soo laaban doona.',
+  ),
+  'notify.error.COMPANY_HAS_ACTIVE_ASSIGNMENTS_USE_CLOSE': message(
+    'This company still has active assignments. Use Close company: it ends them on the closing day so they stop being paid.',
+    'Shirkaddan weli waxay leedahay meelo shaqo oo firfircoon. Isticmaal Xir shirkadda: waxay ku dhammeeyaa maalinta xiritaanka si aan loo bixin mushahar.',
+  ),
+  'notify.error.ASSIGNMENT_NOT_ENDED': message(
+    'Only an ended assignment can be reopened.',
+    'Keliya meel shaqo dhammaatay ayaa dib loo furi karaa.',
+  ),
+  'notify.error.ASSIGNMENT_POSITION_FILLED': message(
+    'This position was given to someone else after the assignment ended, so it cannot be reopened.',
+    'Jagadan waxaa la siiyey qof kale ka dib markii meesha shaqo dhammaatay, sidaas darteed dib looma furi karo.',
+  ),
   'option.correction.noAssignmentsToRestore': message('The closure ended no assignments.', 'Xiristaanku ma dhammeynin meel shaqo.'),
 });

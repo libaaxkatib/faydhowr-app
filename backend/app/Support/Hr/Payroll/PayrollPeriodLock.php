@@ -74,7 +74,7 @@ final class PayrollPeriodLock
     {
         if ($locked) {
             throw new HttpResponseException(ApiResponse::error(
-                "{$what} falls in payroll month {$period} which is approved or finalized. Record a payroll adjustment instead.",
+                "{$what} falls in payroll month {$period} which is approved or finalized. A Super Admin or an HR Manager can reopen that company's payroll for correction (with a reason), or record a payroll adjustment in a later month.",
                 'PAYROLL_PERIOD_LOCKED',
                 422,
             ));

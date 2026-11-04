@@ -191,8 +191,8 @@ export const hrDelta = defineMessages({
   'option.payroll.sectionFilteredBy': message('Showing only the lines of {name}.', 'Waxaa la muujinayaa oo keliya safafka {name}.'),
   'confirm.payroll.sectionFinalizeTitle': message('Finalize {name}?', 'Ma dhammaystirtaa {name}?'),
   'confirm.payroll.sectionFinalizeBody': message(
-    'Finalize the payroll of {name} for {month}. Other companies are not affected. A finalized company cannot be regenerated or reopened, and payments can then be recorded for it.',
-    'Dhammaystir mushaharka {name} ee {month}. Shirkadaha kale lama saameynayo. Shirkad la dhammaystiray dib looma samayn karo lamana furi karo, lacag-bixinna waa lagu diiwaangelin karaa.',
+    'Finalize the payroll of {name} for {month}. Other companies are not affected. A finalized company is not regenerated in place (it can be reopened for correction, with a reason), and payments can then be recorded for it.',
+    'Dhammaystir mushaharka {name} ee {month}. Shirkadaha kale lama saameynayo. Shirkad la dhammaystiray dib looma samayn karo goobta uu joogo (waa la dib u furi karaa si loo saxo, sabab la bixiyo), lacag-bixinna waa lagu diiwaangelin karaa.',
   ),
   'confirm.payroll.sectionReopenBody': message(
     'Reopen the payroll of {name} for {month}. Only this company becomes a draft again; the others are not affected.',

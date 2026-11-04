@@ -317,7 +317,44 @@ An employee may work for Company A and Company B in the same month. Each company
 
 ## 17. An HR Manager may add an employee to a company whose payroll is closed (owner decision 2026-11-04)
 - **Before:** `ClosedPayrollCorrection` accepted any change that would alter an approved / finalized month only from a Super Admin. **Now:** an **HR Manager** may do it for **exactly one operation**, adding an employee to a position ('assigned': the Add Employee to Company workflow and the same assignment-creation action). The permission is the constant `ClosedPayrollCorrection::HR_MANAGER_ACTIONS = ['assigned']`, enforced **in the backend**; the panel decides nothing by role.
-- **Unchanged and still Super Admin only:** editing, stopping, replacing or returning an assignment, changing a salary, every other correction of closed payroll, and **paying an underpayment** (`RecordCorrectionTransactionAction`). Other roles stay refused (`PAYROLL_CORRECTION_SUPER_ADMIN_ONLY`). Duplicate employee/company assignments, eligibility, position and date rules are unchanged.
+- **(Widened later the same day, see section 18: an HR Manager may now record every closed-payroll correction. Only paying an underpayment, reversing such a payment and a debt write-off stay Super Admin.)** The sentence that follows describes the first version: editing, stopping, replacing or returning an assignment, changing a salary, every other correction of closed payroll, and **paying an underpayment** (`RecordCorrectionTransactionAction`). Other roles stay refused (`PAYROLL_CORRECTION_SUPER_ADMIN_ONLY`). Duplicate employee/company assignments, eligibility, position and date rules are unchanged.
 - **The closed month is never rewritten.** As for a Super Admin, the change is saved together with a `PayrollCorrection` (kind underpayment / overpayment, recorded and corrected net, the month, the company, the new assignment, its position and dates, the reason and the person who recorded it) and an audit event `payroll_corrected` that names that person and their role (`corrected_by_admin_id`, `corrected_by_role`). Payments and the original lines are untouched; an overpayment is recovered from later salaries, an underpayment is an amount owed that a Super Admin pays as a separate transaction.
 - **Experience:** the first save answers `CORRECTION_REASON_REQUIRED` with the affected months; the dialog then shows "this reaches approved or finalized payroll ... recorded as an HR correction ..." and asks for a reason (5 characters at least). Success is shown only after the server saved; a refused or failed save leaves the assignment, corrections and audit records exactly as they were (one transaction).
 - Tests: `HrManagerAssignmentCorrectionTest`; web `hrManagerCorrection.test.ts`.
+
+## 18. Correction and recovery (owner decisions 2026-11-04)
+Principle: an ordinary administrative mistake must be fixable from the page where it appears, by the right role, with a reason, and without a developer. Nothing is deleted or silently overwritten: every correction is a new, audited record next to the original.
+
+### 18.1 Who may do what (`Payroll\CorrectionAuthority`, enforced by the backend)
+| Operation | Super Admin | HR Manager | Others |
+|---|---|---|---|
+| Correct closed (approved / finalized) payroll: assignment, salary and Temporary-cover changes that move a closed month (recorded as a `PayrollCorrection`, reason mandatory) | yes | yes | no (`CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED`) |
+| Reopen a FINALIZED company payroll (reason, at least 10 characters) | yes | yes | no |
+| Reconcile / void the reconciliation of an overpaid company | yes | yes | no |
+| Close / reopen a company or facility | yes | yes | no |
+| Void a workplace payment (existing rule) | yes | yes | no |
+| Pay an employee's underpayment, reverse that payment, write a debt off | yes | **no** | no |
+Super Admin is never an assignable role. Draft and reviewed payroll are edited with the ordinary permissions (hr.manage / hr.payroll.*).
+
+### 18.2 Reopening finalized payroll
+- `PATCH payroll-run-sections/{id}/reopen` on a FINALIZED company (`ReopenFinalizedPayrollSectionAction`): the company goes back to Draft; its lines stay as they were until the draft is generated again; the month's own status follows its sections. Refused if some lines were marked paid one by one (void those payments first, because regenerating rebuilds the lines).
+- **Payments are never touched.** Approval is derived (finalized AND paid in full), so the company simply stops being approved; the month too. `payroll_section_reopenings` records who, in which role, when, why, the totals it held and the money already paid, and, once it is finalized again, the new totals. Audit events: `payroll_section_reopened_from_finalized`, `payroll_company_approval_withdrawn`.
+- A company reopened by mistake is finalized again unchanged: its payments still cover it and it is approved again.
+
+### 18.3 Money already paid: overpaid and reconciliation
+- Outstanding stays `max(0, total - paid)`, but the excess is no longer hidden: `overpaid = max(0, paid - total)` per workplace. A finalized company with an **unreconciled** excess is **Overpaid**, not Approved, and so is its month.
+- `POST payroll-run-sections/{id}/reconciliations` (full or partial; how it was settled: returned / carried forward / other; reason; date; idempotency key) records the settlement; `POST workplace-reconciliations/{id}/void` voids a mistaken one (never deleted). No payment is changed and no money moves; the company is approved again when the whole excess is settled. An underpayment is paid by a further ordinary payment.
+
+### 18.4 Ending an assignment
+- Stop / End / shortening an end date need **no replacement** (`PermanentSuccession::demand(..., optional: true)`). A replacement that is chosen is validated and carried out exactly as before. **Separation keeps rule N1** (a Permanent position needs its replacement choice) - an open owner question.
+- `POST client-companies/{c}/employees/{a}/reopen` undoes a Stop / End: the same assignment is active again (reason; refused when the company is closed, the position has a successor, the employee is no longer Active or the concurrent-assignment rule forbids it). A restored day inside a closed month is a recorded correction.
+- A separation dated inside a closed month is now a recorded payroll correction too (it used to move the end date silently).
+
+### 18.5 Closing a company or facility
+- `POST client-companies/{c}/close` (`effective_date` = the LAST day of operation, `reason`; `correction_reason` when it reaches closed payroll): every ACTIVE assignment of THAT company ends on that day (one that had not started is cancelled; one that already ends earlier is left alone). Other companies, HR status, payroll, payments and history are untouched. Payroll of later months follows from the assignment dates, so a mid-month closure pays the real days of the real month.
+- Active Temporary covers are **not** ended: they are listed in the closure's summary (`covers_to_review`) for HR. The closure keeps exactly which assignments it ended (`company_closure_assignments`).
+- A closed company takes no new assignment (`COMPANY_CLOSED`); its status cannot be flipped by the edit form (`COMPANY_CLOSED_USE_REOPEN`, `COMPANY_HAS_ACTIVE_ASSIGNMENTS_USE_CLOSE`).
+- `POST client-companies/{c}/reopen` restores ONLY assignments of that closure, only those the person confirms, each re-checked for conflicts (changed since, employee not Active, position refilled, clash here or with the concurrent-assignment rule); `GET client-companies/{c}/closure` shows the preview and the history.
+
+### 18.6 Tests and evidence
+`FinalizedPayrollReopenTest`, `CompanyClosureAndAssignmentRecoveryTest`; the older tests were updated to these rules; web `payrollSections.test.ts`. Rehearsed on a restored copy of the production backup (PostgreSQL 18): see the workstream reports.
