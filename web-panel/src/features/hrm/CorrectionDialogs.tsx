@@ -44,6 +44,7 @@ export function ReopenFinalizedDialog({ section, monthLabel, onClose }: { sectio
       void queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-run'] });
       void queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
+      void queryClient.invalidateQueries({ queryKey: ['payroll-corrections'] });
       show(t('notify.correction.reopened'));
       onClose();
     },

@@ -58,6 +58,8 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
     void queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
     void queryClient.invalidateQueries({ queryKey: ['payroll-run', run.id] });
     void queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
+    // Reopening a company's month supersedes its corrections, so the corrections panel is refreshed as well.
+    void queryClient.invalidateQueries({ queryKey: ['payroll-corrections'] });
   };
 
   const mutation = useMutation({
