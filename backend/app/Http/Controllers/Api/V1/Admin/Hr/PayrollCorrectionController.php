@@ -62,6 +62,8 @@ class PayrollCorrectionController extends Controller
                 'kind' => $c->kind,
                 'action' => $c->action,
                 'status' => $c->status,
+                'superseded_at' => $c->superseded_at,
+                'supersede_reason' => $c->supersede_reason,
                 'currency' => PayrollMoney::CURRENCY,
                 'recorded_net_cents' => (int) $c->recorded_net_cents,
                 'corrected_net_cents' => (int) $c->corrected_net_cents,
@@ -117,8 +119,10 @@ class PayrollCorrectionController extends Controller
             'voided_at' => $v->created_at?->toIso8601String(),
         ])->values();
 
-        $over = $rows->where('kind', PayrollCorrection::KIND_OVERPAYMENT);
-        $under = $rows->where('kind', PayrollCorrection::KIND_UNDERPAYMENT);
+        // Superseded corrections stay in the list (history) but never count in the debt / underpayment totals.
+        $counted = $rows->where('status', '!=', PayrollCorrection::STATUS_SUPERSEDED);
+        $over = $counted->where('kind', PayrollCorrection::KIND_OVERPAYMENT);
+        $under = $counted->where('kind', PayrollCorrection::KIND_UNDERPAYMENT);
 
         return ApiResponse::success('Payroll corrections retrieved successfully.', [
             'corrections' => $rows,

@@ -561,6 +561,7 @@ class PayrollRunCalculator
 
         $corrections = PayrollCorrection::query()
             ->where('kind', PayrollCorrection::KIND_OVERPAYMENT)
+            ->where('status', '!=', PayrollCorrection::STATUS_SUPERSEDED)
             ->whereIn('employee_id', array_values(array_unique(array_column($items, 'employee_id'))))
             ->where('period', '<', $period)
             ->orderBy('id')

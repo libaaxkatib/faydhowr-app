@@ -20,7 +20,7 @@ import { canManageDebt, correctionStatusLabel, canPayUnderpayment, canVoidPaymen
 import type { PayrollCorrection, PayrollCorrectionTransaction } from '@/types/payroll';
 
 const KIND_LABEL: Record<PayrollCorrection['kind'], MessageKey> = { overpayment: 'option.payroll.kindOverpayment', underpayment: 'option.payroll.kindUnderpayment' };
-const TONE: Record<PayrollCorrection['status'], 'warning' | 'success' | 'info'> = { open: 'warning', recovered: 'success', written_off: 'info', settled: 'success' };
+const TONE: Record<PayrollCorrection['status'], 'warning' | 'success' | 'info'> = { open: 'warning', recovered: 'success', written_off: 'info', settled: 'success', superseded: 'info' };
 
 /**
  * Ledger of the corrections a Super Admin made to approved/finalized payroll months. The closed month is never changed:

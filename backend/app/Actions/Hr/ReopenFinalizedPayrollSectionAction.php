@@ -11,6 +11,7 @@ use App\Models\PayrollSectionReopening;
 use App\Models\PayrollWorkplacePayment;
 use App\Support\ApiResponse;
 use App\Support\Hr\Payroll\CorrectionAuthority;
+use App\Support\Hr\Payroll\CorrectionSupersession;
 use App\Support\Hr\Payroll\PayrollApproval;
 use App\Support\Hr\Payroll\PayrollSections;
 use App\Support\Hr\Payroll\RecoveryLedger;
@@ -60,6 +61,9 @@ class ReopenFinalizedPayrollSectionAction
                 $this->fail("Some payroll lines of {$name} were marked paid one by one. Void those payments first (payroll is rebuilt when it is corrected), then reopen. Nothing was changed.", 'PAYROLL_LINES_PAID', 422);
             }
 
+            // P1: open corrections of this company and month become obsolete when it is rebuilt; refused when money already moved for one of them.
+            CorrectionSupersession::assertCanSupersede($section, $run->period);
+
             $payments = PayrollWorkplacePayment::query()
                 ->where('payroll_run_id', $run->id)
                 ->when($section->client_company_id === null, fn ($q) => $q->whereNull('client_company_id'), fn ($q) => $q->where('client_company_id', $section->client_company_id))
@@ -81,8 +85,9 @@ class ReopenFinalizedPayrollSectionAction
                 'payment_count_at_reopen' => (clone $payments)->count(),
             ]);
 
-            PayrollApproval::track($run, function () use ($section, $run): void {
+            PayrollApproval::track($run, function () use ($section, $run, $actor, $reason): void {
                 $section->update(['status' => PayrollRunSection::STATUS_DRAFT, 'reviewed_at' => null, 'reviewed_by' => null, 'approved_at' => null, 'approved_by' => null, 'finalized_at' => null, 'finalized_by' => null]);
+                CorrectionSupersession::supersede($section, $run->period, $actor, $reason);
                 $run = PayrollSections::syncRun($run->refresh());
                 RecoveryLedger::syncFromRun($run);
             }, $actor, ['cause' => 'its finalized payroll was reopened for correction', 'reopening_id' => $reopening->id]);

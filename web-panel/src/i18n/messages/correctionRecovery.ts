@@ -9,8 +9,8 @@ export const correctionRecovery = defineMessages({
   'action.correction.reopenFinalized': message('Reopen for correction', 'Dib u fur si loo saxo'),
   'confirm.correction.reopenFinalizedTitle': message('Reopen finalized payroll: {name}', 'Dib u fur mushaharka la dhammaystiray: {name}'),
   'confirm.correction.reopenFinalizedBody': message(
-    'Payroll {month} for {name} is finalized. Reopening sends it back to Draft so it can be corrected and finalized again. Every payment already recorded stays exactly as it is, and the company is not approved again until it is paid in full. Who reopened it, when and why is recorded.',
-    'Mushaharka {month} ee {name} waa la dhammaystiray. Dib u furistu waxay ku celinaysaa Qabyo si loo saxo oo mar kale loo dhammaystiro. Lacag-bixin kasta oo horey loo diiwaangeliyey sidiisii ayay u hadhaysaa, shirkaddana mar kale lama ansixin ilaa si buuxda loo bixiyo. Qofka furay, goorta iyo sababta waa la diiwaangeliyaa.',
+    'Payroll {month} for {name} is finalized. Reopening sends it back to Draft so it can be corrected and finalized again. Every payment already recorded stays exactly as it is, and the company is not approved again until it is paid in full. Open payroll corrections of this company and month are superseded (kept in the history) because the payroll is rebuilt, so the same pay is never counted twice. Who reopened it, when and why is recorded.',
+    'Mushaharka {month} ee {name} waa la dhammaystiray. Dib u furistu waxay ku celinaysaa Qabyo si loo saxo oo mar kale loo dhammaystiro. Lacag-bixin kasta oo horey loo diiwaangeliyey sidiisii ayay u hadhaysaa, shirkaddana mar kale lama ansixin ilaa si buuxda loo bixiyo. Sixitaannada mushaharka ee furan ee shirkaddan iyo bishan waa la beddelayaa (waxaa lagu hayaa taariikhda) maadaama mushaharka dib loo dhisayo, sidaas darteed isla mushaharka laba jeer lama xisaabiyo. Qofka furay, goorta iyo sababta waa la diiwaangeliyaa.',
   ),
   'validation.correction.reasonHint10': message('Required, at least 10 characters. It is saved with the correction.', 'Waa loo baahan yahay, ugu yaraan 10 xaraf. Waxaa lagu keydiyaa sax-bixinta.'),
   'notify.correction.reopened': message('Finalized payroll reopened. No payment was changed.', 'Mushaharkii la dhammaystiray dib ayaa loo furay. Lacag-bixin lama beddelin.'),
@@ -161,6 +161,16 @@ export const correctionRecovery = defineMessages({
   'notify.error.ASSIGNMENT_POSITION_FILLED': message(
     'This position was given to someone else after the assignment ended, so it cannot be reopened.',
     'Jagadan waxaa la siiyey qof kale ka dib markii meesha shaqo dhammaatay, sidaas darteed dib looma furi karo.',
+  ),
+  // ---------------------------------------------------------------- P1: corrections superseded by a reopening
+  'status.payroll.correction.superseded': message('Superseded (payroll rebuilt)', 'La beddelay (mushaharka dib ayaa loo dhisay)'),
+  'notify.error.CORRECTION_HAS_MONEY_MOVEMENT': message(
+    'This company has payroll corrections for that month with money already paid, repaid, recovered or written off. They cannot be superseded by a reopening; settle them first. Nothing was changed.',
+    'Shirkaddan waxay leedahay sixitaanno mushahar oo bishaas ah oo lacag horey looga bixiyey, laga celiyey, laga soo ceshay ama la cafiyey. Dib u furistu ma beddeli karto; marka hore xalli. Waxba lama beddelin.',
+  ),
+  'notify.error.REGENERATE_AFTER_REOPEN': message(
+    'This company\'s payroll was reopened and its payroll corrections were superseded. Generate the month again, review it, and only then finalize it. Nothing was changed.',
+    'Mushaharka shirkaddan dib ayaa loo furay, sixitaannadiisii mushaharka waa la beddelay. Marka hore mar kale samee bisha, dib u eeg, ka dibna dhammaystir. Waxba lama beddelin.',
   ),
   'option.correction.noAssignmentsToRestore': message('The closure ended no assignments.', 'Xiristaanku ma dhammeynin meel shaqo.'),
 });

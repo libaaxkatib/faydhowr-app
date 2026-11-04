@@ -13,7 +13,10 @@ export interface PayrollCorrection {
   period: string;
   kind: 'overpayment' | 'underpayment';
   action: string;
-  status: 'open' | 'recovered' | 'written_off' | 'settled';
+  status: 'open' | 'recovered' | 'written_off' | 'settled' | 'superseded';
+  /** Set when the company's payroll for that month was reopened and rebuilt: the correction no longer applies (kept for the history). */
+  superseded_at?: string | null;
+  supersede_reason?: string | null;
   currency: string;
   employee_status: string | null;
   has_open_assignment: boolean;

@@ -9,6 +9,7 @@ use App\Models\PayrollRun;
 use App\Models\PayrollRunSection;
 use App\Models\PayrollSectionReopening;
 use App\Support\ApiResponse;
+use App\Support\Hr\Payroll\CorrectionSupersession;
 use App\Support\Hr\Payroll\InputOwnership;
 use App\Support\Hr\Payroll\PayrollSections;
 use App\Support\Hr\Payroll\RecoveryLedger;
@@ -111,6 +112,15 @@ class TransitionPayrollRunSectionAction
             $this->fail('A payroll run with no lines cannot be reviewed.', 'PAYROLL_RUN_EMPTY');
         }
 
+        // P1: reopening a company's month makes its open corrections obsolete (refused when money moved for one); finalizing again needs a fresh Generate first.
+        if ($to === PayrollRunSection::STATUS_DRAFT) {
+            CorrectionSupersession::assertCanSupersede($section, $run->period);
+        }
+
+        if ($to === PayrollRunSection::STATUS_FINALIZED) {
+            CorrectionSupersession::assertRegenerated($section, $run);
+        }
+
         if (in_array($to, [PayrollRunSection::STATUS_APPROVED, PayrollRunSection::STATUS_FINALIZED], true)) {
             $this->assertNoUnownedInputs($section, $run);
         }
@@ -123,6 +133,10 @@ class TransitionPayrollRunSectionAction
         };
 
         $section->update(['status' => $to, ...$stamp]);
+
+        if ($to === PayrollRunSection::STATUS_DRAFT) {
+            CorrectionSupersession::supersede($section, $run->period, $actor, $reason ?? 'Payroll reopened to draft');
+        }
 
         // Finalizing again after a reopening: the reopening record keeps what the corrected payroll holds now next to what it held before.
         if ($to === PayrollRunSection::STATUS_FINALIZED) {

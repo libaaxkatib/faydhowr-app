@@ -31,9 +31,12 @@ class PayrollCorrection extends Model
     /** An underpayment that has been paid to the employee in full. */
     public const STATUS_SETTLED = 'settled';
 
+    /** The company's payroll for that month was reopened and rebuilt, so this correction no longer applies (kept for the history; see CorrectionSupersession). */
+    public const STATUS_SUPERSEDED = 'superseded';
+
     protected function casts(): array
     {
-        return ['old_values' => 'array', 'new_values' => 'array'];
+        return ['old_values' => 'array', 'new_values' => 'array', 'superseded_at' => 'datetime'];
     }
 
     public function employee(): BelongsTo
