@@ -106,7 +106,7 @@ test('the returning employee salary must be entered and explicitly confirmed, ne
 
 test('the server asking for a correction reason and the Temporary-worker warning are recognised', () => {
   assert.equal(isCorrectionReasonRequired({ code: 'CORRECTION_REASON_REQUIRED' }), true);
-  assert.equal(isCorrectionReasonRequired({ code: 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY' }), false);
+  assert.equal(isCorrectionReasonRequired({ code: 'CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED' }), false);
   assert.equal(isCorrectionReasonRequired(null), false);
   assert.equal(isTemporaryWorker({ employment_type: 'temporary' }), true);
   assert.equal(isTemporaryWorker({ employment_type: 'permanent' }), false);

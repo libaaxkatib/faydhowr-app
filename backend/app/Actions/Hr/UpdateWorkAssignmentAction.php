@@ -104,7 +104,7 @@ class UpdateWorkAssignmentAction
             return null;
         }
 
-        return PermanentSuccession::demand($assignment, $data['successor'] ?? null, $newEnd);
+        return PermanentSuccession::demand($assignment, $data['successor'] ?? null, $newEnd, optional: true);
     }
 
     /**

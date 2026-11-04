@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Admin\Hr;
 use App\Actions\Hr\CompanyEmployees\AssignEmployeeToCompanyAction;
 use App\Actions\Hr\CompanyEmployees\ListCompanyEmployeeHistoryAction;
 use App\Actions\Hr\CompanyEmployees\ListCompanyEmployeesAction;
+use App\Actions\Hr\CompanyEmployees\ReopenEndedAssignmentAction;
 use App\Actions\Hr\CompanyEmployees\ReplaceCompanyEmployeeAction;
 use App\Actions\Hr\CompanyEmployees\ReturnCompanyEmployeeAction;
 use App\Actions\Hr\CompanyEmployees\SearchCompanyEmployeeCandidatesAction;
@@ -15,6 +16,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Admin\Hr\CompanyEmployees\AssignCompanyEmployeeRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\CompanyEmployees\EditCompanyAssignmentRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\CompanyEmployees\ListCompanyEmployeesRequest;
+use App\Http\Requests\Api\V1\Admin\Hr\CompanyEmployees\ReopenCompanyAssignmentRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\CompanyEmployees\ReplaceCompanyEmployeeRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\CompanyEmployees\ReturnCompanyEmployeeRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\CompanyEmployees\StopCompanyAssignmentRequest;
@@ -126,6 +128,19 @@ class CompanyEmployeeController extends Controller
         $assignment = $action->handle($clientCompany, $workAssignment, $request->validated(), $request->user());
 
         return ApiResponse::success('Assignment stopped. The employee\'s HR status was not changed.', [
+            ...(new WorkAssignmentResource($assignment))->resolve($request),
+            'employee_status' => $assignment->employee?->status->value,
+        ]);
+    }
+
+    /** Undo a Stop / End that was a mistake: the same assignment is active again (nothing is recreated). */
+    public function reopen(ReopenCompanyAssignmentRequest $request, ClientCompany $clientCompany, EmployeeWorkAssignment $workAssignment, ReopenEndedAssignmentAction $action): JsonResponse
+    {
+        CompanyAssignmentGuard::assignmentOf($clientCompany, $workAssignment);
+
+        $assignment = $action->handle($clientCompany, $workAssignment, $request->validated(), $request->user());
+
+        return ApiResponse::success('Assignment reopened. The employee\'s HR status was not changed.', [
             ...(new WorkAssignmentResource($assignment))->resolve($request),
             'employee_status' => $assignment->employee?->status->value,
         ]);

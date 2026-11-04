@@ -5,6 +5,7 @@ namespace Tests\Feature\Api\V1\Admin\Hr;
 use App\Models\Admin;
 use App\Models\AssignmentAbsence;
 use App\Models\AssignmentCycleEvent;
+use App\Models\AssignmentSuccession;
 use App\Models\ClientCompany;
 use App\Models\Employee;
 use App\Models\EmployeeAttendance;
@@ -571,15 +572,16 @@ class ReplacementCycleTest extends TestCase
 
     // ------------------------------------------------------------------ review findings: guard rails, swap, deductions, gap days
 
-    public function test_a_position_that_has_had_a_finished_cycle_still_needs_its_successor_when_it_is_ended(): void
+    public function test_a_position_that_has_had_a_finished_cycle_can_be_ended_without_a_successor_and_the_finished_cover_is_not_the_next_holder(): void
     {
         $original = $this->original();
         $replacementId = $this->replace($original)->assertOk()->json('data.replacement.id');
         $this->giveBack($replacementId, '2026-10-13')->assertOk();
 
-        // The finished Replacement is history; it must not count as "the next holder" and waive the replacement choice (N1).
-        $this->stop($original, '2026-10-31')->assertUnprocessable()->assertJsonPath('error_code', 'SUCCESSOR_REQUIRED');
-        $this->assertSame('active', $original->fresh()->status->value);
+        // The finished Replacement is history; it is not "the next holder". Owner decision 2026-11-04: ending needs no replacement, so the position is simply ended.
+        $this->stop($original, '2026-10-31')->assertOk();
+        $this->assertSame('ended', $original->fresh()->status->value);
+        $this->assertSame(0, AssignmentSuccession::query()->count(), 'no successor was invented');
     }
 
     public function test_cancelling_a_cover_entered_by_mistake_closes_its_absence_with_zero_days_and_the_same_cover_can_be_entered_again(): void

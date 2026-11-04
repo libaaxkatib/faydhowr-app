@@ -5,6 +5,7 @@ namespace App\Support\Hr\CompanyEmployees;
 use App\Enums\EmployeeStatus;
 use App\Enums\WorkAssignmentStatus;
 use App\Models\ClientCompany;
+use App\Models\CompanyClosure;
 use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Support\ApiResponse;
@@ -30,6 +31,20 @@ final class CompanyAssignmentGuard
         }
 
         return $assignment;
+    }
+
+    /** A company closed through Close Company (an open closure) takes no new assignment until it is reopened. */
+    public static function requireCompanyOpen(?int $companyId): void
+    {
+        if ($companyId === null) {
+            return;
+        }
+
+        $closure = CompanyClosure::query()->where('client_company_id', $companyId)->where('status', CompanyClosure::STATUS_CLOSED)->first(['id', 'effective_date']);
+
+        if ($closure !== null) {
+            self::fail('This company was closed on '.$closure->effective_date->toDateString().', so it cannot receive new assignments. Reopen the company first.', 'COMPANY_CLOSED');
+        }
     }
 
     public static function requireOpen(EmployeeWorkAssignment $assignment): void

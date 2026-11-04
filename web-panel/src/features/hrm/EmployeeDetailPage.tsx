@@ -2020,6 +2020,7 @@ function MarkSeparatedModal({
   const [separationDate, setSeparationDate] = useState(new Date().toISOString().slice(0, 10));
   const [rehireEligible, setRehireEligible] = useState(true);
   const [notes, setNotes] = useState('');
+  const [correctionReason, setCorrectionReason] = useState('');
   const [drafts, setDrafts] = useState<Record<number, SuccessorDraft>>({});
   const [showMissing, setShowMissing] = useState(false);
   const ids = permanentAssignments.map((a) => a.id);
@@ -2050,6 +2051,7 @@ function MarkSeparatedModal({
                 separation_date: separationDate,
                 rehire_eligible: rehireEligible,
                 notes: notes || null,
+                ...(correctionReason.trim() !== '' ? { correction_reason: correctionReason.trim() } : {}),
                 successors: ids.map((id) => ({ assignment_id: id, ...(toSuccessorPayload(drafts[id] ?? EMPTY_SUCCESSOR, separationDate) as SuccessorPayload) })),
               });
             }}
@@ -2076,6 +2078,9 @@ function MarkSeparatedModal({
       </FormField>
       <FormField label={t('option.employeeDetail.fieldNotes')} htmlFor="sep-notes">
         <textarea id="sep-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </FormField>
+      <FormField label={t('option.correction.payrollCorrectionReason')} htmlFor="sep-correction-reason">
+        <input id="sep-correction-reason" maxLength={500} className={inputClasses} value={correctionReason} onChange={(e) => setCorrectionReason(e.target.value)} />
       </FormField>
       {permanentAssignments.map((assignment) => (
         <div key={assignment.id}>

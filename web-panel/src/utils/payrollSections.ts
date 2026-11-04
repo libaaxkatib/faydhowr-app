@@ -10,7 +10,7 @@
 import type { MessageKey } from '../i18n/messages/index.ts';
 import type { CompanyPaymentStatus, PayrollItem, PayrollRun, PayrollRunSection, PayrollRunStatus, RecordCompanyPaymentPayload } from '../types/payroll.ts';
 
-export type SectionAction = 'review' | 'finalize' | 'reopen';
+export type SectionAction = 'review' | 'finalize' | 'reopen' | 'reopen_finalized';
 
 /** The payroll buttons a company row offers: review needs hr.payroll.manage; finalize and reopen need hr.payroll.approve; a finalized company offers none. */
 export function sectionActions(status: PayrollRunStatus, canManage: boolean, canApprove: boolean): SectionAction[] {
@@ -22,7 +22,8 @@ export function sectionActions(status: PayrollRunStatus, canManage: boolean, can
       // "approved" can only be a company an earlier version left there: it is finalized exactly like a reviewed one.
       return canApprove ? ['finalize', 'reopen'] : [];
     case 'finalized':
-      return [];
+      // Owner decision 2026-11-04: a finalized company can be reopened for correction (a reason; payments stay). The server decides who may.
+      return canApprove ? ['reopen_finalized'] : [];
   }
 }
 
@@ -41,7 +42,15 @@ export const PAYMENT_STATUS_LABEL: Record<CompanyPaymentStatus, { labelKey: Mess
   unpaid: { labelKey: 'status.payroll.apUnpaid', tone: 'danger' },
   partially_paid: { labelKey: 'status.payroll.apPartial', tone: 'warning' },
   approved: { labelKey: 'status.payroll.apApproved', tone: 'success' },
+  overpaid: { labelKey: 'status.payroll.apOverpaid', tone: 'danger' },
 };
+
+/** "Reconcile overpayment" is offered for a finalized company that was paid more than its corrected payroll says and has not been settled yet. */
+export function canReconcile(section: Pick<PayrollRunSection, 'status' | 'unreconciled_overpaid_cents'>, canApprove: boolean): boolean {
+  return canApprove && section.status === 'finalized' && (section.unreconciled_overpaid_cents ?? 0) > 0;
+}
+
+export const MIN_REOPEN_FINALIZED_REASON = 10;
 
 /**
  * The request of "Approve Paid" (no amount: the server pays exactly the outstanding balance at that moment) or "Approve Partial" (the typed amount, in

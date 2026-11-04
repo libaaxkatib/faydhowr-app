@@ -3,13 +3,18 @@
 namespace App\Http\Controllers\Api\V1\Admin\Hr;
 
 use App\Actions\Hr\RecordCompanyPaymentAction;
+use App\Actions\Hr\RecordCompanyReconciliationAction;
 use App\Actions\Hr\TransitionPayrollRunSectionAction;
+use App\Actions\Hr\VoidWorkplaceReconciliationAction;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\Admin\Hr\ReasonRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\ReopenPayrollRunRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\StoreCompanyPaymentRequest;
+use App\Http\Requests\Api\V1\Admin\Hr\StoreCompanyReconciliationRequest;
 use App\Http\Resources\Api\V1\Admin\Hr\PayrollRunResource;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunSection;
+use App\Models\PayrollWorkplaceReconciliation;
 use App\Support\ApiResponse;
 use App\Support\Hr\Payroll\PayrollApproval;
 use Illuminate\Http\JsonResponse;
@@ -66,6 +71,40 @@ class PayrollRunSectionController extends Controller
             ],
             $result['replayed'] ? 200 : 201,
         );
+    }
+
+    /** Settle the excess of an OVERPAID company (paid more than its corrected payroll says): a recorded reconciliation, never a change to a payment. */
+    public function reconcile(StoreCompanyReconciliationRequest $request, PayrollRunSection $payrollRunSection, RecordCompanyReconciliationAction $action): JsonResponse
+    {
+        $result = $action->handle(
+            $payrollRunSection,
+            $request->validated('mode'),
+            $request->amountCents(),
+            $request->validated('method'),
+            $request->validated('reason'),
+            $request->validated('settled_on'),
+            $request->validated('idempotency_key'),
+            $request->user(),
+        );
+
+        $run = PayrollRun::query()->findOrFail($payrollRunSection->payroll_run_id);
+        $sections = PayrollApproval::sections($run);
+        $company = collect($sections)->firstWhere('section_id', $payrollRunSection->id);
+
+        return ApiResponse::success(
+            $result['replayed'] ? 'This reconciliation was already recorded; nothing was added.' : 'Overpayment reconciled.',
+            ['replayed' => $result['replayed'], 'reconciliation_ids' => array_map(fn ($e): int => $e->id, $result['entries']), 'company' => $company, 'month' => PayrollApproval::month($run, $sections)],
+            $result['replayed'] ? 200 : 201,
+        );
+    }
+
+    /** Void (never delete) a reconciliation recorded by mistake. */
+    public function voidReconciliation(ReasonRequest $request, PayrollWorkplaceReconciliation $reconciliation, VoidWorkplaceReconciliationAction $action): JsonResponse
+    {
+        $entry = $action->handle($reconciliation, $request->validated('reason'), $request->user());
+        $run = PayrollRun::query()->findOrFail($entry->payroll_run_id);
+
+        return ApiResponse::success('Reconciliation voided.', ['month' => PayrollApproval::month($run)]);
     }
 
     private function answer(string $message, PayrollRunSection $section): JsonResponse

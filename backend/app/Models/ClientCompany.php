@@ -43,6 +43,17 @@ class ClientCompany extends Model
         return $this->hasMany(EmployeeWorkAssignment::class);
     }
 
+    public function closures(): HasMany
+    {
+        return $this->hasMany(CompanyClosure::class);
+    }
+
+    /** The closure that is in force now (the company was closed and not yet reopened), if any. */
+    public function openClosure(): ?CompanyClosure
+    {
+        return $this->closures()->where('status', CompanyClosure::STATUS_CLOSED)->latest('id')->first();
+    }
+
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'created_by');

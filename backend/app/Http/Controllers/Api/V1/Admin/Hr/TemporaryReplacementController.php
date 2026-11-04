@@ -9,7 +9,6 @@ use App\Actions\Hr\ListTemporaryReplacementsAction;
 use App\Actions\Hr\RecordTemporaryReplacementPaymentAction;
 use App\Actions\Hr\UpdateTemporaryReplacementAction;
 use App\Enums\AdminPermission;
-use App\Enums\AdminRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Admin\Hr\EndTemporaryReplacementRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\StoreTemporaryReplacementPaymentRequest;
@@ -23,6 +22,7 @@ use App\Models\TemporaryReplacement;
 use App\Support\AdminPermissionResolver;
 use App\Support\ApiResponse;
 use App\Support\Hr\CoverConflicts;
+use App\Support\Hr\Payroll\CorrectionAuthority;
 use App\Support\Hr\ReplacementChangeImpact;
 use App\Support\Hr\ReplacementVersion;
 use Carbon\CarbonImmutable;
@@ -119,7 +119,8 @@ class TemporaryReplacementController extends Controller
             $conflict = CoverConflicts::find($temporaryReplacement->workAssignment()->firstOrFail(), $employee, $start, $end, $temporaryReplacement->id);
         }
 
-        $isSuperAdmin = $request->user()->role === AdminRole::SuperAdmin;
+        // Who may correct closed payroll is decided in one place (owner decision 2026-11-04: a Super Admin or an HR Manager).
+        $mayCorrectClosed = CorrectionAuthority::mayCorrectClosedPayroll($request->user());
         $employeeLocked = (int) $employee?->id !== (int) $temporaryReplacement->replacement_employee_id
             && ($temporaryReplacement->payments()->exists() || $temporaryReplacement->workdays()->where('status', '!=', 'void')->exists());
 
@@ -128,7 +129,8 @@ class TemporaryReplacementController extends Controller
             'errors' => $errors,
             'conflict' => $conflict,
             'employee_locked_by_records' => $employeeLocked,
-            'requires_super_admin' => $result['changes_locked_period'] && ! $isSuperAdmin,
+            // The name is kept for the screens: true when this change reaches closed payroll and the person's role may not correct it.
+            'requires_super_admin' => $result['changes_locked_period'] && ! $mayCorrectClosed,
             'requires_reason_for_closed_payroll' => $result['changes_locked_period'],
             'approval_will_be_cleared' => $temporaryReplacement->approved_at !== null && $result['days_added'] > 0 && ! $result['touches_locked_period'],
             'is_approved' => $temporaryReplacement->approved_at !== null,

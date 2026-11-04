@@ -102,7 +102,7 @@ class ClosedPayrollCorrectionTest extends TestCase
 
         // The HR editor reaches the rule itself and is told only a Super Admin may do this.
         $this->edit($tokens['an HR editor with hr.manage'], $assignment, ['start_date' => '2026-09-21', 'correction_reason' => 'Trying'])
-            ->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+            ->assertForbidden()->assertJsonPath('error_code', 'CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED');
 
         $this->assertSame('2026-01-01', $assignment->fresh()->start_date->toDateString(), 'nothing was changed');
         $this->assertSame(0, PayrollCorrection::query()->count());

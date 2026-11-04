@@ -14,7 +14,7 @@ use App\Models\PayrollRun;
 use App\Models\PayrollRunSection;
 use App\Models\PayrollWorkplacePayment;
 use App\Models\Position;
-use App\Support\Hr\Payroll\ClosedPayrollCorrection;
+use App\Support\Hr\Payroll\CorrectionAuthority;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\FinalizesCompanies;
@@ -166,26 +166,28 @@ class HrManagerAssignmentCorrectionTest extends TestCase
         $marketing = Admin::factory()->create(['role' => AdminRole::MarketingManager])->createToken('t')->plainTextToken;
         $nobody = $this->noPermissionToken();
 
-        $this->add($editor, ['correction_reason' => 'Trying to correct payroll'])->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        $this->add($editor, ['correction_reason' => 'Trying to correct payroll'])->assertForbidden()->assertJsonPath('error_code', 'CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED');
         $this->add($marketing, ['correction_reason' => 'Trying'])->assertForbidden();
         $this->add($nobody, ['correction_reason' => 'Trying'])->assertForbidden();
 
         $this->assertSame($counts, $this->counts());
     }
 
-    public function test_an_hr_manager_cannot_use_this_to_correct_anything_else_in_finalized_payroll(): void
+    public function test_an_hr_manager_can_correct_other_finalized_payroll_with_a_reason_and_it_is_recorded_as_a_correction(): void
     {
-        $counts = $this->counts();
+        // Owner decision 2026-11-04 (replaces "Super Admin only"): editing an assignment (its start date reaches September) and changing its salary are
+        // corrections an HR Manager may record too - never silently: a reason is mandatory and the closed month is never rewritten.
+        $this->as($this->hrManager)->putJson("/api/v1/admin/hr/work-assignments/{$this->existing->id}", ['start_date' => '2026-09-21'])
+            ->assertStatus(422)->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');
+        $this->assertSame('2026-01-01', $this->existing->fresh()->start_date->toDateString(), 'refused as a whole without a reason');
 
-        // Editing an assignment (its start date reaches September) and changing its salary are still Super Admin only.
-        $this->as($this->hrManager)->putJson("/api/v1/admin/hr/work-assignments/{$this->existing->id}", ['start_date' => '2026-09-21', 'correction_reason' => 'Try to correct September'])
-            ->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
-        $this->as($this->hrManager)->putJson("/api/v1/admin/hr/work-assignments/{$this->existing->id}", ['salary_amount' => 900, 'salary_effective_from' => '2026-09-01', 'correction_reason' => 'Try to raise September'])
-            ->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        $this->as($this->hrManager)->putJson("/api/v1/admin/hr/work-assignments/{$this->existing->id}", ['start_date' => '2026-09-21', 'correction_reason' => 'The employee really started on 21 September'])->assertOk();
+        $this->as($this->hrManager)->putJson("/api/v1/admin/hr/work-assignments/{$this->existing->id}", ['salary_amount' => 900, 'salary_effective_from' => '2026-09-21', 'correction_reason' => 'The salary was agreed for September'])->assertOk();
 
-        $this->assertSame($counts, $this->counts());
-        $this->assertSame('2026-01-01', $this->existing->fresh()->start_date->toDateString());
-        $this->assertSame(['assigned'], ClosedPayrollCorrection::HR_MANAGER_ACTIONS, 'the permission is exactly one operation');
+        $hrManagerId = (int) Admin::query()->where('role', AdminRole::HrManager)->value('id');
+        $this->assertGreaterThanOrEqual(1, PayrollCorrection::query()->where('corrected_by', $hrManagerId)->count());
+        $this->assertSame('hr_manager', AuditLog::query()->where('entity_type', PayrollCorrection::class)->firstOrFail()->metadata['corrected_by_role']);
+        $this->assertSame([true, false], [CorrectionAuthority::matrix()['correct_closed_payroll']['hr_manager'], CorrectionAuthority::matrix()['pay_underpayment_to_employee']['hr_manager']], 'correcting is allowed; paying the underpayment is not');
     }
 
     public function test_an_hr_manager_cannot_pay_the_underpayment_that_the_assignment_created(): void
@@ -230,7 +232,7 @@ class HrManagerAssignmentCorrectionTest extends TestCase
         $counts = $this->counts();
 
         // Other roles stay blocked; the HR Manager is refused without a (real) reason - the backend checks it - and nothing is saved.
-        $this->as($editor)->postJson($url, [...$body, 'correction_reason' => 'Trying to correct payroll'])->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        $this->as($editor)->postJson($url, [...$body, 'correction_reason' => 'Trying to correct payroll'])->assertForbidden()->assertJsonPath('error_code', 'CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED');
         foreach ([[], ['correction_reason' => ''], ['correction_reason' => '   '], ['correction_reason' => 'ab']] as $reason) {
             $this->as($this->hrManager)->postJson($url, [...$body, ...$reason])->assertStatus(422)->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');
         }

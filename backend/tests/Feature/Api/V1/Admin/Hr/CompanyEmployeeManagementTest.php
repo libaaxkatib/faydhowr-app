@@ -400,11 +400,11 @@ class CompanyEmployeeManagementTest extends TestCase
         $this->as($hr)->putJson($this->url($this->company)."/{$a->id}", ['start_date' => '2026-08-20'])->assertOk();
 
         // Stopping or replacing inside September would change what September paid: not for an HR editor.
-        $this->as($hr)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-09-10', 'reason' => 'left early', 'successor' => $this->waitingSuccessor()])->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        $this->as($hr)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-09-10', 'reason' => 'left early', 'successor' => $this->waitingSuccessor()])->assertForbidden()->assertJsonPath('error_code', 'CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED');
         $this->as($hr)->postJson($this->url($this->company)."/{$a->id}/replace", [
             'replacement_employee_id' => $spare->id, 'replacement_date' => '2026-09-11', 'assignment_type' => 'permanent',
             'salary_amount' => 200, 'salary_currency' => 'USD', 'salary_frequency' => 'monthly',
-        ])->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        ])->assertForbidden()->assertJsonPath('error_code', 'CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED');
 
         // A Super Admin must give a reason, and without it nothing happens.
         $this->as($this->admin)->postJson($this->url($this->company)."/{$a->id}/stop", ['end_date' => '2026-09-10', 'reason' => 'left early', 'successor' => $this->waitingSuccessor()])->assertUnprocessable()->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');

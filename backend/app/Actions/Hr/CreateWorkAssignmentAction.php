@@ -17,6 +17,7 @@ use App\Models\WorkLocation;
 use App\Support\ApiResponse;
 use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\AssignmentChain;
+use App\Support\Hr\CompanyEmployees\CompanyAssignmentGuard;
 use App\Support\Hr\CompanyLocationResolver;
 use App\Support\Hr\ConcurrentAssignmentGuard;
 use App\Support\Hr\CoverConflicts;
@@ -61,6 +62,9 @@ class CreateWorkAssignmentAction
     {
         // Direct API too: a new registration that has not completed the registration workflow gets no assignment at all.
         (new EmployeeRegistrationWorkflow)->requireEligible($employee, 'cannot be given a work assignment', 'EMPLOYEE_REGISTRATION_INCOMPLETE');
+
+        // A company closed through Close Company takes no new assignment until it is reopened.
+        CompanyAssignmentGuard::requireCompanyOpen(isset($data['client_company_id']) ? (int) $data['client_company_id'] : null);
 
         if (($data['assignment_type'] ?? AssignmentType::Permanent->value) === AssignmentType::Replacement->value) {
             $data = $this->withInheritedSalary($employee, $data);

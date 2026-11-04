@@ -789,7 +789,8 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
     if (awayStop && !confirmContinues) found.away_confirm = t('validation.company.awayStopConfirm');
     const needed = correctionError(state, correctionReason, t);
     if (needed) found.correction_reason = needed;
-    if (askSuccessor) {
+    // A replacement is OPTIONAL when an assignment is stopped (owner decision 2026-11-04): it is checked only when HR started choosing one.
+    if (askSuccessor && successor.type !== '') {
       const missing = validateSuccessor(successor, endDate);
       if (missing) found.successor = missing;
     }
@@ -828,6 +829,7 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
           <FormField label={t('confirm.company.reason')} htmlFor="stop-reason" required error={errors.reason ?? state.serverFields.reason?.[0]}>
             <input id="stop-reason" className={inputClasses} value={reason} onChange={(event) => setReason(event.target.value)} />
           </FormField>
+          {askSuccessor && <p className="mb-2 text-xs text-ink-muted" data-testid="stop-successor-optional">{t('option.correction.replacementOptional')}</p>}
           {askSuccessor && <SuccessorPicker assignmentId={row.assignment_id} lastDay={endDate} value={successor} onChange={setSuccessor} error={errors.successor ?? state.serverFields.successor?.[0]} idPrefix="stop-successor" />}
           {awayStop && (
             <div role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs text-warning" data-testid="away-stop-warning">

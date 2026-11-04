@@ -10,10 +10,11 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { TABLE_SCROLL_CLASS } from '@/components/ui/TableScroll';
 import { useToast } from '@/components/ui/useToast';
 import { CompanyPaymentDialog } from '@/features/hrm/CompanyPaymentDialog';
+import { ReconcileDialog, ReopenFinalizedDialog } from '@/features/hrm/CorrectionDialogs';
 import { useI18n } from '@/i18n/useI18n';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
-import { MONTH_STATUS_LABEL, PAYMENT_STATUS_LABEL, monthDisplayStatus, paymentActions, sectionActions, sectionName, type PaymentAction, type SectionAction } from '@/utils/payrollSections';
+import { MONTH_STATUS_LABEL, PAYMENT_STATUS_LABEL, canReconcile, monthDisplayStatus, paymentActions, sectionActions, sectionName, type PaymentAction, type SectionAction } from '@/utils/payrollSections';
 import type { PayrollMonthApproval, PayrollRun, PayrollRunSection } from '@/types/payroll';
 
 function money(value: string): string {
@@ -49,6 +50,8 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
   const [finalizing, setFinalizing] = useState<PayrollRunSection | null>(null);
   const [reopening, setReopening] = useState<PayrollRunSection | null>(null);
   const [paying, setPaying] = useState<{ section: PayrollRunSection; mode: 'full' | 'partial' } | null>(null);
+  const [reopeningFinalized, setReopeningFinalized] = useState<PayrollRunSection | null>(null);
+  const [reconciling, setReconciling] = useState<PayrollRunSection | null>(null);
   const sections = run.sections ?? [];
 
   const refresh = () => {
@@ -65,6 +68,7 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
         case 'finalize':
           return hrApi.payrollRuns.finalizeSection(section.id);
         case 'reopen':
+        case 'reopen_finalized':
           return hrApi.payrollRuns.reopenSection(section.id, reason ?? '');
       }
     },
@@ -84,6 +88,7 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
   const act = (section: PayrollRunSection, action: SectionAction) => {
     if (action === 'finalize') setFinalizing(section);
     else if (action === 'reopen') setReopening(section);
+    else if (action === 'reopen_finalized') setReopeningFinalized(section);
     else mutation.mutate({ section, action });
   };
   const nameOf = (section: PayrollRunSection) => sectionName(section, t('option.payroll.sectionNoCompany'));
@@ -91,6 +96,7 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
     review: t('action.markReviewed'),
     finalize: finalizeLabel,
     reopen: t('action.reopen'),
+    reopen_finalized: t('action.correction.reopenFinalized'),
   };
   const payLabel: Record<PaymentAction, string> = { approve_paid: t('action.payroll.approvePaid'), approve_partial: t('action.payroll.approvePartial') };
   const display = MONTH_STATUS_LABEL[monthDisplayStatus(run)];
@@ -160,14 +166,31 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
                   <td className="px-3 py-2 text-xs text-ink-muted">
                     {section.reviewed_at && <p>{t('option.payroll.trailReviewedBy', { name: section.reviewed_by ?? '—', date: formatDate(section.reviewed_at) })}</p>}
                     {section.finalized_at && <p>{t('option.payroll.trailFinalizedBy', { name: section.finalized_by ?? '—', date: formatDate(section.finalized_at) })}</p>}
+                    {(section.unreconciled_overpaid_cents ?? 0) > 0 && <p className="font-semibold text-danger" data-testid="section-overpaid">{t('option.correction.overpaidAmount', { amount: money(section.unreconciled_overpaid ?? '0') })}</p>}
+                    {(section.reopenings ?? []).length > 0 && (
+                      <details className="mt-1" data-testid={`section-reopenings-${section.id}`}>
+                        <summary className="cursor-pointer font-semibold text-ink">{t('option.correction.reopeningHistory')} ({section.reopenings?.length})</summary>
+                        {(section.reopenings ?? []).map((r) => (
+                          <p key={r.id} className="mt-1">
+                            {t('option.correction.reopeningLine', { who: r.reopened_by ?? '—', role: r.reopened_by_role ?? '—', date: r.reopened_at ? formatDate(r.reopened_at) : '—', reason: r.reason, paid: money((r.paid_cents_at_reopen / 100).toFixed(2)) })}
+                            {r.refinalized_at ? ` ${t('option.correction.reopeningRefinalized', { date: formatDate(r.refinalized_at) })}` : ''}
+                          </p>
+                        ))}
+                      </details>
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap justify-end gap-2">
                       {actions.map((action) => (
-                        <Button key={action} size="sm" variant={action === 'reopen' ? 'outline' : 'primary'} disabled={busy} onClick={() => act(section, action)} data-testid={`section-${action}-${section.id}`}>
+                        <Button key={action} size="sm" variant={action === 'reopen' || action === 'reopen_finalized' ? 'outline' : 'primary'} disabled={busy} onClick={() => act(section, action)} data-testid={`section-${action}-${section.id}`}>
                           {label[action]}
                         </Button>
                       ))}
+                      {canReconcile(section, canApprove) && (
+                        <Button size="sm" variant="primary" disabled={busy} onClick={() => setReconciling(section)} data-testid={`section-reconcile-${section.id}`}>
+                          {t('action.correction.reconcile')}
+                        </Button>
+                      )}
                       {payments.map((action) => (
                         <Button
                           key={action}
@@ -214,6 +237,8 @@ export function CompanySectionsPanel({ run, monthLabel, canManage, canApprove, s
       )}
 
       {paying && <CompanyPaymentDialog section={paying.section} mode={paying.mode} monthLabel={monthLabel} onClose={() => setPaying(null)} />}
+      {reopeningFinalized && <ReopenFinalizedDialog section={reopeningFinalized} monthLabel={monthLabel} onClose={() => setReopeningFinalized(null)} />}
+      {reconciling && <ReconcileDialog section={reconciling} onClose={() => setReconciling(null)} />}
     </section>
   );
 }
@@ -227,6 +252,7 @@ function MonthApproval({ approval }: { approval: PayrollMonthApproval }) {
     [t('option.payroll.approvalUnpaid'), approval.unpaid_companies],
     [t('option.payroll.approvalPartial'), approval.partially_paid_companies],
     [t('option.payroll.approvalNotFinalized'), approval.not_finalized_companies],
+    ...((approval.overpaid_companies ?? 0) > 0 ? ([[t('option.payroll.approvalOverpaid'), approval.overpaid_companies ?? 0]] as [string, string | number][]) : []),
     [t('option.payroll.approvalOutstanding'), money(approval.outstanding)],
   ];
 

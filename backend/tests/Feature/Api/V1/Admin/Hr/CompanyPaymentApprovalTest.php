@@ -403,8 +403,10 @@ class CompanyPaymentApprovalTest extends TestCase
     public function test_the_company_payment_route_names_exactly_one_section_and_uses_the_existing_permission(): void
     {
         $routes = collect($this->app['router']->getRoutes()->getRoutes())->filter(fn ($r): bool => str_contains($r->uri(), 'payroll-run-sections') && in_array('POST', $r->methods(), true));
-        $this->assertSame(['api/v1/admin/hr/payroll-run-sections/{payrollRunSection}/payments'], $routes->map(fn ($r): string => $r->uri())->values()->all());
-        $this->assertContains('permission:hr.payroll.approve', $routes->first()->gatherMiddleware());
+        // (The reconciliation route settles an overpayment, it records no payment: see FinalizedPayrollReopenTest.)
+        $payments = $routes->filter(fn ($r): bool => str_ends_with($r->uri(), '/payments'));
+        $this->assertSame(['api/v1/admin/hr/payroll-run-sections/{payrollRunSection}/payments'], $payments->map(fn ($r): string => $r->uri())->values()->all());
+        $this->assertContains('permission:hr.payroll.approve', $payments->first()->gatherMiddleware());
     }
 
     public function test_the_payment_pages_and_the_excel_follow_the_same_company_state(): void

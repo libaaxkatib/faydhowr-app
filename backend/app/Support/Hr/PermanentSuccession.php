@@ -85,13 +85,21 @@ final class PermanentSuccession
      * @param  array<string, mixed>|null  $choice
      * @return array{type: string, employee: Employee, cover: ?TemporaryReplacement, salary: array{amount: string, currency: string, frequency: string, source: string}, last_day: CarbonImmutable, start: CarbonImmutable, effective_entered: bool}|null
      */
-    public static function demand(EmployeeWorkAssignment $assignment, ?array $choice, CarbonImmutable $lastDay): ?array
+    public static function demand(EmployeeWorkAssignment $assignment, ?array $choice, CarbonImmutable $lastDay, bool $optional = false): ?array
     {
         if (! self::isRequired($assignment)) {
             return null;
         }
 
-        if ($choice === null || $choice === [] || empty($choice['type']) || empty($choice['employee_id'])) {
+        $empty = $choice === null || $choice === [] || empty($choice['type']) || empty($choice['employee_id']);
+
+        // Owner decision 2026-11-04: ENDING an assignment (Stop / End / a shorter end date) never needs a replacement - the position can be filled
+        // later, separately. A replacement that IS chosen is still validated and carried out exactly as before. Separation keeps the original rule (N1).
+        if ($empty && $optional) {
+            return null;
+        }
+
+        if ($empty) {
             self::fail(
                 'Choose who takes over this Permanent position before it is removed: a Temporary employee who has been covering it, or any other person in the HR system.',
                 'SUCCESSOR_REQUIRED',

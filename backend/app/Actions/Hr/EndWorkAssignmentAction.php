@@ -41,7 +41,7 @@ class EndWorkAssignmentAction
 
         $plan = ($data['succession_handled'] ?? false) === true
             ? null
-            : PermanentSuccession::demand($assignment, $data['successor'] ?? null, CarbonImmutable::parse($new)->startOfDay());
+            : PermanentSuccession::demand($assignment, $data['successor'] ?? null, CarbonImmutable::parse($new)->startOfDay(), optional: true);
 
         // The holder may be ended while away (a Replacement may be working). That never ends the Replacement; HR confirms it first (AbsenceCycles).
         $absence = AbsenceCycles::assertTerminationAllowed($assignment, CarbonImmutable::parse($new)->startOfDay(), ($data['confirm_replacement_continues'] ?? false) === true);

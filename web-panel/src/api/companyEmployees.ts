@@ -37,6 +37,9 @@ export const companyEmployeesApi = {
     apiRequest<unknown>(`${base(companyId)}/employees/${assignmentId}/replace`, { method: 'POST', body: payload }),
   returnOriginal: (companyId: number, assignmentId: number, payload: ReturnPayload) =>
     apiRequest<unknown>(`${base(companyId)}/employees/${assignmentId}/return`, { method: 'POST', body: payload }),
+  /** Undo of Stop / End: the same assignment becomes active again (a reason is required). */
+  reopen: (companyId: number, assignmentId: number, payload: { reason: string; correction_reason?: string | null }) =>
+    apiRequest<unknown>(`${base(companyId)}/employees/${assignmentId}/reopen`, { method: 'POST', body: payload }),
   stop: (companyId: number, assignmentId: number, payload: { end_date: string; reason: string; correction_reason?: string | null; successor?: SuccessorPayload; confirm_replacement_continues?: boolean }) =>
     apiRequest<unknown>(`${base(companyId)}/employees/${assignmentId}/stop`, { method: 'POST', body: payload }),
 };

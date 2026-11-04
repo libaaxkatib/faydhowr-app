@@ -245,6 +245,8 @@ export interface ClientCompany {
   phone: string | null;
   location: string | null;
   status: ClientStatus;
+  /** Set only for a company closed through Close company: when it stopped operating and why. */
+  closure?: { id: number; effective_date: string; reason: string; closed_by_role: string | null } | null;
   notes: string | null;
   work_locations?: WorkLocation[];
   created_at?: string;
@@ -423,6 +425,8 @@ export interface MarkEmployeeSeparatedPayload {
   notes?: string | null;
   /** One replacement choice per open Permanent assignment (docs/HR_PAYROLL_RULES.md N1). */
   successors?: (SuccessorPayload & { assignment_id: number })[];
+  /** Needed only when the separation date reaches an approved or finalized payroll month: the correction is recorded with this reason. */
+  correction_reason?: string | null;
 }
 
 export type EmployeeHistoricalCompletionStage = 'training' | 'practical' | 'uniform';

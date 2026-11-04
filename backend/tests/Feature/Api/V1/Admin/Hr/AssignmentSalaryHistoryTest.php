@@ -108,7 +108,7 @@ class AssignmentSalaryHistoryTest extends TestCase
 
         // Nobody but a Super Admin may change what a closed month paid - nothing is saved.
         $this->changeAssignment($hrManager, $assignment->id, ['salary_amount' => 400, 'salary_effective_from' => '2026-04-15'])
-            ->assertStatus(403)->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+            ->assertStatus(403)->assertJsonPath('error_code', 'CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED');
         // A Super Admin must say why.
         $this->changeAssignment($token, $assignment->id, ['salary_amount' => 400, 'salary_effective_from' => '2026-02-01'])
             ->assertStatus(422)->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');

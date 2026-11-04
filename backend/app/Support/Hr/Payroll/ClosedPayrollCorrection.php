@@ -2,7 +2,6 @@
 
 namespace App\Support\Hr\Payroll;
 
-use App\Enums\AdminRole;
 use App\Enums\AuditAction;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
@@ -23,8 +22,8 @@ use Illuminate\Support\Str;
  *  1. Only months that are approved or finalized are looked at, and only from the first date the change can reach.
  *  2. Each of those months is calculated for the employees involved BEFORE the change and AFTER it (the same calculator the payroll
  *     run uses). If no closed month changes, the change is allowed for whoever may make it - months it does not touch are not locked.
- *  3. If a closed month WOULD change, the change is accepted only from a Super Admin (an HR Manager too, but only for adding an employee to a
- *     position: HR_MANAGER_ACTIONS), with a reason; for anyone else the whole change is rolled back. The closed run and its lines are never edited: the difference is recorded as a PayrollCorrection.
+ *  3. If a closed month WOULD change, the change is accepted only from a Super Admin or an HR Manager (CorrectionAuthority), with a reason; for anyone
+ *     else the whole change is rolled back. The closed run and its lines are never edited: the difference is recorded as a PayrollCorrection.
  *  4. An overpayment is recovered from later salaries (see PayrollRunCalculator::applyOverpaymentRecovery); what payroll cannot take
  *     stays as an outstanding debt. An underpayment is recorded as an amount owed to the employee; it is paid ONLY by a Super Admin as a
  *     separate, traceable transaction (RecordCorrectionTransactionAction) - never inside payroll and never by rewriting the closed month.
@@ -33,20 +32,16 @@ class ClosedPayrollCorrection
 {
     private static bool $active = false;
 
-    /**
-     * What an HR Manager may record as a correction of closed payroll besides a Super Admin (owner decision 2026-11-04): ONLY adding an employee to a
-     * position ('assigned' - the Add Employee to Company workflow). Editing, stopping, replacing or returning an assignment, changing a salary and every other
-     * correction stay Super Admin only, and so does paying an underpayment (RecordCorrectionTransactionAction). The correction is recorded exactly as for a
-     * Super Admin - the closed run is never edited - and names the HR Manager who did it.
-     */
-    public const HR_MANAGER_ACTIONS = ['assigned'];
-
     public function __construct(private readonly PayrollRunCalculator $calculator = new PayrollRunCalculator) {}
 
+    /**
+     * Owner decision 2026-11-04 (replaces the earlier "HR Manager may only add an employee"): a Super Admin AND an HR Manager may record a correction of
+     * closed payroll for every assignment / salary / cover action. The correction is recorded exactly the same for both - the closed run is never
+     * edited - and names who did it and in which role. Paying an underpayment stays Super Admin only (CorrectionAuthority).
+     */
     private function mayCorrect(Admin $actor, string $action): bool
     {
-        return $actor->role === AdminRole::SuperAdmin
-            || ($actor->role === AdminRole::HrManager && in_array($action, self::HR_MANAGER_ACTIONS, true));
+        return CorrectionAuthority::mayCorrectClosedPayroll($actor);
     }
 
     /**
@@ -100,8 +95,8 @@ class ClosedPayrollCorrection
 
                 if (! $this->mayCorrect($actor, $action)) {
                     throw new HttpResponseException(ApiResponse::error(
-                        "This change would alter payroll for {$months}, which is approved or finalized. Only a Super Admin can correct approved or finalized payroll. Nothing was changed.",
-                        'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY',
+                        "This change would alter payroll for {$months}, which is approved or finalized. Only a Super Admin or an HR Manager can correct approved or finalized payroll. Nothing was changed.",
+                        'CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED',
                         403,
                     ));
                 }

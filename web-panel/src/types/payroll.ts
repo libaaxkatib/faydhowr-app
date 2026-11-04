@@ -148,7 +148,7 @@ export interface PayrollItem {
  * is outstanding for it. Approval is payment (owner decision 2026-11-04): `payment_status` is unpaid / partially_paid / approved, and a company is approved
  * only when it is finalized and fully paid. Amounts are USD strings from the server, the cents next to them.
  */
-export type CompanyPaymentStatus = 'unpaid' | 'partially_paid' | 'approved';
+export type CompanyPaymentStatus = 'unpaid' | 'partially_paid' | 'approved' | 'overpaid';
 
 /** The month's payment / approval picture, derived by the server from the payments (it is not a status of the run). */
 export interface PayrollMonthApproval {
@@ -157,6 +157,9 @@ export interface PayrollMonthApproval {
   /** Finalized and nothing paid yet. */
   unpaid_companies: number;
   partially_paid_companies: number;
+  /** Finalized and paid MORE than the corrected payroll says: needs a reconciliation before it can be approved. */
+  overpaid_companies?: number;
+  unreconciled_overpaid_cents?: number;
   /** Not finalized yet: cannot be paid, so cannot be approved. */
   not_finalized_companies: number;
   total_cents: number;
@@ -192,6 +195,12 @@ export interface PayrollRunSection {
   approved: boolean;
   /** Finalized and something is still owed: "Approve Paid" / "Approve Partial" are offered. */
   can_pay: boolean;
+  /** Paid more than the corrected payroll says and not yet settled by a reconciliation (cents / dollars). */
+  overpaid_cents?: number;
+  unreconciled_overpaid_cents?: number;
+  unreconciled_overpaid?: string;
+  /** Every reopening of this company's FINALIZED payroll: who, in which role, when, why and what it held. */
+  reopenings?: SectionReopening[];
   reviewed_at: string | null;
   reviewed_by: string | null;
   approved_at: string | null;
@@ -326,4 +335,71 @@ export interface RecordWorkplacePaymentPayload {
   payment_date: string;
   note?: string | null;
   idempotency_key: string;
+}
+
+/** One reopening of a finalized company payroll (owner decision 2026-11-04). Payments are never touched by it. */
+export interface SectionReopening {
+  id: number;
+  reason: string;
+  reopened_by: string | null;
+  reopened_by_role: string | null;
+  reopened_at: string | null;
+  paid_cents_at_reopen: number;
+  payment_count_at_reopen: number;
+  net_before: string;
+  refinalized_at: string | null;
+  refinalized_by: string | null;
+  net_after: string | null;
+}
+
+/** How the excess of an overpaid company was settled. */
+export type ReconciliationMethod = 'returned' | 'carried_forward' | 'other';
+
+export interface ReconcileCompanyPayload {
+  mode: 'full' | 'partial';
+  /** Dollars, only for a partial settlement. */
+  amount?: string;
+  method: ReconciliationMethod;
+  reason: string;
+  settled_on: string;
+  idempotency_key: string;
+}
+
+export interface ReconcileCompanyResult {
+  replayed: boolean;
+  reconciliation_ids: number[];
+  company: { section_id: number; payment_status: CompanyPaymentStatus; approved: boolean; paid_cents: number; outstanding_cents: number } | null;
+}
+
+/** A company closure and, when it was reopened, its reopening. */
+export interface CompanyClosureView {
+  closed: boolean;
+  closure_id?: number;
+  status?: 'closed' | 'reopened';
+  effective_date?: string;
+  reason?: string;
+  closed_by?: string | null;
+  closed_by_role?: string | null;
+  closed_at?: string | null;
+  summary?: { assignments_ended: number; assignments_cancelled: number; assignments_left_as_they_were: number; covers_to_review: { cover_id: number; position_assignment_id: number; replacement_employee_id: number | null; start_date: string | null; end_date: string | null; status: string }[] } | null;
+  reopened_at?: string | null;
+  reopened_by?: string | null;
+  reopen_reason?: string | null;
+  /** The open closure's assignments with whether each can be restored (only on the closure read). */
+  assignments?: ClosureAssignmentRow[];
+  history?: CompanyClosureView[];
+}
+
+export interface ClosureAssignmentRow {
+  closure_assignment_id: number;
+  assignment_id: number;
+  employee_id: number;
+  employee_name: string | null;
+  employee_number: string | null;
+  position: string | null;
+  action: 'ended' | 'cancelled';
+  ended_on: string | null;
+  restores_to_end_date: string | null;
+  restorable: boolean;
+  conflict: string | null;
 }

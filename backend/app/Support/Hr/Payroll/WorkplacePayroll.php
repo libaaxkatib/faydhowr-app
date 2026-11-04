@@ -6,6 +6,7 @@ use App\Models\ClientCompany;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunSection;
 use App\Models\PayrollWorkplacePayment;
+use App\Models\PayrollWorkplaceReconciliation;
 use App\Models\WorkLocation;
 use Illuminate\Support\Facades\DB;
 
@@ -15,7 +16,8 @@ use Illuminate\Support\Facades\DB;
  *   total       = the net pay of the month's payable lines (net above zero, not voided) of the employees assigned to that workplace;
  *   paid        = lines already marked paid one by one (the existing "Mark as paid") + the workplace payments recorded for it that are not voided;
  *   outstanding = total - paid, never below zero;
- *   status      = unpaid (nothing paid) | partial (something paid, something still owed) | paid (nothing owed).
+ *   overpaid    = paid - total when positive (possible only after a finalized payroll was reopened and corrected); a reconciliation entry settles it;
+ *   status      = unpaid (nothing paid) | partial (something paid, something still owed) | paid (nothing owed) | overpaid (an unsettled excess).
  *
  * A workplace is identified the way the employee's assignment identifies it: its company (or guri) and, when the assignment names one, its work location.
  * Each workplace is calculated on its own, so paying one never changes another. The payroll lines themselves are never changed by a workplace payment.
@@ -27,6 +29,9 @@ final class WorkplacePayroll
     public const STATUS_PARTIAL = 'partial';
 
     public const STATUS_PAID = 'paid';
+
+    /** Paid more than the corrected payroll says, and not yet settled by a reconciliation. */
+    public const STATUS_OVERPAID = 'overpaid';
 
     /** Lines with no company and no work location cannot be attributed to a workplace; they stay payable line by line only. */
     public const NO_WORKPLACE = 'none';
@@ -81,6 +86,13 @@ final class WorkplacePayroll
             $groups[$key] ??= ['company_id' => $payment->client_company_id, 'location_id' => $payment->work_location_id, 'company_name' => null, 'workplace_name' => null, 'employees' => 0, 'total' => 0, 'line_paid' => 0, 'finalized' => $run->status === PayrollRun::STATUS_FINALIZED];
         }
 
+        $reconciliations = PayrollWorkplaceReconciliation::query()->with(['recordedBy', 'voidedBy'])->where('payroll_run_id', $run->id)->orderBy('id')->get();
+
+        foreach ($reconciliations as $entry) {
+            $key = self::key($entry->client_company_id, $entry->work_location_id);
+            $groups[$key] ??= ['company_id' => $entry->client_company_id, 'location_id' => $entry->work_location_id, 'company_name' => null, 'workplace_name' => null, 'employees' => 0, 'total' => 0, 'line_paid' => 0, 'finalized' => $run->status === PayrollRun::STATUS_FINALIZED];
+        }
+
         $companies = ClientCompany::query()->whereIn('id', array_filter(array_column($groups, 'company_id')))->get()->keyBy('id');
         $locations = WorkLocation::query()->whereIn('id', array_filter(array_column($groups, 'location_id')))->get()->keyBy('id');
 
@@ -93,6 +105,11 @@ final class WorkplacePayroll
             $recorded = (int) $own->whereNull('voided_at')->sum('amount_cents');
             $paid = $g['line_paid'] + $recorded;
             $outstanding = max(0, $g['total'] - $paid);
+            // Paid MORE than the (corrected) payroll says: the excess is OVERPAID until a reconciliation settles it. It is never hidden by the zero floor above.
+            $overpaid = max(0, $paid - $g['total']);
+            $ownEntries = $reconciliations->filter(fn (PayrollWorkplaceReconciliation $r): bool => self::key($r->client_company_id, $r->work_location_id) === $key);
+            $reconciled = (int) $ownEntries->whereNull('voided_at')->sum('amount_cents');
+            $unreconciled = max(0, $overpaid - $reconciled);
 
             $out[] = [
                 'key' => $key,
@@ -110,7 +127,25 @@ final class WorkplacePayroll
                 'workplace_paid_cents' => $recorded,
                 'paid_cents' => $paid,
                 'outstanding_cents' => $outstanding,
-                'status' => self::status($g['total'], $paid),
+                'overpaid_cents' => $overpaid,
+                'reconciled_cents' => $reconciled,
+                'unreconciled_overpaid_cents' => $unreconciled,
+                'status' => self::status($g['total'], $paid, $unreconciled),
+                'reconciliations' => $ownEntries->map(fn (PayrollWorkplaceReconciliation $r): array => [
+                    'id' => $r->id,
+                    'amount' => PayrollMoney::format((int) $r->amount_cents),
+                    'amount_cents' => (int) $r->amount_cents,
+                    'method' => $r->method,
+                    'reason' => $r->reason,
+                    'settled_on' => $r->settled_on->toDateString(),
+                    'recorded_by' => $r->recordedBy?->full_name,
+                    'recorded_by_role' => $r->recorded_by_role,
+                    'recorded_at' => $r->created_at?->toIso8601String(),
+                    'voided' => $r->voided_at !== null,
+                    'voided_at' => $r->voided_at?->toIso8601String(),
+                    'void_reason' => $r->void_reason,
+                    'voided_by' => $r->voidedBy?->full_name,
+                ])->values()->all(),
                 'payments' => $own->map(fn (PayrollWorkplacePayment $p): array => [
                     'id' => $p->id,
                     'amount' => PayrollMoney::format((int) $p->amount_cents),
@@ -146,9 +181,10 @@ final class WorkplacePayroll
         return null;
     }
 
-    public static function status(int $total, int $paid): string
+    public static function status(int $total, int $paid, int $unreconciledOverpaid = 0): string
     {
         return match (true) {
+            $unreconciledOverpaid > 0 => self::STATUS_OVERPAID,
             $paid <= 0 => self::STATUS_UNPAID,
             $paid >= $total => self::STATUS_PAID,
             default => self::STATUS_PARTIAL,
@@ -202,7 +238,7 @@ final class WorkplacePayroll
      * What each COMPANY of the month has been paid and still owes (every workplace of the company added up; key "none" = no company), in one pass
      * over the month, for the company table.
      *
-     * @return array<string, array{total_cents: int, paid_cents: int, outstanding_cents: int}>
+     * @return array<string, array{total_cents: int, paid_cents: int, outstanding_cents: int, overpaid_cents: int, unreconciled_overpaid_cents: int}>
      */
     public static function companyTotals(PayrollRun $run): array
     {
@@ -210,11 +246,13 @@ final class WorkplacePayroll
 
         foreach (self::summaries($run) as $s) {
             $key = $s['client_company_id'] === null ? 'none' : (string) $s['client_company_id'];
-            $row = $byCompany[$key] ?? ['total_cents' => 0, 'paid_cents' => 0, 'outstanding_cents' => 0];
+            $row = $byCompany[$key] ?? ['total_cents' => 0, 'paid_cents' => 0, 'outstanding_cents' => 0, 'overpaid_cents' => 0, 'unreconciled_overpaid_cents' => 0];
             $byCompany[$key] = [
                 'total_cents' => $row['total_cents'] + $s['total_cents'],
                 'paid_cents' => $row['paid_cents'] + $s['paid_cents'],
                 'outstanding_cents' => $row['outstanding_cents'] + $s['outstanding_cents'],
+                'overpaid_cents' => $row['overpaid_cents'] + $s['overpaid_cents'],
+                'unreconciled_overpaid_cents' => $row['unreconciled_overpaid_cents'] + $s['unreconciled_overpaid_cents'],
             ];
         }
 

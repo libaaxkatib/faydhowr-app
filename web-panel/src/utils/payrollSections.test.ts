@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 import { CATALOGUE } from '../i18n/messages/index.ts';
 import { placeholdersOf } from '../i18n/catalog.ts';
-import { MONTH_STATUS_LABEL, PAYMENT_STATUS_LABEL, companyPaymentPayload, itemsOfSection, lineIsFinalized, monthDisplayStatus, paymentActions, sectionActions, sectionName, selectedSection } from './payrollSections.ts';
+import { MONTH_STATUS_LABEL, PAYMENT_STATUS_LABEL, canReconcile, companyPaymentPayload, itemsOfSection, lineIsFinalized, monthDisplayStatus, paymentActions, sectionActions, sectionName, selectedSection } from './payrollSections.ts';
 import type { PayrollItem, PayrollRunSection } from '../types/payroll.ts';
 
 /**
@@ -38,7 +38,9 @@ test('each company row offers only the next step, only to someone allowed, and a
   assert.deepEqual(sectionActions('reviewed', true, false), [], 'finalize and reopen need hr.payroll.approve');
   assert.deepEqual(sectionActions('approved', true, true), ['finalize', 'reopen'], 'a company an earlier version left approved is treated like a reviewed one');
   assert.deepEqual(sectionActions('approved', true, false), []);
-  assert.deepEqual(sectionActions('finalized', true, true), [], 'a finalized company is never reopened');
+  assert.deepEqual(sectionActions('finalized', true, true), ['reopen_finalized'], 'owner decision 2026-11-04: a finalized company can be reopened for correction (with a reason)');
+  assert.deepEqual(sectionActions('finalized', true, false), [], 'reopening finalized payroll needs hr.payroll.approve');
+  assert.deepEqual(sectionActions('finalized', false, false), []);
 });
 
 test('a month with some, but not all, companies finalized is shown as partially finalized; otherwise its own status', () => {
@@ -177,4 +179,13 @@ test('the month approval summary shows the companies, who is approved, unpaid, p
   }
   assert.match(panel, /approval\.fully_approved/);
   assert.match(panel, /\{run\.approval && <MonthApproval approval=\{run\.approval\} \/>\}/);
+});
+
+test('Reconcile overpayment is offered only for a finalized company with an unsettled excess, to someone who may approve', () => {
+  const over = { status: 'finalized' as const, unreconciled_overpaid_cents: 13333 };
+  assert.equal(canReconcile(over, true), true);
+  assert.equal(canReconcile(over, false), false);
+  assert.equal(canReconcile({ status: 'finalized', unreconciled_overpaid_cents: 0 }, true), false);
+  assert.equal(canReconcile({ status: 'draft', unreconciled_overpaid_cents: 500 }, true), false);
+  assert.equal(PAYMENT_STATUS_LABEL.overpaid.tone, 'danger');
 });

@@ -34,6 +34,7 @@ import {
   totalsByCurrency,
 } from '@/utils/companyEmployees';
 import { AssignEmployeeDialog, EditAssignmentDialog, ReplaceEmployeeDialog, ReturnEmployeeDialog, StopEmployeeDialog } from '@/features/hrm/companyEmployees/AssignmentDialogs';
+import { ReopenAssignmentDialog } from '@/features/hrm/CorrectionDialogs';
 import { HistoryDialog } from '@/features/hrm/companyEmployees/HistoryDialog';
 import type { AssignmentType, CompanyAssignmentStatus, CompanyEmployeeRow } from '@/types/companyEmployees';
 
@@ -74,6 +75,7 @@ export function CompanyEmployeesPage() {
   const [replacing, setReplacing] = useState<CompanyEmployeeRow | null>(null);
   const [returning, setReturning] = useState<CompanyEmployeeRow | null>(null);
   const [stopping, setStopping] = useState<CompanyEmployeeRow | null>(null);
+  const [reopeningAssignment, setReopeningAssignment] = useState<CompanyEmployeeRow | null>(null);
   const [history, setHistory] = useState<{ id: number; name: string } | 'all' | null>(null);
 
   const { data: positions } = useQuery({ queryKey: ['positions'], queryFn: hrApi.positions.list });
@@ -184,7 +186,7 @@ export function CompanyEmployeesPage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {rows.map((row) => (
-                    <EmployeeRow key={row.assignment_id} row={row} showPayroll={showPayroll} canManage={canManage} onEdit={setEditing} onReplace={setReplacing} onReturn={setReturning} onStop={setStopping} onHistory={(r) => setHistory({ id: r.employee_id, name: r.full_name ?? t('option.label.employee') })} />
+                    <EmployeeRow key={row.assignment_id} row={row} showPayroll={showPayroll} canManage={canManage} onEdit={setEditing} onReplace={setReplacing} onReturn={setReturning} onStop={setStopping} onReopen={setReopeningAssignment} onHistory={(r) => setHistory({ id: r.employee_id, name: r.full_name ?? t('option.label.employee') })} />
                   ))}
                 </tbody>
                 {summary && (
@@ -232,6 +234,7 @@ export function CompanyEmployeesPage() {
       <ReplaceEmployeeDialog row={replacing} onClose={() => setReplacing(null)} companyId={companyId} companyName={companyName} />
       <ReturnEmployeeDialog row={returning} onClose={() => setReturning(null)} companyId={companyId} companyName={companyName} />
       <StopEmployeeDialog row={stopping} onClose={() => setStopping(null)} companyId={companyId} companyName={companyName} />
+      <ReopenAssignmentDialog row={reopeningAssignment} onClose={() => setReopeningAssignment(null)} companyId={companyId} companyName={companyName} />
       <HistoryDialog isOpen={history !== null} onClose={() => setHistory(null)} companyId={companyId} companyName={companyName} employee={history === 'all' ? null : history} />
     </div>
   );
@@ -270,10 +273,11 @@ interface EmployeeRowProps {
   onReplace: (row: CompanyEmployeeRow) => void;
   onReturn: (row: CompanyEmployeeRow) => void;
   onStop: (row: CompanyEmployeeRow) => void;
+  onReopen: (row: CompanyEmployeeRow) => void;
   onHistory: (row: CompanyEmployeeRow) => void;
 }
 
-function EmployeeRow({ row, showPayroll, canManage, onEdit, onReplace, onReturn, onStop, onHistory }: EmployeeRowProps) {
+function EmployeeRow({ row, showPayroll, canManage, onEdit, onReplace, onReturn, onStop, onReopen, onHistory }: EmployeeRowProps) {
   const { t, tValue } = useI18n();
   const open = row.status === 'active';
   const canReturn = open && row.assignment_type === 'replacement' && row.replaces_assignment_id !== null;
@@ -363,6 +367,8 @@ function EmployeeRow({ row, showPayroll, canManage, onEdit, onReplace, onReturn,
               ...(canManage && open && row.away === null ? [{ label: t('action.replace'), ariaLabel: t('confirm.company.replaceTitle', { name: row.full_name ?? '' }), onClick: () => onReplace(row) }] : []),
               ...(canManage && canReturn ? [{ label: t('action.returnOriginal'), ariaLabel: t('action.company.returnOriginalFor', { name: row.full_name ?? '' }), onClick: () => onReturn(row) }] : []),
               ...(canManage && open ? [{ label: t('action.stop'), ariaLabel: t('confirm.company.stopTitle', { name: row.full_name ?? '' }), onClick: () => onStop(row), danger: true }] : []),
+              // Undo of Stop / End: an ended assignment can be reopened (a reason; refused if the position was refilled).
+              ...(canManage && row.status === 'ended' ? [{ label: t('action.correction.reopenAssignment'), ariaLabel: t('confirm.correction.reopenAssignmentTitle', { name: row.full_name ?? '' }), onClick: () => onReopen(row) }] : []),
             ]}
           />
         </div>

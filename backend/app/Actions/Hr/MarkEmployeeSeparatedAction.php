@@ -12,6 +12,8 @@ use App\Models\EmployeeSeparation;
 use App\Models\EmployeeStatusHistory;
 use App\Support\ApiResponse;
 use App\Support\Hr\EmployeeTransitionGuard;
+use App\Support\Hr\Payroll\ClosedPayrollCorrection;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
@@ -81,7 +83,18 @@ class MarkEmployeeSeparatedAction
             // Approved rule: the separation also closes this employee's open assignments
             // (inside the same transaction, so a failure undoes the whole separation).
             // Every open Permanent assignment needs its replacement choice (docs/HR_PAYROLL_RULES.md N1); `successors` is keyed by assignment id.
-            $closed = $this->closeAssignments->handle($employee, $separationDate, $actor, $successors, $correctionReason, $confirmReplacementContinues);
+            // A separation dated inside an approved or finalized payroll month changes what that month should have paid: like every other assignment change it is a
+            // recorded payroll correction (a Super Admin or an HR Manager, with a reason) and never a silent rewrite.
+            $successorEmployees = array_values(array_filter(array_map(fn ($choice): int => (int) ($choice['employee_id'] ?? 0), array_values($successors))));
+            $closed = (new ClosedPayrollCorrection)->run(
+                $actor,
+                'separated',
+                [$employee->id, ...$successorEmployees],
+                CarbonImmutable::parse($separationDate)->addDay()->toDateString(),
+                $correctionReason,
+                ['assignment_id' => null, 'old' => ['employee_status' => $from->value], 'new' => ['employee_status' => EmployeeStatus::Inactive->value, 'separation_date' => $separationDate]],
+                fn (): array => $this->closeAssignments->handle($employee, $separationDate, $actor, $successors, $correctionReason, $confirmReplacementContinues),
+            );
 
             event(AuditEvent::record(
                 action: AuditAction::Update,

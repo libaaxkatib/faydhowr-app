@@ -3,11 +3,13 @@
 namespace App\Http\Resources\Api\V1\Admin\Hr;
 
 use App\Models\PayrollRunSection;
+use App\Models\PayrollSectionReopening;
 use App\Support\Hr\Payroll\PayrollApproval;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\Payroll\PayrollRunChecks;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Collection;
 
 class PayrollRunResource extends JsonResource
 {
@@ -23,6 +25,8 @@ class PayrollRunResource extends JsonResource
         // What each company has been paid and its derived payment / approval state (only when the lines are loaded, i.e. the single-month view).
         $states = $loaded !== null && $this->relationLoaded('items') && $loaded->isNotEmpty() ? PayrollApproval::sections($this->resource) : [];
         $byId = array_column($states, null, 'section_id');
+        // Every reopening of a finalized company in this month (who, when, why, what it held), one query for the whole month.
+        $reopenings = $states === [] ? collect() : PayrollSectionReopening::query()->with(['reopenedBy', 'refinalizedBy'])->where('payroll_run_id', $this->id)->orderBy('id')->get()->groupBy('payroll_run_section_id');
 
         return [
             'id' => $this->id,
@@ -32,7 +36,7 @@ class PayrollRunResource extends JsonResource
             'sections_total' => $sectionsTotal,
             'sections_finalized' => $sectionsFinalized,
             'is_partially_finalized' => $sectionsTotal > 0 && $sectionsFinalized > 0 && $sectionsFinalized < $sectionsTotal,
-            'sections' => $loaded === null ? [] : $loaded->map(fn (PayrollRunSection $s): array => $this->section($s, $byId[$s->id] ?? null))->sortBy(fn (array $row): string => mb_strtolower((string) $row['company_name']))->values()->all(),
+            'sections' => $loaded === null ? [] : $loaded->map(fn (PayrollRunSection $s): array => $this->section($s, $byId[$s->id] ?? null, $reopenings->get($s->id)))->sortBy(fn (array $row): string => mb_strtolower((string) $row['company_name']))->values()->all(),
             // Approval is payment (owner decision 2026-11-04): the month is approved by itself when every company is fully paid. Not a status of the run: it
             // is derived from the payments, so finalizing never approves and a voided payment withdraws it. Null in the month list (no lines loaded).
             'approval' => $states === [] ? null : $this->monthApproval($states),
@@ -85,7 +89,7 @@ class PayrollRunResource extends JsonResource
      * @param  array<string, mixed>|null  $paid  the company's derived payment state (PayrollApproval::sections)
      * @return array<string, mixed>
      */
-    private function section(PayrollRunSection $s, ?array $paid): array
+    private function section(PayrollRunSection $s, ?array $paid, ?Collection $reopenings = null): array
     {
         $t = $s->totals ?? [];
         $money = fn (string $key): string => PayrollMoney::format((int) ($t[$key] ?? 0));
@@ -107,9 +111,27 @@ class PayrollRunResource extends JsonResource
             'paid_cents' => (int) ($paid['paid_cents'] ?? 0),
             'outstanding' => PayrollMoney::format((int) ($paid['outstanding_cents'] ?? 0)),
             'outstanding_cents' => (int) ($paid['outstanding_cents'] ?? 0),
+            // Paid MORE than the corrected payroll says (after a finalized payroll was reopened and corrected): shown until a reconciliation settles it.
+            'overpaid_cents' => (int) ($paid['overpaid_cents'] ?? 0),
+            'unreconciled_overpaid_cents' => (int) ($paid['unreconciled_overpaid_cents'] ?? 0),
+            'unreconciled_overpaid' => PayrollMoney::format((int) ($paid['unreconciled_overpaid_cents'] ?? 0)),
             'payment_status' => $paid['payment_status'] ?? PayrollApproval::UNPAID,
             'approved' => (bool) ($paid['approved'] ?? false),
             'can_pay' => (bool) ($paid['can_pay'] ?? false),
+            // History of reopenings of this company's FINALIZED payroll: who, in which role, when, why, what it held and what it holds now.
+            'reopenings' => ($reopenings ?? collect())->map(fn (PayrollSectionReopening $r): array => [
+                'id' => $r->id,
+                'reason' => $r->reason,
+                'reopened_by' => $r->reopenedBy?->full_name,
+                'reopened_by_role' => $r->reopened_by_role,
+                'reopened_at' => $r->reopened_at?->toIso8601String(),
+                'paid_cents_at_reopen' => $r->paid_cents_at_reopen,
+                'payment_count_at_reopen' => $r->payment_count_at_reopen,
+                'net_before' => PayrollMoney::format((int) ($r->totals_before['net_cents'] ?? 0)),
+                'refinalized_at' => $r->refinalized_at?->toIso8601String(),
+                'refinalized_by' => $r->refinalizedBy?->full_name,
+                'net_after' => $r->totals_after === null ? null : PayrollMoney::format((int) ($r->totals_after['net_cents'] ?? 0)),
+            ])->values()->all(),
             'reviewed_at' => $s->reviewed_at?->toIso8601String(),
             'reviewed_by' => $s->reviewedBy?->full_name,
             'approved_at' => $s->approved_at?->toIso8601String(),

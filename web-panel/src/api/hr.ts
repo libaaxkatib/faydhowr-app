@@ -4,7 +4,7 @@ import type { OfficeStaffSummary } from '@/utils/officeStaff';
 import type { CompanyListMeta } from '@/utils/clientCompanyFilter';
 import type { CoverConflict } from '@/utils/coverConflict';
 import { downloadQuery, fileName as paymentListFileName, type PaymentListFilterOptions, type PaymentListOption, type PaymentListScope, type PaymentListWorkbookPreview } from '@/utils/paymentListFilter';
-import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollCorrectionsResponse, PayrollItem, PayrollRun, RecordCompanyPaymentPayload, RecordCompanyPaymentResult, RecordWorkplacePaymentPayload, WorkplacePayments, WorkplacePayrollSummary } from '@/types/payroll';
+import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollCorrectionsResponse, PayrollItem, PayrollRun, RecordCompanyPaymentPayload, RecordCompanyPaymentResult, ReconcileCompanyPayload, ReconcileCompanyResult, CompanyClosureView, RecordWorkplacePaymentPayload, WorkplacePayments, WorkplacePayrollSummary } from '@/types/payroll';
 import type {
   AttendanceRosterEntry,
   ClientCompany,
@@ -130,6 +130,14 @@ export const hrApi = {
 
   clientCompanies: {
     list: () => apiRequest<ClientCompany[]>('admin/hr/client-companies'),
+    /** The company's open closure (with what a reopening would restore) and its closure history. */
+    closure: (id: number) => apiRequest<CompanyClosureView>(`admin/hr/client-companies/${id}/closure`),
+    /** Close a company: its assignments end on the last day of operation; nothing is deleted (Super Admin or HR Manager). */
+    close: (id: number, payload: { effective_date: string; reason: string; correction_reason?: string | null }) =>
+      apiRequest<CompanyClosureView>(`admin/hr/client-companies/${id}/close`, { method: 'POST', body: payload }),
+    /** Reopen a closed company; only the confirmed assignments of that closure come back. */
+    reopen: (id: number, payload: { reason: string; restore_assignment_ids: number[]; correction_reason?: string | null }) =>
+      apiRequest<CompanyClosureView>(`admin/hr/client-companies/${id}/reopen`, { method: 'POST', body: payload }),
     /** One page of the companies that match every filter at once, with the counts for the category buttons (server-side search and filters). */
     listPage: (query: Record<string, string | number>) =>
       apiRequestWithMeta<ClientCompany[]>('admin/hr/client-companies', { query }) as Promise<{ data: ClientCompany[]; meta: CompanyListMeta }>,
@@ -381,6 +389,11 @@ export const hrApi = {
     /** "Approve Paid" / "Approve Partial" for one finalized company (hr.payroll.approve). Safe to retry with the same idempotency key. */
     payCompany: (sectionId: number, payload: RecordCompanyPaymentPayload) =>
       apiRequest<RecordCompanyPaymentResult>(`admin/hr/payroll-run-sections/${sectionId}/payments`, { method: 'POST', body: payload }),
+    /** Settle the excess of an OVERPAID company after its finalized payroll was corrected (Super Admin or HR Manager). Safe to retry with the same key. */
+    reconcileCompany: (sectionId: number, payload: ReconcileCompanyPayload) =>
+      apiRequest<ReconcileCompanyResult>(`admin/hr/payroll-run-sections/${sectionId}/reconciliations`, { method: 'POST', body: payload }),
+    voidReconciliation: (reconciliationId: number, reason: string) =>
+      apiRequest<unknown>(`admin/hr/workplace-reconciliations/${reconciliationId}/void`, { method: 'POST', body: { reason } }),
     /** A full or partial payment for one workplace of a finalized month (hr.payroll.approve). Safe to retry with the same idempotency key. */
     recordWorkplacePayment: (runId: number, payload: RecordWorkplacePaymentPayload) =>
       apiRequest<{ payment_id: number; replayed: boolean; workplace: WorkplacePayrollSummary }>(`admin/hr/payroll-runs/${runId}/workplace-payments`, { method: 'POST', body: payload }),

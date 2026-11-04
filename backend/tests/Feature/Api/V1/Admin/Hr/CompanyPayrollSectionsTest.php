@@ -326,7 +326,8 @@ class CompanyPayrollSectionsTest extends TestCase
         $this->assertSame(['Alpha Co' => 'draft', 'Bravo Co' => 'finalized', 'Gury One' => 'draft'], $this->statuses());
         $this->assertNull($this->section($this->alpha)->approved_at);
 
-        $this->move($this->bravo, 'reopen', ['reason' => 'Trying to reopen a finalized one'])->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_NOT_REOPENABLE');
+        // Owner decision 2026-11-04: a FINALIZED company can be reopened too, but only with a real reason (at least 10 characters); see FinalizedPayrollReopenTest.
+        $this->move($this->bravo, 'reopen', ['reason' => 'too short'])->assertStatus(422);
         $this->assertSame('finalized', $this->section($this->bravo)->status);
     }
 
@@ -586,7 +587,7 @@ class CompanyPayrollSectionsTest extends TestCase
 
         // Alpha's employee started later than recorded: it reaches the finalized company -> a correction, Super Admin only, with a reason.
         $hrEditor = $this->tokenWithOnly(['hr.view', 'hr.manage']);
-        $this->as($hrEditor)->putJson("/api/v1/admin/hr/work-assignments/{$this->a1->id}", ['start_date' => '2026-09-21', 'correction_reason' => 'Started later'])->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        $this->as($hrEditor)->putJson("/api/v1/admin/hr/work-assignments/{$this->a1->id}", ['start_date' => '2026-09-21', 'correction_reason' => 'Started later'])->assertForbidden()->assertJsonPath('error_code', 'CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED');
         $this->as($this->super)->putJson("/api/v1/admin/hr/work-assignments/{$this->a1->id}", ['start_date' => '2026-09-21'])->assertUnprocessable()->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');
         $this->as($this->super)->putJson("/api/v1/admin/hr/work-assignments/{$this->a1->id}", ['start_date' => '2026-09-21', 'correction_reason' => 'The employee actually started on 21 September'])->assertOk();
 
@@ -670,17 +671,26 @@ class CompanyPayrollSectionsTest extends TestCase
         $hrManager = Admin::factory()->create(['role' => AdminRole::HrManager]);
         $correct = fn (Admin $actor, ?string $reason) => app(ClosedPayrollCorrection::class)->run($actor, 'assignment_created', [$newcomer->id], '2026-09-01', $reason, [], fn () => $this->makeAssignment($newcomer, $this->alpha, null, 210));
 
+        // A role that is neither Super Admin nor HR Manager is refused and the change is rolled back.
+        $editor = Admin::factory()->create(['role' => AdminRole::HrEmployee]);
+
         try {
-            $correct($hrManager, 'A new person started');
-            $this->fail('A non-Super Admin must be refused.');
+            $correct($editor, 'A new person started');
+            $this->fail('A role that may not correct closed payroll must be refused.');
         } catch (HttpResponseException $e) {
-            $this->assertSame('PAYROLL_CORRECTION_SUPER_ADMIN_ONLY', $e->getResponse()->getData(true)['error_code']);
+            $this->assertSame('CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED', $e->getResponse()->getData(true)['error_code']);
         }
         $this->assertSame(0, EmployeeWorkAssignment::query()->where('employee_id', $newcomer->id)->count(), 'rolled back');
 
-        $correct($this->superAdmin, 'A new person started on the first of September');
-        $this->assertSame(1, PayrollCorrection::query()->where('employee_id', $newcomer->id)->count());
-        $this->assertSame('underpayment', PayrollCorrection::query()->where('employee_id', $newcomer->id)->value('kind'));
+        // The HR Manager may (owner decision 2026-11-04), with a reason; the correction names the HR Manager.
+        $correct($hrManager, 'A new person started on the first of September');
+        $this->assertSame($hrManager->id, (int) PayrollCorrection::query()->where('employee_id', $newcomer->id)->value('corrected_by'));
+
+        // The Super Admin records the same kind of correction for another new person.
+        $second = $this->makeEmployee();
+        app(ClosedPayrollCorrection::class)->run($this->superAdmin, 'assignment_created', [$second->id], '2026-09-01', 'Added by the Super Admin', [], fn () => $this->makeAssignment($second, $this->alpha, null, 210));
+        $this->assertSame(1, PayrollCorrection::query()->where('employee_id', $second->id)->count());
+        $this->assertSame('underpayment', PayrollCorrection::query()->where('employee_id', $second->id)->value('kind'));
         $this->assertSame('finalized', $this->section($this->alpha)->status, 'the finalized section is not reopened');
         $this->assertSame(0, PayrollItem::query()->where('employee_id', $newcomer->id)->count(), 'no line is added to a finalized company');
     }

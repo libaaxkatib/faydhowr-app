@@ -252,8 +252,8 @@ class TemporaryReplacementCorrectionTest extends TestCase
         $this->assertSame(20000, $deductionBefore, '600 x 10 / 30');
 
         // The HR manager is refused, whatever the dates, and nothing moves.
-        $this->edit($this->manager, $cover, ['end_date' => '2026-09-25', 'change_reason' => 'Shorten a finalized month'])->assertStatus(403)->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
-        $this->end($this->manager, $cover, ['end_date' => '2026-09-25'])->assertStatus(403)->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        $this->edit($this->manager, $cover, ['end_date' => '2026-09-25', 'change_reason' => 'Shorten a finalized month'])->assertStatus(403)->assertJsonPath('error_code', 'CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED');
+        $this->end($this->manager, $cover, ['end_date' => '2026-09-25'])->assertStatus(403)->assertJsonPath('error_code', 'CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED');
         $this->assertSame('2026-09-30', $cover->fresh()->end_date->toDateString());
         $this->assertSame('active', $cover->fresh()->status->value);
 
@@ -292,7 +292,7 @@ class TemporaryReplacementCorrectionTest extends TestCase
         $this->close('2026-09');
 
         // No deduction exists, but the Temporary's amount for that month is worked out from the cover itself, so the days of a closed month do not move.
-        $this->edit($this->manager, $cover, ['end_date' => '2026-09-28', 'change_reason' => 'Shorten an unapproved cover'])->assertStatus(403)->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        $this->edit($this->manager, $cover, ['end_date' => '2026-09-28', 'change_reason' => 'Shorten an unapproved cover'])->assertStatus(403)->assertJsonPath('error_code', 'CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED');
         $this->assertSame('2026-09-30', $cover->fresh()->end_date->toDateString());
 
         $this->edit($this->super, $cover, ['end_date' => '2026-09-28', 'change_reason' => 'Short'])->assertStatus(422);

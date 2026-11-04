@@ -18,6 +18,10 @@ class ClientCompanyResource extends JsonResource
             'phone' => $this->phone,
             'location' => $this->location,
             'status' => $this->status->value,
+            // Set only for a company closed through Close Company: when it stopped operating and why (nothing is asked for active companies).
+            'closure' => $this->status->value === 'inactive' && ($closure = $this->openClosure()) !== null
+                ? ['id' => $closure->id, 'effective_date' => $closure->effective_date->toDateString(), 'reason' => $closure->reason, 'closed_by_role' => $closure->closed_by_role]
+                : null,
             'notes' => $this->notes,
             'aliases' => $this->whenLoaded('aliases', fn () => $this->aliases->map(fn ($alias) => [
                 'alias' => $alias->alias,

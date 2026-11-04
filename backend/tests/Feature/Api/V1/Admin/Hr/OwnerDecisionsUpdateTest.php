@@ -437,7 +437,8 @@ class OwnerDecisionsUpdateTest extends TestCase
         $this->assertSame($before, ['net' => $this->line('2026-09', $replacement)->net_cents, 'gross' => $this->line('2026-09', $replacement)->gross_cents, 'id' => $sept->id]);
 
         // A change effective in September would change what September paid the Replacement: Super Admin only, with a reason.
-        $this->changeSalary($hr, $original, 360, '2026-09-20')->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        // (Owner decision 2026-11-04: the HR Manager may record it too, but only with a reason - without one nothing changes.)
+        $this->changeSalary($hr, $original, 360, '2026-09-20')->assertUnprocessable()->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');
         $this->changeSalary($this->super, $original, 360, '2026-09-20')->assertUnprocessable()->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');
         $this->assertSame('330.00', (string) $replacement->fresh()->salary_amount, 'refused as a whole: the Replacement was not changed either');
         $this->changeSalary($this->super, $original, 360, '2026-09-20', ['correction_reason' => 'The raise was approved for 20 September'])->assertOk();

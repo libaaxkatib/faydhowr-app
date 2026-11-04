@@ -31,6 +31,9 @@ final class PayrollApproval
 
     public const APPROVED = 'approved';
 
+    /** Finalized and paid MORE than the (corrected) payroll says, the excess not yet settled by a reconciliation. */
+    public const OVERPAID = 'overpaid';
+
     /**
      * The payment / approval state of every company section of the run.
      *
@@ -47,11 +50,13 @@ final class PayrollApproval
         $totals = WorkplacePayroll::companyTotals($run);
 
         return $sections->map(function (PayrollRunSection $s) use ($totals): array {
-            $t = $totals[$s->client_company_id === null ? 'none' : (string) $s->client_company_id] ?? ['total_cents' => 0, 'paid_cents' => 0, 'outstanding_cents' => 0];
+            $t = $totals[$s->client_company_id === null ? 'none' : (string) $s->client_company_id] ?? ['total_cents' => 0, 'paid_cents' => 0, 'outstanding_cents' => 0, 'overpaid_cents' => 0, 'unreconciled_overpaid_cents' => 0];
             $finalized = $s->status === PayrollRunSection::STATUS_FINALIZED;
             $total = (int) $t['total_cents'];
             $paid = (int) $t['paid_cents'];
             $outstanding = (int) $t['outstanding_cents'];
+            // Paid MORE than a corrected payroll says and not yet settled by a reconciliation: not approved until it is (never hidden by "outstanding = 0").
+            $unsettled = (int) ($t['unreconciled_overpaid_cents'] ?? 0);
 
             return [
                 'section_id' => $s->id,
@@ -61,12 +66,15 @@ final class PayrollApproval
                 'total_cents' => $total,
                 'paid_cents' => $paid,
                 'outstanding_cents' => $outstanding,
+                'overpaid_cents' => (int) ($t['overpaid_cents'] ?? 0),
+                'unreconciled_overpaid_cents' => $unsettled,
                 'payment_status' => match (true) {
+                    $finalized && $unsettled > 0 => self::OVERPAID,
                     $finalized && $outstanding <= 0 => self::APPROVED,
                     $paid > 0 => self::PARTIAL,
                     default => self::UNPAID,
                 },
-                'approved' => $finalized && $outstanding <= 0,
+                'approved' => $finalized && $outstanding <= 0 && $unsettled <= 0,
                 // Money can be recorded only for a finalized company that still owes something.
                 'can_pay' => $finalized && $outstanding > 0,
             ];
@@ -93,6 +101,9 @@ final class PayrollApproval
             // Finalized, nothing paid yet.
             'unpaid_companies' => count(array_filter($sections, fn (array $s): bool => $s['finalized'] && $s['payment_status'] === self::UNPAID)),
             'partially_paid_companies' => $count(self::PARTIAL),
+            // Finalized and paid more than the corrected payroll says: needs a reconciliation before it can be approved.
+            'overpaid_companies' => $count(self::OVERPAID),
+            'unreconciled_overpaid_cents' => (int) array_sum(array_column($sections, 'unreconciled_overpaid_cents')),
             // Not finalized yet: cannot be paid, so cannot be approved.
             'not_finalized_companies' => $notFinalized,
             'total_cents' => (int) array_sum(array_column($sections, 'total_cents')),
@@ -135,7 +146,7 @@ final class PayrollApproval
                 admin: $actor,
                 description: $section['approved']
                     ? "Payroll {$run->period} for {$name} approved automatically: fully paid (".PayrollMoney::format($section['paid_cents']).' USD).'
-                    : "Payroll {$run->period} for {$name} is no longer approved: a payment was voided (".PayrollMoney::format($section['outstanding_cents']).' USD outstanding).',
+                    : "Payroll {$run->period} for {$name} is no longer approved: ".($context['cause'] ?? 'a payment was voided').' ('.PayrollMoney::format($section['outstanding_cents']).' USD outstanding).',
                 entityType: PayrollRunSection::class,
                 entityId: $section['section_id'],
                 metadata: [

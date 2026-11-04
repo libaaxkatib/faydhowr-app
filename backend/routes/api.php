@@ -1411,6 +1411,16 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::put('v1/admin/hr/client-companies/{clientCompany}', [AdminClientCompanyController::class, 'update'])
         ->whereNumber('clientCompany')
         ->name('api.v1.admin.hr.client-companies.update');
+    // Close / reopen a company or facility (owner decisions 2026-11-04). Super Admin or HR Manager; the preview shows what a reopening would restore.
+    Route::get('v1/admin/hr/client-companies/{clientCompany}/closure', [AdminClientCompanyController::class, 'closurePreview'])
+        ->whereNumber('clientCompany')
+        ->name('api.v1.admin.hr.client-companies.closure');
+    Route::post('v1/admin/hr/client-companies/{clientCompany}/close', [AdminClientCompanyController::class, 'close'])
+        ->whereNumber('clientCompany')
+        ->name('api.v1.admin.hr.client-companies.close');
+    Route::post('v1/admin/hr/client-companies/{clientCompany}/reopen', [AdminClientCompanyController::class, 'reopen'])
+        ->whereNumber('clientCompany')
+        ->name('api.v1.admin.hr.client-companies.reopen');
     Route::delete('v1/admin/hr/client-companies/{clientCompany}', [AdminClientCompanyController::class, 'destroy'])
         ->whereNumber('clientCompany')
         ->name('api.v1.admin.hr.client-companies.destroy');
@@ -1519,6 +1529,10 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'permission:
     Route::post('v1/admin/hr/client-companies/{clientCompany}/employees/{workAssignment}/stop', [AdminCompanyEmployeeController::class, 'stop'])
         ->whereNumber(['clientCompany', 'workAssignment'])
         ->name('api.v1.admin.hr.company-employees.stop');
+    // Undo of Stop / End: an assignment ended by mistake becomes active again (same record), with a reason.
+    Route::post('v1/admin/hr/client-companies/{clientCompany}/employees/{workAssignment}/reopen', [AdminCompanyEmployeeController::class, 'reopen'])
+        ->whereNumber(['clientCompany', 'workAssignment'])
+        ->name('api.v1.admin.hr.company-employees.reopen');
 });
 
 // HR policies: anyone who may view HR can see them; the roles each policy lists (Super Admin, and the HR Manager for the multi-company switch)
@@ -1683,6 +1697,13 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.approve', 'th
     Route::post('v1/admin/hr/payroll-run-sections/{payrollRunSection}/payments', [AdminPayrollRunSectionController::class, 'pay'])
         ->whereNumber('payrollRunSection')
         ->name('api.v1.admin.hr.payroll-run-sections.payments.store');
+    // Settle the excess of an OVERPAID company (after finalized payroll was reopened and corrected), and void such an entry. Super Admin or HR Manager.
+    Route::post('v1/admin/hr/payroll-run-sections/{payrollRunSection}/reconciliations', [AdminPayrollRunSectionController::class, 'reconcile'])
+        ->whereNumber('payrollRunSection')
+        ->name('api.v1.admin.hr.payroll-run-sections.reconciliations.store');
+    Route::post('v1/admin/hr/workplace-reconciliations/{reconciliation}/void', [AdminPayrollRunSectionController::class, 'voidReconciliation'])
+        ->whereNumber('reconciliation')
+        ->name('api.v1.admin.hr.workplace-reconciliations.void');
     Route::patch('v1/admin/hr/payroll-run-sections/{payrollRunSection}/reopen', [AdminPayrollRunSectionController::class, 'reopen'])
         ->whereNumber('payrollRunSection')
         ->name('api.v1.admin.hr.payroll-run-sections.reopen');

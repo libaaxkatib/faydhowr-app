@@ -301,9 +301,9 @@ export const hrMore = defineMessages({
     'Only a Super Admin or an HR Manager can manage an employee debt.',
     'Keliya Super Admin ama HR Manager ayaa maamuli kara deynta shaqaalaha.',
   ),
-  'notify.error.PAYROLL_CORRECTION_SUPER_ADMIN_ONLY': message(
-    'This change would alter approved or finalized payroll. Only a Super Admin can correct approved or finalized payroll. Nothing was changed.',
-    'Isbeddelkani wuxuu beddeli lahaa mushahar la ansixiyey ama la dhammaystiray. Keliya Super Admin ayaa saxi kara mushahar la ansixiyey ama la dhammaystiray. Waxba lama beddelin.',
+  'notify.error.CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED': message(
+    'This change would alter approved or finalized payroll. Only a Super Admin or an HR Manager can correct approved or finalized payroll. Nothing was changed.',
+    'Isbeddelkani wuxuu beddeli lahaa mushahar la ansixiyey ama la dhammaystiray. Keliya Super Admin ama HR Manager ayaa saxi kara mushahar la ansixiyey ama la dhammaystiray. Waxba lama beddelin.',
   ),
   'notify.error.PAYMENT_ALREADY_VOIDED': message('This payment was already voided.', 'Lacag-bixintan horey looga noqday.'),
   'notify.error.PAYMENT_LEDGER_ENTRY_MISSING': message(

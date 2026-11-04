@@ -3,10 +3,15 @@
 namespace App\Actions\Hr;
 
 use App\Enums\AuditAction;
+use App\Enums\ClientStatus;
+use App\Enums\WorkAssignmentStatus;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\ClientCompany;
 use App\Models\ClientCompanyAlias;
+use App\Models\CompanyClosure;
+use App\Models\EmployeeWorkAssignment;
+use App\Support\Hr\CompanyEmployees\CompanyAssignmentGuard;
 use App\Support\Hr\Payroll\OpenPayrollNames;
 
 /**
@@ -22,6 +27,19 @@ class UpdateClientCompanyAction
 
         if (isset($data['name']) && is_string($data['name'])) {
             $data['name'] = trim(preg_replace('/\s+/u', ' ', $data['name']) ?? $data['name']);
+        }
+
+        // Closing and reopening a company is its own recorded action (it ends / restores the assignments): the status field cannot be used around it.
+        if (isset($data['status']) && $data['status'] !== $clientCompany->status->value) {
+            $closed = CompanyClosure::query()->where('client_company_id', $clientCompany->id)->where('status', CompanyClosure::STATUS_CLOSED)->exists();
+
+            if ($data['status'] === ClientStatus::Active->value && $closed) {
+                CompanyAssignmentGuard::fail("{$clientCompany->name} was closed. Use Reopen company to open it again; that also decides which assignments come back.", 'COMPANY_CLOSED_USE_REOPEN');
+            }
+
+            if ($data['status'] === ClientStatus::Inactive->value && EmployeeWorkAssignment::query()->where('client_company_id', $clientCompany->id)->where('status', WorkAssignmentStatus::Active)->exists()) {
+                CompanyAssignmentGuard::fail("{$clientCompany->name} still has active assignments. Use Close company: it ends them on the closing day so they stop being paid.", 'COMPANY_HAS_ACTIVE_ASSIGNMENTS_USE_CLOSE');
+            }
         }
 
         $clientCompany->update($data);

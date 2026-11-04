@@ -23,6 +23,7 @@ import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { useI18n } from '@/i18n/useI18n';
 import type { MessageKey } from '@/i18n/messages';
+import { CloseCompanyDialog, ReopenCompanyDialog } from '@/features/hrm/CompanyClosureDialogs';
 import { MultiCompanyPolicyCard } from '@/features/hrm/companyEmployees/MultiCompanyPolicyCard';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
@@ -62,6 +63,7 @@ export function ClientCompaniesPage() {
   const [locationModal, setLocationModal] = useState<{ clientCompanyId: number | null; editing: WorkLocation | null } | null>(null);
   // A delete button only asks; the record is deleted when this is confirmed.
   const [pendingDelete, setPendingDelete] = useState<{ kind: 'company' | 'location'; id: number; name: string } | null>(null);
+  const [closureDialog, setClosureDialog] = useState<{ kind: 'close' | 'reopen'; company: ClientCompany } | null>(null);
 
   // The server does the searching, filtering and paging (the list can hold hundreds of companies), all filters at once. The previous page stays on
   // screen while the next one loads, so typing does not flash the page empty.
@@ -195,6 +197,11 @@ export function ClientCompaniesPage() {
                     tone={company.category === 'guri' ? 'info' : 'neutral'}
                   />
                 </div>
+                {company.status === 'inactive' && company.closure && (
+                  <p className="mt-1 text-xs font-semibold text-danger" data-testid={`company-closed-${company.id}`}>
+                    <StatusBadge status="closed" label={t('status.company.closed')} tone="danger" /> {t('option.correction.closedOn', { date: formatDate(company.closure.effective_date), reason: company.closure.reason })}
+                  </p>
+                )}
                 <p className="text-xs text-ink-muted">
                   {[company.contact_person, company.phone, company.location].filter(Boolean).join(' · ') || t('option.company.noContactDetails')}
                 </p>
@@ -213,6 +220,11 @@ export function ClientCompaniesPage() {
                     <Icon name="plus" size={14} />
                     {t('action.company.addLocation')}
                   </Button>
+                  {company.status === 'inactive' && company.closure ? (
+                    <Button variant="outline" size="sm" onClick={() => setClosureDialog({ kind: 'reopen', company })} data-testid={`reopen-company-${company.id}`}>{t('action.correction.reopenCompany')}</Button>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={() => setClosureDialog({ kind: 'close', company })} data-testid={`close-company-${company.id}`}>{t('action.correction.closeCompany')}</Button>
+                  )}
                   <button type="button" aria-label={t('action.company.editCompanyNamed', { name: company.name })} title={t('action.company.editCompanyNamed', { name: company.name })} onClick={() => setCompanyModal({ editing: company })} className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted hover:bg-surface-alt hover:text-primary">
                     <Icon name="pencil" size={14} />
                   </button>
@@ -263,6 +275,8 @@ export function ClientCompaniesPage() {
         </Card>
       )}
 
+      {closureDialog?.kind === 'close' && <CloseCompanyDialog company={closureDialog.company} onClose={() => setClosureDialog(null)} />}
+      {closureDialog?.kind === 'reopen' && <ReopenCompanyDialog company={closureDialog.company} onClose={() => setClosureDialog(null)} />}
       <ConfirmDialog
         isOpen={pendingDelete !== null}
         title={pendingDelete?.kind === 'location' ? t('confirm.company.deleteLocationTitle') : t('confirm.company.deleteCompanyTitle')}

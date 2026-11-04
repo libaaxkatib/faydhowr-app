@@ -7,6 +7,7 @@ use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunSection;
+use App\Models\PayrollSectionReopening;
 use App\Support\ApiResponse;
 use App\Support\Hr\Payroll\InputOwnership;
 use App\Support\Hr\Payroll\PayrollSections;
@@ -15,8 +16,8 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Moves ONE company's section of a payroll month through draft -> reviewed -> approved -> finalized (an approved section can be reopened to draft,
- * with a reason; a finalized one never). Each action changes only the section it is given: other companies keep their own status. Same owner rules
+ * Moves ONE company's section of a payroll month through draft -> reviewed -> finalized (a reviewed section can be reopened to draft with a reason; a
+ * FINALIZED one only through ReopenFinalizedPayrollSectionAction, which keeps every payment and records the reopening). Each action changes only the section it is given: other companies keep their own status. Same owner rules
  * as the run (2026-10-29): the authorized HR Manager may do every step, a second person is not required; who did what and when is stored on the
  * section and in the audit log (company, period, previous and new status).
  *
@@ -35,6 +36,11 @@ class TransitionPayrollRunSectionAction
 
     public function reopen(PayrollRunSection $section, string $reason, Admin $actor): PayrollRunSection
     {
+        // A FINALIZED company is reopened by its own action (owner decision 2026-11-04): longer reason, payments kept, a recorded reopening.
+        if ($section->status === PayrollRunSection::STATUS_FINALIZED) {
+            return app(ReopenFinalizedPayrollSectionAction::class)->handle($section, $reason, $actor);
+        }
+
         return $this->single($section, self::BEFORE_FINAL, PayrollRunSection::STATUS_DRAFT, $actor, $reason, 'reopened');
     }
 
@@ -117,6 +123,12 @@ class TransitionPayrollRunSectionAction
         };
 
         $section->update(['status' => $to, ...$stamp]);
+
+        // Finalizing again after a reopening: the reopening record keeps what the corrected payroll holds now next to what it held before.
+        if ($to === PayrollRunSection::STATUS_FINALIZED) {
+            PayrollSectionReopening::query()->where('payroll_run_section_id', $section->id)->whereNull('refinalized_at')->orderByDesc('id')->limit(1)
+                ->update(['refinalized_at' => now(), 'refinalized_by' => $actor->id, 'totals_after' => json_encode($section->totals)]);
+        }
 
         $name = $section->clientCompany?->name ?? 'No company';
         $verb = match ($to) {

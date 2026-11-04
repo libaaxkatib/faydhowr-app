@@ -324,7 +324,7 @@ class CompanyPayrollInputLocksTest extends TestCase
         $this->attendance($this->b)->assertOk();
     }
 
-    public function test_a_reviewed_company_is_not_locked_and_a_finalized_one_can_never_be_reopened(): void
+    public function test_a_reviewed_company_is_not_locked_and_a_finalized_one_is_locked_until_it_is_reopened_for_correction(): void
     {
         $this->generate();
         $section = PayrollRunSection::query()->where('payroll_run_id', $this->runId)->where('client_company_id', $this->alpha->id)->firstOrFail();
@@ -333,8 +333,10 @@ class CompanyPayrollInputLocksTest extends TestCase
 
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/finalize")->assertOk();
         $this->refused($this->attendance($this->a, '2026-09-11'));
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/reopen", ['reason' => 'A salary has to be corrected first'])->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_NOT_REOPENABLE');
         $this->refused($this->attendance($this->a, '2026-09-12'));
+        // Owner decision 2026-11-04: reopening finalized payroll (with a reason) is the way to correct it; then the inputs are open again.
+        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/reopen", ['reason' => 'A salary has to be corrected first'])->assertOk();
+        $this->attendance($this->a, '2026-09-12')->assertOk();
     }
 
     public function test_a_run_without_sections_locks_the_whole_month_as_before(): void

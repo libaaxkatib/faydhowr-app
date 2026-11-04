@@ -83,17 +83,20 @@ class PermanentSuccessionTest extends TestCase
 
     // ------------------------------------------------------------------ N1: the choice is mandatory
 
-    public function test_a_permanent_assignment_cannot_be_stopped_without_a_replacement_choice(): void
+    public function test_a_permanent_assignment_can_be_stopped_without_a_replacement_choice_since_the_owner_decision_of_2026_11_04(): void
     {
         [, $token] = $this->superAdminToken();
         [$permanent, $a] = $this->position();
         $employees = Employee::query()->count();
 
-        $this->stop($token, $a)->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSOR_REQUIRED');
+        $this->stop($token, $a)->assertOk();
 
-        $this->assertUntouched($a);
+        $a->refresh();
+        $this->assertSame('ended', $a->status->value);
+        $this->assertSame(0, AssignmentSuccession::query()->count(), 'no replacement was recorded or invented');
+        $this->assertSame(0, EmployeeWorkAssignment::query()->where('replaces_assignment_id', $a->id)->count(), 'nobody was put in the position');
         $this->assertSame($employees, Employee::query()->count());
-        $this->assertSame('active', $permanent->fresh()->status->value);
+        $this->assertSame('active', $permanent->fresh()->status->value, 'the employee HR status is unchanged');
     }
 
     public function test_a_temporary_must_have_covered_the_position_but_any_other_person_may_be_chosen(): void
@@ -122,7 +125,7 @@ class PermanentSuccessionTest extends TestCase
         $this->assertSame($typesBefore, Employee::query()->pluck('employment_type', 'id')->all(), 'no employment type was changed by any refusal');
     }
 
-    public function test_the_end_endpoint_and_the_end_date_edit_demand_the_choice_too(): void
+    public function test_the_end_endpoint_and_the_end_date_edit_need_no_choice_but_still_carry_one_out_when_given(): void
     {
         [, $token] = $this->superAdminToken();
         [, $viaEnd] = $this->position();
@@ -131,22 +134,18 @@ class PermanentSuccessionTest extends TestCase
         $alreadyPlanned->update(['end_date' => '2026-11-30']);
 
         // End
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/work-assignments/{$viaEnd->id}/end", ['end_date' => '2026-10-15'])->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSOR_REQUIRED');
-        $this->assertSame('active', $viaEnd->fresh()->status->value);
         $this->withToken($token)->patchJson("/api/v1/admin/hr/work-assignments/{$viaEnd->id}/end", ['end_date' => '2026-10-15', 'successor' => $this->waitingSuccessor()])->assertOk();
         $this->assertSame('end', AssignmentSuccession::query()->where('departing_assignment_id', $viaEnd->id)->value('trigger'));
 
         // Editing the end date: setting one where there was none is a removal.
-        $this->withToken($token)->putJson("/api/v1/admin/hr/work-assignments/{$viaEdit->id}", ['end_date' => '2026-11-30'])->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSOR_REQUIRED');
-        $this->assertNull($viaEdit->fresh()->end_date);
         $this->withToken($token)->putJson("/api/v1/admin/hr/work-assignments/{$viaEdit->id}", ['end_date' => '2026-11-30', 'successor' => $this->waitingSuccessor()])->assertOk();
         $this->assertSame('edit_end_date', AssignmentSuccession::query()->where('departing_assignment_id', $viaEdit->id)->value('trigger'));
         $this->assertSame('2026-12-01', AssignmentSuccession::query()->where('departing_assignment_id', $viaEdit->id)->firstOrFail()->successor_start_date->toDateString());
 
         // Moving an end date LATER ends nothing new: no choice. Moving it EARLIER shortens the assignment: a choice.
         $this->withToken($token)->putJson("/api/v1/admin/hr/work-assignments/{$alreadyPlanned->id}", ['end_date' => '2026-12-31'])->assertOk();
-        $this->withToken($token)->putJson("/api/v1/admin/hr/work-assignments/{$alreadyPlanned->id}", ['end_date' => '2026-11-15'])->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSOR_REQUIRED');
-        $this->assertSame('2026-12-31', $alreadyPlanned->fresh()->end_date->toDateString());
+        $this->withToken($token)->putJson("/api/v1/admin/hr/work-assignments/{$alreadyPlanned->id}", ['end_date' => '2026-11-15'])->assertOk();
+        $this->assertSame('2026-11-15', $alreadyPlanned->fresh()->end_date->toDateString(), 'shortening is allowed without a choice');
     }
 
     public function test_a_separation_demands_a_choice_for_every_open_permanent_assignment_and_is_all_or_nothing(): void
@@ -552,7 +551,7 @@ class PermanentSuccessionTest extends TestCase
         $body = $this->temporaryChoice($temp) + ['effective_date' => '2026-09-11'];
 
         // Not for an HR editor: it would change what approved September paid. Nothing is left behind.
-        $this->stop($hr, $a, '2026-09-10', $body)->assertForbidden()->assertJsonPath('error_code', 'PAYROLL_CORRECTION_SUPER_ADMIN_ONLY');
+        $this->stop($hr, $a, '2026-09-10', $body)->assertForbidden()->assertJsonPath('error_code', 'CLOSED_PAYROLL_CORRECTION_NOT_ALLOWED');
         $this->app['auth']->forgetGuards();
         // A Super Admin needs a reason.
         $this->stop($super, $a, '2026-09-10', $body)->assertStatus(422)->assertJsonPath('error_code', 'CORRECTION_REASON_REQUIRED');

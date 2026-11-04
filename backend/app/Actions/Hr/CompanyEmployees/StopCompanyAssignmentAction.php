@@ -46,8 +46,9 @@ class StopCompanyAssignmentAction
         // Ending a holder who is away: a working Replacement is not touched, but HR must see that and confirm (before anything else is checked or written).
         AbsenceCycles::assertTerminationAllowed($assignment, $lastDay, ($data['confirm_replacement_continues'] ?? false) === true);
 
-        // N1: validated before anything is written; the chosen replacement's pay is part of the change for the closed-payroll check.
-        $plan = PermanentSuccession::demand($assignment, $data['successor'] ?? null, $lastDay);
+        // A replacement is OPTIONAL when an assignment is stopped (owner decision 2026-11-04). One that is chosen is validated before anything is written,
+        // and its pay is part of the change for the closed-payroll check.
+        $plan = PermanentSuccession::demand($assignment, $data['successor'] ?? null, $lastDay, optional: true);
 
         return $this->corrections->run($actor, 'stopped', [...AssignmentChain::employeeIds($assignment), ...($plan === null ? [] : [$plan['employee']->id])], $lastDay->addDay()->toDateString(), $data['correction_reason'] ?? null, [
             'assignment_id' => $assignment->id,
