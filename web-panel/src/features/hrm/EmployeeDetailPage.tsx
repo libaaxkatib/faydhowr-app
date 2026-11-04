@@ -2024,7 +2024,9 @@ function MarkSeparatedModal({
   const [drafts, setDrafts] = useState<Record<number, SuccessorDraft>>({});
   const [showMissing, setShowMissing] = useState(false);
   const ids = permanentAssignments.map((a) => a.id);
-  const unresolved = missingSuccessors(ids, drafts, separationDate);
+  // A replacement is OPTIONAL (owner decision 2026-11-04): only a choice that was started has to be complete.
+  const chosen = ids.filter((id) => (drafts[id] ?? EMPTY_SUCCESSOR).type !== '');
+  const unresolved = missingSuccessors(chosen, drafts, separationDate);
 
   if (!isOpen) return null;
 
@@ -2052,7 +2054,7 @@ function MarkSeparatedModal({
                 rehire_eligible: rehireEligible,
                 notes: notes || null,
                 ...(correctionReason.trim() !== '' ? { correction_reason: correctionReason.trim() } : {}),
-                successors: ids.map((id) => ({ assignment_id: id, ...(toSuccessorPayload(drafts[id] ?? EMPTY_SUCCESSOR, separationDate) as SuccessorPayload) })),
+                successors: chosen.map((id) => ({ assignment_id: id, ...(toSuccessorPayload(drafts[id] ?? EMPTY_SUCCESSOR, separationDate) as SuccessorPayload) })),
               });
             }}
           >
@@ -2082,6 +2084,7 @@ function MarkSeparatedModal({
       <FormField label={t('option.correction.payrollCorrectionReason')} htmlFor="sep-correction-reason">
         <input id="sep-correction-reason" maxLength={500} className={inputClasses} value={correctionReason} onChange={(e) => setCorrectionReason(e.target.value)} />
       </FormField>
+      {permanentAssignments.length > 0 && <p className="mb-2 text-xs text-ink-muted" data-testid="separation-replacement-optional">{t('option.correction.replacementOptional')}</p>}
       {permanentAssignments.map((assignment) => (
         <div key={assignment.id}>
           <p className="mb-1 text-xs font-medium text-ink-muted">{assignmentLabel(assignment)}</p>

@@ -12,7 +12,6 @@ use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollItem;
 use App\Models\TemporaryReplacement;
-use App\Support\ApiResponse;
 use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\PermanentSuccession;
 use App\Support\Hr\PositionSuccession;
@@ -66,22 +65,9 @@ class CloseAssignmentsOnSeparationAction
             }
         }
 
-        // docs/HR_PAYROLL_RULES.md N1: every open PERMANENT assignment that really ends here needs its replacement choice. All the missing ones are
-        // reported together, before anything is closed (an assignment that has not started yet is cancelled, not removed, and needs none).
-        $missing = $open
-            ->filter(fn (EmployeeWorkAssignment $a): bool => ! $a->start_date->gt($date) && PermanentSuccession::isRequired($a) && ! isset($choices[$a->id]))
-            ->pluck('id')
-            ->values()
-            ->all();
-
-        if ($missing !== []) {
-            throw new HttpResponseException(ApiResponse::error(
-                'Choose who takes over each Permanent position before this employee is separated: a Temporary employee who has been covering it, or a person from the HR Waiting List.',
-                'SUCCESSOR_REQUIRED',
-                422,
-                ['assignment_ids' => $missing],
-            ));
-        }
+        // Owner decision 2026-11-04 (amends docs/HR_PAYROLL_RULES.md N1): a replacement is OPTIONAL. A position may stay vacant after a separation; HR assigns
+        // someone later with Replace Employee / Add Employee. A replacement that IS chosen is validated and carried out below exactly as before. Separation,
+        // absence and replacement stay three different workflows: nothing is invented to stand in for a missing choice.
 
         foreach ($open as $assignment) {
             $previousEnd = $assignment->end_date?->toDateString();
@@ -107,7 +93,7 @@ class CloseAssignmentsOnSeparationAction
             // The leaver is paid through this day; a successor already starting on or before it would be paid for the same day.
             PositionSuccession::assertEndKeepsSuccessorClear($assignment, $newEnd);
             // An assignment that had not started yet (and could not be cancelled) is not a position in service: no choice is demanded for it.
-            $plan = $assignment->start_date->gt($date) ? null : PermanentSuccession::demand($assignment, $choices[$assignment->id] ?? null, $newEnd);
+            $plan = $assignment->start_date->gt($date) ? null : PermanentSuccession::demand($assignment, $choices[$assignment->id] ?? null, $newEnd, optional: true);
 
             $assignment->update([
                 'status' => WorkAssignmentStatus::Ended,

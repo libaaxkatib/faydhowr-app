@@ -2441,7 +2441,7 @@ Five proposed messages described the older payroll rule ("only verified days are
 | `option.correction.settleAmount` |  |  | Amount to settle (USD) | Lacagta la xalinayo (USD) | proposed | CorrectionDialogs.tsx |  |
 | `option.correction.settledOn` |  |  | Settled on | La xaliyey taariikhda | proposed | CorrectionDialogs.tsx |  |
 | `option.correction.reason` |  |  | Reason | Sabab | proposed | CompanyClosureDialogs.tsx, CorrectionDialogs.tsx |  |
-| `option.correction.replacementOptional` |  |  | A replacement is optional. You can end this assignment now and give the position to someone else later. | Beddelid ma aha qasab. Hadda ayaad soo afjari kartaa meeshan shaqo, goor dambena qof kale ayaad siin kartaa. | proposed | companyEmployees/AssignmentDialogs.tsx |  |
+| `option.correction.replacementOptional` |  |  | A replacement is optional. You can end this assignment now and give the position to someone else later. | Beddelid ma aha qasab. Hadda ayaad soo afjari kartaa meeshan shaqo, goor dambena qof kale ayaad siin kartaa. | proposed | companyEmployees/AssignmentDialogs.tsx, EmployeeDetailPage.tsx |  |
 | `option.correction.closeDate` |  |  | Last day of operation | Maalinta ugu dambeysa ee shaqada | proposed | CompanyClosureDialogs.tsx |  |
 | `option.correction.closeReason` |  |  | Why is the company closing? | Maxay shirkaddu u xirmaysaa? | proposed | CompanyClosureDialogs.tsx |  |
 | `option.correction.payrollCorrectionReason` |  |  | Payroll correction reason (needed only if this change reaches a finalized month) | Sababta sax-bixinta mushaharka (looga baahan yahay oo keliya haddii isbeddelkani gaadho bil la dhammaystiray) | proposed | CompanyClosureDialogs.tsx, CorrectionDialogs.tsx, EmployeeDetailPage.tsx |  |

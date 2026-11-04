@@ -148,7 +148,7 @@ class PermanentSuccessionTest extends TestCase
         $this->assertSame('2026-11-15', $alreadyPlanned->fresh()->end_date->toDateString(), 'shortening is allowed without a choice');
     }
 
-    public function test_a_separation_demands_a_choice_for_every_open_permanent_assignment_and_is_all_or_nothing(): void
+    public function test_a_separation_needs_no_replacement_but_a_choice_that_is_made_is_carried_out_and_a_bad_one_changes_nothing(): void
     {
         [, $token] = $this->superAdminToken();
         $employee = $this->makeEmployee();
@@ -156,20 +156,38 @@ class PermanentSuccessionTest extends TestCase
         $b = $this->makeAssignment($employee, $this->makeCompany('Co B'), null, 100, '2026-03-01');
         $body = ['reason' => 'resigned', 'separation_date' => '2026-10-10', 'rehire_eligible' => true];
 
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/employees/{$employee->id}/separate", $body)
-            ->assertStatus(422)->assertJsonPath('error_code', 'SUCCESSOR_REQUIRED')->assertJsonPath('errors.assignment_ids', [$a->id, $b->id]);
-        // One of the two is not enough, and nothing is left half done.
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/employees/{$employee->id}/separate", $body + ['successors' => [['assignment_id' => $a->id] + $this->waitingSuccessor()]])
-            ->assertStatus(422)->assertJsonPath('errors.assignment_ids', [$b->id]);
+        // A choice for the first position only: it is carried out; the second position is simply left vacant.
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/employees/{$employee->id}/separate", $body + ['successors' => [['assignment_id' => $a->id, 'type' => 'waiting_list', 'employee_id' => 99999999] + $this->waitingSuccessor()]])
+            ->assertStatus(422);
+        // (a choice naming nobody that exists is refused as a whole and nothing is left half done)
         $this->assertSame('active', $employee->fresh()->status->value);
         $this->assertSame(0, EmployeeSeparation::query()->count());
         $this->assertSame(0, AssignmentSuccession::query()->count());
         $this->assertSame(['active', 'active'], [$a->fresh()->status->value, $b->fresh()->status->value]);
 
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/employees/{$employee->id}/separate", $body + ['successors' => $this->successorsFor($employee)])->assertOk();
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/employees/{$employee->id}/separate", $body + ['successors' => [['assignment_id' => $a->id] + $this->waitingSuccessor()]])->assertOk();
         $this->assertSame('inactive', $employee->fresh()->status->value);
-        $this->assertSame(2, AssignmentSuccession::query()->where('trigger', 'separation')->count());
+        $this->assertSame(1, AssignmentSuccession::query()->where('trigger', 'separation')->count(), 'only the chosen position got a successor');
         $this->assertSame('2026-10-11', AssignmentSuccession::query()->where('departing_assignment_id', $a->id)->firstOrFail()->successor_start_date->toDateString());
+        $this->assertSame(['ended', 'ended'], [$a->fresh()->status->value, $b->fresh()->status->value]);
+        $this->assertSame(0, EmployeeWorkAssignment::query()->where('replaces_assignment_id', $b->id)->count(), 'the second position stays vacant: nothing was invented');
+    }
+
+    public function test_a_separation_with_no_replacement_at_all_leaves_every_position_vacant(): void
+    {
+        [, $token] = $this->superAdminToken();
+        $employee = $this->makeEmployee();
+        $a = $this->makeAssignment($employee, $this->makeCompany('Co A'), null, 300, '2026-01-01');
+        $b = $this->makeAssignment($employee, $this->makeCompany('Co B'), null, 100, '2026-03-01');
+
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/employees/{$employee->id}/separate", ['reason' => 'resigned', 'separation_date' => '2026-10-10', 'rehire_eligible' => true])->assertOk();
+
+        $this->assertSame('inactive', $employee->fresh()->status->value);
+        $this->assertSame(1, EmployeeSeparation::query()->count());
+        $this->assertSame(0, AssignmentSuccession::query()->count());
+        $this->assertSame(['ended', 'ended'], [$a->fresh()->status->value, $b->fresh()->status->value]);
+        $this->assertSame(['2026-10-10', '2026-10-10'], [$a->fresh()->end_date->toDateString(), $b->fresh()->end_date->toDateString()]);
+        $this->assertSame(2, EmployeeWorkAssignment::query()->count(), 'no replacement assignment and no fake record was created');
     }
 
     public function test_a_cancelled_mistake_and_a_replacement_type_assignment_need_no_choice(): void
