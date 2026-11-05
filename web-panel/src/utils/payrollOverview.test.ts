@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { r1cReviewOf } from '../i18n/r1cApprovals.ts';
 import { readFileSync } from 'node:fs';
 
 import { CATALOGUE } from '../i18n/messages/index.ts';
@@ -186,7 +187,7 @@ test('"All Companies Paid" is shown only when the server says so AND no company 
   assert.equal(showAllCompaniesPaid(summary({ all_companies_paid: true, companies_assigned: 0, companies_generated: 0, paid: 0 })), false, 'a month with no company is not "all paid"');
 
   const entry = CATALOGUE['status.payroll.allCompaniesPaid'];
-  assert.equal(entry.review, 'proposed');
+  assert.equal(entry.review, r1cReviewOf('status.payroll.allCompaniesPaid'));
   assert.deepEqual(placeholdersOf(entry.en), ['month']);
   assert.deepEqual(placeholdersOf(entry.so), ['month']);
   assert.equal(entry.en, '{month} — All Companies Paid');
@@ -289,7 +290,7 @@ test('every new message is a proposal with the same placeholders in English and 
   assert.ok(keys.length >= 45, `found ${keys.length}`);
   for (const key of keys) {
     const entry = CATALOGUE[key as keyof typeof CATALOGUE];
-    assert.equal(entry.review, 'proposed', key);
+    assert.equal(entry.review, r1cReviewOf(key), key);
     assert.ok(entry.en.trim() && entry.so.trim(), key);
     assert.deepEqual(placeholdersOf(entry.en), placeholdersOf(entry.so), `${key}: the same placeholders in both languages`);
   }

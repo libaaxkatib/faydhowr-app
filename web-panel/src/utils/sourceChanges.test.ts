@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { r1cReviewOf } from '../i18n/r1cApprovals.ts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -183,7 +184,7 @@ test('a refused Review / Finalize carries the list in errors.changes; only PAYRO
 test('PAYROLL_SOURCES_CHANGED reads as a plain sentence: the server\'s own in English, ours in Somali', () => {
   assert.ok(SOMALI_WORDING_CODES.has('PAYROLL_SOURCES_CHANGED'));
   const entry = CATALOGUE['notify.error.PAYROLL_SOURCES_CHANGED'];
-  assert.equal(entry.review, 'proposed');
+  assert.equal(entry.review, r1cReviewOf('notify.error.PAYROLL_SOURCES_CHANGED'), 'owner-approved on 2026-11-05 (one of the 86)');
   assert.equal(friendlyErrorMessage({ code: 'PAYROLL_SOURCES_CHANGED', message: 'The source data of Acme changed.' }, 'fallback'), 'The source data of Acme changed.');
   assert.equal(friendlyErrorMessage({ code: 'PAYROLL_SOURCES_CHANGED' }, 'fallback'), 'fallback');
   try {
@@ -197,9 +198,10 @@ test('PAYROLL_SOURCES_CHANGED reads as a plain sentence: the server\'s own in En
 
 // ---------------------------------------------------------------- the catalogue file
 
-test('every new message is a proposal with English and Somali, and the Generate pointer reuses the locked label through a placeholder', () => {
+test('every guard message has English and Somali and is one of the 86 owner-approved R1C messages, and the Generate pointer reuses the locked label through a placeholder', () => {
   for (const [key, entry] of Object.entries(payrollRelease1c)) {
-    assert.equal(entry.review, 'proposed', key);
+    assert.equal(entry.review, r1cReviewOf(key), key);
+    assert.equal(entry.review, 'approved', key);
     assert.ok(entry.en.trim() !== '' && entry.so.trim() !== '', key);
     assert.deepEqual(placeholdersOf(entry.so).sort(), placeholdersOf(entry.en).sort(), `${key}: placeholders`);
   }

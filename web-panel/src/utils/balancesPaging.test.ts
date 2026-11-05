@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { r1cReviewOf } from '../i18n/r1cApprovals.ts';
 import assert from 'node:assert/strict';
 
 import { balanceTotalsView, parseBalanceFilters } from './deductions.ts';
@@ -23,11 +24,12 @@ test('the client sends page and per_page together with the filters and returns t
   assert.match(api, /return \{ data, meta: meta as DeductionBalanceMeta \}/);
 });
 
-test('a truncated answer is shown, not hidden, and the message is a proposed English + Somali pair', () => {
+test('a truncated answer is shown, not hidden, and the message is an English + Somali pair (owner-approved 2026-11-05)', () => {
   assert.match(page, /meta\?\.truncated && \(\s*<p role="alert"[^>]*data-testid="balances-truncated">\{t\('warning\.deduction\.truncated'\)\}/);
   const message = payrollRelease1b['warning.deduction.truncated'];
   assert.ok(message.en.length > 20 && message.so.length > 20);
-  assert.equal(message.review, 'proposed');
+  assert.equal(message.review, r1cReviewOf('warning.deduction.truncated'));
+  assert.equal(message.review, 'approved');
 });
 
 test('the filters still work: company, kind and leavers are read from the address bar, and the totals come from the whole filtered set', () => {

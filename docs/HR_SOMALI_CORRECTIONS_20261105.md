@@ -1,6 +1,6 @@
 # Somali corrections to the proposed HR messages (Release 1A / 1B) - 2026-11-05
 
-Written for the owner, who approves the final wording. **Every message below is still `proposed`: none was approved, none was marked owner-approved.**
+Written for the owner, who approves the final wording. **Status: the 50 corrections below and the 36 R1C Freshness Guard messages were APPROVED by the owner on 2026-11-05 (86 messages, ids `OWN-R1C-001` .. `OWN-R1C-086`, see "Owner approval" at the end). Before that approval every one of them was `proposed`. The other 90 reviewed messages were NOT approved and stay `proposed`.**
 
 ## Scope and protection
 
@@ -92,4 +92,103 @@ Written for the owner, who approves the final wording. **Every message below is 
 
 `status.payroll.state.notGenerated`, `status.payroll.state.paid`, `status.payroll.state.finalizedUnpaid`, `status.payroll.state.nothingPayable`, `status.payroll.allCompaniesPaid`, `option.payroll.colState`, `option.payroll.allCompaniesTitle`, `option.payroll.loadingCompanies`, `option.payroll.warningCount`, `option.payroll.sumTitle`, `option.payroll.sumAssigned`, `option.payroll.sumPayrollTotal`, `option.payroll.sumPaymentsReceived`, `confirm.payroll.generateCompanyTitle`, `notify.payroll.companyGenerated`, `notify.payroll.sectionChanged`, `warning.payroll.gen.title`, `warning.payroll.gen.condC`, `warning.payroll.gen.whatRemains`, `warning.payroll.gen.checking`, `warning.payroll.gen.none`, `option.payroll.paymentReference`, `option.payroll.paymentReferencePlaceholder`, `option.payroll.wpReference`, `notify.error.PAYROLL_SECTION_CHANGED`, `notify.error.PAYROLL_COMPANY_LOCKED`, `option.hr.companyPayrollTitle`, `option.hr.companyPayrollMonth`, `option.hr.kpiCompanyPayrollTotal`, `option.hr.kpiCompanyPaymentsReceived`, `option.hr.kpiCompanyOutstanding`, `status.deduction.voided`, `option.deduction.voidedReason`, `option.deduction.stillOwed`, `option.deduction.waivedAmount`, `option.deduction.waivedReason`, `action.deduction.waive`, `option.deduction.currencyHint`, `option.deduction.reasonHint`, `confirm.deduction.voidPenaltyTitle`, `option.deduction.voidReason`, `option.deduction.correctionReason`, `warning.deduction.nothingChanged`, `confirm.deduction.waivePenaltyTitle`, `option.deduction.waiveAmount`, `option.deduction.waiveReason`, `action.deduction.waiveConfirm`, `warning.deduction.regenerateNote`, `notify.deduction.corrected`, `notify.deduction.voidFailed`, `notify.deduction.correctFailed`, `notify.deduction.waiveFailed`, `notify.deduction.recordFailed`, `validation.deduction.amountPositive`, `validation.deduction.amountTooMuch`, `validation.deduction.reasonShort`, `validation.deduction.periodRange`, `validation.deduction.dateInvalid`, `confirm.deduction.duplicateTitle`, `action.deduction.recordAgain`, `option.deduction.balancesHelp`, `option.deduction.kindPenalty`, `option.deduction.allKinds`, `option.deduction.leaversOnly`, `option.deduction.colRegisteredMonth`, `option.deduction.colRegistered`, `option.deduction.colDeducted`, `option.deduction.colWaived`, `option.deduction.colOwed`, `option.deduction.colState`, `status.deduction.statePending`, `status.deduction.statePartly`, `status.deduction.leaver`, `option.deduction.totalsRow`, `option.deduction.leaverTotals`, `option.deduction.emptyTitle`, `warning.deduction.inputsChangedPointer`, `status.deduction.carriedForward`, `warning.deduction.carriedFrom`, `warning.deduction.lineFigures`, `warning.deduction.notDeductedNote`, `warning.deduction.previouslyDeducted`, `notify.error.DUPLICATE_RECORD`, `notify.error.IDEMPOTENCY_KEY_REUSED`, `notify.error.RECORD_CHANGED`, `notify.error.RECORD_NOT_FOUND`, `notify.error.WAIVE_SUPER_ADMIN_ONLY`, `notify.error.WAIVE_AMOUNT_INVALID`, `option.hr.calendarMonthLabel`, `option.hr.payrollMonthLabel`
 
-Limit of this review: it is a careful proposal by the assistant, not a native-speaker sign-off. Final approval remains with the owner.
+Limit of this review: it is a careful proposal by the assistant, not a native-speaker sign-off; the owner reviewed and approved it on 2026-11-05 as recorded below.
+
+## Owner approval (2026-11-05)
+
+The owner confirmed satisfaction with the Somali proposals as presented and approved **exactly two groups**: the 50 corrections of this document and the 36 new messages of the R1C Freshness Guard (`web-panel/src/i18n/messages/payrollRelease1c.ts`) - **86 messages**.
+
+- They are now `approved` with the owner ids below. Their English and Somali text is **exactly** the text shown above (checked against the text committed in `888d978`: zero differences) and is pinned by the committed baseline `web-panel/src/i18n/baseline/approved-r1c-86.json` (hash-checked by `lockedApproved.test.ts`).
+- The **161 locked messages are untouched** (`baseline/approved-161.json`, line-ending-normalised SHA-256 `ad500a9affadf2bee600acd67b4827c579bbf7b9a2209e54dde33b5ecdf2cecc`, unchanged). The approved total is 249 = 161 locked + 2 earlier named owner warnings + 86.
+- The **90 other reviewed messages were NOT approved**: they stay `proposed` with no owner id (their keys are listed in the baseline and checked by a test). That includes the dashboard month labels and the payment reference messages.
+- Nothing else may become approved: a test fails if any other message carries the `approved` status.
+
+| Owner id | Key | Group |
+|---|---|---|
+| `OWN-R1C-001` | `warning.payroll.legacyApproved` | correction |
+| `OWN-R1C-002` | `warning.payroll.generatePerCompanyNote` | correction |
+| `OWN-R1C-003` | `option.payroll.noCompaniesAssigned` | correction |
+| `OWN-R1C-004` | `warning.payroll.reopenPaidSuperAdmin` | correction |
+| `OWN-R1C-005` | `option.payroll.sumHelp` | correction |
+| `OWN-R1C-006` | `confirm.payroll.generateCompanyBody` | correction |
+| `OWN-R1C-007` | `confirm.payroll.generateCompanyReviewedNote` | correction |
+| `OWN-R1C-008` | `confirm.payroll.sectionReviewTitle` | correction |
+| `OWN-R1C-009` | `confirm.payroll.sectionReviewBody` | correction |
+| `OWN-R1C-010` | `warning.payroll.gen.intro` | correction |
+| `OWN-R1C-011` | `warning.payroll.gen.condA` | correction |
+| `OWN-R1C-012` | `warning.payroll.gen.condB` | correction |
+| `OWN-R1C-013` | `warning.payroll.gen.condD` | correction |
+| `OWN-R1C-014` | `warning.payroll.gen.loadFailed` | correction |
+| `OWN-R1C-015` | `notify.error.PAID_COMPANY_REOPEN_SUPER_ADMIN_ONLY` | correction |
+| `OWN-R1C-016` | `notify.error.COMPANY_NOT_ASSIGNED_IN_PERIOD` | correction |
+| `OWN-R1C-017` | `option.hr.companyPayrollHelp` | correction |
+| `OWN-R1C-018` | `nav.outstandingBalances` | correction |
+| `OWN-R1C-019` | `option.deduction.replacesNote` | correction |
+| `OWN-R1C-020` | `option.deduction.replacedByNote` | correction |
+| `OWN-R1C-021` | `option.deduction.deductedSoFar` | correction |
+| `OWN-R1C-022` | `warning.deduction.alreadyApplied` | correction |
+| `OWN-R1C-023` | `action.deduction.correct` | correction |
+| `OWN-R1C-024` | `confirm.deduction.voidAdvanceTitle` | correction |
+| `OWN-R1C-025` | `confirm.deduction.voidBody` | correction |
+| `OWN-R1C-026` | `confirm.deduction.correctPenaltyTitle` | correction |
+| `OWN-R1C-027` | `confirm.deduction.correctAdvanceTitle` | correction |
+| `OWN-R1C-028` | `confirm.deduction.correctBody` | correction |
+| `OWN-R1C-029` | `confirm.deduction.waiveAdvanceTitle` | correction |
+| `OWN-R1C-030` | `confirm.deduction.waiveBody` | correction |
+| `OWN-R1C-031` | `option.deduction.waiveAmountHint` | correction |
+| `OWN-R1C-032` | `notify.deduction.voided` | correction |
+| `OWN-R1C-033` | `notify.deduction.waived` | correction |
+| `OWN-R1C-034` | `notify.deduction.employeeNotActive` | correction |
+| `OWN-R1C-035` | `validation.deduction.amountDecimals` | correction |
+| `OWN-R1C-036` | `validation.deduction.dateFuture` | correction |
+| `OWN-R1C-037` | `confirm.deduction.duplicateBody` | correction |
+| `OWN-R1C-038` | `option.deduction.kindAdvance` | correction |
+| `OWN-R1C-039` | `option.deduction.emptyBody` | correction |
+| `OWN-R1C-040` | `warning.deduction.inputsChangedTitle` | correction |
+| `OWN-R1C-041` | `warning.deduction.inputsChangedBlocking` | correction |
+| `OWN-R1C-042` | `warning.deduction.inputsChangedGenerate` | correction |
+| `OWN-R1C-043` | `status.deduction.notFullyDeducted` | correction |
+| `OWN-R1C-044` | `notify.error.DEDUCTION_CHANGE_FORBIDDEN` | correction |
+| `OWN-R1C-045` | `notify.error.REVERSE_APPLIED_SUPER_ADMIN_ONLY` | correction |
+| `OWN-R1C-046` | `notify.error.RECORD_NOT_ACTIVE` | correction |
+| `OWN-R1C-047` | `notify.error.DEDUCTION_ALREADY_APPLIED` | correction |
+| `OWN-R1C-048` | `notify.error.WAIVE_NOT_APPLICABLE` | correction |
+| `OWN-R1C-049` | `warning.deduction.truncated` | correction |
+| `OWN-R1C-050` | `notify.error.PAYROLL_INPUTS_CHANGED` | correction |
+| `OWN-R1C-051` | `warning.sources.title` | guard message |
+| `OWN-R1C-052` | `warning.sources.blocking` | guard message |
+| `OWN-R1C-053` | `warning.sources.pointer` | guard message |
+| `OWN-R1C-054` | `warning.sources.generate` | guard message |
+| `OWN-R1C-055` | `warning.sources.listTitle` | guard message |
+| `OWN-R1C-056` | `warning.sources.showingFirst` | guard message |
+| `OWN-R1C-057` | `warning.sources.assignment.added` | guard message |
+| `OWN-R1C-058` | `warning.sources.assignment.removed` | guard message |
+| `OWN-R1C-059` | `warning.sources.assignment.changed` | guard message |
+| `OWN-R1C-060` | `warning.sources.salary.added` | guard message |
+| `OWN-R1C-061` | `warning.sources.salary.removed` | guard message |
+| `OWN-R1C-062` | `warning.sources.salary.changed` | guard message |
+| `OWN-R1C-063` | `warning.sources.replacement.added` | guard message |
+| `OWN-R1C-064` | `warning.sources.replacement.removed` | guard message |
+| `OWN-R1C-065` | `warning.sources.replacement.changed` | guard message |
+| `OWN-R1C-066` | `warning.sources.absence.added` | guard message |
+| `OWN-R1C-067` | `warning.sources.absence.removed` | guard message |
+| `OWN-R1C-068` | `warning.sources.absence.changed` | guard message |
+| `OWN-R1C-069` | `option.sources.field.type` | guard message |
+| `OWN-R1C-070` | `option.sources.field.status` | guard message |
+| `OWN-R1C-071` | `option.sources.field.start` | guard message |
+| `OWN-R1C-072` | `option.sources.field.end` | guard message |
+| `OWN-R1C-073` | `option.sources.field.replaces` | guard message |
+| `OWN-R1C-074` | `option.sources.field.amount` | guard message |
+| `OWN-R1C-075` | `option.sources.field.currency` | guard message |
+| `OWN-R1C-076` | `option.sources.field.frequency` | guard message |
+| `OWN-R1C-077` | `option.sources.field.by` | guard message |
+| `OWN-R1C-078` | `option.sources.field.plannedEnd` | guard message |
+| `OWN-R1C-079` | `option.sources.field.approved` | guard message |
+| `OWN-R1C-080` | `option.sources.field.lastWorkingDay` | guard message |
+| `OWN-R1C-081` | `option.sources.field.absentFrom` | guard message |
+| `OWN-R1C-082` | `option.sources.field.returnedOn` | guard message |
+| `OWN-R1C-083` | `option.sources.field.terminatedOn` | guard message |
+| `OWN-R1C-084` | `option.sources.value.ended` | guard message |
+| `OWN-R1C-085` | `option.sources.value.cancelled` | guard message |
+| `OWN-R1C-086` | `notify.error.PAYROLL_SOURCES_CHANGED` | guard message |
+

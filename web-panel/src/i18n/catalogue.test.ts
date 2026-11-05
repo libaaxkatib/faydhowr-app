@@ -44,7 +44,7 @@ test('plural forms come in pairs: every .one has an .other', () => {
 
 test('every owner-approved or owner-supplied message carries its review-list id', () => {
   for (const [key, entry] of entries) {
-    if (entry.review === 'approved' || entry.review === 'owner-term') assert.match(entry.id ?? '', /^(HR-(NAV|STS|STG|ACT|OPT)-\d{3}[a-z]?|OWN-U1-\d{3})$/, `${key}: missing or malformed id`);
+    if (entry.review === 'approved' || entry.review === 'owner-term') assert.match(entry.id ?? '', /^(HR-(NAV|STS|STG|ACT|OPT)-\d{3}[a-z]?|OWN-U1-\d{3}|OWN-R1C-\d{3})$/, `${key}: missing or malformed id`);
   }
 });
 

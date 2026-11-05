@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 import { CATALOGUE } from '../i18n/messages/index.ts';
 import { placeholdersOf } from '../i18n/catalog.ts';
+import { r1cReviewOf } from '../i18n/r1cApprovals.ts';
 import { MONTH_STATUS_LABEL, PAYMENT_STATUS_LABEL, canReconcile, companyPaymentPayload, itemsOfSection, lineIsFinalized, monthDisplayStatus, paymentActions, sectionActions, sectionName, selectedSection } from './payrollSections.ts';
 import type { PayrollItem, PayrollRunSection } from '../types/payroll.ts';
 
@@ -175,7 +176,7 @@ test('the month card is driven by the overview summary, not by the run (HR Relea
   const card = readFileSync(new URL('../features/hrm/MonthSummaryCard.tsx', import.meta.url), 'utf8');
   for (const key of ['option.payroll.sumTitle', 'option.payroll.sumHelp', 'option.payroll.sumPayrollTotal', 'option.payroll.sumPaymentsReceived', 'status.payroll.allCompaniesPaid'] as const) {
     assert.ok(card.includes(key), key);
-    assert.equal(CATALOGUE[key].review, 'proposed', `${key}: the new wording is a proposal`);
+    assert.equal(CATALOGUE[key].review, r1cReviewOf(key), `${key}: approved only if it is one of the 86 owner-approved R1C messages, otherwise still a proposal`);
     assert.notEqual(CATALOGUE[key].en, CATALOGUE[key].so);
   }
   assert.match(panel, /\{overview && <MonthSummaryCard summary=\{overview\.summary\} monthLabel=\{monthLabel\} \/>\}/);

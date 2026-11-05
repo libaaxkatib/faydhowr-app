@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { r1cReviewOf } from '../i18n/r1cApprovals.ts';
 
 import { CATALOGUE } from '../i18n/messages/index.ts';
 import { WARNING_CONDITIONS, WARNING_CONDITION_LABEL, groupWarnings, warningCountOf, warningPerson } from './generationWarnings.ts';
@@ -24,13 +25,13 @@ test('a condition the panel does not know is still shown (under D), never droppe
   assert.equal(groupWarnings([odd, warning('D')])[0].warnings.length, 2);
 });
 
-test('every condition has a heading in both languages, written as a proposal', () => {
+test('every condition has a heading in both languages, with the status the owner gave it (proposals unless one of the 86 approved)', () => {
   assert.deepEqual(WARNING_CONDITIONS, ['A', 'B', 'C', 'D']);
   for (const condition of WARNING_CONDITIONS) {
     const entry = CATALOGUE[WARNING_CONDITION_LABEL[condition]];
     assert.ok(entry.en.trim() && entry.so.trim(), condition);
     assert.notEqual(entry.en, entry.so, condition);
-    assert.equal(entry.review, 'proposed', condition);
+    assert.equal(entry.review, r1cReviewOf(WARNING_CONDITION_LABEL[condition]), condition);
   }
 });
 

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { r1cReviewOf } from '../i18n/r1cApprovals.ts';
 import { readdirSync, readFileSync } from 'node:fs';
 
 import { placeholdersOf } from '../i18n/catalog.ts';
@@ -20,12 +21,12 @@ function sourceTexts(directory: URL): string[] {
   });
 }
 
-test('the Release 1B messages are registered as one area, every one a proposal with English and a different Somali text', () => {
+test('the Release 1B messages are registered as one area, every one with English and a different Somali text and the status the owner gave it (86 approved on 2026-11-05, the rest proposals)', () => {
   assert.ok(AREAS.payrollRelease1b === payrollRelease1b);
   assert.ok(KEYS.length >= 80);
   for (const key of KEYS) {
     const entry = CATALOGUE[key];
-    assert.equal(entry.review, 'proposed', `${key} is a proposal, not owner-approved`);
+    assert.equal(entry.review, r1cReviewOf(key), `${key}: approved only if it is one of the 86, otherwise still a proposal`);
     assert.ok(entry.en.trim() !== '' && entry.so.trim() !== '', `${key} has both languages`);
     assert.notEqual(entry.so, entry.en, `${key}: Somali differs from English`);
     assert.deepEqual(placeholdersOf(entry.so), placeholdersOf(entry.en), `${key}: the same {placeholders} in both languages`);

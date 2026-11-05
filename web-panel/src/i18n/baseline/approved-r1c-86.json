@@ -1,0 +1,702 @@
+{
+  "decision": "Owner approval of 2026-11-05: exactly these 86 Somali texts are approved (50 corrections listed in docs/HR_SOMALI_CORRECTIONS_20261105.md + 36 R1C Freshness Guard messages of payrollRelease1c.ts). The 161 locked messages and the other 90 proposals are NOT part of it.",
+  "count": 86,
+  "corrected": 50,
+  "guard": 36,
+  "messages": [
+    {
+      "key": "warning.payroll.legacyApproved",
+      "id": "OWN-R1C-001",
+      "en": "Locked from an earlier version of the system. Finalize it before it can be paid.",
+      "so": "Nooc hore oo nidaamka ah ayaa xidhay mushaharkan. Waa in la dhammaystiraa ka hor inta aan la bixin.",
+      "soSha256": "3cbfda5832069760ba3d16e641bd1bb52c8c162edccfb9a87fb76fd985cdcab7"
+    },
+    {
+      "key": "warning.payroll.generatePerCompanyNote",
+      "id": "OWN-R1C-002",
+      "en": "Payroll is generated one company at a time from the list below. Generating a company changes only that company and pays nothing.",
+      "so": "Mushaharka waxaa la sameeyaa shirkad shirkad, laga bilaabo liiska hoose. Samaynta mushaharka shirkad waxay beddelaysaa shirkaddaas oo keliya, waxna lama bixinayo.",
+      "soSha256": "7b4c658574563d41067a9e2ab85beaba7e85f53d6de6faf838e01b6f75b85281"
+    },
+    {
+      "key": "option.payroll.noCompaniesAssigned",
+      "id": "OWN-R1C-003",
+      "en": "No company is assigned in this month.",
+      "so": "Bishan shirkad lama qoondeyn.",
+      "soSha256": "44ff8f56a681c4c3c9a1476f8909194a0747dadd5017a77a6ce98ee4681781e5"
+    },
+    {
+      "key": "warning.payroll.reopenPaidSuperAdmin",
+      "id": "OWN-R1C-004",
+      "en": "This company has recorded payments. Only a Super Admin can reopen it; an HR Manager should use a Payroll Correction.",
+      "so": "Shirkaddan lacag-bixinno ayaa lagu diiwaangeliyey. Super Admin keliya ayaa dib u furi kara; HR Manager waa inuu isticmaalaa Sixitaan Mushahar.",
+      "soSha256": "4917f3a5c7860bb61f3b0fce59bcb94b314a759a0529d6afc01489624796ac98"
+    },
+    {
+      "key": "option.payroll.sumHelp",
+      "id": "OWN-R1C-005",
+      "en": "Counts and totals cover the companies assigned in this month. The money figures include only companies that have been generated.",
+      "so": "Tirooyinka iyo wadarta waxay ku salaysan yihiin shirkadaha bishan loo qoondeeyey. Tirooyinka lacagta ah waxaa ku jira shirkadaha la sameeyey oo keliya.",
+      "soSha256": "acb6593c1ba7e2c71e46acbd40e97c0276de3c1979d7176142e516a2497807e8"
+    },
+    {
+      "key": "confirm.payroll.generateCompanyBody",
+      "id": "OWN-R1C-006",
+      "en": "Only {name} is generated for {month}. No other company is changed and nothing is paid.",
+      "so": "Waxaa la samaynayaa mushaharka {name} ee {month} oo keliya. Shirkad kale lama beddelayo, waxna lama bixinayo.",
+      "soSha256": "dc62ac02944b80ac2633997ed3f9f586373b0233c72c6d80a12d4e6be82a4d7b"
+    },
+    {
+      "key": "confirm.payroll.generateCompanyReviewedNote",
+      "id": "OWN-R1C-007",
+      "en": "This company is Reviewed. Generating it again resets its review to Draft, and it must be reviewed again.",
+      "so": "Shirkaddan waa la dib u eegay. Haddii mar kale la sameeyo, dib-u-eegistu waxay ku noqonaysaa Qabyo, waana in mar kale dib loo eegaa.",
+      "soSha256": "b127d153d4baa2b5dc02c8d7c255b4636ba0a63b6f7c90558648219376a1b6ea"
+    },
+    {
+      "key": "confirm.payroll.sectionReviewTitle",
+      "id": "OWN-R1C-008",
+      "en": "Mark {name} as reviewed",
+      "so": "Calaamadi {name} in dib loo eegay",
+      "soSha256": "f4637c22178332890686bb3390792b86ebbc2ac3d3089883380ac1dce29f451a"
+    },
+    {
+      "key": "confirm.payroll.sectionReviewBody",
+      "id": "OWN-R1C-009",
+      "en": "Mark the payroll of {name} for {month} as reviewed. Other companies are not changed.",
+      "so": "Calaamadi mushaharka {name} ee {month} in dib loo eegay. Shirkadaha kale lama beddelayo.",
+      "soSha256": "3577717932ed22972ea08f6de6b781472643192a5bd9fae668fb697a92cd268c"
+    },
+    {
+      "key": "warning.payroll.gen.intro",
+      "id": "OWN-R1C-010",
+      "en": "These warnings do not stop you. They show what is still unresolved for this company.",
+      "so": "Digniinahan kuma joojinayaan. Waxay muujinayaan wixii weli aan la xallin ee shirkaddan.",
+      "soSha256": "98a01b85b9de7f6c1510f39c78dbbc43d0ba4a29c381d70921110c4a0a98b035"
+    },
+    {
+      "key": "warning.payroll.gen.condA",
+      "id": "OWN-R1C-011",
+      "en": "Temporary worker registered as a Replacement",
+      "so": "Shaqaale ku-meel-gaar ah oo loo diiwaangeliyey sidii Beddelaad",
+      "soSha256": "dc0868907756ecdd7dc445100b63dff166062ff52be9540bfaf752d4c50bffd6"
+    },
+    {
+      "key": "warning.payroll.gen.condB",
+      "id": "OWN-R1C-012",
+      "en": "Temporary cover with unverified workdays",
+      "so": "Beddelaad ku-meel-gaar ah oo maalmo shaqo aan la hubin leh",
+      "soSha256": "436877cce5cf4fb1057b52c4fb61b040ee8b3126c6764eb706a87979522a3c08"
+    },
+    {
+      "key": "warning.payroll.gen.condD",
+      "id": "OWN-R1C-013",
+      "en": "Temporary payroll calculation warning",
+      "so": "Digniin ku saabsan xisaabinta mushaharka ku-meel-gaarka",
+      "soSha256": "e7f4ca8d6b41c1f67e598b9c02391f5cb691479edd2c7ce69c2f4d3aa71d964c"
+    },
+    {
+      "key": "warning.payroll.gen.loadFailed",
+      "id": "OWN-R1C-014",
+      "en": "Could not check for warnings. You can still continue.",
+      "so": "Lama hubin karin digniinaha. Weli waad sii wadi kartaa.",
+      "soSha256": "e22d4d4e1cbe823f5a4d013a3e61a5077977c0452eba884bab9a3546659460bd"
+    },
+    {
+      "key": "notify.error.PAID_COMPANY_REOPEN_SUPER_ADMIN_ONLY",
+      "id": "OWN-R1C-015",
+      "en": "This company has recorded payments, so only a Super Admin can reopen it. An HR Manager should use a Payroll Correction. Nothing was changed.",
+      "so": "Shirkaddan lacag-bixinno ayaa lagu diiwaangeliyey, sidaas darteed Super Admin keliya ayaa dib u furi kara. HR Manager waa inuu isticmaalaa Sixitaan Mushahar. Waxba lama beddelin.",
+      "soSha256": "f4e0f1ecf833d7ca7bac0c095f1101288516cc5671029bed0d18e2f2a3fafd86"
+    },
+    {
+      "key": "notify.error.COMPANY_NOT_ASSIGNED_IN_PERIOD",
+      "id": "OWN-R1C-016",
+      "en": "This company has no assignment in this month, so there is nothing to generate. Nothing was changed.",
+      "so": "Shirkaddan bishan qoondayn kuma laha, sidaas darteed wax la sameeyo ma jiro. Waxba lama beddelin.",
+      "soSha256": "00be53decbd802b43054ec4967e9bc5806ab0e9cb07fe6f062e2ac134e99bd0f"
+    },
+    {
+      "key": "option.hr.companyPayrollHelp",
+      "id": "OWN-R1C-017",
+      "en": "Company payroll for the chosen month. The money figures include only companies that have been generated.",
+      "so": "Mushaharka shirkadaha bisha la doortay. Tirooyinka lacagta ah waxaa ku jira shirkadaha la sameeyey oo keliya.",
+      "soSha256": "67c8197517aac2e592323239d607d4afb56162224f3919f54a7ea0fefff779b8"
+    },
+    {
+      "key": "nav.outstandingBalances",
+      "id": "OWN-R1C-018",
+      "en": "Outstanding Balances",
+      "so": "Haraagyada Lagu Leeyahay",
+      "soSha256": "91cef7c4c93a5c0632c6c791a5cbf3bb74f45f165339c7e796ed9ab5c2b38863"
+    },
+    {
+      "key": "option.deduction.replacesNote",
+      "id": "OWN-R1C-019",
+      "en": "Corrected version of record #{id}.",
+      "so": "Nuqulka la saxay ee diiwaanka #{id}.",
+      "soSha256": "8b8972e925bbcc668c158b846f351cb1010eca805ccf604c0b5c4cfd7d39066a"
+    },
+    {
+      "key": "option.deduction.replacedByNote",
+      "id": "OWN-R1C-020",
+      "en": "Replaced by the corrected record #{id}.",
+      "so": "Waxaa lagu beddelay diiwaanka la saxay #{id}.",
+      "soSha256": "b2315bc7d3bd8659a09c17075a68bb22c8cd6f566f6d483b8671c62df797d163"
+    },
+    {
+      "key": "option.deduction.deductedSoFar",
+      "id": "OWN-R1C-021",
+      "en": "Deducted so far",
+      "so": "Ilaa hadda la jaray",
+      "soSha256": "68811572ad849be5ca67c25b99e5ac6c6d8b9c532847fafb11845a9506831515"
+    },
+    {
+      "key": "warning.deduction.alreadyApplied",
+      "id": "OWN-R1C-022",
+      "en": "A finalized payroll already deducted part of this. To change it, reopen that company's payroll, or ask a Super Admin to waive what is still owed.",
+      "so": "Mushahar la dhammaystiray ayaa hore qayb ka mid ah uga jaray. Si aad wax u beddesho, dib u fur mushaharka shirkaddaas, ama weydiiso Super Admin inuu cafiyo wixii weli lagu leeyahay.",
+      "soSha256": "546cab8194ac66801890609356a58d9f7031cbe7b049b1b7c972190e1e92e438"
+    },
+    {
+      "key": "action.deduction.correct",
+      "id": "OWN-R1C-023",
+      "en": "Correct",
+      "so": "Saxo",
+      "soSha256": "83f2d7f0732d65aa69c3804ab3a78b3a1f0de2ef70901837a6abce5ff6f4a23c"
+    },
+    {
+      "key": "confirm.deduction.voidAdvanceTitle",
+      "id": "OWN-R1C-024",
+      "en": "Void this advance",
+      "so": "Ka noqo lacag hormaristan",
+      "soSha256": "7cb9665e177ad57712122bc5a842b56eaf90c175b54a2c6da17a38f508bee70d"
+    },
+    {
+      "key": "confirm.deduction.voidBody",
+      "id": "OWN-R1C-025",
+      "en": "The record stays in the history, marked Voided, and is no longer counted in payroll.",
+      "so": "Diiwaanku wuxuu ku hadhayaa taariikhda isagoo lagu calaamadeeyey La buriyey, mushaharkana lagama xisaabiyo.",
+      "soSha256": "e78735c4a3e4efdea7fd97101fb153c93da40aa25074700562f89483e9e64b41"
+    },
+    {
+      "key": "confirm.deduction.correctPenaltyTitle",
+      "id": "OWN-R1C-026",
+      "en": "Correct this penalty",
+      "so": "Saxo ganaaxan",
+      "soSha256": "c38a4e8c7b0a66936b85bc0bf888736313453902986dc5889fe48e87c65a2345"
+    },
+    {
+      "key": "confirm.deduction.correctAdvanceTitle",
+      "id": "OWN-R1C-027",
+      "en": "Correct this advance",
+      "so": "Saxo lacag hormaristan",
+      "soSha256": "0638432f1ae5c497e7cc53a508e5dbc750b9cbfcfaaba74eaab90510bbc4bf46"
+    },
+    {
+      "key": "confirm.deduction.correctBody",
+      "id": "OWN-R1C-028",
+      "en": "The old record is voided and the corrected one replaces it. Change only what is wrong.",
+      "so": "Diiwaanka hore waa la burinayaa, kan la saxayna wuu beddelayaa. Beddel waxa khaldan oo keliya.",
+      "soSha256": "b0f4799c8e1f0fca65b63352a972df6fea2ed541d561e1b8af2f3c4d16564391"
+    },
+    {
+      "key": "confirm.deduction.waiveAdvanceTitle",
+      "id": "OWN-R1C-029",
+      "en": "Waive the balance of this advance",
+      "so": "Ka cafi haraaga lacag hormaristan",
+      "soSha256": "09c20f75fa10c7648ea1df170efe3765ca51e9518fa644a79679f38c290e5398"
+    },
+    {
+      "key": "confirm.deduction.waiveBody",
+      "id": "OWN-R1C-030",
+      "en": "Only a Super Admin can do this. What payroll already deducted stays as it is; the amount you waive is no longer taken from future pay. Still owed: {owed}.",
+      "so": "Super Admin keliya ayaa tan samayn kara. Wixii mushaharku hore u jaray isma beddelayo; qadarka aad cafiso mushahar dambe lagama jarayo. Weli lagu leeyahay: {owed}.",
+      "soSha256": "9b5a5ebc8d3d37bd1104c4fae28ec3bb7295bf164452c0808e9d4661fc6d5a0a"
+    },
+    {
+      "key": "option.deduction.waiveAmountHint",
+      "id": "OWN-R1C-031",
+      "en": "Leave empty to waive everything still owed.",
+      "so": "Ka daa madhan si aad u cafiso wax kasta oo weli lagu leeyahay.",
+      "soSha256": "7242f2caf8773c70109514f3b0338a76dd7d3afee4699967eca6848be272fed8"
+    },
+    {
+      "key": "notify.deduction.voided",
+      "id": "OWN-R1C-032",
+      "en": "Voided. It stays in the history and is no longer counted.",
+      "so": "La buriyey. Waxay ku hadhay taariikhda, mana la xisaabinayo.",
+      "soSha256": "4fdd15a85c999ae401aad463c896866aa4b159af926324aaf9719fca2b41fe5a"
+    },
+    {
+      "key": "notify.deduction.waived",
+      "id": "OWN-R1C-033",
+      "en": "The balance was waived. What was already deducted is unchanged.",
+      "so": "Haraaga waa la cafiyey. Wixii hore loo jaray isma beddelin.",
+      "soSha256": "0b4ddead94697c5c67658e8c7aa6df03204c201b6035315ce924038194f2927f"
+    },
+    {
+      "key": "notify.deduction.employeeNotActive",
+      "id": "OWN-R1C-034",
+      "en": "This employee is no longer Active and had no assignment in that month, so nothing can be recorded for that month. Choose a month the employee was assigned in. Nothing was changed.",
+      "so": "Shaqaalahan mar dambe ma shaqeynayo, bishaas qoondayn shaqo ma lahayn, sidaas darteed bishaas waxba lagu diiwaangelin karin. Dooro bil uu shaqaaluhu qoondayn shaqo ku lahaa. Waxba lama beddelin.",
+      "soSha256": "1b90758f61ad02d13e031466e5bc1f3fbd93806dda1909616fdc3a46b43b5044"
+    },
+    {
+      "key": "validation.deduction.amountDecimals",
+      "id": "OWN-R1C-035",
+      "en": "Use at most 2 decimals, for example 25.50.",
+      "so": "Isticmaal ugu badnaan 2 lambar oo jajab ah, tusaale ahaan 25.50.",
+      "soSha256": "a62bb74ec9c68f974570fc21aa0658b6f95c3ca3f093ed417bf5d17ca58b2ccc"
+    },
+    {
+      "key": "validation.deduction.dateFuture",
+      "id": "OWN-R1C-036",
+      "en": "The date cannot be in the future.",
+      "so": "Taariikhdu ma noqon karto mid ka dambeysa maanta.",
+      "soSha256": "4934fd05786fa17ba9997f65ad6edfad61bff9dd7e52ed8294331e4808b51080"
+    },
+    {
+      "key": "confirm.deduction.duplicateBody",
+      "id": "OWN-R1C-037",
+      "en": "An identical record already exists. Record it again anyway?",
+      "so": "Diiwaan isku mid ah ayaa hore u jira. Ma doonaysaa inaad si kastaba mar kale u diiwaangeliso?",
+      "soSha256": "479b6f8a9358066983090cb63c0c143b82829d8045cac0d59673d0c1e3e935b3"
+    },
+    {
+      "key": "option.deduction.kindAdvance",
+      "id": "OWN-R1C-038",
+      "en": "Salary advance",
+      "so": "Lacag hormaris",
+      "soSha256": "f3402cb4fdbbaae6391ee094dc886fc2c45642f1425f2b526004107b819ca8b7"
+    },
+    {
+      "key": "option.deduction.emptyBody",
+      "id": "OWN-R1C-039",
+      "en": "Payroll deducted everything it could. No penalty or advance has a balance left.",
+      "so": "Mushaharku wuxuu jaray wixii uu awoodi karay oo dhan. Ganaax ama lacag hormaris haraag ma leh.",
+      "soSha256": "6db1d5cbe343f7e3a492598fa39c3c3f78e3491fd0e2a48cf67c794401a8f71c"
+    },
+    {
+      "key": "warning.deduction.inputsChangedTitle",
+      "id": "OWN-R1C-040",
+      "en": "Penalties or advances changed since this company was generated",
+      "so": "Ganaax ama lacag hormaris ayaa isbeddelay tan iyo markii shirkaddan la sameeyey",
+      "soSha256": "5f2eae5594cf978ef7d97135c648ac5599089f0de34afbd9f0d60b20ea2fa5e6"
+    },
+    {
+      "key": "warning.deduction.inputsChangedBlocking",
+      "id": "OWN-R1C-041",
+      "en": "A penalty or an advance of this company was registered, corrected, voided or waived after its payroll was generated, so the lines no longer match. Review and Finalize are refused until this company is generated again.",
+      "so": "Ganaax ama lacag hormaris shirkaddan ah ayaa la diiwaangeliyey, la saxay, la buriyey ama la cafiyey kadib markii mushaharkeedii la sameeyey, sidaas darteed safafku isma waafaqaan. Dib-u-eegista iyo Dhammaystirka waa la diidayaa ilaa shirkaddan mar kale la sameeyo.",
+      "soSha256": "32d79b822c906bca1f3d24d66dc36fdf20d25472ac69f523a514c5a9a2a0f507"
+    },
+    {
+      "key": "warning.deduction.inputsChangedGenerate",
+      "id": "OWN-R1C-042",
+      "en": "Penalties or advances of this company changed since its last Generate. Generating now brings them into the payroll.",
+      "so": "Ganaax ama lacag hormaris shirkaddan ah ayaa isbeddelay tan iyo samayntii ugu dambeysay. Haddii hadda la sameeyo, waxay soo gelayaan mushaharka.",
+      "soSha256": "4a3c64e2c59560054befdcd8e54ce0c890fc3215a88245207d4e14d1ed64d5fc"
+    },
+    {
+      "key": "status.deduction.notFullyDeducted",
+      "id": "OWN-R1C-043",
+      "en": "Not fully deducted this month",
+      "so": "Gebi ahaanba lama jarin bishan",
+      "soSha256": "e76ce3e1c668232df54fa81a80488fdd582c0ed16f2a3e43003e5fc8a49edd84"
+    },
+    {
+      "key": "notify.error.DEDUCTION_CHANGE_FORBIDDEN",
+      "id": "OWN-R1C-044",
+      "en": "Only an HR Manager or a Super Admin can void or correct a penalty or an advance. Nothing was changed.",
+      "so": "HR Manager ama Super Admin keliya ayaa ka noqon ama saxi kara ganaax ama lacag hormaris. Waxba lama beddelin.",
+      "soSha256": "75386955adc9ce70fc436bae16ff95acae45e8bf17f37c2b61b1eabec70e29b5"
+    },
+    {
+      "key": "notify.error.REVERSE_APPLIED_SUPER_ADMIN_ONLY",
+      "id": "OWN-R1C-045",
+      "en": "This was deducted in a company payroll that was finalized and then reopened, so only a Super Admin can reverse it. Nothing was changed.",
+      "so": "Tan waxaa laga jaray mushahar shirkad oo la dhammaystiray kadibna dib loo furay, sidaas darteed Super Admin keliya ayaa dib u rogi kara. Waxba lama beddelin.",
+      "soSha256": "c2a5bfd866fdccdd026d1a6d15c85d2130fabc97a69275da5f99781362f8ed7d"
+    },
+    {
+      "key": "notify.error.RECORD_NOT_ACTIVE",
+      "id": "OWN-R1C-046",
+      "en": "This record is already voided; nothing more can be done with it. Nothing was changed.",
+      "so": "Diiwaankan hore ayaa la buriyey; wax dheeraad ah lagu samayn karo ma jiro. Waxba lama beddelin.",
+      "soSha256": "bb911d66caf09c89ba52660ef5bd16bf5aa83e6e6002eaeabe41caa031c5e86f"
+    },
+    {
+      "key": "notify.error.DEDUCTION_ALREADY_APPLIED",
+      "id": "OWN-R1C-047",
+      "en": "A finalized company payroll already deducted part of this, so it cannot be changed in place. Reopen that company's payroll, or ask a Super Admin to waive what is still owed. Nothing was changed.",
+      "so": "Mushahar shirkad oo la dhammaystiray ayaa hore qayb ka mid ah uga jaray, sidaas darteed si toos ah looma beddeli karo. Dib u fur mushaharka shirkaddaas, ama weydiiso Super Admin inuu cafiyo wixii weli lagu leeyahay. Waxba lama beddelin.",
+      "soSha256": "6016c7383e80bc8131d4ea07e8c42790b6e880fc48d1e6cbaa700e232144de02"
+    },
+    {
+      "key": "notify.error.WAIVE_NOT_APPLICABLE",
+      "id": "OWN-R1C-048",
+      "en": "There is no balance to waive: either nothing was deducted yet (void the record instead) or it was deducted in full. Nothing was changed.",
+      "so": "Haraag la cafiyo ma jiro: ama weli waxba lama jarin (diiwaanka ka noqo), ama gebi ahaanba waa la jaray. Waxba lama beddelin.",
+      "soSha256": "aebd9dc508c137180031b030b4d9a99a620aeb3e1eaa680f78859fa87b544bd1"
+    },
+    {
+      "key": "warning.deduction.truncated",
+      "id": "OWN-R1C-049",
+      "en": "There are too many records to examine at once, so some are not listed here. Choose a company or a kind to narrow the list and see the rest.",
+      "so": "Diiwaannadu aad bay u badan yihiin in mar keliya la baaro, sidaas darteed qaar halkan lagama soo bandhigin. Dooro shirkad ama nooc si aad liiska u yaraysid oo aad inta kale u aragto.",
+      "soSha256": "b06cad6330030531c9a5ed02870b95e1e44f6097d812b6e19a20de43cf6be926"
+    },
+    {
+      "key": "notify.error.PAYROLL_INPUTS_CHANGED",
+      "id": "OWN-R1C-050",
+      "en": "A penalty or an advance of this company changed after its payroll was generated, so the lines no longer match. Generate this company again, then review and finalize it. Nothing was changed.",
+      "so": "Ganaax ama lacag hormaris shirkaddan ah ayaa isbeddelay kadib markii mushaharkeedii la sameeyey, sidaas darteed safafku isma waafaqaan. Mar kale samee shirkaddan, kadibna dib u eeg oo dhammaystir. Waxba lama beddelin.",
+      "soSha256": "9290e287b8c4734c3439e347ac8cf1ed152e36e955e60b1ec8d3a961bd6f1f12"
+    },
+    {
+      "key": "warning.sources.title",
+      "id": "OWN-R1C-051",
+      "en": "The assignments, salaries or Temporary covers of this company changed since it was generated",
+      "so": "Qoondaynaha, mushaharyada ama Beddelaadyada Ku-meel-gaarka ah ee shirkaddan ayaa isbeddelay tan iyo markii la sameeyey",
+      "soSha256": "1f3ae64dc7b3469e3e6a6bb126053e027b9feb0684c04e762ee0848650df5079"
+    },
+    {
+      "key": "warning.sources.blocking",
+      "id": "OWN-R1C-052",
+      "en": "Review and Finalize are refused until this company is generated again; nothing was changed.",
+      "so": "Dib-u-eegista iyo Dhammaystirka waa la diidayaa ilaa shirkaddan mar kale la sameeyo; waxba lama beddelin.",
+      "soSha256": "3ebc571238923fd741de0934f2a98edbf941cf0b2774c7bddf9519d5316470b3"
+    },
+    {
+      "key": "warning.sources.pointer",
+      "id": "OWN-R1C-053",
+      "en": "Generate this company again from the company list (\"{action}\"), then review and finalize it.",
+      "so": "Mar kale samee shirkaddan liiska shirkadaha (\"{action}\"), kadibna dib u eeg oo dhammaystir.",
+      "soSha256": "8cbad176b16728dc6e5b60563693f1bd7ff7666356c2f3a0a7c894202d0c3a38"
+    },
+    {
+      "key": "warning.sources.generate",
+      "id": "OWN-R1C-054",
+      "en": "The assignments, salaries or Temporary covers of this company changed since its last Generate. Generating now brings these changes into the payroll.",
+      "so": "Qoondaynaha, mushaharyada ama Beddelaadyada Ku-meel-gaarka ah ee shirkaddan ayaa isbeddelay tan iyo samayntii ugu dambeysay. Haddii hadda la sameeyo, isbeddeladan waxay soo gelayaan mushaharka.",
+      "soSha256": "e54750df84c27007c8ba4ca5d0bdade272ffeee7ebafb2a9e2fac4b2a8375222"
+    },
+    {
+      "key": "warning.sources.listTitle",
+      "id": "OWN-R1C-055",
+      "en": "What changed",
+      "so": "Waxa isbeddelay",
+      "soSha256": "1db83c71fc24cb49b3f9e1358ff37177eebecf7fd2012d1f29a1ca902341720b"
+    },
+    {
+      "key": "warning.sources.showingFirst",
+      "id": "OWN-R1C-056",
+      "en": "Showing the first {shown} of {total} changes.",
+      "so": "Waxaa la muujinayaa {shown} ugu horreeya ee {total} isbeddel ah.",
+      "soSha256": "4220a904f21c5c2f6f3cb91902280e78b0aa2810abec530f80b9d07468e1ca3a"
+    },
+    {
+      "key": "warning.sources.assignment.added",
+      "id": "OWN-R1C-057",
+      "en": "Assignment added: employee {employee}, assignment #{id}",
+      "so": "Qoondayn lagu daray: shaqaale {employee}, qoondayn #{id}",
+      "soSha256": "ed2daafd5acb08fcda3622b25f79edf3e20d6797e48604b276c909899fc82b12"
+    },
+    {
+      "key": "warning.sources.assignment.removed",
+      "id": "OWN-R1C-058",
+      "en": "Assignment no longer counts for this company: employee {employee}, assignment #{id}",
+      "so": "Qoondayn aan mar dambe shirkaddan ka tirsanayn: shaqaale {employee}, qoondayn #{id}",
+      "soSha256": "c52ad573dfd83c4e76a40619f69cfe29c58ad818669f7d4a59468ba9bbb78415"
+    },
+    {
+      "key": "warning.sources.assignment.changed",
+      "id": "OWN-R1C-059",
+      "en": "Assignment changed: employee {employee}, assignment #{id}",
+      "so": "Qoondayn la beddelay: shaqaale {employee}, qoondayn #{id}",
+      "soSha256": "6b9a9c6566dd858af8cc439b1e561c4fb1b2d22735be204b7f798f3e339dd21c"
+    },
+    {
+      "key": "warning.sources.salary.added",
+      "id": "OWN-R1C-060",
+      "en": "Salary record added: employee {employee}, effective {date}",
+      "so": "Diiwaan mushahar oo lagu daray: shaqaale {employee}, ka bilaabma {date}",
+      "soSha256": "1a9e469725e5370a50e29ea708c7bb989ad05ffba1b50616c019e701ed2cf4e8"
+    },
+    {
+      "key": "warning.sources.salary.removed",
+      "id": "OWN-R1C-061",
+      "en": "Salary record removed: employee {employee}, effective {date}",
+      "so": "Diiwaan mushahar oo laga saaray: shaqaale {employee}, ka bilaabma {date}",
+      "soSha256": "ad83dfe81ca9096ad1677ec9251908ecc3e5871d6829083a377fbade2fdba08e"
+    },
+    {
+      "key": "warning.sources.salary.changed",
+      "id": "OWN-R1C-062",
+      "en": "Salary record changed: employee {employee}, effective {date}",
+      "so": "Diiwaan mushahar oo la beddelay: shaqaale {employee}, ka bilaabma {date}",
+      "soSha256": "ece50052b43c33d5d3762b31689c80f97ba7c8b6cee0832405de92749b676cae"
+    },
+    {
+      "key": "warning.sources.replacement.added",
+      "id": "OWN-R1C-063",
+      "en": "Temporary Replacement added: #{id}, {worker} covers employee {employee}",
+      "so": "Beddelaad Ku-meel-gaar ah oo lagu daray: #{id}, {worker} ayaa beddelaya shaqaale {employee}",
+      "soSha256": "00328e7dd2e39c214ed2950115bc6d7b63fb2050b915a7f4b1154d96d7ca8f15"
+    },
+    {
+      "key": "warning.sources.replacement.removed",
+      "id": "OWN-R1C-064",
+      "en": "Temporary Replacement removed: #{id}, {worker} covered employee {employee}",
+      "so": "Beddelaad Ku-meel-gaar ah oo laga saaray: #{id}, {worker} ayaa beddelayay shaqaale {employee}",
+      "soSha256": "9492c57919c7fdc54f76c5fc6935a64a16a12e4d9a3b320887e122bff3566b6f"
+    },
+    {
+      "key": "warning.sources.replacement.changed",
+      "id": "OWN-R1C-065",
+      "en": "Temporary Replacement changed: #{id}, {worker} covers employee {employee}",
+      "so": "Beddelaad Ku-meel-gaar ah oo la beddelay: #{id}, {worker} ayaa beddelaya shaqaale {employee}",
+      "soSha256": "137425805f3143eef28ad8c3bb72bb1380f0d47bf7931ffeaf3c67c14938ff17"
+    },
+    {
+      "key": "warning.sources.absence.added",
+      "id": "OWN-R1C-066",
+      "en": "Absence added: employee {employee}, assignment #{assignment}",
+      "so": "Maqnaansho lagu daray: shaqaale {employee}, qoondayn #{assignment}",
+      "soSha256": "edda458376a2b16af84f29809d6f6bc9b27e01b2ac947a3e5168c7949ae8583d"
+    },
+    {
+      "key": "warning.sources.absence.removed",
+      "id": "OWN-R1C-067",
+      "en": "Absence removed: employee {employee}, assignment #{assignment}",
+      "so": "Maqnaansho laga saaray: shaqaale {employee}, qoondayn #{assignment}",
+      "soSha256": "81e3cdfe2b43dac82d575e53932a63d69da3be0c0d033ca34f0fac24686917c9"
+    },
+    {
+      "key": "warning.sources.absence.changed",
+      "id": "OWN-R1C-068",
+      "en": "Absence changed: employee {employee}, assignment #{assignment}",
+      "so": "Maqnaansho la beddelay: shaqaale {employee}, qoondayn #{assignment}",
+      "soSha256": "1a1da8d53120c94e6c0eee42a82be5b86a028e380b94902f3db962c34fd1e491"
+    },
+    {
+      "key": "option.sources.field.type",
+      "id": "OWN-R1C-069",
+      "en": "Type",
+      "so": "Nooca",
+      "soSha256": "f6578e1a8fef9acdc7081d3a1ae4216330b56443139fbe8dc2e2a9efd7127f8f"
+    },
+    {
+      "key": "option.sources.field.status",
+      "id": "OWN-R1C-070",
+      "en": "Status",
+      "so": "Xaaladda",
+      "soSha256": "64dee985905c8805e500057ba24dd19db9c22e886e0406d129857e337aab81eb"
+    },
+    {
+      "key": "option.sources.field.start",
+      "id": "OWN-R1C-071",
+      "en": "Start date",
+      "so": "Taariikhda bilowga",
+      "soSha256": "0819a0fad7e582cb4a1dde04841e6f1f779ce48a3cfc0e9438d78c28ee5289ee"
+    },
+    {
+      "key": "option.sources.field.end",
+      "id": "OWN-R1C-072",
+      "en": "End date",
+      "so": "Taariikhda dhammaadka",
+      "soSha256": "bee9dcde679ce8ac847574b44ea6724bca5b15f8c20a8a116df7a849a24ad4c2"
+    },
+    {
+      "key": "option.sources.field.replaces",
+      "id": "OWN-R1C-073",
+      "en": "Replaces assignment",
+      "so": "Waxay beddelaysaa qoondayn",
+      "soSha256": "a9b7b4fbe5c1d56450ff57b18f71bcb4298886d789f87caa8a60984d2356210b"
+    },
+    {
+      "key": "option.sources.field.amount",
+      "id": "OWN-R1C-074",
+      "en": "Amount",
+      "so": "Qadarka",
+      "soSha256": "6fdb0c171636613482b3bdc9cce8a1dcb29268ccd454e4673daee347dcaf62ca"
+    },
+    {
+      "key": "option.sources.field.currency",
+      "id": "OWN-R1C-075",
+      "en": "Currency",
+      "so": "Lacagta",
+      "soSha256": "a2fd016a26a288aeb906666e68ce378ce765e196753ece7a5958775361a03941"
+    },
+    {
+      "key": "option.sources.field.frequency",
+      "id": "OWN-R1C-076",
+      "en": "Pay frequency",
+      "so": "Inta jeer ee lagu bixiyo",
+      "soSha256": "00cecf165fd66157bd27a870d81626ab6c9759eeaad8b907fcb0fc0892a90e86"
+    },
+    {
+      "key": "option.sources.field.by",
+      "id": "OWN-R1C-077",
+      "en": "Covering employee",
+      "so": "Shaqaalaha beddelaya",
+      "soSha256": "57bef704a7af221fb82ca197e45a69f341ccce05bdb88ab0c188df395c0c6d4a"
+    },
+    {
+      "key": "option.sources.field.plannedEnd",
+      "id": "OWN-R1C-078",
+      "en": "Planned end date",
+      "so": "Taariikhda dhammaadka ee la qorsheeyey",
+      "soSha256": "fdb7f3a93318a51e553a45d8866847c2cf6c247d1927b595b16b28c25ab10b69"
+    },
+    {
+      "key": "option.sources.field.approved",
+      "id": "OWN-R1C-079",
+      "en": "Cost approved",
+      "so": "Kharashka waa la ansixiyey",
+      "soSha256": "2dba23ea8767f10f0c5ac9e7f7b781f2c7fcce9a03d3ee09cf690af24e36d548"
+    },
+    {
+      "key": "option.sources.field.lastWorkingDay",
+      "id": "OWN-R1C-080",
+      "en": "Last working day",
+      "so": "Maalinta ugu dambeysay ee shaqada",
+      "soSha256": "0b9e73c5fce0c47449cb62fc809fc65d14423891a4bf439198ef7846b5704e6d"
+    },
+    {
+      "key": "option.sources.field.absentFrom",
+      "id": "OWN-R1C-081",
+      "en": "Absent from",
+      "so": "Maqan laga bilaabo",
+      "soSha256": "755b134dfacb6edb22003070d80357b288d53a0dc44ff1207ddbb77221034ec7"
+    },
+    {
+      "key": "option.sources.field.returnedOn",
+      "id": "OWN-R1C-082",
+      "en": "Returned on",
+      "so": "Dib ugu soo laabtay",
+      "soSha256": "598109ec0692334a9d626fce4e89a152f506ff0cbb7797ac141d1d93705ec61c"
+    },
+    {
+      "key": "option.sources.field.terminatedOn",
+      "id": "OWN-R1C-083",
+      "en": "Employment ended on",
+      "so": "Shaqada laga joojiyey",
+      "soSha256": "7481925eed8c4b149b916d111b998feb656bb30f048621c4f07c90c8916640d0"
+    },
+    {
+      "key": "option.sources.value.ended",
+      "id": "OWN-R1C-084",
+      "en": "Ended",
+      "so": "Dhammaaday",
+      "soSha256": "32e7ca1c02f59abfcf4cd1a573d9d03b7550484bfdc531ffa71f3e86c6238f68"
+    },
+    {
+      "key": "option.sources.value.cancelled",
+      "id": "OWN-R1C-085",
+      "en": "Cancelled",
+      "so": "La joojiyey",
+      "soSha256": "2fed0e20b550f9e1a81c638a88f8053d619ae9235ebc6ed7483dcb7329077879"
+    },
+    {
+      "key": "notify.error.PAYROLL_SOURCES_CHANGED",
+      "id": "OWN-R1C-086",
+      "en": "The assignments, salaries or Temporary covers of this company changed after its payroll was generated, so the lines no longer match. Generate this company again, then review and finalize it. Nothing was changed.",
+      "so": "Qoondaynaha, mushaharyada ama Beddelaadyada Ku-meel-gaarka ah ee shirkaddan ayaa isbeddelay kadib markii mushaharkeedii la sameeyey, sidaas darteed safafku isma waafaqaan. Mar kale samee shirkaddan, kadibna dib u eeg oo dhammaystir. Waxba lama beddelin.",
+      "soSha256": "77a690dc7e0969e5207191d2de27e233c6a47cfa7b336b7a0edc00bcfb3e770b"
+    }
+  ],
+  "stillProposed90": [
+    "status.payroll.state.notGenerated",
+    "status.payroll.state.paid",
+    "status.payroll.state.finalizedUnpaid",
+    "status.payroll.state.nothingPayable",
+    "status.payroll.allCompaniesPaid",
+    "option.payroll.colState",
+    "option.payroll.allCompaniesTitle",
+    "option.payroll.loadingCompanies",
+    "option.payroll.warningCount",
+    "option.payroll.sumTitle",
+    "option.payroll.sumAssigned",
+    "option.payroll.sumPayrollTotal",
+    "option.payroll.sumPaymentsReceived",
+    "confirm.payroll.generateCompanyTitle",
+    "notify.payroll.companyGenerated",
+    "notify.payroll.sectionChanged",
+    "warning.payroll.gen.title",
+    "warning.payroll.gen.condC",
+    "warning.payroll.gen.whatRemains",
+    "warning.payroll.gen.checking",
+    "warning.payroll.gen.none",
+    "option.payroll.paymentReference",
+    "option.payroll.paymentReferencePlaceholder",
+    "option.payroll.wpReference",
+    "notify.error.PAYROLL_SECTION_CHANGED",
+    "notify.error.PAYROLL_COMPANY_LOCKED",
+    "option.hr.companyPayrollTitle",
+    "option.hr.companyPayrollMonth",
+    "option.hr.kpiCompanyPayrollTotal",
+    "option.hr.kpiCompanyPaymentsReceived",
+    "option.hr.kpiCompanyOutstanding",
+    "status.deduction.voided",
+    "option.deduction.voidedReason",
+    "option.deduction.stillOwed",
+    "option.deduction.waivedAmount",
+    "option.deduction.waivedReason",
+    "action.deduction.waive",
+    "option.deduction.currencyHint",
+    "option.deduction.reasonHint",
+    "confirm.deduction.voidPenaltyTitle",
+    "option.deduction.voidReason",
+    "option.deduction.correctionReason",
+    "warning.deduction.nothingChanged",
+    "confirm.deduction.waivePenaltyTitle",
+    "option.deduction.waiveAmount",
+    "option.deduction.waiveReason",
+    "action.deduction.waiveConfirm",
+    "warning.deduction.regenerateNote",
+    "notify.deduction.corrected",
+    "notify.deduction.voidFailed",
+    "notify.deduction.correctFailed",
+    "notify.deduction.waiveFailed",
+    "notify.deduction.recordFailed",
+    "validation.deduction.amountPositive",
+    "validation.deduction.amountTooMuch",
+    "validation.deduction.reasonShort",
+    "validation.deduction.periodRange",
+    "validation.deduction.dateInvalid",
+    "confirm.deduction.duplicateTitle",
+    "action.deduction.recordAgain",
+    "option.deduction.balancesHelp",
+    "option.deduction.kindPenalty",
+    "option.deduction.allKinds",
+    "option.deduction.leaversOnly",
+    "option.deduction.colRegisteredMonth",
+    "option.deduction.colRegistered",
+    "option.deduction.colDeducted",
+    "option.deduction.colWaived",
+    "option.deduction.colOwed",
+    "option.deduction.colState",
+    "status.deduction.statePending",
+    "status.deduction.statePartly",
+    "status.deduction.leaver",
+    "option.deduction.totalsRow",
+    "option.deduction.leaverTotals",
+    "option.deduction.emptyTitle",
+    "warning.deduction.inputsChangedPointer",
+    "status.deduction.carriedForward",
+    "warning.deduction.carriedFrom",
+    "warning.deduction.lineFigures",
+    "warning.deduction.notDeductedNote",
+    "warning.deduction.previouslyDeducted",
+    "notify.error.DUPLICATE_RECORD",
+    "notify.error.IDEMPOTENCY_KEY_REUSED",
+    "notify.error.RECORD_CHANGED",
+    "notify.error.RECORD_NOT_FOUND",
+    "notify.error.WAIVE_SUPER_ADMIN_ONLY",
+    "notify.error.WAIVE_AMOUNT_INVALID",
+    "option.hr.calendarMonthLabel",
+    "option.hr.payrollMonthLabel"
+  ]
+}
