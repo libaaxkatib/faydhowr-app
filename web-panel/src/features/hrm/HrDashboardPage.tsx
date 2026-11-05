@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { hrApi } from '@/api/hr';
@@ -8,12 +9,20 @@ import { Icon, type IconName } from '@/components/ui/Icon';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
+import { dashboardPayrollCards, isPayrollPeriod } from '@/utils/payrollOverview';
 import { categoryTileLabel, categoryTileTo, dashboardCardTo } from '@/utils/hrDashboardLinks';
 import { useI18n } from '@/i18n/useI18n';
 
 export function HrDashboardPage() {
   const { t } = useI18n();
-  const { data, isLoading, error, refetch } = useQuery({ queryKey: ['hr-dashboard'], queryFn: hrApi.dashboard });
+  // The Company payroll group has its OWN month: until one is picked the server's (the previous month) is used.
+  const [payrollMonth, setPayrollMonth] = useState<string | null>(null);
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['hr-dashboard', payrollMonth],
+    queryFn: () => hrApi.dashboard(payrollMonth ?? undefined),
+    // Changing the month refetches without blanking the other cards.
+    placeholderData: keepPreviousData,
+  });
   // One reference time per render so the "last 30 days" link and the card describe the same window.
   const now = new Date();
 
@@ -65,12 +74,39 @@ export function HrDashboardPage() {
             <CardHeader>
               <h3 className="font-display text-sm font-bold text-ink">{t('option.hr.sectionFinancials')}</h3>
             </CardHeader>
-            <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <KpiCard label={t('option.employeeDetail.payments')} value={data.month_payments_total} icon="credit-card" color="bg-success" to="/hr/reports/financial-ledger" isCurrency />
+            <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <KpiCard label={t('option.payroll.penalties')} value={data.month_penalties_total} icon="x" color="bg-danger" to="/hr/reports/financial-ledger" isCurrency />
               <KpiCard label={t('option.payroll.advances')} value={data.month_advances_total} icon="credit-card" color="bg-warning" to="/hr/reports/financial-ledger" isCurrency />
             </CardBody>
           </Card>
+
+          {data.payroll && (
+            <Card className="mb-5" data-testid="dashboard-company-payroll">
+              <CardHeader className="flex-wrap gap-3">
+                <div>
+                  <h3 className="font-display text-sm font-bold text-ink">{t('option.hr.companyPayrollTitle')}</h3>
+                  <p className="mt-0.5 text-xs text-ink-muted">{t('option.hr.companyPayrollHelp')}</p>
+                </div>
+                <div>
+                  <label htmlFor="dashboard-payroll-month" className="mb-1 block text-xs font-medium text-ink-muted">{t('option.hr.companyPayrollMonth')}</label>
+                  <input
+                    id="dashboard-payroll-month"
+                    type="month"
+                    value={payrollMonth ?? data.payroll.period}
+                    onChange={(e) => {
+                      if (isPayrollPeriod(e.target.value)) setPayrollMonth(e.target.value);
+                    }}
+                    className="h-9 rounded-sm border border-border bg-surface px-2 text-sm text-ink"
+                  />
+                </div>
+              </CardHeader>
+              <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {dashboardPayrollCards(data.payroll).map((card) => (
+                  <KpiCard key={card.labelKey} label={t(card.labelKey)} value={card.value} icon={card.currency ? 'credit-card' : 'briefcase'} color={card.currency ? 'bg-primary' : 'bg-secondary'} to="/hr/payroll" isCurrency={card.currency} />
+                ))}
+              </CardBody>
+            </Card>
+          )}
 
           <Card className="mb-5">
             <CardHeader>

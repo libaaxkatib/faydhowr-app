@@ -102,7 +102,7 @@ test('the panel only displays the server\'s figures and sends the person\'s requ
 test('a retry or a double click is recorded once: one key per dialog opening, and the buttons lock while it is sent (the company payment dialog)', () => {
   const dialog = readFileSync(new URL('../features/hrm/CompanyPaymentDialog.tsx', import.meta.url), 'utf8');
   assert.match(dialog, /const \[key\] = useState\(newIdempotencyKey\)/);
-  assert.match(dialog, /companyPaymentPayload\(mode, amount, date, note, key\)/);
+  assert.match(dialog, /companyPaymentPayload\(mode, amount, date, note, key, reference\)/);
   assert.match(dialog, /isLoading=\{mutation\.isPending\}/);
   assert.match(dialog, /onClose=\{mutation\.isPending \? \(\) => undefined : onClose\}/);
 });

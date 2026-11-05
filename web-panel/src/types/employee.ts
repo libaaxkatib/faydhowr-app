@@ -1,4 +1,5 @@
 import type { CoverConflict } from '@/utils/coverConflict';
+import type { PayrollOverviewSummary } from '@/types/payroll';
 
 export type EmployeeStatus = 'applicant' | 'recruitment' | 'practical' | 'waiting' | 'approved' | 'active' | 'inactive';
 export type EmployeeGender = 'male' | 'female';
@@ -1063,9 +1064,15 @@ export interface HrDashboardData {
   late_today: number;
   fulfilled_workforce_requests: number;
   client_company_active_employees: number;
-  month_payments_total: string;
   month_penalties_total: string;
   month_advances_total: string;
+  /** The company-payroll picture of one month; null when the caller may not see payroll (hr.payroll.view). */
+  payroll: HrDashboardPayroll | null;
+}
+
+/** `payroll` of the dashboard: the overview summary of one month (the previous month unless `payroll_period` was asked for). */
+export interface HrDashboardPayroll extends PayrollOverviewSummary {
+  period: string;
 }
 
 export interface HrReportsSummary {

@@ -35,6 +35,7 @@ export function CloseCompanyDialog({ company, onClose }: { company: ClientCompan
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ['client-companies'] });
       void queryClient.invalidateQueries({ queryKey: ['company-employees'] });
+      void queryClient.invalidateQueries({ queryKey: ['payroll-overview'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
       show(t('notify.correction.companyClosed', { ended: result.summary?.assignments_ended ?? 0 }));
       onClose();
@@ -95,6 +96,7 @@ export function ReopenCompanyDialog({ company, onClose }: { company: ClientCompa
       void queryClient.invalidateQueries({ queryKey: ['client-companies'] });
       void queryClient.invalidateQueries({ queryKey: ['company-employees'] });
       void queryClient.invalidateQueries({ queryKey: ['company-closure', company.id] });
+      void queryClient.invalidateQueries({ queryKey: ['payroll-overview'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
       show(t('notify.correction.companyReopened'));
       onClose();

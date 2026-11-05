@@ -41,6 +41,7 @@ export function ReopenFinalizedDialog({ section, monthLabel, onClose }: { sectio
   const mutation = useMutation({
     mutationFn: () => hrApi.payrollRuns.reopenSection(section.id, reason.trim()),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['payroll-overview'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-run'] });
       void queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
@@ -98,6 +99,7 @@ export function ReconcileDialog({ section, onClose }: { section: PayrollRunSecti
   const mutation = useMutation({
     mutationFn: () => hrApi.payrollRuns.reconcileCompany(section.id, { mode, ...(mode === 'partial' ? { amount } : {}), method, reason: reason.trim(), settled_on: date, idempotency_key: key }),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['payroll-overview'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-run'] });
       void queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
@@ -165,6 +167,7 @@ export function ReopenAssignmentDialog({ row, onClose, companyId, companyName }:
     mutationFn: () => companyEmployeesApi.reopen(companyId, row!.assignment_id, { reason: reason.trim(), ...(correctionReason.trim() !== '' ? { correction_reason: correctionReason.trim() } : {}) }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['company-employees'] });
+      void queryClient.invalidateQueries({ queryKey: ['payroll-overview'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
       show(t('notify.correction.assignmentReopened'));
       onClose();

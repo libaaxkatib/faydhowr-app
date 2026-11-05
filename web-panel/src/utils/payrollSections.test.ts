@@ -88,7 +88,7 @@ test('every button calls the endpoint of ITS company only', () => {
   assert.match(panel, /hrApi\.payrollRuns\.reviewSection\(section\.id\)/);
   assert.match(panel, /hrApi\.payrollRuns\.finalizeSection\(section\.id\)/);
   assert.ok(!/payrollRuns\.(review|approve|finalize|reopen)\(/.test(panel), 'the company table never calls a month-level action');
-  assert.match(readFileSync(new URL('../features/hrm/CompanyPaymentDialog.tsx', import.meta.url), 'utf8'), /hrApi\.payrollRuns\.payCompany\(section\.id, companyPaymentPayload\(mode, amount, date, note, key\)\)/);
+  assert.match(readFileSync(new URL('../features/hrm/CompanyPaymentDialog.tsx', import.meta.url), 'utf8'), /hrApi\.payrollRuns\.payCompany\(section\.id, companyPaymentPayload\(mode, amount, date, note, key, reference\)\)/);
 });
 
 test('finalizing asks for confirmation naming the company, reopening asks for a reason, and nothing runs twice at once', () => {
@@ -101,15 +101,15 @@ test('finalizing asks for confirmation naming the company, reopening asks for a 
 
 test('the month shows its progress and the company table filters the lines; payments follow each line\'s company', () => {
   assert.match(panel, /option\.payroll\.companiesFinalized', \{ finalized: run\.sections_finalized \?\? 0, total: run\.sections_total \?\? sections\.length \}/);
-  assert.match(page, /<CompanySectionsPanel run=\{run\}[\s\S]{0,160}selectedSectionId=\{shownSectionId\} onSelect=\{setSelectedSectionId\}/);
+  assert.match(page, /<CompanySectionsPanel\s+period=\{period\}\s+run=\{run \?\? null\}[\s\S]{0,500}selectedSectionId=\{shownSectionId\}\s+onSelect=\{setSelectedSectionId\}/);
   assert.match(page, /<ItemsTable run=\{run\} sectionId=\{shownSectionId\}/);
   assert.match(page, /const lineFinal = \(item: PayrollItem\) => lineIsFinalized\(run, item\)/);
   assert.match(page, /monthDisplayStatus\(row\.original\)/, 'the month list says "partially finalized" too');
-  assert.match(page, /run\.sectioned && \(run\.sections\?\.length \?\? 0\) > 0/, 'a month without company sections shows no company table');
+  assert.match(page, /\{PERIOD_PATTERN\.test\(period\) && \(\s+<CompanySectionsPanel/, 'the company list is shown for the picked month even before anything is generated');
 });
 
 test('the company table shows the figures the server sends and adds nothing up', () => {
-  for (const field of ['section.gross', 'section.net', 'section.paid', 'section.outstanding', 'section.employee_count']) assert.ok(panel.includes(field), field);
+  for (const field of ['s.gross', 's.net', 's.paid', 's.outstanding', 'section.employee_count']) assert.ok(panel.includes(field), field);
   assert.ok(!/reduce\(/.test(panel), 'nothing is summed in the panel');
   assert.ok(!/Number\(section\./.test(panel), 'no arithmetic on a section\'s amounts');
 });
@@ -171,14 +171,16 @@ test('the payment request sends the amount only for a partial payment, trims the
   for (const field of ['section.payable', 'section.paid', 'section.outstanding']) assert.ok(dialog.includes(field), `the dialog shows ${field}`);
 });
 
-test('the month approval summary shows the companies, who is approved, unpaid, partial, not finalized, what is outstanding and whether the month is approved', () => {
-  for (const key of ['option.payroll.approvalCompanies', 'option.payroll.approvalApproved', 'option.payroll.approvalUnpaid', 'option.payroll.approvalPartial', 'option.payroll.approvalNotFinalized', 'option.payroll.approvalOutstanding', 'status.payroll.monthApproved', 'status.payroll.monthPending'] as const) {
-    assert.ok(panel.includes(key), key);
+test('the month card is driven by the overview summary, not by the run (HR Release 1A)', () => {
+  const card = readFileSync(new URL('../features/hrm/MonthSummaryCard.tsx', import.meta.url), 'utf8');
+  for (const key of ['option.payroll.sumTitle', 'option.payroll.sumHelp', 'option.payroll.sumPayrollTotal', 'option.payroll.sumPaymentsReceived', 'status.payroll.allCompaniesPaid'] as const) {
+    assert.ok(card.includes(key), key);
     assert.equal(CATALOGUE[key].review, 'proposed', `${key}: the new wording is a proposal`);
     assert.notEqual(CATALOGUE[key].en, CATALOGUE[key].so);
   }
-  assert.match(panel, /approval\.fully_approved/);
-  assert.match(panel, /\{run\.approval && <MonthApproval approval=\{run\.approval\} \/>\}/);
+  assert.match(panel, /\{overview && <MonthSummaryCard summary=\{overview\.summary\} monthLabel=\{monthLabel\} \/>\}/);
+  assert.ok(!/MonthApproval|run\.approval/.test(panel), 'the old run-driven approval block is gone');
+  assert.match(card, /showAllCompaniesPaid\(summary\)/, 'one rule decides when "All Companies Paid" may be shown');
 });
 
 test('Reconcile overpayment is offered only for a finalized company with an unsettled excess, to someone who may approve', () => {

@@ -12,8 +12,12 @@ import type { CompanyPaymentStatus, PayrollItem, PayrollRun, PayrollRunSection, 
 
 export type SectionAction = 'review' | 'finalize' | 'reopen' | 'reopen_finalized';
 
-/** The payroll buttons a company row offers: review needs hr.payroll.manage; finalize and reopen need hr.payroll.approve; a finalized company offers none. */
-export function sectionActions(status: PayrollRunStatus, canManage: boolean, canApprove: boolean): SectionAction[] {
+/**
+ * The payroll buttons a company row offers: review needs hr.payroll.manage; finalize and reopen need hr.payroll.approve; a finalized company offers
+ * "Reopen for correction" only. `reopenFinalizedBlocked` is true for a finalized company with recorded payments when the person is not a Super Admin: the
+ * server refuses them (403 PAID_COMPANY_REOPEN_SUPER_ADMIN_ONLY), so the screen does not offer it and shows a hint instead.
+ */
+export function sectionActions(status: PayrollRunStatus, canManage: boolean, canApprove: boolean, reopenFinalizedBlocked = false): SectionAction[] {
   switch (status) {
     case 'draft':
       return canManage ? ['review'] : [];
@@ -23,7 +27,7 @@ export function sectionActions(status: PayrollRunStatus, canManage: boolean, can
       return canApprove ? ['finalize', 'reopen'] : [];
     case 'finalized':
       // Owner decision 2026-11-04: a finalized company can be reopened for correction (a reason; payments stay). The server decides who may.
-      return canApprove ? ['reopen_finalized'] : [];
+      return canApprove && !reopenFinalizedBlocked ? ['reopen_finalized'] : [];
   }
 }
 
@@ -52,16 +56,21 @@ export function canReconcile(section: Pick<PayrollRunSection, 'status' | 'unreco
 
 export const MIN_REOPEN_FINALIZED_REASON = 10;
 
+/** The longest payment reference the server accepts. */
+export const MAX_PAYMENT_REFERENCE = 100;
+
 /**
  * The request of "Approve Paid" (no amount: the server pays exactly the outstanding balance at that moment) or "Approve Partial" (the typed amount, in
- * dollars with at most two decimals). The key is made once per dialog, so a retry or a double click is recorded once.
+ * dollars with at most two decimals). The key is made once per dialog, so a retry or a double click is recorded once. The reference (a bank or mobile-money
+ * transaction id, a receipt number) is optional: it is trimmed and left out of the request when empty, so a payment without it is always possible.
  */
-export function companyPaymentPayload(mode: 'full' | 'partial', typedAmount: string, paymentDate: string, note: string, idempotencyKey: string): RecordCompanyPaymentPayload {
+export function companyPaymentPayload(mode: 'full' | 'partial', typedAmount: string, paymentDate: string, note: string, idempotencyKey: string, reference = ''): RecordCompanyPaymentPayload {
   return {
     mode,
     ...(mode === 'partial' ? { amount: typedAmount.trim() } : {}),
     payment_date: paymentDate,
     note: note.trim() === '' ? null : note.trim(),
+    ...(reference.trim() === '' ? {} : { reference: reference.trim() }),
     idempotency_key: idempotencyKey,
   };
 }

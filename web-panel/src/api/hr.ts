@@ -1,10 +1,11 @@
 import { apiRequest, apiRequestWithMeta, downloadAuthenticatedFile } from '@/api/client';
 import type { PageMeta } from '@/types/api';
+import { companySegment } from '@/utils/payrollOverview';
 import type { OfficeStaffSummary } from '@/utils/officeStaff';
 import type { CompanyListMeta } from '@/utils/clientCompanyFilter';
 import type { CoverConflict } from '@/utils/coverConflict';
 import { downloadQuery, fileName as paymentListFileName, type PaymentListFilterOptions, type PaymentListOption, type PaymentListScope, type PaymentListWorkbookPreview } from '@/utils/paymentListFilter';
-import type { CreatePayrollAdjustmentPayload, PayrollAdjustmentResult, PayrollCorrectionsResponse, PayrollItem, PayrollRun, RecordCompanyPaymentPayload, RecordCompanyPaymentResult, ReconcileCompanyPayload, ReconcileCompanyResult, CompanyClosureView, RecordWorkplacePaymentPayload, WorkplacePayments, WorkplacePayrollSummary } from '@/types/payroll';
+import type { CompanyWarnings, CreatePayrollAdjustmentPayload, GenerateExpectedStatus, PayrollAdjustmentResult, PayrollOverview, PayrollCorrectionsResponse, PayrollItem, PayrollRun, RecordCompanyPaymentPayload, RecordCompanyPaymentResult, ReconcileCompanyPayload, ReconcileCompanyResult, CompanyClosureView, RecordWorkplacePaymentPayload, WorkplacePayments, WorkplacePayrollSummary } from '@/types/payroll';
 import type {
   AttendanceRosterEntry,
   ClientCompany,
@@ -78,7 +79,9 @@ import type {
 } from '@/types/employee';
 
 export const hrApi = {
-  dashboard: () => apiRequest<HrDashboardData>('admin/hr/dashboard'),
+  /** `payrollPeriod` (YYYY-MM) is the month of the Company payroll group; left out, the server uses the previous month. */
+  dashboard: (payrollPeriod?: string) =>
+    apiRequest<HrDashboardData>('admin/hr/dashboard', payrollPeriod ? { query: { payroll_period: payrollPeriod } } : undefined),
 
   reportsSummary: (params?: HrReportsSummaryParams) =>
     apiRequest<HrReportsSummary>('admin/hr/reports/summary', { query: params as Record<string, string | number | undefined> }),
@@ -354,9 +357,19 @@ export const hrApi = {
       apiRequest<{ transaction_id: number; replayed: boolean; outstanding_cents: number; status: string }>(`admin/hr/payroll-corrections/${id}/transactions`, { method: 'POST', body: payload }),
     voidCorrectionTransaction: (id: number, transactionId: number, reason: string) =>
       apiRequest<{ outstanding_cents: number; status: string }>(`admin/hr/payroll-corrections/${id}/transactions/${transactionId}/void`, { method: 'POST', body: { reason } }),
-    /** Creates the draft for a month, or regenerates it if one already exists (refused once approved/finalized). */
-    generate: (period: string) => apiRequest<PayrollRun>('admin/hr/payroll-runs', { method: 'POST', body: { period } }),
-    review: (id: number) => apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/review`, { method: 'PATCH' }),
+    /** Every assigned company of a month - generated or not - with its state and amounts (amounts are null until generated), and the month's summary (hr.payroll.view). */
+    overview: (period: string) => apiRequest<PayrollOverview>(`admin/hr/payroll/${period}/overview`),
+    /**
+     * Generates (or refreshes) ONE company's payroll for the month - there is no month-wide Generate. `company` is the company id, or null for the "no company"
+     * lines; `expectedStatus` is the section status the screen showed (left out for a company not generated yet). The answer is the whole month.
+     */
+    generateCompany: (period: string, company: number | null, expectedStatus?: GenerateExpectedStatus) =>
+      apiRequest<PayrollRun>(`admin/hr/payroll/${period}/companies/${companySegment(company)}/generate`, {
+        method: 'POST',
+        body: expectedStatus ? { expected_status: expectedStatus } : {},
+      }),
+    /** The non-blocking Temporary Replacement warnings of one company for the month (hr.payroll.view). */
+    companyWarnings: (period: string, company: number | null) => apiRequest<CompanyWarnings>(`admin/hr/payroll/${period}/companies/${companySegment(company)}/warnings`),
     reopen: (id: number, reason: string) =>
       apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/reopen`, { method: 'PATCH', body: { reason } }),
     /** ONE company's part of the month: review / finalize / reopen it without touching the other companies (the answer is the whole month). There is no Approve:

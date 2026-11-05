@@ -210,6 +210,15 @@ export interface PayrollRunSection {
   approved_by: string | null;
   finalized_at: string | null;
   finalized_by: string | null;
+  /** When and by whom THIS company was generated (company-by-company generation; there is no month-wide Generate). */
+  generated_at?: string | null;
+  generated_by?: string | null;
+  /** Non-blocking warnings found at generation (Temporary Replacement conditions A-D). */
+  generation_warnings?: GenerationWarning[];
+  /** Generated, but nobody in this company has anything payable. */
+  nothing_payable?: boolean;
+  /** Payments are recorded for this company: only a Super Admin may reopen it after finalization. */
+  has_payments?: boolean;
 }
 
 export interface PayrollRun {
@@ -268,6 +277,8 @@ export interface WorkplacePaymentRecord {
   amount_cents: number;
   payment_date: string;
   note: string | null;
+  /** Bank / mobile-money transaction id or receipt number; optional, never required. */
+  reference?: string | null;
   recorded_by: string | null;
   recorded_at: string | null;
   voided: boolean;
@@ -319,6 +330,8 @@ export interface RecordCompanyPaymentPayload {
   amount?: string;
   payment_date: string;
   note?: string | null;
+  /** Optional bank / mobile-money transaction id or receipt number (at most 100 characters); left out when empty. */
+  reference?: string;
   idempotency_key: string;
 }
 
@@ -406,3 +419,87 @@ export interface ClosureAssignmentRow {
   restorable: boolean;
   conflict: string | null;
 }
+
+/**
+ * A non-blocking Temporary Replacement warning: A = a Temporary worker registered as a Replacement (no payroll line is calculated for those days),
+ * B = Temporary cover with unverified workdays, C = Temporary cover cost not approved, D = payroll-calculation Temporary warnings.
+ * `detail` and `what_remains` are the server's own English texts and are shown as given.
+ */
+export type GenerationWarningCondition = 'A' | 'B' | 'C' | 'D';
+
+export interface GenerationWarning {
+  condition: GenerationWarningCondition;
+  blocking: false;
+  client_company_id: number | null;
+  company_name: string | null;
+  employee_number?: string | null;
+  employee_name?: string | null;
+  assignment_id?: number;
+  replacement_id?: number;
+  detail: string;
+  what_remains: string;
+}
+
+export interface CompanyWarnings {
+  period: string;
+  client_company_id: number | null;
+  company_name: string | null;
+  blocking: false;
+  generated: boolean;
+  section_status: string | null;
+  warnings: GenerationWarning[];
+}
+
+/** Where one company stands for a payroll month. `finalized` means finalized and nothing paid yet. */
+export type CompanyPayrollState = 'not_generated' | 'draft' | 'reviewed' | 'finalized' | 'partially_paid' | 'paid' | 'overpaid';
+
+export interface PayrollOverviewCompany {
+  client_company_id: number | null;
+  company_name: string | null;
+  category: 'company' | 'guri' | null;
+  state: CompanyPayrollState;
+  generated: boolean;
+  nothing_payable: boolean;
+  /** Locked by an earlier version: shown as reviewed, and must be finalized before it can be paid. */
+  legacy_approved: boolean;
+  section_id: number | null;
+  section_status: string | null;
+  generated_at: string | null;
+  generation_warning_count: number;
+  /** The three amounts are null while the company is not generated: never 0, never an estimate. */
+  payroll_total_cents: number | null;
+  payments_received_cents: number | null;
+  outstanding_cents: number | null;
+  payroll_total: string | null;
+  payments_received: string | null;
+  outstanding: string | null;
+}
+
+export interface PayrollOverviewSummary {
+  companies_assigned: number;
+  companies_generated: number;
+  not_generated: number;
+  draft: number;
+  reviewed: number;
+  finalized_unpaid: number;
+  partially_paid: number;
+  paid: number;
+  overpaid: number;
+  payroll_total_cents: number;
+  payments_received_cents: number;
+  outstanding_cents: number;
+  payroll_total: string;
+  payments_received: string;
+  outstanding: string;
+  all_companies_paid: boolean;
+}
+
+export interface PayrollOverview {
+  period: string;
+  run_id: number | null;
+  companies: PayrollOverviewCompany[];
+  summary: PayrollOverviewSummary;
+}
+
+/** The section status the screen showed when Generate was pressed; a different status answers 409 PAYROLL_SECTION_CHANGED. */
+export type GenerateExpectedStatus = 'draft' | 'reviewed';

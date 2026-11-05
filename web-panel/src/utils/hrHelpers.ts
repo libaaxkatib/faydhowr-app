@@ -158,6 +158,11 @@ export const SOMALI_WORDING_CODES: ReadonlySet<string> = new Set([
   'COMPANY_HAS_ACTIVE_ASSIGNMENTS_USE_CLOSE',
   'ASSIGNMENT_NOT_ENDED',
   'ASSIGNMENT_POSITION_FILLED',
+  // HR Release 1A: generating one company, and reopening a finalized company that has recorded payments.
+  'PAYROLL_SECTION_CHANGED',
+  'PAYROLL_COMPANY_LOCKED',
+  'COMPANY_NOT_ASSIGNED_IN_PERIOD',
+  'PAID_COMPANY_REOPEN_SUPER_ADMIN_ONLY',
 ]);
 
 interface ErrorLike {

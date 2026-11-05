@@ -26,7 +26,7 @@ test('the screens use this one default, and the person can still choose another 
     assert.match(read(page), /defaultPayrollMonth\(\)/, `${page} opens on the previous month`);
   }
   // The month is still a normal input of the page: picking another month is not blocked.
-  assert.match(read('../features/hrm/PayrollRunsPage.tsx'), /onChange=\{\(e\) => \{[\s\S]{0,160}setPeriod\(e\.target\.value\)/);
+  assert.match(read('../features/hrm/PayrollRunsPage.tsx'), /onChange=\{\(e\) => (?:\{[\s\S]{0,160})?setPeriod\(e\.target\.value\)/);
 });
 
 test('the Temporary Replacements page is NOT part of this change: it still opens on the CURRENT month (owner decision 2026-11-04)', () => {

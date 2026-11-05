@@ -10,7 +10,7 @@ import { useI18n } from '@/i18n/useI18n';
 import { formatCurrency } from '@/utils/formatters';
 import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import { newIdempotencyKey } from '@/utils/payrollCorrections';
-import { companyPaymentPayload, sectionName } from '@/utils/payrollSections';
+import { MAX_PAYMENT_REFERENCE, companyPaymentPayload, sectionName } from '@/utils/payrollSections';
 import { validatePartialAmount } from '@/utils/workplacePayments';
 import type { PayrollRunSection } from '@/types/payroll';
 
@@ -32,6 +32,7 @@ export function CompanyPaymentDialog({ section, mode, monthLabel, onClose }: { s
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(localToday());
   const [note, setNote] = useState('');
+  const [reference, setReference] = useState('');
   // One key per dialog opening: a retry or a double click of the same submission is recorded once.
   const [key] = useState(newIdempotencyKey);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -40,8 +41,9 @@ export function CompanyPaymentDialog({ section, mode, monthLabel, onClose }: { s
   const ready = date !== '' && date <= localToday() && (mode === 'full' || (amount !== '' && validatePartialAmount(amount, section.outstanding_cents) === null));
 
   const mutation = useMutation({
-    mutationFn: () => hrApi.payrollRuns.payCompany(section.id, companyPaymentPayload(mode, amount, date, note, key)),
+    mutationFn: () => hrApi.payrollRuns.payCompany(section.id, companyPaymentPayload(mode, amount, date, note, key, reference)),
     onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ['payroll-overview'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-run'] });
       void queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
@@ -87,6 +89,17 @@ export function CompanyPaymentDialog({ section, mode, monthLabel, onClose }: { s
       )}
       <FormField label={t('option.payroll.paymentDate')} htmlFor="ap-date" required hint={t('option.payroll.datesMogadishu')}>
         <input id="ap-date" type="date" max={localToday()} className={inputClasses} value={date} onChange={(e) => setDate(e.target.value)} />
+      </FormField>
+      <FormField label={t('option.payroll.paymentReference')} htmlFor="ap-reference">
+        <input
+          id="ap-reference"
+          maxLength={MAX_PAYMENT_REFERENCE}
+          autoComplete="off"
+          placeholder={t('option.payroll.paymentReferencePlaceholder')}
+          className={inputClasses}
+          value={reference}
+          onChange={(e) => setReference(e.target.value)}
+        />
       </FormField>
       <FormField label={t('option.payroll.noteOptional')} htmlFor="ap-note">
         <input id="ap-note" maxLength={500} className={inputClasses} value={note} onChange={(e) => setNote(e.target.value)} />

@@ -132,6 +132,7 @@ export function WorkplacePaymentsPanel({ run, canVoid }: { run: PayrollRun; canV
                                       <th className="py-1 pr-3 font-medium">{t('option.payroll.date')}</th>
                                       <th className="px-3 py-1 text-right font-medium">{t('option.payroll.amountUsd')}</th>
                                       <th className="px-3 py-1 font-medium">{t('option.payroll.wpRecordedBy')}</th>
+                                      <th className="px-3 py-1 font-medium">{t('option.payroll.wpReference')}</th>
                                       <th className="px-3 py-1 font-medium">{t('option.payroll.wpNote')}</th>
                                       <th className="py-1 pl-3" />
                                     </tr>
@@ -142,6 +143,7 @@ export function WorkplacePaymentsPanel({ run, canVoid }: { run: PayrollRun; canV
                                         <td className="py-1 pr-3">{formatDate(payment.payment_date)}</td>
                                         <td className="px-3 py-1 text-right">{money(payment.amount)}</td>
                                         <td className="px-3 py-1">{payment.recorded_by ?? '—'}</td>
+                                        <td className="px-3 py-1" data-testid="wp-payment-reference">{payment.reference ?? '—'}</td>
                                         <td className="px-3 py-1">{payment.note ?? '—'}</td>
                                         <td className="py-1 pl-3 text-right no-underline">
                                           {payment.voided ? (
@@ -178,7 +180,11 @@ export function WorkplacePaymentsPanel({ run, canVoid }: { run: PayrollRun; canV
 function useRefreshWorkplaces() {
   const queryClient = useQueryClient();
 
-  return () => queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: ['payroll-overview'] });
+
+    return queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
+  };
 }
 
 /** Voids a workplace payment recorded by mistake: a reason is required, the payment stays in the history and stops counting. */

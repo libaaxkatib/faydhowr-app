@@ -25,7 +25,7 @@ import { useI18n } from '@/i18n/useI18n';
 import { TABLE_SCROLL_CLASS } from '@/components/ui/TableScroll';
 import type { MessageKey } from '@/i18n/messages';
 import { formatCurrency, formatDate } from '@/utils/formatters';
-import { draftFailureMessage, friendlyErrorMessage, localToday, nextMonth } from '@/utils/hrHelpers';
+import { friendlyErrorMessage, localToday, nextMonth } from '@/utils/hrHelpers';
 import { defaultPayrollMonth } from '@/utils/payrollMonth';
 import { PayrollCorrectionsPanel } from '@/features/hrm/PayrollCorrectionsPanel';
 import { useAuth } from '@/features/auth/useAuth';
@@ -102,7 +102,7 @@ export function PayrollRunsPage() {
   const { hasPermission } = useEffectivePermissions();
   const canManage = hasPermission('hr.payroll.manage');
   const canApprove = hasPermission('hr.payroll.approve');
-  const { admin } = useAuth();
+  const { admin, isSuperAdmin } = useAuth();
   // Voiding a payment marked paid: Super Admin or HR Manager (the server checks the role and the permission again).
   const canVoid = canApprove && canVoidPayrollPayment(admin?.role);
   // The list contains employees' payment numbers, so the server requires hr.manage as well as payroll access.
@@ -110,7 +110,8 @@ export function PayrollRunsPage() {
 
   // Opens on the PREVIOUS calendar month (owner decision 2026-11-04); any other month can still be picked.
   const [period, setPeriod] = useState(defaultPayrollMonth());
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  // The company whose lines the table shows (null = every company); dropped when the month no longer has that company.
+  const [selectedSectionId, setSelectedSectionId] = useState<number | null>(null);
   const [isReopenOpen, setIsReopenOpen] = useState(false);
   const [adjustingItem, setAdjustingItem] = useState<PayrollItem | null>(null);
   const [payingItem, setPayingItem] = useState<PayrollItem | null>(null);
@@ -118,45 +119,23 @@ export function PayrollRunsPage() {
 
   const { data: runs, isLoading, error, refetch } = useQuery({ queryKey: ['payroll-runs'], queryFn: hrApi.payrollRuns.list });
 
-  const selectedRunId = selectedId ?? runs?.find((run) => run.period === period)?.id ?? runs?.[0]?.id ?? null;
+  // The month on screen is the picked month: its payroll exists once any of its companies has been generated (there is no month-wide Generate).
+  const selectedRunId = runs?.find((candidate) => candidate.period === period)?.id ?? null;
 
   const { data: run, isLoading: isRunLoading, error: runError } = useQuery({
     queryKey: ['payroll-run', selectedRunId],
     queryFn: () => hrApi.payrollRuns.get(selectedRunId as number),
     enabled: selectedRunId !== null,
   });
-
-  const lockedForPeriod = runs?.find((candidate) => candidate.period === period && (candidate.status === 'approved' || candidate.status === 'finalized'));
+  const shownSectionId = selectedSection(run?.sections ?? [], selectedSectionId)?.id ?? null;
 
   const refresh = (id?: number) => {
+    queryClient.invalidateQueries({ queryKey: ['payroll-overview'] });
     queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
     queryClient.invalidateQueries({ queryKey: id ? ['payroll-run', id] : ['payroll-run'] });
     // A line paid or voided one by one changes what its workplace has been paid.
     queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
   };
-
-  const generateMutation = useMutation({
-    mutationFn: () => hrApi.payrollRuns.generate(period),
-    onSuccess: (created) => {
-      setSelectedId(created.id);
-      refresh(created.id);
-      show(t('notify.payroll.draftReady', { month: monthLabel(created.period) }));
-    },
-    onError: (err) => {
-      // Whatever happened on the way, show what is really saved now (a draft is stored only when it is complete).
-      refresh();
-      show(draftFailureMessage(err, t('notify.payroll.draftFailed')), 'error');
-    },
-  });
-
-  const reviewMutation = useMutation({
-    mutationFn: (id: number) => hrApi.payrollRuns.review(id),
-    onSuccess: (updated) => {
-      refresh(updated.id);
-      show(t('notify.payroll.reviewed'));
-    },
-    onError: (err) => show(friendlyErrorMessage(err, t('notify.payroll.reviewFailed')), 'error'),
-  });
 
   const reopenMutation = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) => hrApi.payrollRuns.reopen(id, reason),
@@ -298,24 +277,10 @@ export function PayrollRunsPage() {
               id="payroll-period"
               type="month"
               value={period}
-              onChange={(e) => {
-                setPeriod(e.target.value);
-                const match = runs?.find((candidate) => candidate.period === e.target.value);
-                if (match) setSelectedId(match.id);
-              }}
+              onChange={(e) => setPeriod(e.target.value)}
               className="h-9 rounded-sm border border-border bg-surface px-2 text-sm"
             />
           </div>
-          {canManage && (
-            <Button
-              isLoading={generateMutation.isPending}
-              disabled={!PERIOD_PATTERN.test(period) || lockedForPeriod !== undefined}
-              onClick={() => generateMutation.mutate()}
-            >
-              <Icon name="refresh" size={15} />
-              {t('action.generateDraft')}
-            </Button>
-          )}
           {canDownloadPaymentList && (
             <div>
               <label htmlFor="payment-list-scope" className="mb-1 block text-xs font-medium text-ink-muted">{t('option.payroll.paymentListFor')}</label>
@@ -364,9 +329,7 @@ export function PayrollRunsPage() {
             </Button>
           )}
           <p className="min-w-[14rem] flex-1 text-xs text-ink-muted">
-            {lockedForPeriod
-              ? t(lockedForPeriod.status === 'approved' ? 'warning.payroll.lockedApproved' : 'warning.payroll.lockedFinalized', { month: monthLabel(period) })
-              : t('warning.payroll.generateNote')}
+            {t('warning.payroll.generatePerCompanyNote')}
             {canDownloadPaymentList && ` ${t('warning.payroll.paymentListNote')}`}
           </p>
         </CardBody>
@@ -386,6 +349,23 @@ export function PayrollRunsPage() {
         />
       )}
 
+      {PERIOD_PATTERN.test(period) && (
+        <CompanySectionsPanel
+          period={period}
+          run={run ?? null}
+          monthLabel={monthLabel(period)}
+          canManage={canManage}
+          canApprove={canApprove}
+          isSuperAdmin={isSuperAdmin}
+          selectedSectionId={shownSectionId}
+          onSelect={setSelectedSectionId}
+          finalizeLabel={t('action.finalize')}
+          finalizeConfirmLabel={t('action.finalizePayroll')}
+          reviewLabel={t('action.markReviewed')}
+          generateLabel={t('action.generateDraft')}
+        />
+      )}
+
       {isLoading && <LoadingState label={t('option.payroll.loadingPayroll')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
 
@@ -400,7 +380,7 @@ export function PayrollRunsPage() {
             <DataTable
               columns={runColumns}
               data={runs}
-              onRowClick={(row) => setSelectedId(row.id)}
+              onRowClick={(row) => setPeriod(row.period)}
               emptyTitle={t('option.payroll.noPayrollYet')}
             />
           )}
@@ -414,13 +394,9 @@ export function PayrollRunsPage() {
       {run && (
         <RunDetail
           run={run}
-          canManage={canManage}
           canApprove={canApprove}
-          busy={{
-            review: reviewMutation.isPending,
-            export: exportMutation.isPending,
-          }}
-          onReview={() => reviewMutation.mutate(run.id)}
+          shownSectionId={shownSectionId}
+          busy={{ export: exportMutation.isPending }}
           onReopen={() => setIsReopenOpen(true)}
           onExport={() => exportMutation.mutate(run)}
           onAdjust={setAdjustingItem}
@@ -473,10 +449,9 @@ export function PayrollRunsPage() {
 
 function RunDetail({
   run,
-  canManage,
   canApprove,
+  shownSectionId,
   busy,
-  onReview,
   onReopen,
   onExport,
   onAdjust,
@@ -485,10 +460,10 @@ function RunDetail({
   onVoid,
 }: {
   run: PayrollRun;
-  canManage: boolean;
   canApprove: boolean;
-  busy: { review: boolean; export: boolean };
-  onReview: () => void;
+  /** The company whose lines the table shows (null = every company). */
+  shownSectionId: number | null;
+  busy: { export: boolean };
   onReopen: () => void;
   onExport: () => void;
   onAdjust: (item: PayrollItem) => void;
@@ -499,9 +474,6 @@ function RunDetail({
   const { t } = useI18n();
   const status = RUN_STATUS[run.status];
   const display = MONTH_STATUS_LABEL[monthDisplayStatus(run)];
-  // The company whose lines the table shows (null = every company); dropped when the month no longer has that company.
-  const [selectedSectionId, setSelectedSectionId] = useState<number | null>(null);
-  const shownSectionId = selectedSection(run.sections ?? [], selectedSectionId)?.id ?? null;
   const trail = [
     run.generated_at &&
       (run.generated_by
@@ -540,13 +512,9 @@ function RunDetail({
           <p className="mt-0.5 text-xs text-ink-muted">{t(status.helpKey)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {run.status === 'draft' && canManage && (
-            <Button size="sm" isLoading={busy.review} disabled={run.item_count === 0} onClick={onReview}>
-              {t('action.markReviewed')}
-            </Button>
-          )}
-          {/* There is no month-level Approve and no month-level Finalize: each company is finalized on its own and approved by being paid in full (the
-              company list below); the month is approved by itself when every company is. A reviewed month can be sent back to draft. */}
+          {/* There is no month-wide Generate, no month-level Review, no month-level Approve and no month-level Finalize: each company is generated, reviewed and
+              finalized on its own and approved by being paid in full (the company list above); the month is approved by itself when every company is. A
+              reviewed month can still be sent back to draft. */}
           {(run.status === 'reviewed' || run.status === 'approved') && canApprove && (
             <Button size="sm" variant="outline" onClick={onReopen}>{t('action.reopen')}</Button>
           )}
@@ -578,10 +546,6 @@ function RunDetail({
               ))}
             </ul>
           </div>
-        )}
-
-        {run.sectioned && (run.sections?.length ?? 0) > 0 && (
-          <CompanySectionsPanel run={run} monthLabel={monthLabel(run.period)} canManage={canManage} canApprove={canApprove} selectedSectionId={shownSectionId} onSelect={setSelectedSectionId} finalizeLabel={t('action.finalize')} finalizeConfirmLabel={t('action.finalizePayroll')} />
         )}
 
         {run.items && run.items.length > 0 && <WorkplacePaymentsPanel run={run} canVoid={canVoid} />}
