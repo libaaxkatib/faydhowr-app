@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Api\V1\Admin\Hr;
 
-use App\Actions\Hr\TransitionPayrollRunAction;
 use App\Actions\Hr\TransitionPayrollRunSectionAction;
 use App\Enums\AdminRole;
 use App\Models\Admin;
@@ -396,7 +395,7 @@ class CompanyPaymentApprovalTest extends TestCase
     {
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/approve")->assertNotFound();
         $this->as($this->super)->patchJson('/api/v1/admin/hr/payroll-run-sections/'.$this->section($this->alpha)->id.'/approve')->assertNotFound();
-        $this->assertFalse(method_exists(TransitionPayrollRunAction::class, 'approve'));
+        $this->assertFileDoesNotExist(app_path('Actions/Hr/TransitionPayrollRunAction.php'), 'the month-level action no longer exists at all (O-1)');
         $this->assertFalse(method_exists(TransitionPayrollRunSectionAction::class, 'approve'));
     }
 

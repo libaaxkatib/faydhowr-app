@@ -142,6 +142,8 @@ class GetHrDashboardAction
                 ->active()
                 ->where('advance_date', '>=', $monthStart)->where('advance_date', '<', $nextMonthStart)
                 ->sum('amount'),
+            // The calendar month the cards above (penalties, advances, payments) count, so the screen can LABEL it (owner decision O-2): label only, no calculation changes.
+            'calendar_month' => $now->format('Y-m'),
             // Company-level payroll KPIs (owner decisions C-7, N-4, N-4a, D-5): their own payroll month, not the calendar month of the cards above.
             // null for a user without hr.payroll.view. Read-only; nothing here is a payment and a not-generated company has no total.
             'payroll' => $payrollPeriod === null ? null : [

@@ -14,15 +14,32 @@ use App\Models\EmployeeWorkAssignment;
  *
  *  state "pending"          nothing was deducted yet (registered, waiting for a finalized payroll)
  *  state "partly_deducted"  a finalized payroll took part of it and the rest is owed
+ *
+ * PAGED on the server (owner decision, 2026-11-05): the rows of one page are returned with the page's meta, and the totals cover the WHOLE filtered set, so a
+ * person can reach every record they are allowed to see and the count they read is the real one. The old silent cut at 2,000 rows is gone. The only limit
+ * left is a safety ceiling on how many records of one kind are examined per request (MAX_SCAN); if it is ever reached the answer says so (`meta.truncated`)
+ * instead of hiding the rest.
  */
 final class DeductionBalanceList
 {
-    private const LIMIT = 2000;
+    public const DEFAULT_PER_PAGE = 50;
 
-    /** @return array{rows: list<array<string, mixed>>, totals: array<string, int>} */
-    public static function build(?int $companyId = null, ?string $kind = null, bool $leaversOnly = false): array
+    public const MAX_PER_PAGE = 200;
+
+    /** Most records of ONE kind examined per request; beyond it the answer is flagged truncated. */
+    public const MAX_SCAN = 25000;
+
+    /** The ceiling in force (the constant; a test lowers it to prove the truncation flag). */
+    public static int $scanLimit = self::MAX_SCAN;
+
+    /**
+     * @return array{rows: list<array<string, mixed>>, totals: array<string, int>, meta: array<string, mixed>}
+     */
+    public static function build(?int $companyId = null, ?string $kind = null, bool $leaversOnly = false, int $page = 1, int $perPage = self::DEFAULT_PER_PAGE): array
     {
+        $perPage = max(1, min(self::MAX_PER_PAGE, $perPage));
         $records = [];
+        $truncated = false;
 
         foreach (['penalty', 'advance'] as $key) {
             if ($kind !== null && $kind !== $key) {
@@ -34,7 +51,14 @@ final class DeductionBalanceList
                 ->with(['employee:id,employee_number,full_name,status', 'clientCompany:id,name'])
                 ->when($companyId !== null, fn ($q) => $q->where('client_company_id', $companyId))
                 ->orderBy('payroll_period')->orderBy('id')
+                ->limit(self::$scanLimit + 1)
                 ->get();
+
+            if ($found->count() > self::$scanLimit) {
+                $truncated = true;
+                $found = $found->take(self::$scanLimit);
+            }
+
             $deducted = DeductionBalances::deducted($descriptor->sourceType, $found->pluck('id')->map(fn ($id): int => (int) $id)->all());
 
             foreach ($found as $record) {
@@ -78,15 +102,32 @@ final class DeductionBalanceList
             ];
         }
 
-        $rows = array_slice($rows, 0, self::LIMIT);
+        // A stable order across pages: oldest registration first, then penalties before advances, then the record's own id.
+        usort($rows, fn (array $a, array $b): int => [$a['registered_period'], $a['kind'], $a['id']] <=> [$b['registered_period'], $b['kind'], $b['id']]);
+
+        $total = count($rows);
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($page, $lastPage));
+        $offset = ($page - 1) * $perPage;
 
         return [
-            'rows' => $rows,
+            'rows' => array_slice($rows, $offset, $perPage),
+            // The whole filtered set, never just the page.
             'totals' => [
-                'count' => count($rows),
+                'count' => $total,
                 'owed_cents' => (int) array_sum(array_column($rows, 'owed_cents')),
                 'leaver_count' => count(array_filter($rows, fn (array $r): bool => $r['leaver'])),
                 'leaver_owed_cents' => (int) array_sum(array_map(fn (array $r): int => $r['leaver'] ? $r['owed_cents'] : 0, $rows)),
+            ],
+            'meta' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'last_page' => $lastPage,
+                'from' => $total === 0 ? 0 : $offset + 1,
+                'to' => min($offset + $perPage, $total),
+                // True only when the safety ceiling (MAX_SCAN records of one kind) was reached: some records were NOT examined.
+                'truncated' => $truncated,
             ],
         ];
     }

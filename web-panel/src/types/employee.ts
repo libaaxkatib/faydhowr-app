@@ -1099,6 +1099,8 @@ export interface HrDashboardData {
   client_company_active_employees: number;
   month_penalties_total: string;
   month_advances_total: string;
+  /** The calendar month (YYYY-MM) the cards above count; the payroll block has its own month (`payroll.period`). */
+  calendar_month: string;
   /** The company-payroll picture of one month; null when the caller may not see payroll (hr.payroll.view). */
   payroll: HrDashboardPayroll | null;
 }

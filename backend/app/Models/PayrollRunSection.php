@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 #[Fillable([
     'payroll_run_id', 'client_company_id', 'status', 'reviewed_at', 'reviewed_by', 'approved_at', 'approved_by', 'finalized_at', 'finalized_by', 'totals',
-    'generated_at', 'generated_by', 'generation_warnings', 'deduction_inputs_hash',
+    'generated_at', 'generated_by', 'generation_warnings', 'deduction_inputs_hash', 'generation_inputs',
 ])]
 class PayrollRunSection extends Model
 {
@@ -40,6 +40,7 @@ class PayrollRunSection extends Model
             'totals' => 'array',
             'generated_at' => 'datetime',
             'generation_warnings' => 'array',
+            'generation_inputs' => 'array',
         ];
     }
 

@@ -1,5 +1,7 @@
 /** Month-end payroll runs (HR payroll). Currency is always USD and money values arrive as strings such as '300.00'. */
 
+import type { PageMeta } from './api';
+
 export type PayrollRunStatus = 'draft' | 'reviewed' | 'approved' | 'finalized';
 export type PayrollPaymentStatus = 'unpaid' | 'paid';
 export type PayrollDeductionKind = 'replacement' | 'penalty' | 'advance' | 'absence' | 'adjustment' | 'unpaid_leave' | 'overpayment_recovery';
@@ -466,6 +468,44 @@ export interface CompanyWarnings {
    * Review and Finalize (409 PAYROLL_INPUTS_CHANGED) until the company is Generated again.
    */
   deduction_inputs_changed?: boolean;
+  /**
+   * The assignments, salary rows, Temporary Replacement covers or absence windows this company's draft was calculated from changed after it was generated.
+   * Like `deduction_inputs_changed` this DOES stop Review and Finalize (409 PAYROLL_SOURCES_CHANGED) until the company is Generated again; Generate itself is
+   * never stopped. It is NOT one of the Temporary Replacement `warnings` (those never block).
+   */
+  source_inputs_changed?: boolean;
+  /** The real number of changes (`source_changes` holds at most the first 50). */
+  source_changes_total?: number;
+  source_changes?: SourceChange[];
+}
+
+export type SourceChangeCategory = 'assignment' | 'salary' | 'replacement' | 'absence';
+export type SourceChangeKind = 'added' | 'removed' | 'changed';
+
+/** One field of a source change: raw server values (`null` when the thing was added or removed, or the value was empty). */
+export interface SourceChangeField {
+  field: string;
+  before: string | null;
+  after: string | null;
+}
+
+/** One change of the data a company's payroll draft was calculated from (the freshness guard, 409 PAYROLL_SOURCES_CHANGED). */
+export interface SourceChange {
+  category: SourceChangeCategory;
+  change: SourceChangeKind;
+  /** The assignment id (assignment), the cover id (replacement), the absence id (absence); null for a salary row. */
+  id: number | null;
+  assignment_id: number | null;
+  employee_number: string | null;
+  /** Salary: the effective date. Replacement: the covering worker's employee number. */
+  detail: string | null;
+  fields: SourceChangeField[];
+}
+
+/** The `errors` object of a 409 PAYROLL_SOURCES_CHANGED answer (at most the first 50 changes and the real total). */
+export interface SourceChangesErrorBody {
+  changes: SourceChange[];
+  total: number;
 }
 
 /** One penalty or advance that payroll could not deduct (yet) - the rows of the Outstanding balances list. Amounts are USD cents. */
@@ -493,6 +533,18 @@ export interface DeductionBalanceRow {
 export interface DeductionBalances {
   rows: DeductionBalanceRow[];
   totals: { count: number; owed_cents: number; leaver_count: number; leaver_owed_cents: number };
+}
+
+/** The page of the Outstanding balances list: the real total of the filtered set, which rows are shown, and whether the server's safety ceiling cut the scan short. */
+export interface DeductionBalanceMeta extends PageMeta {
+  from: number;
+  to: number;
+  truncated: boolean;
+}
+
+export interface DeductionBalancePage {
+  data: DeductionBalances;
+  meta: DeductionBalanceMeta;
 }
 
 export interface DeductionBalanceFilters {

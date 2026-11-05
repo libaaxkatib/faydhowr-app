@@ -12,6 +12,7 @@ use App\Support\ApiResponse;
 use App\Support\Hr\Payroll\DeductionInputsFingerprint;
 use App\Support\Hr\Payroll\GenerationWarnings;
 use App\Support\Hr\Payroll\PayrollCompanyOverview;
+use App\Support\Hr\Payroll\PayrollSourceInputs;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -50,7 +51,13 @@ class PayrollCompanyController extends Controller
         $run = PayrollRun::query()->where('period', $period)->first();
         $section = $run?->sections()->when($companyId === null, fn ($q) => $q->whereNull('client_company_id'), fn ($q) => $q->where('client_company_id', $companyId))->first();
 
+        // The source data (assignments, salary rows, Temporary covers) changed after this company was generated: Review / Finalize refuse until it is generated again.
+        $sourceChanges = $section instanceof PayrollRunSection ? PayrollSourceInputs::changes($section, $period) : [];
+
         return ApiResponse::success('Warnings retrieved successfully.', [
+            'source_inputs_changed' => $sourceChanges !== [],
+            'source_changes_total' => count($sourceChanges),
+            'source_changes' => array_slice($sourceChanges, 0, PayrollSourceInputs::MAX_LISTED),
             'period' => $period,
             'client_company_id' => $companyId,
             'company_name' => $model?->name,

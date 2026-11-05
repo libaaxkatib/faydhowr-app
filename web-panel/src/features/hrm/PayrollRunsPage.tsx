@@ -113,7 +113,6 @@ export function PayrollRunsPage() {
   const [period, setPeriod] = useState(defaultPayrollMonth());
   // The company whose lines the table shows (null = every company); dropped when the month no longer has that company.
   const [selectedSectionId, setSelectedSectionId] = useState<number | null>(null);
-  const [isReopenOpen, setIsReopenOpen] = useState(false);
   const [adjustingItem, setAdjustingItem] = useState<PayrollItem | null>(null);
   const [payingItem, setPayingItem] = useState<PayrollItem | null>(null);
   const [voidingItem, setVoidingItem] = useState<PayrollItem | null>(null);
@@ -138,15 +137,7 @@ export function PayrollRunsPage() {
     queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
   };
 
-  const reopenMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) => hrApi.payrollRuns.reopen(id, reason),
-    onSuccess: (updated) => {
-      refresh(updated.id);
-      setIsReopenOpen(false);
-      show(t('notify.payroll.reopened'));
-    },
-    onError: (err) => show(friendlyErrorMessage(err, t('notify.payroll.reopenFailed')), 'error'),
-  });
+  // There is no month-level Reopen (owner decision O-1): a company is reopened from its own row in the company list (CompanySectionsPanel).
 
   // The payment list: all records, ONE company or ONE guri, chosen from the records that really exist.
   const [listScope, setListScope] = useState<PaymentListScope>('all');
@@ -398,7 +389,6 @@ export function PayrollRunsPage() {
           canApprove={canApprove}
           shownSectionId={shownSectionId}
           busy={{ export: exportMutation.isPending }}
-          onReopen={() => setIsReopenOpen(true)}
           onExport={() => exportMutation.mutate(run)}
           onAdjust={setAdjustingItem}
           onPay={setPayingItem}
@@ -408,15 +398,6 @@ export function PayrollRunsPage() {
       )}
 
       <PayrollCorrectionsPanel />
-
-      {isReopenOpen && run && (
-        <ReopenModal
-          run={run}
-          onClose={() => setIsReopenOpen(false)}
-          onConfirm={(reason) => reopenMutation.mutate({ id: run.id, reason })}
-          isLoading={reopenMutation.isPending}
-        />
-      )}
 
       {adjustingItem && (
         <AdjustmentModal
@@ -453,7 +434,6 @@ function RunDetail({
   canApprove,
   shownSectionId,
   busy,
-  onReopen,
   onExport,
   onAdjust,
   onPay,
@@ -465,7 +445,6 @@ function RunDetail({
   /** The company whose lines the table shows (null = every company). */
   shownSectionId: number | null;
   busy: { export: boolean };
-  onReopen: () => void;
   onExport: () => void;
   onAdjust: (item: PayrollItem) => void;
   onPay: (item: PayrollItem) => void;
@@ -513,12 +492,8 @@ function RunDetail({
           <p className="mt-0.5 text-xs text-ink-muted">{t(status.helpKey)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {/* There is no month-wide Generate, no month-level Review, no month-level Approve and no month-level Finalize: each company is generated, reviewed and
-              finalized on its own and approved by being paid in full (the company list above); the month is approved by itself when every company is. A
-              reviewed month can still be sent back to draft. */}
-          {(run.status === 'reviewed' || run.status === 'approved') && canApprove && (
-            <Button size="sm" variant="outline" onClick={onReopen}>{t('action.reopen')}</Button>
-          )}
+          {/* There is no month-wide Generate, no month-level Review, Approve, Finalize or Reopen (owner decision O-1): each company is generated, reviewed,
+              finalized and reopened on its own and approved by being paid in full (the company list above); the month is approved by itself when every company is. */}
           <Button size="sm" variant="outline" isLoading={busy.export} onClick={onExport}>
             <Icon name="file-text" size={14} />
             {t('action.payroll.downloadExcel')}
@@ -770,45 +745,6 @@ function DeductionList({ item }: { item: PayrollItem }) {
         </div>
       ))}
     </div>
-  );
-}
-
-function ReopenModal({
-  run,
-  onClose,
-  onConfirm,
-  isLoading,
-}: {
-  run: PayrollRun;
-  onClose: () => void;
-  onConfirm: (reason: string) => void;
-  isLoading: boolean;
-}) {
-  const { t } = useI18n();
-  const [reason, setReason] = useState('');
-
-  return (
-    <Modal
-      isOpen
-      onClose={onClose}
-      title={t('action.reopenPayroll')}
-      size="sm"
-      footer={
-        <>
-          <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
-          <Button size="sm" isLoading={isLoading} disabled={reason.trim().length < 10} onClick={() => onConfirm(reason.trim())}>
-            {t('action.reopenPayroll')}
-          </Button>
-        </>
-      }
-    >
-      <p className="mb-3 text-sm text-ink-muted">
-        {t('confirm.payroll.reopenBody', { month: monthLabel(run.period) })}
-      </p>
-      <FormField label={t('option.payroll.reason')} htmlFor="reopen-reason" required hint={t('validation.payroll.reasonHint10')}>
-        <textarea id="reopen-reason" rows={3} maxLength={500} className={inputClasses + ' h-auto py-2'} value={reason} onChange={(e) => setReason(e.target.value)} />
-      </FormField>
-    </Modal>
   );
 }
 

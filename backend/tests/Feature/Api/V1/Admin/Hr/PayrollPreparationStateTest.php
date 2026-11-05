@@ -78,8 +78,10 @@ class PayrollPreparationStateTest extends TestCase
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/review")->assertOk();
         $lines = $this->lines();
 
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/reopen", ['reason' => 'x'])->assertStatus(422)->assertJsonValidationErrors('reason');
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/reopen", ['reason' => 'Reviewed by mistake'])->assertOk()->assertJsonPath('data.status', 'draft');
+        // A company is reopened through its own section (there is no month-level reopen, O-1).
+        $sectionId = PayrollRunSection::query()->where('payroll_run_id', $run->id)->value('id');
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$sectionId}/reopen", ['reason' => 'x'])->assertStatus(422)->assertJsonValidationErrors('reason');
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$sectionId}/reopen", ['reason' => 'Reviewed by mistake'])->assertOk()->assertJsonPath('data.status', 'draft');
 
         $back = $run->fresh();
         $this->assertSame(PayrollRun::STATUS_DRAFT, $back->status);

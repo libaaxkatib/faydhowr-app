@@ -18,9 +18,10 @@ import { SectionActionDialog } from '@/features/hrm/SectionActionDialog';
 import { useI18n } from '@/i18n/useI18n';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
+import { sourceChangesFromError } from '@/utils/sourceChanges';
 import { amountOrDash, buildCompanyRows, canGenerateCompany, companyStateBadge, reopenNeedsSuperAdmin, type CompanyListRow } from '@/utils/payrollOverview';
 import { MONTH_STATUS_LABEL, PAYMENT_STATUS_LABEL, canReconcile, monthDisplayStatus, paymentActions, sectionActions, sectionName, type PaymentAction, type SectionAction } from '@/utils/payrollSections';
-import type { PayrollOverviewCompany, PayrollRun, PayrollRunSection } from '@/types/payroll';
+import type { PayrollOverviewCompany, PayrollRun, PayrollRunSection, SourceChange } from '@/types/payroll';
 
 const PERIOD_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -76,6 +77,8 @@ export function CompanySectionsPanel({ period, run, monthLabel, canManage, canAp
   const [paying, setPaying] = useState<{ section: PayrollRunSection; mode: 'full' | 'partial' } | null>(null);
   const [reopeningFinalized, setReopeningFinalized] = useState<PayrollRunSection | null>(null);
   const [reconciling, setReconciling] = useState<PayrollRunSection | null>(null);
+  // Review / Finalize refused because the source data changed (409 PAYROLL_SOURCES_CHANGED): the dialog stays open and lists the changes the server named.
+  const [refusal, setRefusal] = useState<{ sectionId: number; changes: SourceChange[]; total: number } | null>(null);
   const sections = run?.sections ?? [];
 
   const { data: overview, error, isLoading, refetch } = useQuery({
@@ -107,6 +110,7 @@ export function CompanySectionsPanel({ period, run, monthLabel, canManage, canAp
           return hrApi.payrollRuns.reopenSection(section.id, reason ?? '');
       }
     },
+    onMutate: () => setRefusal(null),
     onSuccess: (_result, { action }) => {
       refresh();
       setReviewing(null);
@@ -114,15 +118,22 @@ export function CompanySectionsPanel({ period, run, monthLabel, canManage, canAp
       setReopening(null);
       show(t(action === 'review' ? 'notify.payroll.reviewed' : action === 'finalize' ? 'notify.payroll.finalized' : 'notify.payroll.reopened'));
     },
-    onError: (err, { action }) => {
-      setReviewing(null);
-      setFinalizing(null);
+    onError: (err, { action, section }) => {
+      const sources = action === 'review' || action === 'finalize' ? sourceChangesFromError(err) : null;
+      if (sources) {
+        // The data changed after Generate: keep the dialog open and show the list the server named (nothing was changed).
+        setRefusal({ sectionId: section.id, ...sources });
+      } else {
+        setReviewing(null);
+        setFinalizing(null);
+      }
       show(friendlyErrorMessage(err, t(action === 'review' ? 'notify.payroll.reviewFailed' : action === 'finalize' ? 'notify.payroll.finalizeFailed' : 'notify.payroll.reopenFailed')), 'error');
     },
   });
 
   const busy = mutation.isPending;
   const act = (section: PayrollRunSection, action: SectionAction) => {
+    if (action === 'review' || action === 'finalize') setRefusal(null);
     if (action === 'review') setReviewing(section);
     else if (action === 'finalize') setFinalizing(section);
     else if (action === 'reopen') setReopening(section);
@@ -316,6 +327,7 @@ export function CompanySectionsPanel({ period, run, monthLabel, canManage, canAp
           description={t('confirm.payroll.sectionReviewBody', { name: nameOf(reviewing), month: monthLabel })}
           confirmLabel={reviewLabel}
           isLoading={busy}
+          refusedChanges={refusal?.sectionId === reviewing.id ? refusal : null}
           onConfirm={() => mutation.mutate({ section: reviewing, action: 'review' })}
           onCancel={() => setReviewing(null)}
         />
@@ -330,6 +342,7 @@ export function CompanySectionsPanel({ period, run, monthLabel, canManage, canAp
           confirmLabel={finalizeConfirmLabel}
           tone="danger"
           isLoading={busy}
+          refusedChanges={refusal?.sectionId === finalizing.id ? refusal : null}
           onConfirm={() => mutation.mutate({ section: finalizing, action: 'finalize' })}
           onCancel={() => setFinalizing(null)}
         />

@@ -18,6 +18,7 @@ use App\Support\Hr\Payroll\PayrollCompanyOverview;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\Payroll\PayrollRunCalculator;
 use App\Support\Hr\Payroll\PayrollSections;
+use App\Support\Hr\Payroll\PayrollSourceInputs;
 use App\Support\Hr\Payroll\RecoveryLedger;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -91,6 +92,10 @@ class GenerateCompanyPayrollAction
                 PayrollItem::query()->whereIn('id', $itemIds)->delete();
             }
 
+            // Freshness guard: remember the assignments, salary rows and Temporary covers this company is calculated from. Taken BEFORE the calculation, so a
+            // change made while it runs is seen as "changed since Generate" rather than missed.
+            $sourceInputs = PayrollSourceInputs::snapshot($period, $companyId);
+
             // The month is calculated ONCE for everyone (cross-assignment rules); only this company's lines are written.
             $result = $this->calculator->calculate($period);
             $companyOf = PayrollSections::companyIdsByAssignment(array_values(array_unique(array_column($result['items'], 'work_assignment_id'))));
@@ -107,6 +112,7 @@ class GenerateCompanyPayrollAction
                 'totals' => $this->totals($lines),
                 'generated_at' => now(), 'generated_by' => $actor->id,
                 'generation_warnings' => $warnings,
+                'generation_inputs' => $sourceInputs,
             ];
 
             if ($section === null) {

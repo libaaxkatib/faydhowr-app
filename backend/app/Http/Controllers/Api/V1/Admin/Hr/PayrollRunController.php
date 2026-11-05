@@ -4,12 +4,10 @@ namespace App\Http\Controllers\Api\V1\Admin\Hr;
 
 use App\Actions\Hr\CreatePayrollAdjustmentAction;
 use App\Actions\Hr\MarkPayrollItemPaidAction;
-use App\Actions\Hr\TransitionPayrollRunAction;
 use App\Actions\Hr\VoidPayrollPaymentAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Admin\Hr\CreatePayrollAdjustmentRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\MarkPayrollItemPaidRequest;
-use App\Http\Requests\Api\V1\Admin\Hr\ReopenPayrollRunRequest;
 use App\Http\Resources\Api\V1\Admin\Hr\PayrollItemResource;
 use App\Http\Resources\Api\V1\Admin\Hr\PayrollRunResource;
 use App\Models\PayrollItem;
@@ -46,11 +44,8 @@ class PayrollRunController extends Controller
         return ApiResponse::success('Payroll run retrieved successfully.', new PayrollRunResource($payrollRun));
     }
 
-    /** Month-level reopen of the reviewed / legacy-approved companies. Kept unchanged: its fate is the open point O-1 (owner decision pending). */
-    public function reopen(ReopenPayrollRunRequest $request, PayrollRun $payrollRun, TransitionPayrollRunAction $action): JsonResponse
-    {
-        return ApiResponse::success('Payroll reopened to draft.', new PayrollRunResource($action->reopen($payrollRun, $request->validated('reason'), $request->user())->loadCount(self::sectionCounts())));
-    }
+    // There is NO month-level reopen (owner decision O-1, Option A, 2026-11-05): one call moved EVERY reviewed / legacy-approved company back to draft. A
+    // company is reopened only through its own section (PayrollRunSectionController::reopen), with a reason, its own authorization and its own audit entry.
 
     public function export(PayrollRun $payrollRun, PayrollRunSheetMapper $mapper, PayrollWorkbookExporter $exporter): BinaryFileResponse
     {

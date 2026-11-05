@@ -2,11 +2,13 @@
 
 namespace App\Support\Hr\Payroll;
 
+use App\Support\Hr\Facility\FacilityCalendar;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
  * The validation shared by every request that registers or corrects a penalty or a one-month advance (Release 1B; owner decisions P-1, A-1, U-1):
- * a positive USD amount with at most two decimals, a real date (not absurdly far ahead), a payroll month that exists (not later than next month), and a reason a person can read later. One place, so the two kinds can never drift apart.
+ * a positive USD amount with at most two decimals (at most 1,000,000), a real date from 2020-01-01 that is not in the future, a payroll month from 2020-01
+ * up to next month, and a reason of 3-500 characters. One place, so the two kinds can never drift apart.
  */
 final class DeductionRules
 {
@@ -45,8 +47,9 @@ final class DeductionRules
     /** @return list<mixed> */
     public static function date(bool $required = true): array
     {
-        // A real date: not before 2020 and not more than a month ahead (a typo guard - a penalty dated in 2062 is a mistake, one dated next week is not).
-        return [$required ? 'required' : 'sometimes', 'date', 'after_or_equal:2020-01-01', 'before_or_equal:'.now()->addDays(31)->toDateString()];
+        // A real date from 2020-01-01 up to TODAY (owner decision, 2026-11-05, Option A): a penalty and an advance record something that already happened, so
+        // a future date is refused. "Today" is the business calendar's (Mogadishu), the same day the screens and the payroll use.
+        return [$required ? 'required' : 'sometimes', 'date', 'after_or_equal:2020-01-01', 'before_or_equal:'.FacilityCalendar::today()->toDateString()];
     }
 
     /** @return list<mixed> */

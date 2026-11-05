@@ -3,7 +3,6 @@
 namespace Tests\Feature\Api\V1\Admin\Hr;
 
 use App\Actions\Hr\GetPayrollRollupAction;
-use App\Actions\Hr\TransitionPayrollRunAction;
 use App\Actions\Hr\TransitionPayrollRunSectionAction;
 use App\Enums\AdminRole;
 use App\Http\Controllers\Api\V1\Admin\Hr\PayrollRunController;
@@ -307,12 +306,11 @@ class CompanyPayrollSectionsTest extends TestCase
         // No registered route finalizes more than one company: the only finalize route names exactly one section.
         $finalizeRoutes = collect($this->app['router']->getRoutes()->getRoutes())->filter(fn ($route): bool => str_contains($route->uri(), 'payroll') && str_contains(strtolower($route->uri().$route->getActionName()), 'finali'));
         $this->assertSame(['api/v1/admin/hr/payroll-run-sections/{payrollRunSection}/finalize'], $finalizeRoutes->map(fn ($route): string => $route->uri())->values()->all());
-        $this->assertFalse(method_exists(TransitionPayrollRunAction::class, 'finalize'), 'the month-level action is removed, not just unrouted');
+        $this->assertFileDoesNotExist(app_path('Actions/Hr/TransitionPayrollRunAction.php'), 'the month-level action is removed, not just unrouted');
         $this->assertFalse(method_exists(PayrollRunController::class, 'finalize'));
 
-        // The shared bulk path itself refuses to finalize.
-        $this->expectException(\LogicException::class);
-        app(TransitionPayrollRunSectionAction::class)->bulk($this->monthRun(), 'reviewed', 'finalized', $this->superAdmin);
+        // And no bulk path exists at all any more (O-1): a section moves only one company at a time.
+        $this->assertFalse(method_exists(TransitionPayrollRunSectionAction::class, 'bulk'));
     }
 
     public function test_a_reviewed_company_can_be_reopened_with_a_reason_a_finalized_one_cannot_and_nothing_else_changes(): void

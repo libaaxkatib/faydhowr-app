@@ -1,7 +1,9 @@
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import { GenerationWarningsPanel } from '@/features/hrm/GenerationWarningsPanel';
+import { GenerationWarningsPanel, SourceInputsNotice } from '@/features/hrm/GenerationWarningsPanel';
+import { SourcesShownContext } from '@/features/hrm/sourcesShownContext';
 import { useI18n } from '@/i18n/useI18n';
+import type { SourceChange } from '@/types/payroll';
 
 /**
  * The confirmation of "Mark reviewed" and "Finalize" for ONE company. Above the buttons it lists the company's Temporary Replacement warnings, read from the
@@ -15,6 +17,7 @@ export function SectionActionDialog({
   confirmLabel,
   tone = 'primary',
   isLoading,
+  refusedChanges = null,
   onConfirm,
   onCancel,
 }: {
@@ -26,6 +29,8 @@ export function SectionActionDialog({
   confirmLabel: string;
   tone?: 'primary' | 'danger';
   isLoading: boolean;
+  /** The server refused this Review / Finalize because the source data changed (409 PAYROLL_SOURCES_CHANGED): the changes it named, shown instead of the panel's own list. */
+  refusedChanges?: { changes: SourceChange[]; total: number } | null;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -47,7 +52,10 @@ export function SectionActionDialog({
       }
     >
       <p className="text-sm text-ink-muted">{description}</p>
-      <GenerationWarningsPanel period={period} company={company} />
+      {refusedChanges && <SourceInputsNotice context="action" changes={refusedChanges.changes} total={refusedChanges.total} />}
+      <SourcesShownContext.Provider value={refusedChanges !== null}>
+        <GenerationWarningsPanel period={period} company={company} />
+      </SourcesShownContext.Provider>
     </Modal>
   );
 }

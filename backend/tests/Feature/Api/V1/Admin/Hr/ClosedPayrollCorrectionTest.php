@@ -13,6 +13,7 @@ use App\Models\PayrollItem;
 use App\Models\PayrollItemDeduction;
 use App\Models\PayrollRecoveryDeduction;
 use App\Models\PayrollRun;
+use App\Models\PayrollRunSection;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -285,7 +286,10 @@ class ClosedPayrollCorrectionTest extends TestCase
         $run = PayrollRun::query()->where('period', '2026-10')->firstOrFail();
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/review")->assertOk();
         $this->assertSame(20000, (int) $correction->fresh()->outstanding_cents, 'a reviewed month has not recovered anything yet');
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/reopen", ['reason' => 'Check the totals again'])->assertOk();
+        // There is no month-level reopen (O-1): each company is reopened through its own section.
+        foreach (PayrollRunSection::query()->where('payroll_run_id', $run->id)->get() as $section) {
+            $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/reopen", ['reason' => 'Check the totals again'])->assertOk();
+        }
         $this->assertSame(20000, (int) $correction->fresh()->outstanding_cents, 'the deduction is still scheduled');
         $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-10'])->assertCreated();
         $this->finalizeEveryCompany($run->id, $this->super);

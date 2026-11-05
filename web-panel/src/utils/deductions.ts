@@ -25,9 +25,6 @@ export const MIN_REASON_LENGTH = 3;
 /** The earliest payroll month the server accepts. */
 export const EARLIEST_PERIOD = '2020-01';
 
-/** A date more than this many days ahead is refused by the server. */
-export const MAX_DAYS_AHEAD = 31;
-
 // ---------------------------------------------------------------- who is offered what (the server checks the role again)
 
 /** A Super Admin or an HR Manager voids or corrects a penalty / advance. */
@@ -106,14 +103,14 @@ export function periodProblem(period: string, now: Date): MessageKey | null {
   return period < EARLIEST_PERIOD || period > latest ? 'validation.deduction.periodRange' : null;
 }
 
-/** The date of a penalty or an advance: not more than 31 days ahead. `date` is YYYY-MM-DD. */
+/** The date of a penalty or an advance: a real date that is not in the future (owner decision: no future-dated records). `date` is YYYY-MM-DD. */
 export function dateProblem(date: string, now: Date): MessageKey | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return 'validation.deduction.dateInvalid';
   const [year, month, day] = date.split('-').map(Number);
-  const limit = new Date(now.getFullYear(), now.getMonth(), now.getDate() + MAX_DAYS_AHEAD);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const picked = new Date(year, month - 1, day);
 
-  return picked.getTime() > limit.getTime() ? 'validation.deduction.dateFuture' : null;
+  return picked.getTime() > today.getTime() ? 'validation.deduction.dateFuture' : null;
 }
 
 // ---------------------------------------------------------------- registering

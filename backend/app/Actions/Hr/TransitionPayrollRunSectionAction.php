@@ -13,6 +13,7 @@ use App\Support\Hr\Payroll\CorrectionSupersession;
 use App\Support\Hr\Payroll\DeductionInputsFingerprint;
 use App\Support\Hr\Payroll\InputOwnership;
 use App\Support\Hr\Payroll\PayrollSections;
+use App\Support\Hr\Payroll\PayrollSourceInputs;
 use App\Support\Hr\Payroll\RecoveryLedger;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,7 @@ use Illuminate\Support\Facades\DB;
  * section and in the audit log (company, period, previous and new status).
  *
  * The month's own status follows its sections (PayrollSections::syncRun): it becomes approved / finalized only when EVERY company is, and then
- * finalizes automatically. The month-level buttons use bulk(): every section that is in the previous state moves, the others are left alone.
+ * finalizes automatically. There is no month-level action of any kind (no bulk review, finalize or reopen): every change names ONE company.
  */
 class TransitionPayrollRunSectionAction
 {
@@ -51,36 +52,7 @@ class TransitionPayrollRunSectionAction
         return $this->single($section, self::BEFORE_FINAL, PayrollRunSection::STATUS_FINALIZED, $actor, null, 'finalized');
     }
 
-    /**
-     * The month-level action: every section that is in $from moves to $to. Returns how many moved (zero when none was in $from).
-     */
-    public function bulk(PayrollRun $run, string|array $from, string $to, Admin $actor, ?string $reason = null): int
-    {
-        // Finalizing is ONE company at a time, by design (owner decision 2026-11-03): there is no way to finalize several companies together.
-        if ($to === PayrollRunSection::STATUS_FINALIZED) {
-            throw new \LogicException('Companies are finalized one at a time; there is no bulk finalize.');
-        }
-
-        if ($to === PayrollRunSection::STATUS_APPROVED) {
-            throw new \LogicException('There is no approve step: a company is approved by being paid in full.');
-        }
-
-        return DB::transaction(function () use ($run, $from, $to, $actor, $reason): int {
-            $run = PayrollRun::query()->lockForUpdate()->findOrFail($run->id);
-            $sections = $run->sections()->whereIn('status', (array) $from)->lockForUpdate()->get();
-
-            foreach ($sections as $section) {
-                $this->apply($section, $run, $section->status, $to, $actor, $reason);
-            }
-
-            // The month-level caller (TransitionPayrollRunAction) writes the run's own audit entry.
-            if ($sections->isNotEmpty()) {
-                $this->afterChange($run, $actor, false);
-            }
-
-            return $sections->count();
-        });
-    }
+    // There is NO bulk transition (owner decisions 2026-11-03 for finalize, D-2 for review, O-1 for reopen): the only way to move a section is `single()`, one company at a time.
 
     /** The states a company may be in before it is finalized or sent back to draft: reviewed (or "approved", which only an older version could leave behind). */
     private const BEFORE_FINAL = [PayrollRunSection::STATUS_REVIEWED, PayrollRunSection::STATUS_APPROVED];
@@ -125,6 +97,8 @@ class TransitionPayrollRunSectionAction
         // Release 1B freshness guard: a penalty / advance registered, corrected, voided or waived since Generate must not be locked in unseen.
         if (in_array($to, [PayrollRunSection::STATUS_REVIEWED, PayrollRunSection::STATUS_APPROVED, PayrollRunSection::STATUS_FINALIZED], true)) {
             DeductionInputsFingerprint::assertFresh($section, $run);
+            // ... and so must an assignment, a salary row or a Temporary cover changed since Generate (PayrollSourceInputs).
+            PayrollSourceInputs::assertFresh($section, $run);
         }
 
         if (in_array($to, [PayrollRunSection::STATUS_APPROVED, PayrollRunSection::STATUS_FINALIZED], true)) {

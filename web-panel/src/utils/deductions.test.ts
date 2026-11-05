@@ -98,7 +98,7 @@ test('a reason needs at least three characters once trimmed', () => {
   assert.deepEqual(['', '  ', 'ab', ' ab ', 'abc', ' abc '].map(reasonReady), [false, false, false, false, true, true]);
 });
 
-test('the payroll month runs from 2020-01 up to next month; the date at most 31 days ahead', () => {
+test('the payroll month runs from 2020-01 up to next month; the date may not be in the future', () => {
   assert.equal(periodProblem('2026-11', NOW), null);
   assert.equal(periodProblem('2026-12', NOW), null, 'next month is allowed');
   assert.equal(periodProblem('2027-01', NOW), 'validation.deduction.periodRange');
@@ -111,8 +111,10 @@ test('the payroll month runs from 2020-01 up to next month; the date at most 31 
 
   assert.equal(dateProblem('2026-11-05', NOW), null);
   assert.equal(dateProblem('2020-01-01', NOW), null, 'a past date is the server\'s business, not the panel\'s');
-  assert.equal(dateProblem('2026-12-06', NOW), null, '31 days ahead is the limit');
-  assert.equal(dateProblem('2026-12-07', NOW), 'validation.deduction.dateFuture');
+  assert.equal(dateProblem('2026-11-04', NOW), null, 'yesterday is a past date');
+  assert.equal(dateProblem('2026-11-06', NOW), 'validation.deduction.dateFuture', 'tomorrow is refused');
+  assert.equal(dateProblem('2026-12-06', NOW), 'validation.deduction.dateFuture', 'the old 31-day allowance is gone');
+  assert.equal(dateProblem('2026-11-05', new Date(2026, 10, 5, 23, 59)), null, 'later today is still today');
   assert.equal(dateProblem('', NOW), 'validation.deduction.dateInvalid');
 });
 

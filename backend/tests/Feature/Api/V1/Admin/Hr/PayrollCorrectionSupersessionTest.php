@@ -149,15 +149,16 @@ class PayrollCorrectionSupersessionTest extends TestCase
         return (int) Admin::query()->where('role', AdminRole::HrManager)->value('id');
     }
 
-    public function test_a_reopened_company_cannot_be_finalized_until_the_month_was_generated_again(): void
+    public function test_a_reopened_company_cannot_be_reviewed_or_finalized_until_the_month_was_generated_again(): void
     {
         $this->addNewcomer();
         $this->reopenNovember()->assertOk();
         $section = $this->novSection();
 
-        $this->as($this->hrManager)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/review")->assertOk();
-        $this->as($this->hrManager)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/finalize")->assertStatus(422)->assertJsonPath('error_code', 'REGENERATE_AFTER_REOPEN');
-        $this->assertSame('reviewed', $section->fresh()->status, 'refused as a whole');
+        // The newcomer's assignment was added AFTER the lines were generated: the freshness guard (source data) refuses the review and says what changed.
+        $this->as($this->hrManager)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/review")
+            ->assertStatus(409)->assertJsonPath('error_code', 'PAYROLL_SOURCES_CHANGED')->assertJsonPath('errors.changes.0.category', 'assignment')->assertJsonPath('errors.changes.0.change', 'added');
+        $this->assertSame('draft', $section->fresh()->status, 'refused as a whole');
 
         CarbonImmutable::setTestNow('2026-11-05 11:00:00');
         $this->generate('2026-11');
@@ -165,6 +166,17 @@ class PayrollCorrectionSupersessionTest extends TestCase
         $this->as($this->hrManager)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->fresh()->id}/finalize")->assertOk();
         $this->assertSame('finalized', $section->fresh()->status);
         $this->assertSame(0, (int) PayrollCorrection::query()->where('status', 'open')->count(), 'no open correction is left behind');
+    }
+
+    public function test_a_reopened_company_whose_sources_did_not_change_is_not_blocked_by_the_freshness_guard(): void
+    {
+        // Nothing was assigned, re-priced or covered after the lines were generated, so reopening and finalizing again needs no extra Generate.
+        $this->reopenNovember()->assertOk();
+        $section = $this->novSection();
+
+        $this->as($this->hrManager)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/review")->assertOk();
+        $this->as($this->hrManager)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/finalize")->assertOk();
+        $this->assertSame('finalized', $section->fresh()->status);
     }
 
     public function test_a_correction_with_money_already_paid_blocks_the_reopening_and_nothing_changes(): void

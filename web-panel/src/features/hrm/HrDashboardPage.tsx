@@ -11,7 +11,14 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
 import { dashboardPayrollCards, isPayrollPeriod } from '@/utils/payrollOverview';
 import { categoryTileLabel, categoryTileTo, dashboardCardTo } from '@/utils/hrDashboardLinks';
+import { getActiveLanguage } from '@/i18n/active';
+import { monthYearLabel } from '@/i18n/dates';
 import { useI18n } from '@/i18n/useI18n';
+
+/** "November 2026" / "Nofeembar 2026" for a YYYY-MM month; anything else is shown as it is. */
+function monthName(period: string): string {
+  return isPayrollPeriod(period) ? monthYearLabel(getActiveLanguage(), Number(period.slice(0, 4)), Number(period.slice(5, 7)) - 1) : period;
+}
 
 export function HrDashboardPage() {
   const { t } = useI18n();
@@ -72,7 +79,11 @@ export function HrDashboardPage() {
 
           <Card className="mb-5">
             <CardHeader>
-              <h3 className="font-display text-sm font-bold text-ink">{t('option.hr.sectionFinancials')}</h3>
+              <div>
+                <h3 className="font-display text-sm font-bold text-ink">{t('option.hr.sectionFinancials')}</h3>
+                {/* Owner decision O-2: say which month these cards count - the calendar month - because the payroll group below has its own payroll month. */}
+                <p className="mt-0.5 text-xs text-ink-muted" data-testid="dashboard-calendar-month">{t('option.hr.calendarMonthLabel', { month: monthName(data.calendar_month) })}</p>
+              </div>
             </CardHeader>
             <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <KpiCard label={t('option.payroll.penalties')} value={data.month_penalties_total} icon="x" color="bg-danger" to="/hr/reports/financial-ledger" isCurrency />
@@ -85,6 +96,7 @@ export function HrDashboardPage() {
               <CardHeader className="flex-wrap gap-3">
                 <div>
                   <h3 className="font-display text-sm font-bold text-ink">{t('option.hr.companyPayrollTitle')}</h3>
+                  <p className="mt-0.5 text-xs font-medium text-ink" data-testid="dashboard-payroll-month-label">{t('option.hr.payrollMonthLabel', { month: monthName(payrollMonth ?? data.payroll.period) })}</p>
                   <p className="mt-0.5 text-xs text-ink-muted">{t('option.hr.companyPayrollHelp')}</p>
                 </div>
                 <div>

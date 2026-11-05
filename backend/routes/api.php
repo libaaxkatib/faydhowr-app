@@ -1708,9 +1708,7 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.approve', 'th
         ->name('api.v1.admin.hr.temporary-replacements.approve');
     // There is deliberately NO Approve at all (owner decision 2026-11-04): neither a month-level nor a company-level Approve step. A company is APPROVED by
     // being paid in full (Approve Paid / Approve Partial below, PayrollApproval) and the month is approved by itself when every company is.
-    Route::patch('v1/admin/hr/payroll-runs/{payrollRun}/reopen', [AdminPayrollRunController::class, 'reopen'])
-        ->whereNumber('payrollRun')
-        ->name('api.v1.admin.hr.payroll-runs.reopen');
+    // There is deliberately NO month-level Reopen either (owner decision O-1, 2026-11-05): a company is reopened only through its own section route below.
     // There is deliberately NO month-level Finalize and no bulk finalize: a company is finalized only through its own section below, and the month
     // finalizes itself when the last company is (owner decision 2026-11-03).
     // ONE company's part of the month: same permission as the month-level actions (hr.payroll.approve).

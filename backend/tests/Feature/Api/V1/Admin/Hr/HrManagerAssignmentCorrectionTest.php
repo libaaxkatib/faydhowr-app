@@ -256,9 +256,9 @@ class HrManagerAssignmentCorrectionTest extends TestCase
     {
         $this->add($this->hrManager, ['correction_reason' => 'Started on 10 September'])->assertCreated();
 
-        // The finalized month still cannot be regenerated or reopened, and a payment is still recorded the normal way.
+        // The finalized month still cannot be regenerated, there is no month-level reopen (O-1), and a payment is still recorded the normal way.
         $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-09'])->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_LOCKED');
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/reopen", ['reason' => 'Trying to undo a final month'])->assertStatus(422);
+        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$this->runId}/reopen", ['reason' => 'Trying to undo a final month'])->assertNotFound();
         $sectionId = (int) PayrollRunSection::query()->where('payroll_run_id', $this->runId)->value('id');
         $this->approvePaid($sectionId, $this->super)->assertCreated();
         $this->assertSame(30000, (int) PayrollWorkplacePayment::query()->sole()->amount_cents, 'the payment is for the finalized 300.00, not for the correction');

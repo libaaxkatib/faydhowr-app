@@ -40,6 +40,13 @@ const OWNER_APPROVED_ADDITIONS: Record<string, { id: string; so: string }> = {
  */
 const RETIRED_FROM_SCREEN = new Set(['action.approvePayroll', 'action.approvePayrollButton']);
 
+/**
+ * Owner decision O-1 (2026-11-05): the month-level Reopen button and its dialog were REMOVED from the Payroll page (a company is reopened only from its own
+ * row). Its two approved messages are still used by the company-level reopen screens, so only this ONE screen is exempt for them, and only for the check
+ * that they are still shown there. Their wording stays exactly as locked (pinned by the baseline checks above); every other screen is still checked.
+ */
+const RETIRED_FROM_ONE_SCREEN = new Set(['action.reopen@PayrollRunsPage.tsx', 'action.reopenPayroll@PayrollRunsPage.tsx']);
+
 interface BaselineMessage {
   key: string;
   id: string;
@@ -128,6 +135,7 @@ test('every locked message is still used by each screen that used it when it was
   for (const m of baseline.messages) {
     if (RETIRED_FROM_SCREEN.has(m.key)) continue;
     for (const screen of m.screens) {
+      if (RETIRED_FROM_ONE_SCREEN.has(`${m.key}@${screen}`)) continue;
       const candidates = files.filter((f) => f.path.endsWith(`/${screen}`) || f.path === screen);
       if (candidates.length === 0) {
         lost.push(`${m.key} (${m.id}): screen file ${screen} no longer exists`);

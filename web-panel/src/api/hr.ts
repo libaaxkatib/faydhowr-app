@@ -5,7 +5,7 @@ import type { OfficeStaffSummary } from '@/utils/officeStaff';
 import type { CompanyListMeta } from '@/utils/clientCompanyFilter';
 import type { CoverConflict } from '@/utils/coverConflict';
 import { downloadQuery, fileName as paymentListFileName, type PaymentListFilterOptions, type PaymentListOption, type PaymentListScope, type PaymentListWorkbookPreview } from '@/utils/paymentListFilter';
-import type { CompanyWarnings, CorrectDeductionPayload, DeductionBalanceFilters, DeductionBalances, DeductionPath, VoidDeductionPayload, WaiveDeductionPayload, CreatePayrollAdjustmentPayload, GenerateExpectedStatus, PayrollAdjustmentResult, PayrollOverview, PayrollCorrectionsResponse, PayrollItem, PayrollRun, RecordCompanyPaymentPayload, RecordCompanyPaymentResult, ReconcileCompanyPayload, ReconcileCompanyResult, CompanyClosureView, RecordWorkplacePaymentPayload, WorkplacePayments, WorkplacePayrollSummary } from '@/types/payroll';
+import type { CompanyWarnings, CorrectDeductionPayload, DeductionBalanceFilters, DeductionBalancePage, DeductionBalanceMeta, DeductionPath, VoidDeductionPayload, WaiveDeductionPayload, CreatePayrollAdjustmentPayload, GenerateExpectedStatus, PayrollAdjustmentResult, PayrollOverview, PayrollCorrectionsResponse, PayrollItem, PayrollRun, RecordCompanyPaymentPayload, RecordCompanyPaymentResult, ReconcileCompanyPayload, ReconcileCompanyResult, CompanyClosureView, RecordWorkplacePaymentPayload, WorkplacePayments, WorkplacePayrollSummary } from '@/types/payroll';
 import type {
   AttendanceRosterEntry,
   ClientCompany,
@@ -371,16 +371,20 @@ export const hrApi = {
     /** The non-blocking Temporary Replacement warnings of one company for the month (hr.payroll.view). */
     companyWarnings: (period: string, company: number | null) => apiRequest<CompanyWarnings>(`admin/hr/payroll/${period}/companies/${companySegment(company)}/warnings`),
     /** Penalties and advances payroll could not deduct yet (read-only, hr.payroll.view). Nothing here is a debt and nothing is forgiven. */
-    deductionBalances: (filters: DeductionBalanceFilters) =>
-      apiRequest<DeductionBalances>('admin/hr/payroll/deduction-balances', {
+    deductionBalances: async (filters: DeductionBalanceFilters, page = 1, perPage = 50): Promise<DeductionBalancePage> => {
+      // The server pages the list: this page's rows, the totals of the whole filtered set and the real record count in `meta`.
+      const { data, meta } = await apiRequestWithMeta<DeductionBalancePage['data']>('admin/hr/payroll/deduction-balances', {
         query: {
           client_company_id: filters.client_company_id,
           kind: filters.kind,
           leavers_only: filters.leavers_only ? 1 : undefined,
+          page,
+          per_page: perPage,
         },
-      }),
-    reopen: (id: number, reason: string) =>
-      apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/reopen`, { method: 'PATCH', body: { reason } }),
+      });
+
+      return { data, meta: meta as DeductionBalanceMeta };
+    },
     /** ONE company's part of the month: review / finalize / reopen it without touching the other companies (the answer is the whole month). There is no Approve:
      a company is approved by being paid in full (payCompany) and the month by every company being approved. */
     reviewSection: (sectionId: number) => apiRequest<PayrollRun>(`admin/hr/payroll-run-sections/${sectionId}/review`, { method: 'PATCH' }),

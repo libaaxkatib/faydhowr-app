@@ -83,7 +83,8 @@ class DeductionRecordController extends Controller
 
     /**
      * Everything still owed on penalties and advances (what payroll could not deduct yet), with the leavers marked. Needs hr.payroll.view: these are
-     * salary amounts of named people. Read-only: nothing here is a debt or a payment.
+     * salary amounts of named people. Read-only: nothing here is a debt or a payment. Paged on the server (`page`, `per_page` up to 200): `data.rows` is
+     * the page, `data.totals` covers the whole filtered set and `meta` carries the real total and whether the safety ceiling truncated the scan.
      */
     public function balances(Request $request): JsonResponse
     {
@@ -91,17 +92,23 @@ class DeductionRecordController extends Controller
             'client_company_id' => ['nullable', 'integer'],
             'kind' => ['nullable', 'in:penalty,advance'],
             'leavers_only' => ['nullable', 'boolean'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:'.DeductionBalanceList::MAX_PER_PAGE],
         ]);
 
         if ($validator->fails()) {
             return ApiResponse::error('The given data was invalid.', 'VALIDATION_ERROR', 422, $validator->errors());
         }
 
-        return ApiResponse::success('Outstanding balances retrieved successfully.', DeductionBalanceList::build(
+        $list = DeductionBalanceList::build(
             $request->filled('client_company_id') ? (int) $request->query('client_company_id') : null,
             $request->query('kind'),
             $request->boolean('leavers_only'),
-        ));
+            $request->integer('page', 1),
+            $request->integer('per_page', DeductionBalanceList::DEFAULT_PER_PAGE),
+        );
+
+        return ApiResponse::success('Outstanding balances retrieved successfully.', ['rows' => $list['rows'], 'totals' => $list['totals']], 200, $list['meta']);
     }
 
     private function kind(string $kind): DeductionKind

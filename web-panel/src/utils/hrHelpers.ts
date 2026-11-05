@@ -176,6 +176,8 @@ export const SOMALI_WORDING_CODES: ReadonlySet<string> = new Set([
   'WAIVE_NOT_APPLICABLE',
   'WAIVE_AMOUNT_INVALID',
   'PAYROLL_INPUTS_CHANGED',
+  // HR Release 1C: the stale-draft check for assignments, salaries, Temporary covers and absences before Review / Finalize.
+  'PAYROLL_SOURCES_CHANGED',
 ]);
 
 interface ErrorLike {

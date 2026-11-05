@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 
 import { hrApi } from '@/api/hr';
 import { Card } from '@/components/ui/Card';
+import { Pagination } from '@/components/ui/Pagination';
 import { DataTable } from '@/components/ui/DataTable';
 import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -14,6 +15,9 @@ import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useI18n } from '@/i18n/useI18n';
 import { BALANCE_FILTER_KEYS, balanceRowView, balanceTotalsView, parseBalanceFilters, type BalanceRowView } from '@/utils/deductions';
 import type { DeductionBalanceRow } from '@/types/payroll';
+
+/** Records per page; the server does the paging (it accepts up to 200). */
+const PAGE_SIZE = 50;
 
 interface TableRow {
   view: BalanceRowView;
@@ -33,13 +37,21 @@ export function OutstandingBalancesPage() {
   const reset = () => url.reset(BALANCE_FILTER_KEYS);
 
   const { data: companies } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list });
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['deduction-balances', filters],
-    queryFn: () => hrApi.payrollRuns.deductionBalances(filters),
+  const { data: result, isLoading, error, refetch } = useQuery({
+    queryKey: ['deduction-balances', filters, url.page],
+    queryFn: () => hrApi.payrollRuns.deductionBalances(filters, url.page, PAGE_SIZE),
     placeholderData: (previous) => previous,
     // The figures change whenever a payroll is finalized or a record is voided / waived: always show the current picture.
     staleTime: 0,
   });
+
+  const data = result?.data;
+  const meta = result?.meta;
+
+  // A page past the end (an old link, or the last record of the last page was settled) goes to the page the server actually returned.
+  useEffect(() => {
+    if (meta && meta.current_page !== url.page && !(meta.current_page === 1 && url.page <= 1)) url.setPage(meta.current_page);
+  }, [meta, url]);
 
   const rows = useMemo<TableRow[]>(() => (data?.rows ?? []).map((row: DeductionBalanceRow) => ({ view: balanceRowView(row), employeeId: row.employee_id })), [data]);
   const totals = data ? balanceTotalsView(data) : null;
@@ -120,6 +132,9 @@ export function OutstandingBalancesPage() {
           <ResetFiltersButton count={url.activeCount(BALANCE_FILTER_KEYS)} onReset={reset} />
         </div>
         {totals && <ListResultBar matching={totals.count} filtered={filtered} />}
+        {meta?.truncated && (
+          <p role="alert" className="border-b border-border bg-warning/10 px-5 py-2 text-sm text-ink" data-testid="balances-truncated">{t('warning.deduction.truncated')}</p>
+        )}
 
         <DataTable
           columns={columns}
@@ -132,6 +147,8 @@ export function OutstandingBalancesPage() {
           emptyDescription={filtered ? t('warning.common.noMatchText') : t('option.deduction.emptyBody')}
           emptyAction={filtered ? <ResetFiltersAction onReset={reset} /> : undefined}
         />
+
+        {meta && meta.total > 0 && <Pagination meta={meta} onPageChange={url.setPage} />}
 
         {totals && totals.count > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-surface-alt px-5 py-3 text-sm" data-testid="balances-totals">

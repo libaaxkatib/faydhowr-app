@@ -135,16 +135,19 @@ test('the request carries the section status the screen showed, and nothing for 
   assert.match(generateDialog, /hrApi\.payrollRuns\.generateCompany\(period, row\.client_company_id, expectedStatusOf\(row\)\)/);
 });
 
-test('the month-wide Generate and the month-level Review are gone from the client and the page; the month-level Reopen is untouched', () => {
+test('the month-wide Generate, the month-level Review and the month-level Reopen are all gone from the client and the page; the per-company reopen stays', () => {
   assert.ok(!/generate: \(period/.test(api) && !/body: \{ period \}/.test(api), 'no hrApi.payrollRuns.generate(period)');
   assert.ok(!/\n {4}review: \(id: number\)/.test(api), 'no hrApi.payrollRuns.review(id)');
   assert.ok(!/payroll-runs\/\$\{id\}\/review/.test(api));
   assert.ok(!/payrollRuns\.generate\(|payrollRuns\.review\(/.test(page + panel));
   assert.ok(!/generateMutation|reviewMutation|onReview|busy\.review/.test(page), 'no month-level Generate / Review mutation or button');
-  assert.match(api, /reopen: \(id: number, reason: string\) =>\s+apiRequest<PayrollRun>\(`admin\/hr\/payroll-runs\/\$\{id\}\/reopen`, \{ method: 'PATCH', body: \{ reason \} \}\)/);
-  assert.match(page, /hrApi\.payrollRuns\.reopen\(id, reason\)/);
-  assert.match(page, /\{\(run\.status === 'reviewed' \|\| run\.status === 'approved'\) && canApprove && \(\s+<Button size="sm" variant="outline" onClick=\{onReopen\}>\{t\('action\.reopen'\)\}<\/Button>/);
-  assert.match(page, /<ReopenModal/);
+  // Owner decision O-1 (2026-11-05): there is no month-level Reopen - no client function, no mutation, no button, no dialog.
+  assert.ok(!/payroll-runs\/\$\{id\}\/reopen/.test(api), 'no hrApi.payrollRuns.reopen(id)');
+  assert.ok(!/payrollRuns\.reopen\(/.test(page + panel), 'nothing calls a month-level reopen');
+  assert.ok(!/reopenMutation|isReopenOpen|onReopen|ReopenModal/.test(page), 'no month-level Reopen mutation, button or dialog on the Payroll page');
+  // The per-company reopen is untouched: its own client function and the company row's button.
+  assert.match(api, /reopenSection: \(sectionId: number, reason: string\) => apiRequest<PayrollRun>\(`admin\/hr\/payroll-run-sections\/\$\{sectionId\}\/reopen`, \{ method: 'PATCH', body: \{ reason \} \}\)/);
+  assert.match(panel, /hrApi\.payrollRuns\.reopenSection\(section\.id, reason \?\? ''\)/);
 });
 
 test('the per-company Generate button reuses the owner-approved "Generate / refresh draft" verbatim', () => {

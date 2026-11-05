@@ -48,7 +48,7 @@ class EmployeePenaltyTest extends TestCase
         ])->assertStatus(201)->assertJsonCount(1, 'data.penalties');
 
         $this->withToken($token)->postJson("/api/v1/admin/hr/employees/{$employee->id}/penalties", [
-            'penalty_date' => now()->addDays(10)->toDateString(),
+            'penalty_date' => now()->subDays(10)->toDateString(), // a past date (future-dated records are refused: owner decision 2026-11-05)
             'reason' => 'Other penalty',
             'deduction_amount' => 15,
             'currency' => 'USD',

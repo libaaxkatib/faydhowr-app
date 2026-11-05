@@ -279,8 +279,8 @@ class PayrollLifecycleTest extends TestCase
 
         $this->assertSame('finalized', $this->finalizeEveryCompany($run, $token)->status);
         $this->generate($token)->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_LOCKED');
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/reopen", ['reason' => 'Trying to undo a final month'])
-            ->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_NOT_REOPENABLE');
+        // There is no month-level reopen (owner decision O-1): the old route is gone.
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/reopen", ['reason' => 'Trying to undo a final month'])->assertNotFound();
 
         // Finalized is not approved: the month and its company are approved only when they are paid in full.
         $month = $this->withToken($token)->getJson("/api/v1/admin/hr/payroll-runs/{$run}")->assertOk()->json('data');
@@ -306,15 +306,17 @@ class PayrollLifecycleTest extends TestCase
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/review")->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_EMPTY');
     }
 
-    public function test_a_reviewed_run_can_be_reopened_with_a_reason_and_regenerated(): void
+    public function test_a_reviewed_company_can_be_reopened_with_a_reason_and_regenerated(): void
     {
         [, $token] = $this->superAdminToken();
         $this->permanentWith(300);
         $run = $this->generate($token)->json('data.id');
         $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review");
+        $sectionId = PayrollRunSection::query()->where('payroll_run_id', $run)->value('id');
 
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/reopen", ['reason' => 'x'])->assertStatus(422)->assertJsonValidationErrors('reason');
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/reopen", ['reason' => 'A workday was entered wrongly'])
+        // Reopening is per company (O-1: there is no month-level reopen); the reason is still required and checked.
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$sectionId}/reopen", ['reason' => 'x'])->assertStatus(422)->assertJsonValidationErrors('reason');
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$sectionId}/reopen", ['reason' => 'A workday was entered wrongly'])
             ->assertOk()->assertJsonPath('data.status', 'draft');
         $this->generate($token)->assertCreated();
     }
@@ -377,7 +379,9 @@ class PayrollLifecycleTest extends TestCase
 
         $this->withToken($viewer)->getJson('/api/v1/admin/hr/payroll-runs')->assertOk();
         $this->withToken($viewer)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-08'])->assertForbidden();
-        $this->withToken($viewer)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/reopen", ['reason' => 'Trying as a viewer'])->assertForbidden();
+        $section = PayrollRunSection::query()->create(['payroll_run_id' => $run->id, 'client_company_id' => null, 'status' => 'reviewed']);
+        $this->withToken($viewer)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/reopen", ['reason' => 'Trying as a viewer'])->assertForbidden();
+        $this->assertSame('reviewed', $section->fresh()->status);
     }
 
     public function test_adjustments_need_a_finalized_month_and_apply_in_a_later_run_once(): void
