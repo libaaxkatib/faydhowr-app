@@ -12,6 +12,7 @@ use App\Models\PayrollItemDeduction;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunSection;
 use App\Support\ApiResponse;
+use App\Support\Hr\Payroll\DeductionInputsFingerprint;
 use App\Support\Hr\Payroll\GenerationWarnings;
 use App\Support\Hr\Payroll\PayrollCompanyOverview;
 use App\Support\Hr\Payroll\PayrollMoney;
@@ -130,6 +131,9 @@ class GenerateCompanyPayrollAction
                     PayrollAdjustment::query()->whereIn('id', $line['adjustment_ids'])->update(['status' => 'applied', 'applied_in_item_id' => $item->id]);
                 }
             }
+
+            // Freshness guard (Release 1B): remember which penalties / advances these lines were calculated from.
+            $section->update(['deduction_inputs_hash' => DeductionInputsFingerprint::forSection($section, $period)]);
 
             RecoveryLedger::syncFromRun($run);
 

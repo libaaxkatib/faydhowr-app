@@ -7,6 +7,7 @@ use App\Enums\EmployeeDocumentVerificationStatus;
 use App\Models\Admin;
 use App\Support\AdminPermissionResolver;
 use App\Support\Hr\EmployeeRegistrationWorkflow;
+use App\Support\Hr\Payroll\DeductionBalances;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -134,8 +135,9 @@ class EmployeeResource extends JsonResource
             'leaves' => EmployeeLeaveResource::collection($this->whenLoaded('leaves')),
             'performance_reviews' => EmployeePerformanceReviewResource::collection($this->whenLoaded('performanceReviews')),
             'payments' => EmployeePaymentResource::collection($this->whenLoaded('payments')),
-            'penalties' => EmployeePenaltyResource::collection($this->whenLoaded('penalties')),
-            'advances' => EmployeeAdvanceResource::collection($this->whenLoaded('advances')),
+            // Release 1B: each record carries what finalized payrolls already deducted and what is still owed (two queries for the whole list).
+            'penalties' => $this->whenLoaded('penalties', fn () => EmployeePenaltyResource::collection(DeductionBalances::annotate($this->penalties, DeductionBalances::TYPE_PENALTY))),
+            'advances' => $this->whenLoaded('advances', fn () => EmployeeAdvanceResource::collection(DeductionBalances::annotate($this->advances, DeductionBalances::TYPE_ADVANCE))),
             'training_history' => EmployeeTrainingHistoryResource::collection($this->whenLoaded('trainingParticipations')),
         ];
     }

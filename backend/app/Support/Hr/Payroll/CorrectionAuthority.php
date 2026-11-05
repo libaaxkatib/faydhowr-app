@@ -39,6 +39,21 @@ final class CorrectionAuthority
         return $actor->role === AdminRole::SuperAdmin;
     }
 
+    /**
+     * Owner decision Q8 (Option A, 2026-11-05): the HR Manager and the Super Admin may void or correct a penalty / advance that no finalized payroll has
+     * deducted yet. Reversing a deduction that was applied once, and waiving what is still owed, are the Super Admin's alone (mayReverseOrWaiveDeduction).
+     */
+    public static function mayVoidOrCorrectDeduction(Admin $actor): bool
+    {
+        return in_array($actor->role, [AdminRole::SuperAdmin, AdminRole::HrManager], true);
+    }
+
+    /** Owner decision Q8: reversing an applied deduction and waiving a balance stay with the highest role (they move money to or from a person). */
+    public static function mayReverseOrWaiveDeduction(Admin $actor): bool
+    {
+        return $actor->role === AdminRole::SuperAdmin;
+    }
+
     /** Roles that may record or void a reconciliation of an overpaid workplace. */
     public static function mayReconcile(Admin $actor): bool
     {
@@ -69,6 +84,8 @@ final class CorrectionAuthority
             'correct_closed_payroll' => $row([self::class, 'mayCorrectClosedPayroll']),
             'reopen_finalized_company_payroll' => $row([self::class, 'mayReopenFinalized']),
             'reopen_finalized_company_payroll_with_payments' => $row([self::class, 'mayReopenPaidFinalized']),
+            'void_or_correct_unapplied_penalty_or_advance' => $row([self::class, 'mayVoidOrCorrectDeduction']),
+            'reverse_applied_deduction_or_waive_balance' => $row([self::class, 'mayReverseOrWaiveDeduction']),
             'reconcile_overpaid_workplace' => $row([self::class, 'mayReconcile']),
             'close_or_reopen_company' => $row([self::class, 'mayCloseCompany']),
             'pay_underpayment_to_employee' => $row([self::class, 'mayPayUnderpayment']),

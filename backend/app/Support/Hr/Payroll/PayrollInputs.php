@@ -61,6 +61,12 @@ final class PayrollInputs
     /** @var array<int, Collection<int, EmployeeAdvance>> */
     private array $advances = [];
 
+    /** @var array<int, Collection<int, EmployeePenalty>> employee id => penalties of this or an earlier month with something still owed (owed_cents) */
+    private array $owedPenalties = [];
+
+    /** @var array<int, Collection<int, EmployeeAdvance>> */
+    private array $owedAdvances = [];
+
     /** @var array<int, Collection<int, EmployeeLeave>> */
     private array $leaves = [];
 
@@ -146,12 +152,17 @@ final class PayrollInputs
             }
         }
 
+        // What is still owed on penalties / advances registered for this month or an earlier one (Release 1B: the net is never below $0, the rest carries on).
+        $owed = DeductionBalances::owedFor($employeeIds, $period);
+        $self->owedPenalties = $owed['penalties'];
+        $self->owedAdvances = $owed['advances'];
+
         foreach (array_chunk($employeeIds, self::CHUNK) as $chunk) {
-            foreach (EmployeePenalty::query()->whereIn('employee_id', $chunk)->where('payroll_period', $period)->orderBy('id')->get()->groupBy('employee_id') as $id => $group) {
+            foreach (EmployeePenalty::query()->active()->whereIn('employee_id', $chunk)->where('payroll_period', $period)->orderBy('id')->get()->groupBy('employee_id') as $id => $group) {
                 $self->penalties[(int) $id] = $group->values();
             }
 
-            foreach (EmployeeAdvance::query()->whereIn('employee_id', $chunk)->where('payroll_period', $period)->orderBy('id')->get()->groupBy('employee_id') as $id => $group) {
+            foreach (EmployeeAdvance::query()->active()->whereIn('employee_id', $chunk)->where('payroll_period', $period)->orderBy('id')->get()->groupBy('employee_id') as $id => $group) {
                 $self->advances[(int) $id] = $group->values();
             }
 
@@ -249,6 +260,18 @@ final class PayrollInputs
     public function advances(int $employeeId): Collection
     {
         return $this->advances[$employeeId] ?? new Collection;
+    }
+
+    /** @return Collection<int, EmployeePenalty> */
+    public function owedPenalties(int $employeeId): Collection
+    {
+        return $this->owedPenalties[$employeeId] ?? new Collection;
+    }
+
+    /** @return Collection<int, EmployeeAdvance> */
+    public function owedAdvances(int $employeeId): Collection
+    {
+        return $this->owedAdvances[$employeeId] ?? new Collection;
     }
 
     /** @return Collection<int, EmployeeLeave> */

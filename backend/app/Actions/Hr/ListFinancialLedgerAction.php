@@ -110,11 +110,11 @@ class ListFinancialLedgerAction
 
     private function penaltiesQuery(array $filters)
     {
-        return $this->applyCommonFilters(EmployeePenalty::query()->with('employee.department'), $filters, 'penalty_date');
+        return $this->applyCommonFilters(EmployeePenalty::query()->active()->with('employee.department'), $filters, 'penalty_date');
     }
 
     private function advancesQuery(array $filters)
     {
-        return $this->applyCommonFilters(EmployeeAdvance::query()->with('employee.department'), $filters, 'advance_date');
+        return $this->applyCommonFilters(EmployeeAdvance::query()->active()->with('employee.department'), $filters, 'advance_date');
     }
 }

@@ -10,6 +10,7 @@ use App\Models\PayrollRunSection;
 use App\Models\PayrollSectionReopening;
 use App\Support\ApiResponse;
 use App\Support\Hr\Payroll\CorrectionSupersession;
+use App\Support\Hr\Payroll\DeductionInputsFingerprint;
 use App\Support\Hr\Payroll\InputOwnership;
 use App\Support\Hr\Payroll\PayrollSections;
 use App\Support\Hr\Payroll\RecoveryLedger;
@@ -119,6 +120,11 @@ class TransitionPayrollRunSectionAction
 
         if ($to === PayrollRunSection::STATUS_FINALIZED) {
             CorrectionSupersession::assertRegenerated($section, $run);
+        }
+
+        // Release 1B freshness guard: a penalty / advance registered, corrected, voided or waived since Generate must not be locked in unseen.
+        if (in_array($to, [PayrollRunSection::STATUS_REVIEWED, PayrollRunSection::STATUS_APPROVED, PayrollRunSection::STATUS_FINALIZED], true)) {
+            DeductionInputsFingerprint::assertFresh($section, $run);
         }
 
         if (in_array($to, [PayrollRunSection::STATUS_APPROVED, PayrollRunSection::STATUS_FINALIZED], true)) {

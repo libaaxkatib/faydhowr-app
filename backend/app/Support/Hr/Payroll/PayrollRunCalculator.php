@@ -257,13 +257,16 @@ class PayrollRunCalculator
 
             $this->addAbsence($assignment, $salary, $first, $last, $daysInMonth, $deductions, $leaveDates, $coveredDates, $absenceCharged[$employee->id][$lineKey], $heldElsewhere);
 
-            $otherCents = (int) collect($deductions)->where('kind', '!=', PayrollItemDeduction::KIND_REPLACEMENT)->sum('amount_cents');
             $pending = $this->inputs?->hasAssignment($assignment->id)
                 ? $this->inputs->pendingAdjustments($assignment->id)
                 : PayrollAdjustment::query()
                     ->where('applies_in_period', $period)->where('status', 'pending')
                     ->whereHas('item', fn ($q) => $q->where('work_assignment_id', $assignment->id))->get();
             $adjustmentCents = (int) $pending->sum('amount_cents');
+
+            // Release 1B: penalties and advances take at most what the line has left (net never below $0); the rest stays owed and carries on.
+            $this->capOwedDeductions($deductions, $gross['gross_cents'], $adjustmentCents, (string) $employee->employee_number, $warnings);
+            $otherCents = (int) collect($deductions)->where('kind', '!=', PayrollItemDeduction::KIND_REPLACEMENT)->sum('amount_cents');
 
             // Owner decision 2026-11-03: Temporary covers can never push a Permanent's net below zero. The Temporary's own amount stays the full cost (it is in
             // the detail); only what is taken off this line is capped (ReplacementDeductionCap).
@@ -817,8 +820,8 @@ class PayrollRunCalculator
     {
         foreach ($this->employeeKeys as $employeeId => $keys) {
             $kinds = [
-                'Penalty' => $this->inputs?->hasEmployee($employeeId) ? $this->inputs->penalties($employeeId) : EmployeePenalty::query()->where('employee_id', $employeeId)->where('payroll_period', $period)->get(),
-                'Advance' => $this->inputs?->hasEmployee($employeeId) ? $this->inputs->advances($employeeId) : EmployeeAdvance::query()->where('employee_id', $employeeId)->where('payroll_period', $period)->get(),
+                'Penalty' => $this->inputs?->hasEmployee($employeeId) ? $this->inputs->penalties($employeeId) : EmployeePenalty::query()->active()->where('employee_id', $employeeId)->where('payroll_period', $period)->get(),
+                'Advance' => $this->inputs?->hasEmployee($employeeId) ? $this->inputs->advances($employeeId) : EmployeeAdvance::query()->active()->where('employee_id', $employeeId)->where('payroll_period', $period)->get(),
                 'Unpaid leave' => $this->inputs?->hasEmployee($employeeId) ? $this->inputs->unpaidLeaves($employeeId) : EmployeeLeave::query()->where('employee_id', $employeeId)->where('leave_type', LeaveType::Unpaid)->whereDate('start_date', '<=', $last->format('Y-m-d'))->whereDate('end_date', '>=', $first->format('Y-m-d'))->get(),
                 'Absence mark' => $this->inputs?->hasEmployee($employeeId) ? $this->inputs->absences($employeeId) : EmployeeAttendance::query()->where('employee_id', $employeeId)->where('status', AttendanceStatus::Absent)->whereDate('date', '>=', $first->format('Y-m-d'))->whereDate('date', '<=', $last->format('Y-m-d'))->get(),
             ];
@@ -871,11 +874,11 @@ class PayrollRunCalculator
             $warnings[] = "{$days} covered Temporary replacement day(s) for assignment #{$assignmentId} fall in {$period}, but that assignment has no payroll line this month (for example it ended earlier), so nothing was charged to the employee.";
         }
 
-        foreach (EmployeePenalty::query()->where('payroll_period', $period)->whereNotIn('employee_id', $employeeIds)->get() as $penalty) {
+        foreach (EmployeePenalty::query()->active()->where('payroll_period', $period)->whereNotIn('employee_id', $employeeIds)->get() as $penalty) {
             $warnings[] = "Penalty #{$penalty->id} for {$period} was NOT deducted: the employee has no payroll line this month.";
         }
 
-        foreach (EmployeeAdvance::query()->where('payroll_period', $period)->whereNotIn('employee_id', $employeeIds)->get() as $advance) {
+        foreach (EmployeeAdvance::query()->active()->where('payroll_period', $period)->whereNotIn('employee_id', $employeeIds)->get() as $advance) {
             $warnings[] = "Advance #{$advance->id} for {$period} was NOT deducted: the employee has no payroll line this month.";
         }
     }
@@ -886,9 +889,15 @@ class PayrollRunCalculator
      */
     private function addPenaltiesAndAdvances(int $employeeId, string $period, string $lineKey, array &$deductions, array &$warnings): void
     {
-        $penalties = $this->inputs?->hasEmployee($employeeId)
-            ? $this->inputs->penalties($employeeId)
-            : EmployeePenalty::query()->where('employee_id', $employeeId)->where('payroll_period', $period)->get();
+        // Registered for this month OR an earlier one, with something still owed after what finalized payrolls already took (DeductionBalances).
+        if ($this->inputs?->hasEmployee($employeeId)) {
+            $penalties = $this->inputs->owedPenalties($employeeId);
+            $advances = $this->inputs->owedAdvances($employeeId);
+        } else {
+            $owed = DeductionBalances::owedFor([$employeeId], $period);
+            $penalties = $owed['penalties'][$employeeId] ?? new Collection;
+            $advances = $owed['advances'][$employeeId] ?? new Collection;
+        }
 
         foreach ($penalties as $penalty) {
             // Another company's penalty (or one whose company is ambiguous) is not charged on this company's line.
@@ -902,16 +911,23 @@ class PayrollRunCalculator
                 continue;
             }
 
+            $carried = $penalty->payroll_period !== $period;
+
             $deductions[] = [
-                'kind' => PayrollItemDeduction::KIND_PENALTY, 'source_type' => 'employee_penalty', 'source_id' => $penalty->id,
-                'amount_cents' => PayrollMoney::toCents($penalty->deduction_amount), 'description' => 'Penalty: '.$penalty->reason,
-                'detail' => ['penalty_date' => $penalty->penalty_date?->toDateString()],
+                'kind' => PayrollItemDeduction::KIND_PENALTY, 'source_type' => DeductionBalances::TYPE_PENALTY, 'source_id' => $penalty->id,
+                'amount_cents' => (int) $penalty->owed_cents,
+                'description' => 'Penalty: '.$penalty->reason.($carried ? " (carried from {$penalty->payroll_period})" : ''),
+                'detail' => [
+                    'penalty_date' => $penalty->penalty_date?->toDateString(),
+                    'registered_period' => $penalty->payroll_period,
+                    'carried_in' => $carried,
+                    'registered_cents' => $penalty->amountCents(),
+                    'previously_deducted_cents' => (int) $penalty->deducted_cents,
+                    'waived_cents' => (int) $penalty->waived_cents,
+                    'owed_cents' => (int) $penalty->owed_cents,
+                ],
             ];
         }
-
-        $advances = $this->inputs?->hasEmployee($employeeId)
-            ? $this->inputs->advances($employeeId)
-            : EmployeeAdvance::query()->where('employee_id', $employeeId)->where('payroll_period', $period)->get();
 
         foreach ($advances as $advance) {
             if ($this->ownerKey($advance->client_company_id, $employeeId) !== $lineKey) {
@@ -924,11 +940,66 @@ class PayrollRunCalculator
                 continue;
             }
 
+            $carried = $advance->payroll_period !== $period;
+
             $deductions[] = [
-                'kind' => PayrollItemDeduction::KIND_ADVANCE, 'source_type' => 'employee_advance', 'source_id' => $advance->id,
-                'amount_cents' => PayrollMoney::toCents($advance->amount), 'description' => 'Salary advance: '.$advance->reason,
-                'detail' => ['advance_date' => $advance->advance_date?->toDateString()],
+                'kind' => PayrollItemDeduction::KIND_ADVANCE, 'source_type' => DeductionBalances::TYPE_ADVANCE, 'source_id' => $advance->id,
+                'amount_cents' => (int) $advance->owed_cents,
+                'description' => 'Salary advance: '.$advance->reason.($carried ? " (carried from {$advance->payroll_period})" : ''),
+                'detail' => [
+                    'advance_date' => $advance->advance_date?->toDateString(),
+                    'registered_period' => $advance->payroll_period,
+                    'carried_in' => $carried,
+                    'registered_cents' => $advance->amountCents(),
+                    'previously_deducted_cents' => (int) $advance->deducted_cents,
+                    'waived_cents' => (int) $advance->waived_cents,
+                    'owed_cents' => (int) $advance->owed_cents,
+                ],
             ];
+        }
+    }
+
+    /**
+     * Release 1B (owner decisions P-1 / A-1 / Q6 / Q7): penalties and advances never take more than the line has left. Unpaid leave and absence reduce the
+     * salary first (they are what was not earned); then the pending adjustments count; then the penalties are deducted (older first), then the advances,
+     * each up to the net of $0. What could not be deducted stays owed - it is NOT lost: the stored line says how much was owed, how much was deducted and
+     * how much carries on (DeductionBalances derives the balance from the finalized lines), and the Generate warnings say it in words.
+     *
+     * @param  list<array<string, mixed>>  $deductions
+     * @param  list<string>  $warnings
+     */
+    private function capOwedDeductions(array &$deductions, int $grossCents, int $adjustmentCents, string $employeeNumber, array &$warnings): void
+    {
+        $owedKinds = [PayrollItemDeduction::KIND_PENALTY, PayrollItemDeduction::KIND_ADVANCE];
+        $owedIndexes = array_keys(array_filter($deductions, fn (array $d): bool => in_array($d['kind'], $owedKinds, true)));
+
+        if ($owedIndexes === []) {
+            return;
+        }
+
+        $earnedAway = (int) collect($deductions)->reject(fn (array $d): bool => in_array($d['kind'], [...$owedKinds, PayrollItemDeduction::KIND_REPLACEMENT], true))->sum('amount_cents');
+        $available = max(0, $grossCents + $adjustmentCents - $earnedAway);
+
+        // Penalties first, then advances; inside a kind the older registration first (they were added in that order).
+        usort($owedIndexes, fn (int $a, int $b): int => [$deductions[$a]['kind'] === PayrollItemDeduction::KIND_PENALTY ? 0 : 1, $a] <=> [$deductions[$b]['kind'] === PayrollItemDeduction::KIND_PENALTY ? 0 : 1, $b]);
+
+        foreach ($owedIndexes as $index) {
+            $owed = (int) $deductions[$index]['amount_cents'];
+            $take = min($owed, $available);
+            $available -= $take;
+
+            $deductions[$index]['detail']['owed_cents'] = $owed;
+            $deductions[$index]['detail']['deducted_cents'] = $take;
+            $deductions[$index]['detail']['not_deducted_cents'] = $owed - $take;
+            $deductions[$index]['amount_cents'] = $take;
+
+            if ($take < $owed) {
+                $deductions[$index]['detail']['capped_at_zero_net'] = true;
+                $deductions[$index]['detail']['carries_to_next_month'] = true;
+                $deductions[$index]['description'] .= ' - only '.PayrollMoney::format($take).' of '.PayrollMoney::format($owed).' deducted (the net is never below 0); '.PayrollMoney::format($owed - $take).' stays owed and is deducted in the next months';
+                $label = $deductions[$index]['kind'] === PayrollItemDeduction::KIND_PENALTY ? 'Penalty' : 'Advance';
+                $warnings[] = "{$label} #{$deductions[$index]['source_id']} of {$employeeNumber}: ".PayrollMoney::format($owed).' owed, '.PayrollMoney::format($take).' deducted (the net is never below 0); '.PayrollMoney::format($owed - $take).' stays owed and carries to the next month.';
+            }
         }
     }
 

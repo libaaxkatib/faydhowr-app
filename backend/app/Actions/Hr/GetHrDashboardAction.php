@@ -135,9 +135,11 @@ class GetHrDashboardAction
                 ->where('payment_date', '>=', $monthStart)->where('payment_date', '<', $nextMonthStart)
                 ->sum('amount'),
             'month_penalties_total' => (string) EmployeePenalty::query()
+                ->active()
                 ->where('penalty_date', '>=', $monthStart)->where('penalty_date', '<', $nextMonthStart)
                 ->sum('deduction_amount'),
             'month_advances_total' => (string) EmployeeAdvance::query()
+                ->active()
                 ->where('advance_date', '>=', $monthStart)->where('advance_date', '<', $nextMonthStart)
                 ->sum('amount'),
             // Company-level payroll KPIs (owner decisions C-7, N-4, N-4a, D-5): their own payroll month, not the calendar month of the cards above.

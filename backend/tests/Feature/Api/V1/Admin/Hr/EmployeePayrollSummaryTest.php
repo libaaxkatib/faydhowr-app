@@ -133,7 +133,7 @@ class EmployeePayrollSummaryTest extends TestCase
             ->assertJsonPath('data.net_payable', '220.00');
     }
 
-    public function test_advance_from_another_payroll_period_does_not_leak_into_the_calculation(): void
+    public function test_an_advance_from_an_earlier_period_that_was_never_deducted_is_carried_not_lost(): void
     {
         $admin = Admin::factory()->superAdmin()->create();
         $token = $admin->createToken('t')->plainTextToken;
@@ -159,8 +159,8 @@ class EmployeePayrollSummaryTest extends TestCase
 
         $this->withToken($token)->getJson("/api/v1/admin/hr/employees/{$employee->id}/payroll-summary?work_assignment_id={$assignmentId}&period=2026-02")
             ->assertOk()
-            ->assertJsonPath('data.advance_deduction', '30.00')
-            ->assertJsonCount(1, 'data.advances');
+            // Release 1B: a January advance that no finalized payroll has deducted is still OWED, so February's calculation carries it (it is not lost).
+            ->assertJsonPath('data.advance_deduction', '80.00');
     }
 
     public function test_multiple_advances_in_the_same_period_are_summed(): void

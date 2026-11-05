@@ -141,6 +141,7 @@ class GetHrReportsSummaryAction
             ]);
 
         $penaltyTotalsByDepartment = EmployeePenalty::query()
+            ->active()
             ->join('employees', 'employees.id', '=', 'employee_penalties.employee_id')
             ->join('departments', 'departments.id', '=', 'employees.department_id')
             ->whereBetween('employee_penalties.penalty_date', [$from, $to])
@@ -156,6 +157,7 @@ class GetHrReportsSummaryAction
             ]);
 
         $advanceTotalsByDepartment = EmployeeAdvance::query()
+            ->active()
             ->join('employees', 'employees.id', '=', 'employee_advances.employee_id')
             ->join('departments', 'departments.id', '=', 'employees.department_id')
             ->whereBetween('employee_advances.advance_date', [$from, $to])

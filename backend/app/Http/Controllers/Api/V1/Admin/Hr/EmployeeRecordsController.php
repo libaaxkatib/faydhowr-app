@@ -66,13 +66,17 @@ class EmployeeRecordsController extends Controller
     {
         $employee = $action->handle($employee, $request->validated(), $request->user());
 
-        return ApiResponse::success('Penalty recorded successfully.', new EmployeeResource($employee), 201);
+        return $action->replayed
+            ? ApiResponse::success('This penalty was already recorded; nothing new was saved.', new EmployeeResource($employee), 200)
+            : ApiResponse::success('Penalty recorded successfully.', new EmployeeResource($employee), 201);
     }
 
     public function storeAdvance(RecordEmployeeAdvanceRequest $request, Employee $employee, RecordEmployeeAdvanceAction $action): JsonResponse
     {
         $employee = $action->handle($employee, $request->validated(), $request->user());
 
-        return ApiResponse::success('Salary advance recorded successfully.', new EmployeeResource($employee), 201);
+        return $action->replayed
+            ? ApiResponse::success('This salary advance was already recorded; nothing new was saved.', new EmployeeResource($employee), 200)
+            : ApiResponse::success('Salary advance recorded successfully.', new EmployeeResource($employee), 201);
     }
 }

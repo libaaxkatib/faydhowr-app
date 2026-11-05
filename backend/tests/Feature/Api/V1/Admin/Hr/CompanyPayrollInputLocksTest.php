@@ -213,8 +213,8 @@ class CompanyPayrollInputLocksTest extends TestCase
     {
         $sites = [
             'Actions/Hr/MarkEmployeeAttendanceAction.php' => ["assertDateEditable(\$date, 'Attendance on this date', \$employee->id, null, InputOwnership::key(\$company))"],
-            'Actions/Hr/RecordEmployeeAdvanceAction.php' => ['assertMonthEditable($data[\'payroll_period\'], \'The payroll month of this record\', $employee->id, InputOwnership::key($company))'],
-            'Actions/Hr/RecordEmployeePenaltyAction.php' => ['assertMonthEditable($data[\'payroll_period\'], \'The payroll month of this record\', $employee->id, InputOwnership::key($company))'],
+            // Release 1B: penalties and advances register through one action (both Record*Action classes delegate to it).
+            'Actions/Hr/RegisterDeductionRecordAction.php' => ['assertMonthEditable($period, \'The payroll month of this record\', $employee->id, InputOwnership::key($company))'],
             'Actions/Hr/RecordEmployeeLeaveAction.php' => ['assertRangeEditable(', '$this->assertMonthsOpen($start, $end, $employee->id, InputOwnership::key($company))'],
             'Actions/Hr/DecideEmployeeLeaveAction.php' => ['(int) $leave->employee_id, $leave->client_company_id'],
             'Actions/Hr/RecordReplacementWorkdaysAction.php' => ['null, $assignment->id)'],

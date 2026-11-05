@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\V1\Admin\Hr\ClientCompanyAgreementController as Adm
 use App\Http\Controllers\Api\V1\Admin\Hr\ClientCompanyController as AdminClientCompanyController;
 use App\Http\Controllers\Api\V1\Admin\Hr\CompanyEmployeeController as AdminCompanyEmployeeController;
 use App\Http\Controllers\Api\V1\Admin\Hr\ComplianceController as AdminComplianceController;
+use App\Http\Controllers\Api\V1\Admin\Hr\DeductionRecordController as AdminDeductionRecordController;
 use App\Http\Controllers\Api\V1\Admin\Hr\DepartmentController as AdminDepartmentController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeAttendanceController as AdminEmployeeAttendanceController;
 use App\Http\Controllers\Api\V1\Admin\Hr\EmployeeCategoryController as AdminEmployeeCategoryController;
@@ -1337,6 +1338,17 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     Route::post('v1/admin/hr/employees/{employee}/advances', [AdminEmployeeRecordsController::class, 'storeAdvance'])
         ->whereNumber('employee')
         ->name('api.v1.admin.hr.employees.advances.store');
+    // Release 1B: void / correct / waive a penalty or a one-month advance. Who may is decided in ManageDeductionRecordAction (Q8): HR Manager + Super Admin
+    // void or correct what no finalized payroll has deducted; waiving a balance is the Super Admin's alone.
+    Route::post('v1/admin/hr/employees/{employee}/{kind}/{record}/void', [AdminDeductionRecordController::class, 'void'])
+        ->whereNumber(['employee', 'record'])->where('kind', 'penalties|advances')
+        ->name('api.v1.admin.hr.employees.deductions.void');
+    Route::post('v1/admin/hr/employees/{employee}/{kind}/{record}/correct', [AdminDeductionRecordController::class, 'correct'])
+        ->whereNumber(['employee', 'record'])->where('kind', 'penalties|advances')
+        ->name('api.v1.admin.hr.employees.deductions.correct');
+    Route::post('v1/admin/hr/employees/{employee}/{kind}/{record}/waive', [AdminDeductionRecordController::class, 'waive'])
+        ->whereNumber(['employee', 'record'])->where('kind', 'penalties|advances')
+        ->name('api.v1.admin.hr.employees.deductions.waive');
     Route::patch('v1/admin/hr/employees/{employee}/supervisor', [AdminEmployeeSeparationController::class, 'supervisor'])
         ->whereNumber('employee')
         ->name('api.v1.admin.hr.employees.supervisor');
@@ -1603,6 +1615,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.view', 'throt
     Route::get('v1/admin/hr/payroll/{period}/companies/{company}/warnings', [AdminPayrollCompanyController::class, 'warnings'])
         ->where(['period' => '\d{4}-(0[1-9]|1[0-2])', 'company' => 'none|\d+'])
         ->name('api.v1.admin.hr.payroll.companies.warnings');
+    // Release 1B: what is still owed on penalties and one-month advances (what payroll could not deduct yet), leavers marked. Read-only.
+    Route::get('v1/admin/hr/payroll/deduction-balances', [AdminDeductionRecordController::class, 'balances'])
+        ->name('api.v1.admin.hr.payroll.deduction-balances');
     Route::get('v1/admin/hr/payroll-runs', [AdminPayrollRunController::class, 'index'])
         ->name('api.v1.admin.hr.payroll-runs.index');
     Route::get('v1/admin/hr/payroll-runs/{payrollRun}', [AdminPayrollRunController::class, 'show'])

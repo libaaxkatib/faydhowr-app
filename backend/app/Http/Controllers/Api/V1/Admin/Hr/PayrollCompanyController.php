@@ -9,6 +9,7 @@ use App\Models\ClientCompany;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunSection;
 use App\Support\ApiResponse;
+use App\Support\Hr\Payroll\DeductionInputsFingerprint;
 use App\Support\Hr\Payroll\GenerationWarnings;
 use App\Support\Hr\Payroll\PayrollCompanyOverview;
 use Illuminate\Http\JsonResponse;
@@ -56,6 +57,8 @@ class PayrollCompanyController extends Controller
             'blocking' => false,
             'generated' => $section instanceof PayrollRunSection,
             'section_status' => $section?->status,
+            // Release 1B: a penalty / advance changed after this company was generated. Unlike the Temporary warnings this one DOES stop Review / Finalize (PAYROLL_INPUTS_CHANGED, 409).
+            'deduction_inputs_changed' => $section instanceof PayrollRunSection && ! $section->isLocked() && DeductionInputsFingerprint::changed($section, $period),
             'warnings' => GenerationWarnings::forDisplay($period, $companyId, $model?->name, $section?->generation_warnings ?? []),
         ]);
     }

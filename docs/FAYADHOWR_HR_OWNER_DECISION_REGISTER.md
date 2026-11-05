@@ -413,3 +413,19 @@ Release 1A = the company workflow (per-company Generate, warnings, reports and d
 * **Must wait for the owner:** 1A-12 (N-5); 1B-6, 1B-10 (Q8); 1B-7 (Q7); 1B-8 enabling (Q6); 1B-9 (Q11); 1B-11 (Q10); 1B-12 (N-6).
 * **Conflicts with already-approved requirements found:** (1) N-6 Option 1 would reverse the capability approved on 4 Nov (HR Manager reopen of a paid company); (2) Q11's literal wording ("a payroll line exists") conflicts in practice with per-company Generate (a line may not exist yet); (3) N-5 and C-5 overlap (C-5 already requires "reference/history", which the note field partly satisfies); (4) D-2 does not cover the month-level reopen route (O-1); (5) D-1/N-2b/D-8 supersede the earlier approved "Generate blocked" rule, which must be removed consistently from code, tests, messages and `HR_PAYROLL_RULES.md`. **No conflict** between Q8 and R-1 (R-1 stays approved; Q8 only refines the mapping), nor between D-5 and C-7.
 * **Protected data and rules (unchanged):** the 112 sections, corrections #2–#13, existing payments, the 161 translations, the existing worktrees; no new database trigger; no employee-level manual salary workflow; Temporary rate = Permanent monthly salary ÷ 30.
+
+## 12. Stage C execution status (2026-11-05)
+
+**Owner decisions of Stage C (all APPROVED in the Stage C authorization of 2026-11-05; this supersedes the "PENDING OWNER DECISION" labels in sections 3.1 and 9, which are kept as the analysis record):**
+
+| ID | Approved option | Where implemented |
+|---|---|---|
+| Q6 | A — a leaver's outstanding penalty balance is shown, not forgiven, no formal debt in Release 1 | Release 1B: `DeductionBalances`, `GET payroll/deduction-balances` |
+| Q7 | A — outstanding balances carry into later months until zero, zero-floor, never more than eligible, balances and history kept. *The owner's text names penalty balances; the register's Q7 concerned the advance remainder. Both are implemented with the same rule so neither is silently dropped.* | Release 1B: `PayrollRunCalculator::capOwedDeductions`, `DeductionBalances` |
+| Q8 | A — HR Manager + Super Admin void / correct what no finalized payroll has deducted; only a Super Admin reverses an applied deduction or waives a balance; closed periods only through reopening / Payroll Correction; audited | Release 1B: `CorrectionAuthority`, `ManageDeductionRecordAction` |
+| Q10 | A — split 1A / 1B | process |
+| Q11 | B — payable amounts follow the company-month assignment; eligibility from the assignment overlapping the month. *The owner's text also says "calculate by the actual eligible employment period" (already how proration works) and "never silently delete or rewrite a payroll line" (void / correct keep the row).* | Release 1B: `RegisterDeductionRecordAction` |
+| N-5 | A — optional payment reference | Release 1A (live, commit 46b4fc8) |
+| N-6 | 3 — once any payment exists only a Super Admin reopens the company; the HR Manager uses a Payroll Correction. Request → approval workflow (3b) NOT authorized and NOT built. | Release 1A (live) |
+
+**Status:** Release 1A is LIVE and verified on production (main 46b4fc8, 2026-11-05 10:24 UTC). Release 1B (penalties / one-month advances) is built, tested and documented in `HR_PAYROLL_RULES.md` section 20; its release status is recorded in the release report. **O-1 (month-level Reopen) and O-2 (dashboard periods) are still undecided by the owner** and were not decided by the implementation.

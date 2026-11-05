@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 #[Fillable([
     'payroll_run_id', 'client_company_id', 'status', 'reviewed_at', 'reviewed_by', 'approved_at', 'approved_by', 'finalized_at', 'finalized_by', 'totals',
-    'generated_at', 'generated_by', 'generation_warnings',
+    'generated_at', 'generated_by', 'generation_warnings', 'deduction_inputs_hash',
 ])]
 class PayrollRunSection extends Model
 {

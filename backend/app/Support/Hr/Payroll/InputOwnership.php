@@ -139,8 +139,8 @@ final class InputOwnership
             }
         };
 
-        $collect('penalty', EmployeePenalty::query()->whereIn('employee_id', $shared)->where('payroll_period', $period)->whereNull('client_company_id')->get(['id', 'employee_id']));
-        $collect('advance', EmployeeAdvance::query()->whereIn('employee_id', $shared)->where('payroll_period', $period)->whereNull('client_company_id')->get(['id', 'employee_id']));
+        $collect('penalty', EmployeePenalty::query()->active()->whereIn('employee_id', $shared)->where('payroll_period', $period)->whereNull('client_company_id')->get(['id', 'employee_id']));
+        $collect('advance', EmployeeAdvance::query()->active()->whereIn('employee_id', $shared)->where('payroll_period', $period)->whereNull('client_company_id')->get(['id', 'employee_id']));
         $collect('unpaid_leave', EmployeeLeave::query()->whereIn('employee_id', $shared)->where('leave_type', LeaveType::Unpaid)->where('approval_status', 'approved')->whereNull('client_company_id')
             ->whereDate('start_date', '<=', $last)->whereDate('end_date', '>=', $first)->get(['id', 'employee_id']));
         $collect('absence', EmployeeAttendance::query()->whereIn('employee_id', $shared)->where('status', AttendanceStatus::Absent)->whereNull('client_company_id')
