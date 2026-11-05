@@ -46,8 +46,14 @@ test('the penalty, advance and leave forms ask for the company and the attendanc
   const page = readFileSync(new URL('../features/hrm/EmployeeDetailPage.tsx', import.meta.url), 'utf8');
   const roster = readFileSync(new URL('../features/hrm/AttendancePage.tsx', import.meta.url), 'utf8');
 
-  assert.equal((page.match(/<CompanyChoiceField/g) ?? []).length, 3, 'penalty, advance and unpaid leave');
-  assert.equal((page.match(/companyMissing\(/g) ?? []).length >= 3, true, 'each form stays disabled until a company is chosen');
+  const recordDialog = readFileSync(new URL('../features/hrm/RecordDeductionDialog.tsx', import.meta.url), 'utf8');
+  const correctDialog = readFileSync(new URL('../features/hrm/ManageDeductionDialogs.tsx', import.meta.url), 'utf8');
+
+  assert.equal((page.match(/<CompanyChoiceField/g) ?? []).length, 1, 'unpaid leave');
+  assert.equal((recordDialog.match(/<CompanyChoiceField/g) ?? []).length, 1, 'the one dialog that records a penalty or an advance');
+  assert.equal((correctDialog.match(/<CompanyChoiceField/g) ?? []).length, 1, 'correcting a penalty or an advance can name the company too');
+  assert.equal((page.match(/companyMissing\(/g) ?? []).length >= 1, true, 'the leave form stays disabled until a company is chosen');
+  assert.equal((recordDialog.match(/companyMissing\(/g) ?? []).length >= 1, true, 'recording a penalty or an advance stays disabled until a company is chosen');
   assert.match(roster, /client_company_id: null/, 'the daily roster is the office roster');
 });
 

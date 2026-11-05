@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { hrApi } from '@/api/hr';
+import { DeductionRecordsCard } from '@/features/hrm/DeductionRecordsCard';
 import { ReplacesNote } from '@/features/hrm/ReplacesNote';
 import { useI18n } from '@/i18n/useI18n';
 import { localizeServerMessage } from '@/i18n/serverMessages';
@@ -36,7 +37,7 @@ import { defaultPayrollMonth } from '@/utils/payrollMonth';
 import { additionalCompanyQuestion, assignmentLabel, friendlyErrorMessage, isWorkplaceMissing, localToday, officeLabel } from '@/utils/hrHelpers';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { submitPracticalDecision } from '@/utils/practicalDecision';
-import type { AttendanceStatus, Employee, MarkEmployeeSeparatedPayload, SuccessorPayload, EmployeeDocument, EmployeeLeave, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, RecordEmployeeAdvancePayload, RecordEmployeeLeavePayload, RecordEmployeePenaltyPayload, SalaryFrequency, WorkAssignment } from '@/types/employee';
+import type { AttendanceStatus, Employee, MarkEmployeeSeparatedPayload, SuccessorPayload, EmployeeDocument, EmployeeLeave, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, RecordEmployeeLeavePayload, SalaryFrequency, WorkAssignment } from '@/types/employee';
 
 const SEPARATION_REASON_OPTIONS: { value: EmployeeSeparationReason; labelKey: MessageKey }[] = [
   { value: 'resigned', labelKey: 'option.separation.resigned' },
@@ -181,8 +182,6 @@ export function EmployeeDetailPage() {
   const [isLeaveOpen, setIsLeaveOpen] = useState(false);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [isPenaltyOpen, setIsPenaltyOpen] = useState(false);
-  const [isAdvanceOpen, setIsAdvanceOpen] = useState(false);
   const pictureInputRef = useRef<HTMLInputElement>(null);
 
   const [guarantorForm, setGuarantorForm] = useState({ guarantor_name: '', guarantor_phone: '', relationship: '' });
@@ -297,26 +296,6 @@ export function EmployeeDetailPage() {
       setIsPaymentOpen(false);
     },
     onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.paymentFailed'), 'error'),
-  });
-
-  const penaltyMutation = useMutation({
-    mutationFn: (payload: RecordEmployeePenaltyPayload) => hrApi.employees.addPenalty(employeeId, payload),
-    onSuccess: () => {
-      invalidate();
-      show(t('notify.employeeDetail.penaltyRecorded'));
-      setIsPenaltyOpen(false);
-    },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.penaltyFailed'), 'error'),
-  });
-
-  const advanceMutation = useMutation({
-    mutationFn: (payload: RecordEmployeeAdvancePayload) => hrApi.employees.addAdvance(employeeId, payload),
-    onSuccess: () => {
-      invalidate();
-      show(t('notify.employeeDetail.advanceRecorded'));
-      setIsAdvanceOpen(false);
-    },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.advanceFailed'), 'error'),
   });
 
   const { data: documentCategories } = useQuery({ queryKey: ['employee-document-categories'], queryFn: hrApi.documentCategories.list });
@@ -1027,67 +1006,27 @@ export function EmployeeDetailPage() {
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <h3 className="font-display text-sm font-bold text-ink">{t('option.employeeDetail.penaltyHistory')}</h3>
-            {employee.status === 'active' && (
-              <PermissionGate module="hr" hideWhen={employee.is_archived}>
-                <Button size="sm" variant="outline" onClick={() => setIsPenaltyOpen(true)}>
-                  <Icon name="plus" size={14} />
-                  {t('action.recordPenalty')}
-                </Button>
-              </PermissionGate>
-            )}
-          </CardHeader>
-          <CardBody className="space-y-3">
-            {employee.penalties && employee.penalties.length > 0 ? (
-              employee.penalties.map((penalty) => (
-                <div key={penalty.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-ink-faint">{formatDate(penalty.penalty_date)}</span>
-                    <span className="text-sm text-ink">{penalty.deduction_amount} {penalty.currency}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-ink-muted">{penalty.reason}</p>
-                  <RecordCompany record={penalty} choices={choices} />
-                  <p className="mt-0.5 text-[11px] text-ink-faint">{t('option.employeeDetail.payrollPeriodValue', { period: penalty.payroll_period })}</p>
-                </div>
-              ))
-            ) : (
-              <EmptyState icon="x" title={t('option.employeeDetail.emptyNoPenalties')} />
-            )}
-          </CardBody>
-        </Card>
+        <DeductionRecordsCard
+          kind="penalty"
+          recordLabel={t('action.recordPenalty')}
+          recordTitle={t('action.recordPenalty')}
+          employeeId={employeeId}
+          records={employee.penalties ?? []}
+          choices={choices}
+          isArchived={employee.is_archived}
+          renderCompany={(record) => <RecordCompany record={record} choices={choices} />}
+        />
 
-        <Card>
-          <CardHeader>
-            <h3 className="font-display text-sm font-bold text-ink">{t('option.employeeDetail.advanceHistory')}</h3>
-            {employee.status === 'active' && (
-              <PermissionGate module="hr" hideWhen={employee.is_archived}>
-                <Button size="sm" variant="outline" onClick={() => setIsAdvanceOpen(true)}>
-                  <Icon name="plus" size={14} />
-                  {t('action.recordAdvance')}
-                </Button>
-              </PermissionGate>
-            )}
-          </CardHeader>
-          <CardBody className="space-y-3">
-            {employee.advances && employee.advances.length > 0 ? (
-              employee.advances.map((advance) => (
-                <div key={advance.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-ink-faint">{formatDate(advance.advance_date)}</span>
-                    <span className="text-sm text-ink">{advance.amount} {advance.currency}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-ink-muted">{advance.reason}</p>
-                  <RecordCompany record={advance} choices={choices} />
-                  <p className="mt-0.5 text-[11px] text-ink-faint">{t('option.employeeDetail.payrollPeriodValue', { period: advance.payroll_period })}</p>
-                </div>
-              ))
-            ) : (
-              <EmptyState icon="credit-card" title={t('option.employeeDetail.emptyNoAdvances')} />
-            )}
-          </CardBody>
-        </Card>
+        <DeductionRecordsCard
+          kind="advance"
+          recordLabel={t('action.recordAdvance')}
+          recordTitle={t('confirm.employeeDetail.recordAdvanceTitle')}
+          employeeId={employeeId}
+          records={employee.advances ?? []}
+          choices={choices}
+          isArchived={employee.is_archived}
+          renderCompany={(record) => <RecordCompany record={record} choices={choices} />}
+        />
 
         <PayrollSummaryCard employeeId={employeeId} employee={employee} />
       </div>
@@ -1573,22 +1512,6 @@ export function EmployeeDetailPage() {
         onClose={() => setIsPaymentOpen(false)}
         onConfirm={(payload) => paymentMutation.mutate(payload)}
         isLoading={paymentMutation.isPending}
-      />
-
-      <RecordPenaltyModal
-        choices={choices}
-        isOpen={isPenaltyOpen}
-        onClose={() => setIsPenaltyOpen(false)}
-        onConfirm={(payload) => penaltyMutation.mutate(payload)}
-        isLoading={penaltyMutation.isPending}
-      />
-
-      <RecordAdvanceModal
-        choices={choices}
-        isOpen={isAdvanceOpen}
-        onClose={() => setIsAdvanceOpen(false)}
-        onConfirm={(payload) => advanceMutation.mutate(payload)}
-        isLoading={advanceMutation.isPending}
       />
     </div>
   );
@@ -2303,164 +2226,6 @@ function RecordEmployeePaymentModal({
       </div>
       <FormField label={t('option.employeeDetail.fieldNotes')} htmlFor="pay-notes">
         <textarea id="pay-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
-      </FormField>
-    </Modal>
-  );
-}
-
-function RecordPenaltyModal({
-  choices,
-  isOpen,
-  onClose,
-  onConfirm,
-  isLoading,
-}: {
-  choices: CompanyChoice[];
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: (payload: RecordEmployeePenaltyPayload) => void;
-  isLoading: boolean;
-}) {
-  const { t } = useI18n();
-  const [penaltyDate, setPenaltyDate] = useState(new Date().toISOString().slice(0, 10));
-  const [reason, setReason] = useState('');
-  const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState('USD');
-  const [payrollPeriod, setPayrollPeriod] = useState(defaultPayrollMonth());
-  const [notes, setNotes] = useState('');
-  const [company, setCompany] = useState('');
-
-  if (!isOpen) return null;
-
-  return (
-    <Modal
-      isOpen
-      onClose={onClose}
-      title={t('action.recordPenalty')}
-      size="sm"
-      footer={
-        <>
-          <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
-          <Button
-            size="sm"
-            isLoading={isLoading}
-            disabled={!amount || !reason || companyMissing(choices, company)}
-            onClick={() =>
-              onConfirm({
-                penalty_date: penaltyDate,
-                reason,
-                deduction_amount: Number(amount),
-                currency,
-                payroll_period: payrollPeriod,
-                notes: notes || null,
-                ...companyPayload(choices, company),
-              })
-            }
-          >
-            {t('action.record')}
-          </Button>
-        </>
-      }
-    >
-      <CompanyChoiceField id="pen-company" choices={choices} value={company} onChange={setCompany} />
-      <FormField label={t('option.employeeDetail.fieldPenaltyDate')} htmlFor="pen-date" required>
-        <input id="pen-date" type="date" className={inputClasses} value={penaltyDate} onChange={(e) => setPenaltyDate(e.target.value)} />
-      </FormField>
-      <FormField label={t('option.employeeDetail.fieldReason')} htmlFor="pen-reason" required>
-        <input id="pen-reason" className={inputClasses} value={reason} onChange={(e) => setReason(e.target.value)} />
-      </FormField>
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label={t('option.employeeDetail.fieldDeductionAmount')} htmlFor="pen-amount" required>
-          <input id="pen-amount" type="number" min={0} step="0.01" className={inputClasses} value={amount} onChange={(e) => setAmount(e.target.value)} />
-        </FormField>
-        <FormField label={t('option.employeeDetail.fieldCurrency')} htmlFor="pen-currency" required>
-          <input id="pen-currency" className={inputClasses} value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} maxLength={3} />
-        </FormField>
-      </div>
-      <FormField label={t('option.employeeDetail.fieldPayrollPeriod')} htmlFor="pen-period" required>
-        <input id="pen-period" type="month" className={inputClasses} value={payrollPeriod} onChange={(e) => setPayrollPeriod(e.target.value)} />
-      </FormField>
-      <FormField label={t('option.employeeDetail.fieldNotes')} htmlFor="pen-notes">
-        <textarea id="pen-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
-      </FormField>
-    </Modal>
-  );
-}
-
-function RecordAdvanceModal({
-  choices,
-  isOpen,
-  onClose,
-  onConfirm,
-  isLoading,
-}: {
-  choices: CompanyChoice[];
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: (payload: RecordEmployeeAdvancePayload) => void;
-  isLoading: boolean;
-}) {
-  const { t } = useI18n();
-  const [advanceDate, setAdvanceDate] = useState(new Date().toISOString().slice(0, 10));
-  const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState('USD');
-  const [payrollPeriod, setPayrollPeriod] = useState(defaultPayrollMonth());
-  const [reason, setReason] = useState('');
-  const [notes, setNotes] = useState('');
-  const [company, setCompany] = useState('');
-
-  if (!isOpen) return null;
-
-  return (
-    <Modal
-      isOpen
-      onClose={onClose}
-      title={t('confirm.employeeDetail.recordAdvanceTitle')}
-      size="sm"
-      footer={
-        <>
-          <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
-          <Button
-            size="sm"
-            isLoading={isLoading}
-            disabled={!amount || !reason || companyMissing(choices, company)}
-            onClick={() =>
-              onConfirm({
-                advance_date: advanceDate,
-                amount: Number(amount),
-                currency,
-                payroll_period: payrollPeriod,
-                reason,
-                notes: notes || null,
-                ...companyPayload(choices, company),
-              })
-            }
-          >
-            {t('action.record')}
-          </Button>
-        </>
-      }
-    >
-      <CompanyChoiceField id="adv-company" choices={choices} value={company} onChange={setCompany} />
-      <FormField label={t('option.employeeDetail.fieldAdvanceDate')} htmlFor="adv-date" required>
-        <input id="adv-date" type="date" className={inputClasses} value={advanceDate} onChange={(e) => setAdvanceDate(e.target.value)} />
-      </FormField>
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label={t('option.employeeDetail.fieldAmount')} htmlFor="adv-amount" required>
-          <input id="adv-amount" type="number" min={0} step="0.01" className={inputClasses} value={amount} onChange={(e) => setAmount(e.target.value)} />
-        </FormField>
-        <FormField label={t('option.employeeDetail.fieldCurrency')} htmlFor="adv-currency" required>
-          <input id="adv-currency" className={inputClasses} value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} maxLength={3} />
-        </FormField>
-      </div>
-      <FormField label={t('option.employeeDetail.fieldPayrollPeriod')} htmlFor="adv-period" required>
-        <input id="adv-period" type="month" className={inputClasses} value={payrollPeriod} onChange={(e) => setPayrollPeriod(e.target.value)} />
-      </FormField>
-      <FormField label={t('option.employeeDetail.fieldReason')} htmlFor="adv-reason" required>
-        <input id="adv-reason" className={inputClasses} value={reason} onChange={(e) => setReason(e.target.value)} />
-      </FormField>
-      <FormField label={t('option.employeeDetail.fieldNotes')} htmlFor="adv-notes">
-        <textarea id="adv-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </FormField>
     </Modal>
   );

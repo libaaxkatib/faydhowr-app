@@ -776,6 +776,11 @@
   },
   {
     "file": "layouts/nav.config.ts",
+    "text": "Outstanding Balances",
+    "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
+  },
+  {
+    "file": "layouts/nav.config.ts",
     "text": "Payroll Rollup",
     "reason": "English default of a sidebar label; every item with a labelKey is translated at render (nav.i18n.test.ts, catalogue.test.ts), the rest are Dashboard, XARUN, PROJECT, CMS which stay as written."
   },

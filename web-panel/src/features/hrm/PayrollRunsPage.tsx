@@ -36,6 +36,7 @@ import { PAYMENT_LIST_SCOPES, buttonLabel, canDownload, chooseRecordLabel, empty
 import { PaymentListPreviewDialog } from '@/features/hrm/PaymentListPreviewDialog';
 import { WorkplacePaymentsPanel } from '@/features/hrm/WorkplacePaymentsPanel';
 import { CompanySectionsPanel } from '@/features/hrm/CompanySectionsPanel';
+import { DeductionCarryNote } from '@/features/hrm/DeductionCarryNote';
 import { MONTH_STATUS_LABEL, itemsOfSection, lineIsFinalized, monthDisplayStatus, selectedSection } from '@/utils/payrollSections';
 import type {
   PayrollAdjustmentKind,
@@ -750,6 +751,7 @@ function DeductionList({ item }: { item: PayrollItem }) {
               {entry.kind === 'replacement' && entry.detail ? replacementSummary(entry.detail) : entry.description}
               {entry.kind === 'replacement' && entry.detail?.daily_rate && ` ${t('warning.payroll.atDailyRate', { rate: money(entry.detail.daily_rate) })}`}
             </p>
+            <DeductionCarryNote kind={entry.kind} detail={entry.detail} />
           </div>
           <p className="whitespace-nowrap font-semibold text-ink">{deduction(entry.amount)}</p>
         </div>

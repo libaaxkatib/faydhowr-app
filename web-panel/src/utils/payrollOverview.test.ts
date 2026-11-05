@@ -165,8 +165,8 @@ test('the warnings never disable a button and never add a mandatory confirmation
   }
   assert.ok(!/disabled=/.test(generateDialog.replace(/disabled=\{mutation\.isPending\}/g, '')), 'the generate button is always available (only while it is being sent is it busy)');
   assert.ok(!/disabled=/.test(actionDialog.replace(/disabled=\{isLoading\}/g, '')), 'review / finalize confirm stays available');
-  assert.match(generateDialog, /<GenerationWarningsPanel period=\{period\} company=\{row\.client_company_id\} \/>/);
-  assert.match(actionDialog, /<GenerationWarningsPanel period=\{period\} company=\{company\} \/>/);
+  assert.match(generateDialog, /<GenerationWarningsPanel period=\{period\} company=\{row\.client_company_id\}( context="generate")? \/>/);
+  assert.match(actionDialog, /<GenerationWarningsPanel period=\{period\} company=\{company\}( context="action")? \/>/);
   assert.match(panel, /<SectionActionDialog[\s\S]{0,300}sectionReviewTitle/);
   assert.match(panel, /<SectionActionDialog[\s\S]{0,300}sectionFinalizeTitle/);
   // The texts come from the server and are shown as given.

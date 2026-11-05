@@ -5,7 +5,7 @@ import type { OfficeStaffSummary } from '@/utils/officeStaff';
 import type { CompanyListMeta } from '@/utils/clientCompanyFilter';
 import type { CoverConflict } from '@/utils/coverConflict';
 import { downloadQuery, fileName as paymentListFileName, type PaymentListFilterOptions, type PaymentListOption, type PaymentListScope, type PaymentListWorkbookPreview } from '@/utils/paymentListFilter';
-import type { CompanyWarnings, CreatePayrollAdjustmentPayload, GenerateExpectedStatus, PayrollAdjustmentResult, PayrollOverview, PayrollCorrectionsResponse, PayrollItem, PayrollRun, RecordCompanyPaymentPayload, RecordCompanyPaymentResult, ReconcileCompanyPayload, ReconcileCompanyResult, CompanyClosureView, RecordWorkplacePaymentPayload, WorkplacePayments, WorkplacePayrollSummary } from '@/types/payroll';
+import type { CompanyWarnings, CorrectDeductionPayload, DeductionBalanceFilters, DeductionBalances, DeductionPath, VoidDeductionPayload, WaiveDeductionPayload, CreatePayrollAdjustmentPayload, GenerateExpectedStatus, PayrollAdjustmentResult, PayrollOverview, PayrollCorrectionsResponse, PayrollItem, PayrollRun, RecordCompanyPaymentPayload, RecordCompanyPaymentResult, ReconcileCompanyPayload, ReconcileCompanyResult, CompanyClosureView, RecordWorkplacePaymentPayload, WorkplacePayments, WorkplacePayrollSummary } from '@/types/payroll';
 import type {
   AttendanceRosterEntry,
   ClientCompany,
@@ -370,6 +370,15 @@ export const hrApi = {
       }),
     /** The non-blocking Temporary Replacement warnings of one company for the month (hr.payroll.view). */
     companyWarnings: (period: string, company: number | null) => apiRequest<CompanyWarnings>(`admin/hr/payroll/${period}/companies/${companySegment(company)}/warnings`),
+    /** Penalties and advances payroll could not deduct yet (read-only, hr.payroll.view). Nothing here is a debt and nothing is forgiven. */
+    deductionBalances: (filters: DeductionBalanceFilters) =>
+      apiRequest<DeductionBalances>('admin/hr/payroll/deduction-balances', {
+        query: {
+          client_company_id: filters.client_company_id,
+          kind: filters.kind,
+          leavers_only: filters.leavers_only ? 1 : undefined,
+        },
+      }),
     reopen: (id: number, reason: string) =>
       apiRequest<PayrollRun>(`admin/hr/payroll-runs/${id}/reopen`, { method: 'PATCH', body: { reason } }),
     /** ONE company's part of the month: review / finalize / reopen it without touching the other companies (the answer is the whole month). There is no Approve:
@@ -478,6 +487,15 @@ export const hrApi = {
       apiRequest<Employee>(`admin/hr/employees/${id}/penalties`, { method: 'POST', body: payload }),
     addAdvance: (id: number, payload: RecordEmployeeAdvancePayload) =>
       apiRequest<Employee>(`admin/hr/employees/${id}/advances`, { method: 'POST', body: payload }),
+    /** Void a penalty / advance (HR Manager or Super Admin): it stays in the history and is no longer counted. `kind` is the path word `penalties` or `advances`. */
+    voidDeduction: (employeeId: number, kind: DeductionPath, recordId: number, payload: VoidDeductionPayload) =>
+      apiRequest<Employee>(`admin/hr/employees/${employeeId}/${kind}/${recordId}/void`, { method: 'POST', body: payload }),
+    /** Correct a penalty / advance: the old row is voided and a replacement is created (HR Manager or Super Admin). */
+    correctDeduction: (employeeId: number, kind: DeductionPath, recordId: number, payload: CorrectDeductionPayload) =>
+      apiRequest<Employee>(`admin/hr/employees/${employeeId}/${kind}/${recordId}/correct`, { method: 'POST', body: payload }),
+    /** Waive what is still owed on a penalty / advance that payroll already partly deducted (Super Admin only). */
+    waiveDeduction: (employeeId: number, kind: DeductionPath, recordId: number, payload: WaiveDeductionPayload) =>
+      apiRequest<Employee>(`admin/hr/employees/${employeeId}/${kind}/${recordId}/waive`, { method: 'POST', body: payload }),
     confirmGuarantor: (id: number) =>
       apiRequest<Employee>(`admin/hr/employees/${id}/guarantor-confirm`, { method: 'PATCH' }),
     addPracticalAssessment: (

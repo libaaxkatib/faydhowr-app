@@ -745,9 +745,33 @@ export interface EmployeePenalty {
   notes: string | null;
   recorded_by: string | null;
   created_at: string;
+  // Release 1B record integrity (the server sends them on every row; optional here so older fixtures still type-check).
+  status?: DeductionRecordStatus;
+  /** The version a Void / Correct / Waive must quote, so a change made by someone else in the meantime is refused. */
+  version?: number;
+  voided_at?: string | null;
+  void_reason?: string | null;
+  /** The voided row this one replaces (a correction creates a new row). */
+  replaces_id?: number | null;
+  waived_cents?: number;
+  waive_reason?: string | null;
+  /** Cents already deducted by FINALIZED payrolls, and cents still owed (registered - deducted - waived). */
+  deducted_cents?: number;
+  owed_cents?: number;
 }
 
-export interface RecordEmployeePenaltyPayload {
+/** 'active' counts in payroll; 'voided' stays in the history only. */
+export type DeductionRecordStatus = 'active' | 'voided';
+
+/** The fields a registration may carry beyond the record itself (Release 1B). */
+export interface RegisterDeductionExtras {
+  /** One per dialog opening: repeating the same key never records a second row (the server answers 200 instead of 201). */
+  idempotency_key?: string;
+  /** Sent as true only after the person confirmed "record it again anyway" for an identical existing record. */
+  confirm_duplicate?: boolean;
+}
+
+export interface RecordEmployeePenaltyPayload extends RegisterDeductionExtras {
   penalty_date: string;
   reason: string;
   deduction_amount: number;
@@ -771,9 +795,18 @@ export interface EmployeeAdvance {
   notes: string | null;
   recorded_by: string | null;
   created_at: string;
+  status?: DeductionRecordStatus;
+  version?: number;
+  voided_at?: string | null;
+  void_reason?: string | null;
+  replaces_id?: number | null;
+  waived_cents?: number;
+  waive_reason?: string | null;
+  deducted_cents?: number;
+  owed_cents?: number;
 }
 
-export interface RecordEmployeeAdvancePayload {
+export interface RecordEmployeeAdvancePayload extends RegisterDeductionExtras {
   advance_date: string;
   amount: number;
   currency: string;

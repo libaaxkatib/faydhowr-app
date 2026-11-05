@@ -163,6 +163,19 @@ export const SOMALI_WORDING_CODES: ReadonlySet<string> = new Set([
   'PAYROLL_COMPANY_LOCKED',
   'COMPANY_NOT_ASSIGNED_IN_PERIOD',
   'PAID_COMPANY_REOPEN_SUPER_ADMIN_ONLY',
+  // HR Release 1B: penalties and one-month advances (register, void, correct, waive) and the stale-draft check before Review / Finalize.
+  'DUPLICATE_RECORD',
+  'IDEMPOTENCY_KEY_REUSED',
+  'DEDUCTION_CHANGE_FORBIDDEN',
+  'REVERSE_APPLIED_SUPER_ADMIN_ONLY',
+  'RECORD_CHANGED',
+  'RECORD_NOT_ACTIVE',
+  'RECORD_NOT_FOUND',
+  'DEDUCTION_ALREADY_APPLIED',
+  'WAIVE_SUPER_ADMIN_ONLY',
+  'WAIVE_NOT_APPLICABLE',
+  'WAIVE_AMOUNT_INVALID',
+  'PAYROLL_INPUTS_CHANGED',
 ]);
 
 interface ErrorLike {

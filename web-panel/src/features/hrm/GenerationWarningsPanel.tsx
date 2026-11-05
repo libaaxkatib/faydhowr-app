@@ -9,7 +9,7 @@ import { companySegment } from '@/utils/payrollOverview';
  * The Temporary Replacement warnings of ONE company for a month, read from the server when the dialog that shows them opens. They are warnings only:
  * nothing here blocks, disables or asks for a confirmation - the dialog's buttons stay available whatever this says (even while it loads or fails).
  */
-export function GenerationWarningsPanel({ period, company }: { period: string; company: number | null }) {
+export function GenerationWarningsPanel({ period, company, context = 'action' }: { period: string; company: number | null; context?: 'generate' | 'action' }) {
   const { t } = useI18n();
   const { data, isLoading, isError } = useQuery({
     queryKey: ['payroll-warnings', period, companySegment(company)],
@@ -22,9 +22,43 @@ export function GenerationWarningsPanel({ period, company }: { period: string; c
   if (isLoading) return <p className="mt-3 text-xs text-ink-muted" data-testid="generation-warnings-loading">{t('warning.payroll.gen.checking')}</p>;
   if (isError) return <p className="mt-3 text-xs text-ink-muted" data-testid="generation-warnings-error">{t('warning.payroll.gen.loadFailed')}</p>;
   if (!data) return null;
-  if (data.warnings.length === 0) return <p className="mt-3 text-xs text-ink-muted" data-testid="generation-warnings-none">{t('warning.payroll.gen.none')}</p>;
+  const notice = data.deduction_inputs_changed === true ? <DeductionInputsNotice context={context} /> : null;
+  if (data.warnings.length === 0) {
+    return (
+      <>
+        {notice}
+        <p className="mt-3 text-xs text-ink-muted" data-testid="generation-warnings-none">{t('warning.payroll.gen.none')}</p>
+      </>
+    );
+  }
 
-  return <GenerationWarningsList warnings={data.warnings} />;
+  return (
+    <>
+      {notice}
+      <GenerationWarningsList warnings={data.warnings} />
+    </>
+  );
+}
+
+/**
+ * A penalty or an advance of this company was registered, corrected, voided or waived after its draft was generated. Unlike the Temporary Replacement warnings this
+ * one STOPS Review and Finalize (the server answers 409 PAYROLL_INPUTS_CHANGED) until the company is generated again, so before Review / Finalize it is a clear
+ * blocking notice that points at Generate; inside the Generate dialog itself it only says that generating brings the changes in.
+ */
+export function DeductionInputsNotice({ context }: { context: 'generate' | 'action' }) {
+  const { t } = useI18n();
+
+  if (context === 'generate') {
+    return <p className="mt-3 rounded-sm bg-warning-soft px-3 py-2 text-sm text-ink" data-testid="deduction-inputs-changed">{t('warning.deduction.inputsChangedGenerate')}</p>;
+  }
+
+  return (
+    <div className="mt-3 rounded-sm border border-danger/40 bg-danger-soft px-3 py-3" role="alert" data-testid="deduction-inputs-changed">
+      <p className="text-sm font-semibold text-danger">{t('warning.deduction.inputsChangedTitle')}</p>
+      <p className="mt-1 text-xs text-ink">{t('warning.deduction.inputsChangedBlocking')}</p>
+      <p className="mt-1 text-xs font-medium text-ink">{t('warning.deduction.inputsChangedPointer')}</p>
+    </div>
+  );
 }
 
 /** The warnings themselves, grouped by condition: company, person, what the server says and what remains unresolved. */

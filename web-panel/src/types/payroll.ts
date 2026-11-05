@@ -105,6 +105,19 @@ export interface PayrollDeductionDetail {
   penalty_date?: string | null;
   advance_date?: string | null;
   absent_dates?: string[];
+  // Penalties and one-month advances (Release 1B): what was owed, what this payroll took, and what carries on. All amounts are USD cents.
+  owed_cents?: number;
+  deducted_cents?: number;
+  not_deducted_cents?: number;
+  /** The net was held at $0, so part of the deduction could not be taken this month. */
+  capped_at_zero_net?: boolean;
+  carries_to_next_month?: boolean;
+  /** True when the deduction comes from an earlier month. */
+  carried_in?: boolean;
+  registered_period?: string;
+  registered_cents?: number;
+  previously_deducted_cents?: number;
+  waived_cents?: number;
 }
 
 export interface PayrollItemDeduction {
@@ -448,6 +461,73 @@ export interface CompanyWarnings {
   generated: boolean;
   section_status: string | null;
   warnings: GenerationWarning[];
+  /**
+   * A penalty or an advance was registered, corrected, voided or waived after this company's draft was generated. Unlike the warnings above this DOES stop
+   * Review and Finalize (409 PAYROLL_INPUTS_CHANGED) until the company is Generated again.
+   */
+  deduction_inputs_changed?: boolean;
+}
+
+/** One penalty or advance that payroll could not deduct (yet) - the rows of the Outstanding balances list. Amounts are USD cents. */
+export interface DeductionBalanceRow {
+  kind: 'penalty' | 'advance';
+  id: number;
+  employee_id: number;
+  employee_number: string | null;
+  employee_name: string | null;
+  employee_status: string | null;
+  client_company_id: number | null;
+  company_name: string | null;
+  registered_period: string;
+  reason: string | null;
+  registered_cents: number;
+  deducted_cents: number;
+  waived_cents: number;
+  owed_cents: number;
+  state: 'pending' | 'partly_deducted';
+  /** No open assignment at that company any more. */
+  leaver: boolean;
+  version: number;
+}
+
+export interface DeductionBalances {
+  rows: DeductionBalanceRow[];
+  totals: { count: number; owed_cents: number; leaver_count: number; leaver_owed_cents: number };
+}
+
+export interface DeductionBalanceFilters {
+  client_company_id?: number;
+  kind?: 'penalty' | 'advance';
+  leavers_only?: boolean;
+}
+
+/** The three actions on an existing penalty / advance. The path word is `penalties` or `advances`. */
+export type DeductionPath = 'penalties' | 'advances';
+
+export interface VoidDeductionPayload {
+  reason: string;
+  expected_version: number;
+}
+
+export interface WaiveDeductionPayload {
+  reason: string;
+  /** Dollars; left out = everything still owed. */
+  amount?: number;
+  expected_version: number;
+}
+
+export interface CorrectDeductionPayload {
+  correction_reason: string;
+  expected_version: number;
+  /** Penalties send `deduction_amount`, advances `amount`; only the fields that changed are sent. */
+  deduction_amount?: number;
+  amount?: number;
+  penalty_date?: string;
+  advance_date?: string;
+  payroll_period?: string;
+  reason?: string;
+  notes?: string | null;
+  client_company_id?: number | null;
 }
 
 /** Where one company stands for a payroll month. `finalized` means finalized and nothing paid yet. */

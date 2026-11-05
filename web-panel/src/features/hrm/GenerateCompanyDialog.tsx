@@ -65,7 +65,7 @@ export function GenerateCompanyDialog({ period, monthLabel, name, row, onClose }
       {generateResetsReview(row) && (
         <p className="mt-3 rounded-sm bg-warning-soft px-3 py-2 text-sm text-ink" data-testid="generate-resets-review">{t('confirm.payroll.generateCompanyReviewedNote')}</p>
       )}
-      <GenerationWarningsPanel period={period} company={row.client_company_id} />
+      <GenerationWarningsPanel period={period} company={row.client_company_id} context="generate" />
     </Modal>
   );
 }
