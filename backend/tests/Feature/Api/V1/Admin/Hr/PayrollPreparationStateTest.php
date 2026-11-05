@@ -4,6 +4,7 @@ namespace Tests\Feature\Api\V1\Admin\Hr;
 
 use App\Models\PayrollItem;
 use App\Models\PayrollRun;
+use App\Models\PayrollRunSection;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\HrFixtures;
@@ -96,6 +97,7 @@ class PayrollPreparationStateTest extends TestCase
         // The three values that "review" wrote - and only those - are put back (this is the local stand-in for the later, separately approved
         // production correction; it runs on the throw-away test database only).
         PayrollRun::query()->whereKey($run->id)->update(['status' => PayrollRun::STATUS_DRAFT, 'reviewed_at' => null, 'reviewed_by' => null]);
+        PayrollRunSection::query()->where('payroll_run_id', $run->id)->update(['status' => 'draft', 'reviewed_at' => null, 'reviewed_by' => null]);
 
         $restored = $run->fresh();
         $this->assertSame(PayrollRun::STATUS_DRAFT, $restored->status);

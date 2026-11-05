@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 #[Fillable([
     'payroll_run_id', 'client_company_id', 'status', 'reviewed_at', 'reviewed_by', 'approved_at', 'approved_by', 'finalized_at', 'finalized_by', 'totals',
+    'generated_at', 'generated_by', 'generation_warnings',
 ])]
 class PayrollRunSection extends Model
 {
@@ -37,6 +38,8 @@ class PayrollRunSection extends Model
             'approved_at' => 'datetime',
             'finalized_at' => 'datetime',
             'totals' => 'array',
+            'generated_at' => 'datetime',
+            'generation_warnings' => 'array',
         ];
     }
 
@@ -63,6 +66,11 @@ class PayrollRunSection extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'approved_by');
+    }
+
+    public function generatedBy(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'generated_by');
     }
 
     public function finalizedBy(): BelongsTo

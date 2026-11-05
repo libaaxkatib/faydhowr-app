@@ -229,6 +229,7 @@ class PayrollCorrectionSupersessionTest extends TestCase
         CarbonImmutable::setTestNow('2026-11-05 12:00:00');
         $octId = $this->generate('2026-10');
         $this->assertSame(0, (int) PayrollItem::query()->where('payroll_run_id', $octId)->where('employee_id', $employee->id)->sum('other_deduction_cents'), 'a superseded overpayment is not deducted any more');
+        $this->assertSame('superseded', $correction->fresh()->status, 'regenerating a later month (which refreshes the recovery ledger) never opens a superseded correction again');
         $this->assertNotNull(PayrollRun::query()->find($octId));
     }
 }

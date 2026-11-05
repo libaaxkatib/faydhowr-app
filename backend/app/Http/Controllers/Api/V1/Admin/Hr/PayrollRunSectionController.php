@@ -53,6 +53,7 @@ class PayrollRunSectionController extends Controller
             $request->validated('note'),
             $request->validated('idempotency_key'),
             $request->user(),
+            $request->validated('reference'),
         );
 
         $run = PayrollRun::query()->findOrFail($payrollRunSection->payroll_run_id);

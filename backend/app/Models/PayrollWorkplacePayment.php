@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * reason and then no longer counts toward the workplace's paid total.
  */
 #[Fillable([
-    'payroll_run_id', 'period', 'client_company_id', 'work_location_id', 'amount_cents', 'payment_date', 'note', 'idempotency_key',
+    'payroll_run_id', 'period', 'client_company_id', 'work_location_id', 'amount_cents', 'payment_date', 'note', 'reference', 'idempotency_key',
     'recorded_by', 'voided_at', 'voided_by', 'void_reason',
 ])]
 class PayrollWorkplacePayment extends Model

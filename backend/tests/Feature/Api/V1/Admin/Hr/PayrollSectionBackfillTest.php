@@ -144,10 +144,9 @@ class PayrollSectionBackfillTest extends TestCase
     {
         $this->world();
         $reviewed = $this->legacyDraft('2026-10');
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$reviewed}/review")->assertOk();
         DB::table('payroll_items')->where('payroll_run_id', $reviewed)->update(['section_id' => null]);
         DB::table('payroll_run_sections')->where('payroll_run_id', $reviewed)->delete();
-        PayrollRun::query()->findOrFail($reviewed)->update(['status' => 'reviewed']);
+        PayrollRun::query()->findOrFail($reviewed)->update(['status' => 'reviewed', 'reviewed_at' => now(), 'reviewed_by' => Admin::factory()->create()->id]);
 
         $approved = $this->legacyDraft('2026-11');
         PayrollRun::query()->findOrFail($approved)->update(['status' => 'approved', 'approved_at' => now(), 'approved_by' => $approver = Admin::factory()->create()->id]);

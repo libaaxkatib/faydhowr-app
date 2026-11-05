@@ -28,6 +28,8 @@ class StoreCompanyPaymentRequest extends FormRequest
             'amount' => ['exclude_unless:mode,partial', 'required', 'regex:/^\d{1,9}(\.\d{1,2})?$/'],
             'payment_date' => ['required', 'date_format:Y-m-d'],
             'note' => ['nullable', 'string', 'max:500'],
+            // Owner decision N-5: an OPTIONAL payment reference (bank or mobile-money transaction id, receipt number, ...). Never required.
+            'reference' => ['nullable', 'string', 'max:100'],
             'idempotency_key' => ['required', 'string', 'min:8', 'max:64'],
         ];
     }

@@ -30,6 +30,15 @@ final class CorrectionAuthority
         return in_array($actor->role, [AdminRole::SuperAdmin, AdminRole::HrManager], true);
     }
 
+    /**
+     * Owner decision N-6 (Option 3, 2026-11-05): once ANY payment has been recorded for a company, only a Super Admin may reopen its finalized payroll.
+     * The HR Manager corrects such a company with a Payroll Correction (which never rewrites a stored line) or, for money, with an adjustment in a later month.
+     */
+    public static function mayReopenPaidFinalized(Admin $actor): bool
+    {
+        return $actor->role === AdminRole::SuperAdmin;
+    }
+
     /** Roles that may record or void a reconciliation of an overpaid workplace. */
     public static function mayReconcile(Admin $actor): bool
     {
@@ -59,6 +68,7 @@ final class CorrectionAuthority
         return [
             'correct_closed_payroll' => $row([self::class, 'mayCorrectClosedPayroll']),
             'reopen_finalized_company_payroll' => $row([self::class, 'mayReopenFinalized']),
+            'reopen_finalized_company_payroll_with_payments' => $row([self::class, 'mayReopenPaidFinalized']),
             'reconcile_overpaid_workplace' => $row([self::class, 'mayReconcile']),
             'close_or_reopen_company' => $row([self::class, 'mayCloseCompany']),
             'pay_underpayment_to_employee' => $row([self::class, 'mayPayUnderpayment']),

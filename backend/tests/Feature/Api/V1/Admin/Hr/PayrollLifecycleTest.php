@@ -298,9 +298,12 @@ class PayrollLifecycleTest extends TestCase
     public function test_an_empty_run_cannot_be_reviewed(): void
     {
         [, $token] = $this->superAdminToken();
-        $run = $this->generate($token)->assertCreated()->json('data.id');
+        // A company with nothing payable keeps a visible empty Draft section (owner decision D-3); it has no line to review.
+        $this->makeAssignment($this->makeEmployee('active', 'temporary'), $this->makeCompany('Nothing Payable Co'), null, 100, '2026-01-01');
+        $this->generate($token)->assertCreated();
+        $section = PayrollRunSection::query()->firstOrFail();
 
-        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-runs/{$run}/review")->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_EMPTY');
+        $this->withToken($token)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$section->id}/review")->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_RUN_EMPTY');
     }
 
     public function test_a_reviewed_run_can_be_reopened_with_a_reason_and_regenerated(): void
@@ -338,7 +341,7 @@ class PayrollLifecycleTest extends TestCase
         $this->assertNull($stored->approved_by);
         $this->assertNotNull($stored->reviewed_at);
         $this->assertNotNull($stored->finalized_at);
-        $this->assertGreaterThanOrEqual(2, AuditLog::query()->where('admin_id', $hrManager->id)->where('entity_type', PayrollRun::class)->where('entity_id', $run)->count());
+        $this->assertGreaterThanOrEqual(2, AuditLog::query()->where('admin_id', $hrManager->id)->whereIn('entity_type', [PayrollRun::class, PayrollRunSection::class])->count());
 
         // Finalizing is not paying: every line is still unpaid.
         $this->assertSame(0, PayrollItem::query()->where('payroll_run_id', $run)->where('payment_status', '!=', 'unpaid')->count());

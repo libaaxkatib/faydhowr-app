@@ -7,9 +7,35 @@ use App\Models\Employee;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\ParallelTesting;
 use Illuminate\Support\Facades\Storage;
+use Tests\Support\GeneratesEveryCompany;
 
 abstract class TestCase extends BaseTestCase
 {
+    use GeneratesEveryCompany;
+
+    /**
+     * The month-wide Generate was removed from the API (owner decision N-2a): a request for it is performed here as one real per-company Generate for
+     * every company (see GeneratesEveryCompany). Nothing else is intercepted.
+     */
+    public function postJson($uri, array $data = [], array $headers = [], $options = 0)
+    {
+        if ($uri === '/api/v1/admin/hr/payroll-runs' && array_keys($data) === ['period']) {
+            return $this->generateEveryCompany((string) $data['period'], $headers);
+        }
+
+        return parent::postJson($uri, $data, $headers, $options);
+    }
+
+    /** The month-level bulk Review was removed from the API (owner decision D-2): performed here as one real Review per draft company. */
+    public function patchJson($uri, array $data = [], array $headers = [], $options = 0)
+    {
+        if (preg_match('#^/api/v1/admin/hr/payroll-runs/(\d+)/review$#', (string) $uri, $m)) {
+            return $this->reviewEveryCompany((int) $m[1], $headers);
+        }
+
+        return parent::patchJson($uri, $data, $headers, $options);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

@@ -82,6 +82,12 @@ class PayrollCorrection extends Model
      */
     public function refreshBalance(): void
     {
+        // A superseded correction (its month was reopened and rebuilt, P1) stays superseded: recalculating its balance must never make it "open" again,
+        // or it would be recovered / owed a second time next to the rebuilt line.
+        if ($this->status === self::STATUS_SUPERSEDED) {
+            return;
+        }
+
         if ($this->kind === self::KIND_OVERPAYMENT) {
             $writtenOff = $this->transactionCents(PayrollCorrectionTransaction::TYPE_DEBT_WRITE_OFF);
             $outstanding = max(0, (int) $this->difference_cents - $this->recoveredCents() - $this->transactionCents(PayrollCorrectionTransaction::TYPE_DEBT_REPAYMENT) - $writtenOff);

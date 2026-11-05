@@ -63,22 +63,7 @@ class TransitionPayrollRunAction
         return $this->audited($run, $actor, $to === PayrollRun::STATUS_APPROVED ? AuditAction::Approve : AuditAction::Update, $description, array_filter(['sections_moved' => $moved, 'month_status' => $run->status, 'reason' => $reason], fn ($v) => $v !== null));
     }
 
-    public function review(PayrollRun $run, Admin $actor): PayrollRun
-    {
-        if (($bulk = $this->bulk($run, PayrollRun::STATUS_DRAFT, PayrollRun::STATUS_REVIEWED, $actor, 'reviewed')) !== null) {
-            return $bulk;
-        }
-
-        $this->require($run, PayrollRun::STATUS_DRAFT, 'reviewed');
-
-        if (! $run->items()->exists()) {
-            $this->fail('A payroll run with no lines cannot be reviewed.', 'PAYROLL_RUN_EMPTY');
-        }
-
-        $run->update(['status' => PayrollRun::STATUS_REVIEWED, 'reviewed_at' => now(), 'reviewed_by' => $actor->id]);
-
-        return $this->audited($run, $actor, AuditAction::Update, "Payroll {$run->period} marked reviewed.");
-    }
+    // There is NO month-level Review (owner decision D-2, 2026-11-05): a company is reviewed through its own section (TransitionPayrollRunSectionAction::review).
 
     // There is NO month-level Approve (owner decision 2026-11-04): the month is approved by itself when every company has been paid in full (PayrollApproval).
 

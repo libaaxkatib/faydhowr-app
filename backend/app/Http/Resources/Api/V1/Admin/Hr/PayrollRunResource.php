@@ -138,6 +138,14 @@ class PayrollRunResource extends JsonResource
             'approved_by' => $s->approvedBy?->full_name,
             'finalized_at' => $s->finalized_at?->toIso8601String(),
             'finalized_by' => $s->finalizedBy?->full_name,
+            // Release 1A: this company's own generation stamp and the Temporary Replacement warnings found then (warnings only, never blocking).
+            'generated_at' => $s->generated_at?->toIso8601String(),
+            'generated_by' => $s->generatedBy?->full_name,
+            'generation_warnings' => $s->generation_warnings ?? [],
+            // Owner decision D-3: a generated company with no payable line is shown as "Generated - Nothing Payable" (a visible Draft section).
+            'nothing_payable' => (int) ($t['item_count'] ?? 0) === 0,
+            // Owner decision N-6 (Option 3): once ANY payment is recorded for the company, only a Super Admin may reopen its finalized payroll; the HR Manager uses a Payroll Correction.
+            'has_payments' => (int) ($paid['paid_cents'] ?? 0) > 0,
         ];
     }
 }

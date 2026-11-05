@@ -17,6 +17,7 @@ use App\Models\EmployeePenalty;
 use App\Models\TemporaryReplacement;
 use App\Models\WorkforceRequest;
 use App\Support\Hr\Facility\FacilityCalendar;
+use App\Support\Hr\Payroll\PayrollCompanyOverview;
 use Carbon\CarbonImmutable;
 
 /**
@@ -25,7 +26,10 @@ use Carbon\CarbonImmutable;
  */
 class GetHrDashboardAction
 {
-    public function handle(): array
+    /**
+     * @param  ?string  $payrollPeriod  YYYY-MM of the payroll month for the company-level payroll KPIs; null = the caller may not see payroll (the block is null)
+     */
+    public function handle(?string $payrollPeriod = null): array
     {
         $now = CarbonImmutable::now();
         // The month is a half-open interval: its first day is in, the first day of the NEXT month is out. A closed range "first day .. last day" drops a
@@ -136,6 +140,12 @@ class GetHrDashboardAction
             'month_advances_total' => (string) EmployeeAdvance::query()
                 ->where('advance_date', '>=', $monthStart)->where('advance_date', '<', $nextMonthStart)
                 ->sum('amount'),
+            // Company-level payroll KPIs (owner decisions C-7, N-4, N-4a, D-5): their own payroll month, not the calendar month of the cards above.
+            // null for a user without hr.payroll.view. Read-only; nothing here is a payment and a not-generated company has no total.
+            'payroll' => $payrollPeriod === null ? null : [
+                'period' => $payrollPeriod,
+                ...PayrollCompanyOverview::forPeriod($payrollPeriod)['summary'],
+            ],
         ];
     }
 }

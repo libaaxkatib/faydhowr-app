@@ -4,6 +4,7 @@ namespace App\Actions\Hr;
 
 use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
+use App\Support\Hr\Payroll\PayrollCompanyOverview;
 use App\Support\Hr\Payroll\PayrollMoney;
 use App\Support\Hr\Payroll\PayrollPeriodView;
 use App\Support\Hr\Payroll\PayrollSummaryPresenter;
@@ -79,6 +80,8 @@ class GetPayrollRollupAction
                 // Companies finalize on their own: "3 of 118 companies finalized". Null for a month without company sections.
                 'companies_total' => $sections['total'],
                 'companies_finalized' => $sections['finalized'],
+                // Company-level status of the month (owner decisions N-4 / N-4a): every ASSIGNED company, generated or not, with Paid / Partially Paid / Unpaid / Not Generated counts.
+                'company_status' => PayrollCompanyOverview::forPeriod($payrollPeriod)['summary'],
                 'differs_from_run' => $view['differs_from_run'],
                 'row_count' => $rows->count(),
                 'totals' => [

@@ -69,6 +69,12 @@ class ReopenFinalizedPayrollSectionAction
                 ->when($section->client_company_id === null, fn ($q) => $q->whereNull('client_company_id'), fn ($q) => $q->where('client_company_id', $section->client_company_id))
                 ->whereNull('voided_at');
 
+            // Owner decision N-6 (Option 3, 2026-11-05): once ANY payment is recorded for this company only a Super Admin may reopen it; the HR Manager uses a
+            // Payroll Correction (it records the difference and never rewrites a stored line). Payments are kept either way; nothing was changed when refused.
+            if ((clone $payments)->exists() && ! CorrectionAuthority::mayReopenPaidFinalized($actor)) {
+                $this->fail("{$name} already has recorded payments for {$run->period}: only a Super Admin can reopen it. Use a Payroll Correction (it records the difference without rewriting the payroll lines), or ask a Super Admin. Nothing was changed.", 'PAID_COMPANY_REOPEN_SUPER_ADMIN_ONLY', 403);
+            }
+
             $reopening = PayrollSectionReopening::query()->create([
                 'payroll_run_id' => $run->id,
                 'payroll_run_section_id' => $section->id,

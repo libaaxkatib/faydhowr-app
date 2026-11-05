@@ -13,6 +13,7 @@ use App\Models\PayrollCorrection;
 use App\Models\PayrollCorrectionTransaction;
 use App\Models\PayrollItem;
 use App\Models\PayrollRun;
+use App\Models\PayrollRunSection;
 use App\Models\Permission;
 use App\Support\Hr\Payroll\PayrollPeriodView;
 use Carbon\CarbonImmutable;
@@ -304,7 +305,7 @@ class OwnerDecisionsFinalTest extends TestCase
         return [$original->refresh(), $temp, EmployeeWorkAssignment::query()->findOrFail($id)];
     }
 
-    public function test_a_temporary_confirmed_as_replacement_gets_no_payroll_line_and_the_month_is_refused_until_it_is_corrected(): void
+    public function test_a_temporary_confirmed_as_replacement_gets_no_payroll_line_and_generating_only_warns(): void
     {
         [$original, $temp, $replacement] = $this->confirmedTemporaryReplacement();
 
@@ -313,12 +314,13 @@ class OwnerDecisionsFinalTest extends TestCase
         $this->assertSame('temporary', $temp->fresh()->employment_type);
         $this->assertNotNull(AuditLog::query()->where('entity_type', EmployeeWorkAssignment::class)->where('entity_id', $replacement->id)->get()->first(fn ($l) => isset($l->metadata['temporary_registered_as_replacement_confirmed'])));
 
-        // Payroll for the month cannot be calculated: no run, no lines, a clear list of what to correct.
-        $response = $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-09'])->assertUnprocessable()->assertJsonPath('error_code', 'PAYROLL_UNRESOLVED_TEMPORARY_REPLACEMENT');
-        $this->assertSame($replacement->id, $response->json('errors.assignments.0.assignment_id'));
-        $this->assertStringContainsString($temp->employee_number, $response->json('message'));
-        $this->assertSame(0, PayrollRun::query()->count());
-        $this->assertSame(0, PayrollItem::query()->count());
+        // Owner decisions N-2b / D-1: generating is NOT blocked. The company is generated, the replacement gets no payroll line, and the warning names the person.
+        $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-09'])->assertCreated();
+        $this->assertSame(0, PayrollItem::query()->where('work_assignment_id', $replacement->id)->count());
+        $warning = collect(PayrollRunSection::query()->whereNotNull('generation_warnings')->get()->flatMap(fn ($s) => $s->generation_warnings))->firstWhere('condition', 'A');
+        $this->assertSame($replacement->id, $warning['assignment_id']);
+        $this->assertSame($temp->employee_number, $warning['employee_number']);
+        $this->assertFalse($warning['blocking']);
 
         // The live estimate creates no line for these days and says why; the company screen flags the record.
         $view = (new PayrollPeriodView)->forPeriod('2026-09');
@@ -361,7 +363,7 @@ class OwnerDecisionsFinalTest extends TestCase
     {
         [, , $replacement] = $this->confirmedTemporaryReplacement();
 
-        $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-09'])->assertUnprocessable();
+        $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => '2026-09'])->assertCreated(); // a warning only (owner decision N-2b)
         $this->as($this->super)->patchJson("/api/v1/admin/hr/work-assignments/{$replacement->id}/cancel", ['reason' => 'Registered by mistake: this was Temporary cover'])->assertOk();
 
         $resolved = AuditLog::query()->where('entity_type', EmployeeWorkAssignment::class)->where('entity_id', $replacement->id)->get()->first(fn ($l) => ($l->metadata['event'] ?? null) === 'temporary_registered_as_replacement_resolved');

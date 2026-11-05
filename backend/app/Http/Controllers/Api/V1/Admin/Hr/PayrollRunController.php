@@ -3,13 +3,11 @@
 namespace App\Http\Controllers\Api\V1\Admin\Hr;
 
 use App\Actions\Hr\CreatePayrollAdjustmentAction;
-use App\Actions\Hr\GeneratePayrollRunAction;
 use App\Actions\Hr\MarkPayrollItemPaidAction;
 use App\Actions\Hr\TransitionPayrollRunAction;
 use App\Actions\Hr\VoidPayrollPaymentAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Admin\Hr\CreatePayrollAdjustmentRequest;
-use App\Http\Requests\Api\V1\Admin\Hr\GeneratePayrollRunRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\MarkPayrollItemPaidRequest;
 use App\Http\Requests\Api\V1\Admin\Hr\ReopenPayrollRunRequest;
 use App\Http\Resources\Api\V1\Admin\Hr\PayrollItemResource;
@@ -43,21 +41,12 @@ class PayrollRunController extends Controller
 
     public function show(PayrollRun $payrollRun): JsonResponse
     {
-        $payrollRun->load(['items' => fn ($q) => $q->orderBy('company_name')->orderBy('employee_name'), 'items.deductions', 'items.paymentVoids', 'generatedBy', 'reviewedBy', 'approvedBy', 'finalizedBy', 'sections.clientCompany', 'sections.reviewedBy', 'sections.approvedBy', 'sections.finalizedBy']);
+        $payrollRun->load(['items' => fn ($q) => $q->orderBy('company_name')->orderBy('employee_name'), 'items.deductions', 'items.paymentVoids', 'generatedBy', 'reviewedBy', 'approvedBy', 'finalizedBy', 'sections.clientCompany', 'sections.reviewedBy', 'sections.approvedBy', 'sections.finalizedBy', 'sections.generatedBy']);
 
         return ApiResponse::success('Payroll run retrieved successfully.', new PayrollRunResource($payrollRun));
     }
 
-    public function store(GeneratePayrollRunRequest $request, GeneratePayrollRunAction $action): JsonResponse
-    {
-        return ApiResponse::success('Payroll draft generated.', new PayrollRunResource($action->handle($request->validated('period'), $request->user())->loadCount(self::sectionCounts())), 201);
-    }
-
-    public function review(PayrollRun $payrollRun, TransitionPayrollRunAction $action, Request $request): JsonResponse
-    {
-        return ApiResponse::success('Payroll marked reviewed.', new PayrollRunResource($action->review($payrollRun, $request->user())->loadCount(self::sectionCounts())));
-    }
-
+    /** Month-level reopen of the reviewed / legacy-approved companies. Kept unchanged: its fate is the open point O-1 (owner decision pending). */
     public function reopen(ReopenPayrollRunRequest $request, PayrollRun $payrollRun, TransitionPayrollRunAction $action): JsonResponse
     {
         return ApiResponse::success('Payroll reopened to draft.', new PayrollRunResource($action->reopen($payrollRun, $request->validated('reason'), $request->user())->loadCount(self::sectionCounts())));

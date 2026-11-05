@@ -337,7 +337,7 @@ class CompanyPayrollSectionsTest extends TestCase
         $this->finalizeCompany($this->alpha);
         $section = $this->section($this->alpha);
 
-        $events = AuditLog::query()->where('entity_type', PayrollRunSection::class)->where('entity_id', $section->id)->get()->map(fn ($log) => $log->metadata)->filter()->values();
+        $events = AuditLog::query()->where('entity_type', PayrollRunSection::class)->where('entity_id', $section->id)->get()->map(fn ($log) => $log->metadata)->filter(fn ($m) => str_starts_with((string) ($m['event'] ?? ''), 'payroll_section_'))->values();
         $finalize = $events->firstWhere('event', 'payroll_section_finalized');
         $this->assertSame(['draft', 'reviewed'], $events->pluck('previous_status')->all());
         $this->assertSame(['reviewed', 'finalized'], $events->pluck('new_status')->all());
@@ -390,7 +390,8 @@ class CompanyPayrollSectionsTest extends TestCase
         // Bravo was rebuilt from the new salary; the month's totals are what is stored.
         $this->assertSame(50000, (int) PayrollItem::query()->where('work_assignment_id', $this->b1->id)->value('net_cents'));
         $this->assertSame(60000 + 65000 + 25000, (int) $this->monthRun()->totals['net_cents'], 'stored lines: Alpha as finalized, Bravo and Gury as regenerated');
-        $this->assertTrue(collect($this->monthRun()->totals['warnings'])->contains(fn (string $w): bool => str_contains($w, 'kept exactly as stored') && str_contains($w, 'Alpha Co')), 'HR is told the live calculation differs');
+        // Generating the finalized company itself is refused, and says why (owner decision N-2a: one company at a time).
+        $this->as($this->super)->json('POST', '/api/v1/admin/hr/payroll/'.self::P."/companies/{$this->alpha->id}/generate")->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_COMPANY_LOCKED');
     }
 
     public function test_generate_refuses_a_month_whose_every_company_is_finalized(): void
@@ -852,12 +853,12 @@ class CompanyPayrollSectionsTest extends TestCase
             'company_name' => 'Alpha Co', 'eligible_days' => 31, 'days_in_month' => 31, 'gross_cents' => 30000, 'net_cents' => 30000, 'calc_snapshot' => [],
         ]);
 
-        // Reviewing the month still works for a run that has no sections yet; there is no month-level Approve or Finalize to go on with.
-        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/review")->assertOk();
+        // There is no month-level Review any more (owner decision D-2) and no month-level Approve or Finalize.
+        $this->as($this->super)->json('PATCH', "/api/v1/admin/hr/payroll-runs/{$run->id}/review")->assertNotFound();
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/approve")->assertNotFound();
         $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-runs/{$run->id}/finalize")->assertNotFound();
 
-        $this->assertSame('reviewed', $run->fresh()->status);
+        $this->assertSame('draft', $run->fresh()->status);
         $this->assertSame(0, PayrollRunSection::query()->where('payroll_run_id', $run->id)->count());
     }
 

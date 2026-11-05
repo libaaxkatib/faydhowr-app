@@ -32,9 +32,9 @@ class RecordWorkplacePaymentAction
     /**
      * @return array{payment: PayrollWorkplacePayment, summary: array<string, mixed>, replayed: bool}
      */
-    public function handle(PayrollRun $run, ?int $companyId, ?int $locationId, string $mode, ?int $amountCents, string $paymentDate, ?string $note, string $idempotencyKey, Admin $actor): array
+    public function handle(PayrollRun $run, ?int $companyId, ?int $locationId, string $mode, ?int $amountCents, string $paymentDate, ?string $note, string $idempotencyKey, Admin $actor, ?string $reference = null): array
     {
-        return DB::transaction(function () use ($run, $companyId, $locationId, $mode, $amountCents, $paymentDate, $note, $idempotencyKey, $actor): array {
+        return DB::transaction(function () use ($run, $companyId, $locationId, $mode, $amountCents, $paymentDate, $note, $idempotencyKey, $actor, $reference): array {
             $run = PayrollRun::query()->lockForUpdate()->findOrFail($run->id);
 
             $existing = PayrollWorkplacePayment::query()->where('payroll_run_id', $run->id)->where('idempotency_key', $idempotencyKey)->first();
@@ -91,6 +91,7 @@ class RecordWorkplacePaymentAction
                 'amount_cents' => $amountCents,
                 'payment_date' => $paymentDate,
                 'note' => $note === null || trim($note) === '' ? null : trim($note),
+                'reference' => $reference === null || trim($reference) === '' ? null : trim($reference),
                 'idempotency_key' => $idempotencyKey,
                 'recorded_by' => $actor->id,
             ]), $actor, ['source' => 'workplace_payment', 'mode' => $mode]);
@@ -116,6 +117,7 @@ class RecordWorkplacePaymentAction
                     'outstanding_after_cents' => (int) ($after['outstanding_cents'] ?? 0),
                     'status_after' => $after['status'] ?? null,
                     'payment_date' => $paymentDate,
+                    'reference' => $reference === null || trim($reference) === '' ? null : trim($reference),
                 ],
             ));
 

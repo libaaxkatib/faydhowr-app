@@ -152,6 +152,7 @@ final class WorkplacePayroll
                     'amount_cents' => (int) $p->amount_cents,
                     'payment_date' => $p->payment_date->toDateString(),
                     'note' => $p->note,
+                    'reference' => $p->reference,
                     'recorded_by' => $p->recordedBy?->full_name,
                     'recorded_at' => $p->created_at?->toIso8601String(),
                     'voided' => $p->voided_at !== null,

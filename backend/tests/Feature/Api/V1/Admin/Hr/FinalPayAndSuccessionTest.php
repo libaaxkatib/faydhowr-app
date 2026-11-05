@@ -369,6 +369,7 @@ class FinalPayAndSuccessionTest extends TestCase
         [, $token] = $this->superAdminToken();
         [, $assignment] = $this->leaver(300);
         $assignment->update(['end_date' => '2026-08-31', 'status' => 'ended']);
+        $this->makeAssignment($this->makeEmployee(), $this->makeCompany('Other Co'), null, 100, '2026-01-01'); // the month is calculated (and reports) when a company is generated
         $this->coverDays($assignment, [2, 3]);
 
         $run = $this->generate($token)->assertCreated();

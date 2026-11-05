@@ -55,6 +55,7 @@ use App\Http\Controllers\Api\V1\Admin\Hr\HrReportsController as AdminHrReportsCo
 use App\Http\Controllers\Api\V1\Admin\Hr\ImportController as AdminHrImportController;
 use App\Http\Controllers\Api\V1\Admin\Hr\MonthlyPaymentReportController as AdminMonthlyPaymentReportController;
 use App\Http\Controllers\Api\V1\Admin\Hr\OfficeStaffController as AdminOfficeStaffController;
+use App\Http\Controllers\Api\V1\Admin\Hr\PayrollCompanyController as AdminPayrollCompanyController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PayrollCorrectionController as AdminPayrollCorrectionController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PayrollRunController as AdminPayrollRunController;
 use App\Http\Controllers\Api\V1\Admin\Hr\PayrollRunSectionController as AdminPayrollRunSectionController;
@@ -1570,11 +1571,10 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.import', 'throttle:ad
 });
 
 Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.manage', 'throttle:admin-operations'])->group(function (): void {
-    Route::post('v1/admin/hr/payroll-runs', [AdminPayrollRunController::class, 'store'])
-        ->name('api.v1.admin.hr.payroll-runs.store');
-    Route::patch('v1/admin/hr/payroll-runs/{payrollRun}/review', [AdminPayrollRunController::class, 'review'])
-        ->whereNumber('payrollRun')
-        ->name('api.v1.admin.hr.payroll-runs.review');
+    // Owner decisions N-2a / D-2 (2026-11-05): payroll is generated and reviewed ONE COMPANY at a time. There is NO month-wide Generate and NO month-level bulk Review.
+    Route::post('v1/admin/hr/payroll/{period}/companies/{company}/generate', [AdminPayrollCompanyController::class, 'generate'])
+        ->where(['period' => '\d{4}-(0[1-9]|1[0-2])', 'company' => 'none|\d+'])
+        ->name('api.v1.admin.hr.payroll.companies.generate');
     // ONE company's part of the month (company-level finalization): same permission as the month-level review.
     Route::patch('v1/admin/hr/payroll-run-sections/{payrollRunSection}/review', [AdminPayrollRunSectionController::class, 'review'])
         ->whereNumber('payrollRunSection')
@@ -1597,6 +1597,12 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.payroll.view', 'throt
         ->name('api.v1.admin.hr.temporary-replacements.expected-payment');
     Route::get('v1/admin/hr/payroll-corrections', [AdminPayrollCorrectionController::class, 'index'])
         ->name('api.v1.admin.hr.payroll-corrections.index');
+    Route::get('v1/admin/hr/payroll/{period}/overview', [AdminPayrollCompanyController::class, 'overview'])
+        ->where('period', '\d{4}-(0[1-9]|1[0-2])')
+        ->name('api.v1.admin.hr.payroll.overview');
+    Route::get('v1/admin/hr/payroll/{period}/companies/{company}/warnings', [AdminPayrollCompanyController::class, 'warnings'])
+        ->where(['period' => '\d{4}-(0[1-9]|1[0-2])', 'company' => 'none|\d+'])
+        ->name('api.v1.admin.hr.payroll.companies.warnings');
     Route::get('v1/admin/hr/payroll-runs', [AdminPayrollRunController::class, 'index'])
         ->name('api.v1.admin.hr.payroll-runs.index');
     Route::get('v1/admin/hr/payroll-runs/{payrollRun}', [AdminPayrollRunController::class, 'show'])

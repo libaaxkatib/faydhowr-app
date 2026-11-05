@@ -89,6 +89,7 @@ class PayrollSafetyNetsTest extends TestCase
     {
         [, $token] = $this->superAdminToken();
         $unassigned = $this->makeEmployee();
+        $this->makeAssignment($this->makeEmployee(), $this->makeCompany(), null, 100, '2026-01-01'); // a company to generate: the orphan inputs are reported then
         EmployeePenalty::query()->create(['employee_id' => $unassigned->id, 'penalty_date' => '2026-09-05', 'reason' => 'x', 'deduction_amount' => 10, 'currency' => 'USD', 'payroll_period' => '2026-09']);
         EmployeeAdvance::query()->create(['employee_id' => $unassigned->id, 'advance_date' => '2026-09-05', 'amount' => 20, 'currency' => 'USD', 'payroll_period' => '2026-09', 'reason' => 'x']);
 
@@ -111,10 +112,11 @@ class PayrollSafetyNetsTest extends TestCase
             'kind' => 'correction', 'amount' => '5.00', 'reason' => 'Late correction for September', 'applies_in_period' => '2026-10',
         ])->assertCreated();
         $assignment->update(['end_date' => '2026-09-30', 'status' => 'ended']);
+        $this->makeAssignment($this->makeEmployee(), $this->makeCompany('Another Co'), null, 100, '2026-10-01');
 
         $october = $this->generate($token, '2026-10')->assertCreated();
 
-        $this->assertSame(0, $october->json('data.item_count'));
+        $this->assertSame(1, $october->json('data.item_count'), 'only the other company has a line: the ended assignment has none');
         $this->assertStringContainsString('cannot apply in 2026-10', $october->json('data.warnings.0'));
         $this->assertSame('pending', PayrollAdjustment::query()->firstOrFail()->status);
     }

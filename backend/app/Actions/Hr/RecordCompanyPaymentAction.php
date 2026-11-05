@@ -31,9 +31,9 @@ class RecordCompanyPaymentAction
     /**
      * @return array{payments: list<PayrollWorkplacePayment>, replayed: bool}
      */
-    public function handle(PayrollRunSection $section, string $mode, ?int $amountCents, string $paymentDate, ?string $note, string $idempotencyKey, Admin $actor): array
+    public function handle(PayrollRunSection $section, string $mode, ?int $amountCents, string $paymentDate, ?string $note, string $idempotencyKey, Admin $actor, ?string $reference = null): array
     {
-        return DB::transaction(function () use ($section, $mode, $amountCents, $paymentDate, $note, $idempotencyKey, $actor): array {
+        return DB::transaction(function () use ($section, $mode, $amountCents, $paymentDate, $note, $idempotencyKey, $actor, $reference): array {
             $run = PayrollRun::query()->lockForUpdate()->findOrFail($section->payroll_run_id);
             $section = PayrollRunSection::query()->lockForUpdate()->findOrFail($section->id);
             $companyId = $section->client_company_id === null ? null : (int) $section->client_company_id;
@@ -96,6 +96,7 @@ class RecordCompanyPaymentAction
                     $note,
                     $base.'-'.$index,
                     $actor,
+                    $reference,
                 );
                 $payments[] = $result['payment'];
                 $left -= $take;

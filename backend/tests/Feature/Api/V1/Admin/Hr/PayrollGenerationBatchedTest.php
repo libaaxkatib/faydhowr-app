@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Api\V1\Admin\Hr;
 
-use App\Actions\Hr\GeneratePayrollRunAction;
+use App\Actions\Hr\GenerateCompanyPayrollAction;
 use App\Models\Admin;
 use App\Models\AuditLog;
 use App\Models\EmployeeAdvance;
@@ -14,12 +14,14 @@ use App\Models\PayrollAdjustment;
 use App\Models\PayrollItem;
 use App\Models\PayrollItemDeduction;
 use App\Models\PayrollRun;
+use App\Models\PayrollRunSection;
 use App\Models\TemporaryReplacement;
 use App\Support\Hr\Payroll\PayrollRunCalculator;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use Tests\Support\GeneratesCompaniesDirectly;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
 
@@ -33,6 +35,7 @@ use Tests\TestCase;
  */
 class PayrollGenerationBatchedTest extends TestCase
 {
+    use GeneratesCompaniesDirectly;
     use HrFixtures;
     use RefreshDatabase;
 
@@ -143,7 +146,7 @@ class PayrollGenerationBatchedTest extends TestCase
 
         // Money from an earlier month that lands in this one, and a penalty whose employee has no line (orphan warning).
         $admin = Admin::factory()->superAdmin()->create();
-        app(GeneratePayrollRunAction::class)->handle('2026-08', $admin);
+        $this->generateAllCompanies('2026-08', $admin);
         PayrollAdjustment::query()->create([
             'payroll_item_id' => PayrollItem::query()->orderBy('id')->firstOrFail()->id, 'kind' => 'correction', 'amount_cents' => 1250,
             'reason' => 'Missed bonus', 'applies_in_period' => self::P, 'status' => 'pending', 'created_by' => $admin->id,
@@ -209,13 +212,12 @@ class PayrollGenerationBatchedTest extends TestCase
     {
         $admin = Admin::factory()->superAdmin()->create();
         $this->richMonth();
-        $action = app(GeneratePayrollRunAction::class);
-        $run = $action->handle(self::P, $admin);
+        $run = $this->generateAllCompanies(self::P, $admin);
 
         $before = $this->snapshotOf($run);
 
         // The calculation dies after the old lines were already deleted inside the transaction.
-        $failing = new GeneratePayrollRunAction(new class extends PayrollRunCalculator
+        $failing = new GenerateCompanyPayrollAction(new class extends PayrollRunCalculator
         {
             public function calculate(string $period, ?array $employeeIds = null, bool $withRecovery = true, bool $batched = true): array
             {
@@ -224,7 +226,7 @@ class PayrollGenerationBatchedTest extends TestCase
         });
 
         try {
-            $failing->handle(self::P, $admin);
+            $this->generateAllCompanies(self::P, $admin, $failing);
             $this->fail('the failure must reach the caller');
         } catch (RuntimeException $e) {
             $this->assertSame('the request ran out of time', $e->getMessage());
@@ -237,11 +239,10 @@ class PayrollGenerationBatchedTest extends TestCase
     {
         $admin = Admin::factory()->superAdmin()->create();
         $this->richMonth();
-        $action = app(GeneratePayrollRunAction::class);
 
-        $first = $this->snapshotOf($action->handle(self::P, $admin), withIds: false);
-        $second = $this->snapshotOf($action->handle(self::P, $admin), withIds: false);
-        $third = $this->snapshotOf($action->handle(self::P, $admin), withIds: false);
+        $first = $this->snapshotOf($this->generateAllCompanies(self::P, $admin), withIds: false);
+        $second = $this->snapshotOf($this->generateAllCompanies(self::P, $admin), withIds: false);
+        $third = $this->snapshotOf($this->generateAllCompanies(self::P, $admin), withIds: false);
 
         $this->assertSame($first['items'], $second['items']);
         $this->assertSame($first['items'], $third['items']);
@@ -249,17 +250,17 @@ class PayrollGenerationBatchedTest extends TestCase
         $this->assertSame(1, PayrollRun::query()->where('period', self::P)->count());
         $this->assertSame($first['item_count'], PayrollItem::query()->where('period', self::P)->count());
         $this->assertSame(0, PayrollItemDeduction::query()->whereNotIn('payroll_item_id', PayrollItem::query()->select('id'))->count(), 'no deduction is left without its line');
-        $this->assertSame(3, AuditLog::query()->where('entity_type', PayrollRun::class)->where('description', 'like', 'Payroll draft for 2026-09 generated%')->count(), 'one audit entry per successful generation');
+        $companies = PayrollRunSection::query()->whereHas('run', fn ($q) => $q->where('period', self::P))->count();
+        $this->assertSame(3 * $companies, AuditLog::query()->where('entity_type', PayrollRunSection::class)->get()->filter(fn ($l) => ($l->metadata['event'] ?? '') === 'payroll_company_generated' && ($l->metadata['period'] ?? '') === self::P)->count(), 'one audit entry per successful generation of a company');
     }
 
     public function test_the_applied_adjustment_goes_back_to_pending_and_is_applied_once_when_the_draft_is_regenerated(): void
     {
         $admin = Admin::factory()->superAdmin()->create();
         $this->richMonth();
-        $action = app(GeneratePayrollRunAction::class);
 
-        $action->handle(self::P, $admin);
-        $action->handle(self::P, $admin);
+        $this->generateAllCompanies(self::P, $admin);
+        $this->generateAllCompanies(self::P, $admin);
 
         $adjustment = PayrollAdjustment::query()->firstOrFail();
         $this->assertSame('applied', $adjustment->status);
