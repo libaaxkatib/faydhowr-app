@@ -16,7 +16,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { SuccessorPicker } from '@/features/hrm/companyEmployees/SuccessorPicker';
-import { EMPTY_SUCCESSOR, missingSuccessors, needsSuccessor, toSuccessorPayload, validateSuccessor, type SuccessorDraft } from '@/utils/successor';
+import { EMPTY_SUCCESSOR, missingSuccessors, needsSuccessor, optionalSuccessor, toSuccessorPayload, validateSuccessor, type SuccessorDraft } from '@/utils/successor';
 import { Select } from '@/components/ui/Select';
 import { CompanyChoiceField } from '@/features/hrm/CompanyChoiceField';
 import { companyChoices, companyMissing, companyPayload, type CompanyChoice } from '@/utils/inputCompany';
@@ -1883,7 +1883,7 @@ function EndAssignmentModal({
   const { t } = useI18n();
   const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState('');
-  // A Permanent position cannot be left without a replacement (docs/HR_PAYROLL_RULES.md N1).
+  // A replacement is OPTIONAL when one assignment is ended (owner decision 2026-11-04): it is checked only when HR started choosing one.
   const askSuccessor = needsSuccessor(assignment.assignment_type);
   const [successor, setSuccessor] = useState<SuccessorDraft>(EMPTY_SUCCESSOR);
   const [successorError, setSuccessorError] = useState<string | undefined>();
@@ -1902,9 +1902,9 @@ function EndAssignmentModal({
             size="sm"
             isLoading={isLoading}
             onClick={() => {
-              const missing = askSuccessor ? validateSuccessor(successor, endDate) : null;
-              setSuccessorError(missing ?? undefined);
-              if (missing === null) onConfirm(endDate, note || undefined, askSuccessor ? (toSuccessorPayload(successor, endDate) ?? undefined) : undefined);
+              const chosen = askSuccessor ? optionalSuccessor(successor, endDate) : { error: null, payload: undefined };
+              setSuccessorError(chosen.error ?? undefined);
+              if (chosen.error === null) onConfirm(endDate, note || undefined, chosen.payload);
             }}
           >
             {t('action.endAssignment')}
@@ -1916,6 +1916,7 @@ function EndAssignmentModal({
       <FormField label={t('option.employeeDetail.fieldEndDate')} htmlFor="end-date" required>
         <input id="end-date" type="date" className={inputClasses} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
       </FormField>
+      {askSuccessor && <p className="mb-2 text-xs text-ink-muted" data-testid="end-successor-optional">{t('option.correction.replacementOptional')}</p>}
       {askSuccessor && <SuccessorPicker assignmentId={assignment.id} lastDay={endDate} value={successor} onChange={setSuccessor} error={successorError} idPrefix="end-successor" />}
       <FormField label={t('option.employeeDetail.fieldNote')} htmlFor="end-note">
         <textarea id="end-note" rows={2} className={inputClasses + ' h-auto py-2'} value={note} onChange={(e) => setNote(e.target.value)} />

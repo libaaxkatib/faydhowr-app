@@ -74,6 +74,18 @@ export function toSuccessorPayload(draft: SuccessorDraft, lastDay?: string): Suc
   return { type: draft.type, employee_id: draft.employeeId, ...effective, salary_amount: Number(draft.salaryAmount), salary_currency: draft.salaryCurrency.trim().toUpperCase() };
 }
 
+/**
+ * Ending or stopping ONE assignment: a replacement is OPTIONAL (owner decision 2026-11-04). Nothing is asked until HR starts choosing one; a choice that
+ * was started is validated exactly like any other, and only a valid one becomes the request payload. The server still validates whatever it receives.
+ */
+export function optionalSuccessor(draft: SuccessorDraft, lastDay?: string): { error: string | null; payload: SuccessorPayload | undefined } {
+  if (draft.type === '') return { error: null, payload: undefined };
+
+  const error = validateSuccessor(draft, lastDay);
+
+  return { error, payload: error === null ? (toSuccessorPayload(draft, lastDay) ?? undefined) : undefined };
+}
+
 /** Separation: one choice per open Permanent assignment; returns the assignment ids that still have none (or an invalid one). */
 export function missingSuccessors(permanentAssignmentIds: number[], drafts: Record<number, SuccessorDraft>, lastDay?: string): number[] {
   return permanentAssignmentIds.filter((id) => validateSuccessor(drafts[id] ?? EMPTY_SUCCESSOR, lastDay) !== null);

@@ -180,7 +180,7 @@ class WorkAssignmentTest extends TestCase
 
         $this->withToken($token)->patchJson("/api/v1/admin/hr/work-assignments/{$created}/end", [
             'end_date' => now()->addMonth()->toDateString(),
-            // Ending a Permanent assignment names its replacement (docs/HR_PAYROLL_RULES.md N1).
+            // A replacement is optional when an assignment is ended (see EndAssignmentWithoutReplacementTest); a valid one is still carried out.
             'successor' => ['type' => 'waiting_list', 'employee_id' => $this->makeEmployee('waiting')->id, 'salary_amount' => 100, 'salary_currency' => 'USD'],
         ])->assertOk()->assertJsonPath('data.status', 'ended');
 
