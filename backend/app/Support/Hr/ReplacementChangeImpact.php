@@ -42,6 +42,36 @@ final class ReplacementChangeImpact
 
         $before = $this->days($replacement);
         $after = $this->days($clone);
+        $extendsEnd = $oldEnd !== null && ($newEnd === null || $newEnd > $oldEnd);
+
+        return $this->summarize($replacement, $clone, $before, $after, ['start_date' => $oldStart, 'end_date' => $oldEnd], ['start_date' => $newStart, 'end_date' => $newEnd], $extendsEnd, $withMoney);
+    }
+
+    /**
+     * What SAVING a new cover would do (owner decision UG-3): the same figures as a change, with "before" = no days and no cost, so a back-dated cover that
+     * reaches an approved or finalized month is recognised as a correction of closed payroll. `$draft` is an unsaved cover (position, person and dates set);
+     * nothing is written.
+     *
+     * @return array<string, mixed>
+     */
+    public function forCreate(TemporaryReplacement $draft, bool $withMoney): array
+    {
+        $start = $draft->start_date->toDateString();
+        $end = $draft->end_date?->toDateString();
+
+        // "old" repeats the new start so the earliest date a closed-payroll correction reaches is the cover's own start.
+        return $this->summarize($draft, $draft, [], $this->days($draft), ['start_date' => $start, 'end_date' => null], ['start_date' => $start, 'end_date' => $end], false, $withMoney);
+    }
+
+    /**
+     * @param  list<string>  $before
+     * @param  list<string>  $after
+     * @param  array{start_date: string, end_date: ?string}  $old
+     * @param  array{start_date: string, end_date: ?string}  $new
+     * @return array<string, mixed>
+     */
+    private function summarize(TemporaryReplacement $replacement, TemporaryReplacement $clone, array $before, array $after, array $old, array $new, bool $extendsEnd, bool $withMoney): array
+    {
         $added = array_values(array_diff($after, $before));
         $removed = array_values(array_diff($before, $after));
 
@@ -65,18 +95,16 @@ final class ReplacementChangeImpact
             $row = ['period' => $period, 'locked' => $locked, 'days_before' => $daysBefore, 'days_after' => $daysAfter, 'changed' => $changed];
 
             if ($withMoney) {
-                $row['cost_before_cents'] = $this->cost($replacement, $period);
+                $row['cost_before_cents'] = $before === [] ? 0 : $this->cost($replacement, $period);
                 $row['cost_after_cents'] = $this->cost($clone, $period);
             }
 
             $months[] = $row;
         }
 
-        $extendsEnd = $oldEnd !== null && ($newEnd === null || $newEnd > $oldEnd);
-
         $result = [
-            'old' => ['start_date' => $oldStart, 'end_date' => $oldEnd],
-            'new' => ['start_date' => $newStart, 'end_date' => $newEnd],
+            'old' => $old,
+            'new' => $new,
             'today' => FacilityCalendar::today()->toDateString(),
             'days_before' => count($before),
             'days_after' => count($after),

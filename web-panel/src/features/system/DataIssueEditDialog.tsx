@@ -11,8 +11,9 @@ import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { ApiClientError } from '@/api/client';
-import { EDITABLE_STATUS_OPTIONS, MODULE_OPTIONS, SEVERITY_OPTIONS, TYPE_OPTIONS, translateOptions } from '@/features/system/dataIssueOptions';
+import { MODULE_OPTIONS, STATUS_OPTIONS, SEVERITY_OPTIONS, TYPE_OPTIONS, translateOptions } from '@/features/system/dataIssueOptions';
 import { useI18n } from '@/i18n/useI18n';
+import { isReopening, statusChoices, statusToSend, type IssueStatus } from '@/utils/dataIssueEdit';
 import type { DataIssue, DataIssueModule, DataIssueSeverity, DataIssueType, UpdateDataIssuePayload } from '@/types/reconciliation';
 
 interface DataIssueEditDialogProps {
@@ -31,7 +32,7 @@ export function DataIssueEditDialog({ isOpen, onClose, issue }: DataIssueEditDia
     module: issue.module,
     issue_type: issue.issue_type,
     severity: issue.severity,
-    status: (issue.status === 'open' || issue.status === 'investigating' ? issue.status : 'investigating') as 'open' | 'investigating',
+    status: issue.status as IssueStatus,
     expected_value: issue.expected_value ?? '',
     actual_value: issue.actual_value ?? '',
     difference_value: issue.difference_value ?? '',
@@ -53,7 +54,7 @@ export function DataIssueEditDialog({ isOpen, onClose, issue }: DataIssueEditDia
         module: issue.module,
         issue_type: issue.issue_type,
         severity: issue.severity,
-        status: (issue.status === 'open' || issue.status === 'investigating' ? issue.status : 'investigating') as 'open' | 'investigating',
+        status: issue.status as IssueStatus,
         expected_value: issue.expected_value ?? '',
         actual_value: issue.actual_value ?? '',
         difference_value: issue.difference_value ?? '',
@@ -83,7 +84,7 @@ export function DataIssueEditDialog({ isOpen, onClose, issue }: DataIssueEditDia
         module: form.module,
         issue_type: form.issue_type,
         severity: form.severity,
-        status: form.status,
+        status: statusToSend(issue.status as IssueStatus, form.status),
         expected_value: form.expected_value || null,
         actual_value: form.actual_value || null,
         difference_value: form.difference_value || null,
@@ -152,8 +153,8 @@ export function DataIssueEditDialog({ isOpen, onClose, issue }: DataIssueEditDia
           <FormField label={t('option.system.severity')} htmlFor="edi-severity" error={fieldErrors.severity?.[0]}>
             <Select id="edi-severity" options={translateOptions(SEVERITY_OPTIONS, 'option.system.issueSeverity', tValue)} value={form.severity} onChange={(e) => setForm({ ...form, severity: e.target.value as DataIssueSeverity })} />
           </FormField>
-          <FormField label={t('option.label.status')} htmlFor="edi-status" hint={t('warning.system.statusResolveHint')} error={fieldErrors.status?.[0]}>
-            <Select id="edi-status" options={translateOptions(EDITABLE_STATUS_OPTIONS, 'option.system.issueStatus', tValue)} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as 'open' | 'investigating' })} />
+          <FormField label={t('option.label.status')} htmlFor="edi-status" hint={isReopening(issue.status as IssueStatus, form.status) ? t('warning.system.reopenIssueHint') : t('warning.system.statusResolveHint')} error={fieldErrors.status?.[0]}>
+            <Select id="edi-status" options={translateOptions(statusChoices(STATUS_OPTIONS, issue.status as IssueStatus), 'option.system.issueStatus', tValue)} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as IssueStatus })} />
           </FormField>
         </div>
 

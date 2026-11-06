@@ -8,12 +8,14 @@ use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\AssignmentSuccession;
 use App\Models\EmployeeWorkAssignment;
+use App\Support\ApiResponse;
 use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\Payroll\ClosedPayrollCorrection;
 use App\Support\Hr\PermanentSuccession;
 use App\Support\Hr\PositionSuccession;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
 class EndWorkAssignmentAction
@@ -33,6 +35,16 @@ class EndWorkAssignmentAction
     {
         $old = $assignment->end_date?->toDateString();
         $new = CarbonImmutable::parse($data['end_date'])->toDateString();
+
+        // The last paid day can never be earlier than the first day (the same rule as Stop). A correction reason does not bypass it.
+        if ($assignment->start_date !== null && $new < $assignment->start_date->toDateString()) {
+            throw new HttpResponseException(ApiResponse::error(
+                "The last day ({$new}) is before the assignment started ({$assignment->start_date->toDateString()}).",
+                'END_BEFORE_ASSIGNMENT_START',
+                422,
+                ['end_date' => ['The last day cannot be before the assignment started.']],
+            ));
+        }
 
         // A Replacement covering an away holder leaves only through Return or a swap (which pass `cycle_managed` and record the cycle's events).
         if (($data['cycle_managed'] ?? false) !== true) {

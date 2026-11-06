@@ -7,6 +7,7 @@ import { hrApi } from '@/api/hr';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Icon } from '@/components/ui/Icon';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
@@ -21,6 +22,7 @@ import { formatDate, formatDurationSince } from '@/utils/formatters';
 import { parseWorkforceRequestStatuses } from '@/utils/hrDashboardLinks';
 import { recruitmentCategories } from '@/utils/employeeCategories';
 import type { WorkforceRequest, WorkforceRequestStatus } from '@/types/employee';
+import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import { useI18n } from '@/i18n/useI18n';
 
 const STATUS_TONE: Record<WorkforceRequestStatus, 'success' | 'warning' | 'danger' | 'neutral'> = {
@@ -64,11 +66,13 @@ export function WorkforceRequestsPage() {
   const [positionId, setPositionId] = useState('');
   const [genderRequirement, setGenderRequirement] = useState('');
   const [quantityNeeded, setQuantityNeeded] = useState('1');
-  const [requestedDate, setRequestedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [requestedDate, setRequestedDate] = useState(localToday());
   const [notes, setNotes] = useState('');
   const [candidatesFor, setCandidatesFor] = useState<WorkforceRequest | null>(null);
   const [workplaceFor, setWorkplaceFor] = useState<WorkforceRequest | null>(null);
   const [workplaceChoice, setWorkplaceChoice] = useState('');
+  // Cancelling a request cannot be undone (there is no reopen), so it is confirmed first.
+  const [cancelling, setCancelling] = useState<WorkforceRequest | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['workforce-requests'], queryFn: hrApi.workforceRequests.list });
   // The HR dashboard's Open / Fulfilled cards link here with ?status=open|fulfilled. "open" = open + partially filled.
@@ -107,7 +111,7 @@ export function WorkforceRequestsPage() {
         employee_category_id: employeeCategoryId ? Number(employeeCategoryId) : undefined,
         position_id: positionId ? Number(positionId) : undefined,
         gender_requirement: (genderRequirement || undefined) as 'male' | 'female' | undefined,
-        quantity_needed: Number(quantityNeeded) || 1,
+        quantity_needed: Math.max(1, Math.floor(Number(quantityNeeded)) || 1),
         requested_date: requestedDate,
         notes: notes || undefined,
       }),
@@ -123,7 +127,7 @@ export function WorkforceRequestsPage() {
       setQuantityNeeded('1');
       setNotes('');
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.somethingWrong'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.somethingWrong')), 'error'),
   });
 
   const workplaceMutation = useMutation({
@@ -134,7 +138,7 @@ export function WorkforceRequestsPage() {
       setWorkplaceFor(null);
       setWorkplaceChoice('');
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.couldNotSaveWorkplace'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.couldNotSaveWorkplace')), 'error'),
   });
   const workplaceOptions = (workLocations ?? []).filter(
     (l) => l.location_type === 'client' && l.status === 'active' && workplaceFor !== null && l.client_company_id === workplaceFor.client_company_id,
@@ -144,9 +148,14 @@ export function WorkforceRequestsPage() {
     mutationFn: (id: number) => hrApi.workforceRequests.cancel(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workforce-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['hr-dashboard'] });
       show(t('notify.pipeline.requestCancelled'));
+      setCancelling(null);
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.couldNotCancelRequest'), 'error'),
+    onError: (err) => {
+      setCancelling(null);
+      show(friendlyErrorMessage(err, t('notify.pipeline.couldNotCancelRequest')), 'error');
+    },
   });
 
   const confirmMutation = useMutation({
@@ -159,7 +168,7 @@ export function WorkforceRequestsPage() {
       setCandidatesFor(updated);
       show(t('notify.pipeline.matchConfirmed'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.couldNotConfirmMatch'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.couldNotConfirmMatch')), 'error'),
   });
 
   return (
@@ -236,7 +245,7 @@ export function WorkforceRequestsPage() {
                 )}
                 {(request.status === 'open' || request.status === 'partially_filled') && (
                   <PermissionGate module="hr">
-                    <Button size="sm" variant="ghost" onClick={() => cancelMutation.mutate(request.id)} isLoading={cancelMutation.isPending}>
+                    <Button size="sm" variant="ghost" onClick={() => setCancelling(request)}>
                       {t('action.cancelRequest')}
                     </Button>
                   </PermissionGate>
@@ -264,6 +273,17 @@ export function WorkforceRequestsPage() {
         </div>
       )}
 
+      <ConfirmDialog
+        isOpen={cancelling !== null}
+        title={t('confirm.uiAuditB.cancelRequestTitle')}
+        description={cancelling ? t('confirm.uiAuditB.cancelRequestBody', { name: requestTitle(cancelling, t('option.pipeline.companyNotRecorded')) }) : ''}
+        confirmLabel={t('action.uiAuditB.yesCancelRequest')}
+        tone="danger"
+        isLoading={cancelMutation.isPending}
+        onConfirm={() => cancelling && cancelMutation.mutate(cancelling.id)}
+        onCancel={() => setCancelling(null)}
+      />
+
       <Modal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
@@ -272,7 +292,7 @@ export function WorkforceRequestsPage() {
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setIsCreateOpen(false)}>{t('action.cancel')}</Button>
-            <Button size="sm" isLoading={createMutation.isPending} disabled={companyChoice === ''} onClick={() => createMutation.mutate()}>
+            <Button size="sm" isLoading={createMutation.isPending} disabled={companyChoice === '' || requestedDate === '' || !(Number(quantityNeeded) >= 1)} onClick={() => createMutation.mutate()}>
               {t('action.create')}
             </Button>
           </>
@@ -394,6 +414,11 @@ export function WorkforceRequestsPage() {
                       duration: formatDurationSince(candidate.waiting_since),
                     })}
                   </p>
+                  {candidate.eligible === false && (
+                    <p className="mt-1 text-xs font-medium text-warning" data-testid={`candidate-not-eligible-${candidate.id}`}>
+                      {t('warning.uiAuditB.cannotMatchRegistration', { missing: (candidate.missing ?? []).join(', ') || '—' })}
+                    </p>
+                  )}
                   <div className="mt-1 flex gap-1">
                     <StatusBadge status="gender" label={candidate.gender ? tValue('option.gender', candidate.gender) ?? candidate.gender : '—'} tone={candidate.gender_match ? 'success' : 'neutral'} />
                     <StatusBadge status="category" label={candidate.employee_category_name ?? t('option.pipeline.any')} tone={candidate.category_match ? 'success' : 'neutral'} />
@@ -404,8 +429,8 @@ export function WorkforceRequestsPage() {
                   <Button
                     size="sm"
                     className="h-8 shrink-0 px-3 text-xs"
-                    isLoading={confirmMutation.isPending}
-                    disabled={candidatesFor.status === 'fulfilled' || candidatesFor.status === 'cancelled'}
+                    isLoading={confirmMutation.isPending && confirmMutation.variables?.employeeId === candidate.id}
+                    disabled={candidatesFor.status === 'fulfilled' || candidatesFor.status === 'cancelled' || candidate.eligible === false || confirmMutation.isPending}
                     onClick={() => confirmMutation.mutate({ requestId: candidatesFor.id, employeeId: candidate.id })}
                   >
                     {t('action.confirmMatch')}

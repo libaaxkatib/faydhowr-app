@@ -125,10 +125,7 @@ class AdminCrudTest extends TestCase
 
     public function test_authenticated_admin_can_list_admins_newest_first(): void
     {
-        $actor = Admin::factory()->create();
-        $this->assignDirectPermissions($actor, [
-            AdminPermission::AdminsManage,
-        ]);
+        $actor = Admin::factory()->superAdmin()->create();
         $older = Admin::factory()->create([
             'full_name' => 'Older Admin',
         ]);
@@ -159,10 +156,7 @@ class AdminCrudTest extends TestCase
 
     public function test_admin_detail_includes_effective_permissions(): void
     {
-        $actor = Admin::factory()->create();
-        $this->assignDirectPermissions($actor, [
-            AdminPermission::AdminsManage,
-        ]);
+        $actor = Admin::factory()->superAdmin()->create();
         $target = Admin::factory()->create([
             'role' => AdminRole::Sales,
         ]);

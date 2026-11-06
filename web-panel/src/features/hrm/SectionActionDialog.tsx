@@ -1,13 +1,17 @@
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { GenerationWarningsPanel, SourceInputsNotice } from '@/features/hrm/GenerationWarningsPanel';
+import { useCompanyWarnings } from '@/features/hrm/useCompanyWarnings';
 import { SourcesShownContext } from '@/features/hrm/sourcesShownContext';
 import { useI18n } from '@/i18n/useI18n';
+import { reviewIsBlocked } from '@/utils/sourceChanges';
 import type { SourceChange } from '@/types/payroll';
 
 /**
  * The confirmation of "Mark reviewed" and "Finalize" for ONE company. Above the buttons it lists the company's Temporary Replacement warnings, read from the
- * server when it opens. The warnings never block: there is no extra checkbox and the confirm button stays available whatever they say.
+ * server when it opens. Those warnings never block: there is no extra checkbox and the confirm button stays available whatever they say. The one exception is
+ * the stale-draft notice (a penalty / advance, assignment, salary row, cover or absence changed after Generate): the server would refuse the step, so the
+ * confirm button is off while that notice is shown and the notice points at Generate.
  */
 export function SectionActionDialog({
   period,
@@ -35,6 +39,8 @@ export function SectionActionDialog({
   onCancel: () => void;
 }) {
   const { t } = useI18n();
+  const { data: warnings } = useCompanyWarnings(period, company);
+  const blocked = reviewIsBlocked(warnings, refusedChanges !== null);
 
   return (
     <Modal
@@ -45,7 +51,7 @@ export function SectionActionDialog({
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onCancel} disabled={isLoading}>{t('action.cancel')}</Button>
-          <Button variant={tone === 'danger' ? 'danger' : 'primary'} size="sm" onClick={onConfirm} isLoading={isLoading} data-testid="section-action-confirm">
+          <Button variant={tone === 'danger' ? 'danger' : 'primary'} size="sm" onClick={onConfirm} isLoading={isLoading} disabled={blocked} data-testid="section-action-confirm">
             {confirmLabel}
           </Button>
         </>

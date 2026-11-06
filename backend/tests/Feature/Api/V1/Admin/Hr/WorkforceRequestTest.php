@@ -108,6 +108,28 @@ class WorkforceRequestTest extends TestCase
         $this->assertFalse($byId[$newerMismatch->id]['gender_match']);
     }
 
+    /** B-10: the screen can grey out "Confirm match" for a person the server would refuse, instead of failing after the click. */
+    public function test_candidates_say_which_people_cannot_be_matched_because_the_registration_workflow_is_incomplete(): void
+    {
+        $admin = Admin::factory()->superAdmin()->create();
+        $token = $admin->createToken('t')->plainTextToken;
+        $requestId = $this->withToken($token)->postJson('/api/v1/admin/hr/workforce-requests', [
+            'work_location_id' => $this->makeWorkLocation()->id,
+            'requested_date' => now()->toDateString(),
+        ])->json('data.id');
+
+        $ready = $this->makeWaitingEmployee(['registration_origin' => 'existing']);
+        $incomplete = $this->makeWaitingEmployee(['registration_origin' => 'new']);
+
+        $byId = collect($this->withToken($token)->getJson("/api/v1/admin/hr/workforce-requests/{$requestId}/candidates")->assertOk()->json('data'))->keyBy('id');
+
+        $this->assertTrue($byId[$ready->id]['eligible']);
+        $this->assertSame([], $byId[$ready->id]['missing']);
+        $this->assertFalse($byId[$incomplete->id]['eligible']);
+        $this->assertNotEmpty($byId[$incomplete->id]['missing']);
+        $this->withToken($token)->postJson("/api/v1/admin/hr/workforce-requests/{$requestId}/confirm", ['employee_id' => $incomplete->id])->assertStatus(422);
+    }
+
     public function test_confirm_creates_match_without_changing_employee_status_and_updates_request_progress(): void
     {
         $admin = Admin::factory()->superAdmin()->create();

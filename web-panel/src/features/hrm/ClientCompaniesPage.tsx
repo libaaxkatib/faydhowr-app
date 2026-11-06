@@ -26,9 +26,11 @@ import type { MessageKey } from '@/i18n/messages';
 import { CloseCompanyDialog, ReopenCompanyDialog } from '@/features/hrm/CompanyClosureDialogs';
 import { MultiCompanyPolicyCard } from '@/features/hrm/companyEmployees/MultiCompanyPolicyCard';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useAuth } from '@/features/auth/useAuth';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { formatDate } from '@/utils/formatters';
+import { canCloseOrReopenCompany } from '@/utils/accessRules';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import { CATEGORY_FILTERS, COMPANY_FILTER_KEYS, companyListQuery, hasActiveCompanyFilters, parseCompanyListFilters, visibleAliases } from '@/utils/clientCompanyFilter';
 import type { ClientCompany, ClientCompanyAgreement, ClientCompanyCategory, WorkLocation } from '@/types/employee';
@@ -52,6 +54,8 @@ export function ClientCompaniesPage() {
   const { show } = useToast();
   const { t, tValue } = useI18n();
   const { hasPermission } = useEffectivePermissions();
+  const { admin } = useAuth();
+  const mayCloseCompany = canCloseOrReopenCompany(admin?.role);
   // Search, category, status, workplaces and the page live in the address bar: a reload, a shared link and Back bring the list back as it was.
   const url = useUrlFilters();
   const typed = parseCompanyListFilters(new URLSearchParams({ q: url.get('q'), category: url.get('category'), status: url.get('status'), workplaces: url.get('workplaces') }));
@@ -220,7 +224,7 @@ export function ClientCompaniesPage() {
                     <Icon name="plus" size={14} />
                     {t('action.company.addLocation')}
                   </Button>
-                  {company.status === 'inactive' && company.closure ? (
+                  {!mayCloseCompany ? null : company.status === 'inactive' && company.closure ? (
                     <Button variant="outline" size="sm" onClick={() => setClosureDialog({ kind: 'reopen', company })} data-testid={`reopen-company-${company.id}`}>{t('action.correction.reopenCompany')}</Button>
                   ) : (
                     <Button variant="outline" size="sm" onClick={() => setClosureDialog({ kind: 'close', company })} data-testid={`close-company-${company.id}`}>{t('action.correction.closeCompany')}</Button>

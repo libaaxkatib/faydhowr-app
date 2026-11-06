@@ -75,8 +75,9 @@ final class PayrollApproval
                     default => self::UNPAID,
                 },
                 'approved' => $finalized && $outstanding <= 0 && $unsettled <= 0,
-                // Money can be recorded only for a finalized company that still owes something.
-                'can_pay' => $finalized && $outstanding > 0,
+                // Money can be recorded only for a finalized company that still owes something. The "no company" lines are paid line by line only (the
+                // company payment refuses them, RecordCompanyPaymentAction), so Approve Paid / Approve Partial are not offered for them (UI audit C-4).
+                'can_pay' => $finalized && $outstanding > 0 && $s->client_company_id !== null,
             ];
         })->all();
     }

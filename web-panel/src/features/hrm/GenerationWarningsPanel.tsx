@@ -1,11 +1,8 @@
 import { useContext } from 'react';
-import { useQuery } from '@tanstack/react-query';
-
-import { hrApi } from '@/api/hr';
+import { useCompanyWarnings } from '@/features/hrm/useCompanyWarnings';
 import { SourcesShownContext } from '@/features/hrm/sourcesShownContext';
 import { useI18n } from '@/i18n/useI18n';
 import { WARNING_CONDITION_LABEL, groupWarnings, warningPerson } from '@/utils/generationWarnings';
-import { companySegment } from '@/utils/payrollOverview';
 import { sourceChangeView, visibleSourceChanges, type SourceValueView } from '@/utils/sourceChanges';
 import type { SourceChange } from '@/types/payroll';
 
@@ -16,13 +13,7 @@ import type { SourceChange } from '@/types/payroll';
 export function GenerationWarningsPanel({ period, company, context = 'action' }: { period: string; company: number | null; context?: 'generate' | 'action' }) {
   const { t } = useI18n();
   const hideSources = useContext(SourcesShownContext);
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['payroll-warnings', period, companySegment(company)],
-    queryFn: () => hrApi.payrollRuns.companyWarnings(period, company),
-    // Always the current picture: a warning list that was true a minute ago may not be true now.
-    staleTime: 0,
-    gcTime: 0,
-  });
+  const { data, isLoading, isError } = useCompanyWarnings(period, company);
 
   if (isLoading) return <p className="mt-3 text-xs text-ink-muted" data-testid="generation-warnings-loading">{t('warning.payroll.gen.checking')}</p>;
   if (isError) return <p className="mt-3 text-xs text-ink-muted" data-testid="generation-warnings-error">{t('warning.payroll.gen.loadFailed')}</p>;

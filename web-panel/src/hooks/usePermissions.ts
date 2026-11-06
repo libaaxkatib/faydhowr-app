@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '@/api/dashboard';
 import { permissionsApi } from '@/api/permissions';
 import { useAuth } from '@/features/auth/useAuth';
+import { permissionsUnavailable } from '@/utils/accessRules';
 
 /**
  * `data.visible_modules` on GET /admin/dashboard, which the backend derives from the
@@ -50,7 +51,7 @@ export function usePermissions() {
 export function useEffectivePermissions() {
   const { isSuperAdmin, status } = useAuth();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-effective-permissions'],
     queryFn: () => permissionsApi.getMine(),
     enabled: status === 'authenticated',
@@ -61,6 +62,9 @@ export function useEffectivePermissions() {
 
   return {
     isLoading,
+    /** The list of permissions could not be fetched (network, server). It must never be read as "no permissions": show a retry instead of "Access restricted". */
+    isError: permissionsUnavailable({ isError, hasData: data !== undefined, isSuperAdmin }),
+    refetch,
     isSuperAdmin,
     keys,
     hasPermission: (key: string) => isSuperAdmin || keys.has(key),

@@ -23,12 +23,16 @@ import { useToast } from '@/components/ui/useToast';
 import { useI18n } from '@/i18n/useI18n';
 import type { MessageKey } from '@/i18n/messages';
 import { formatDate, formatDateTime } from '@/utils/formatters';
+import { invalidateMarketing } from '@/utils/marketingCache';
+import { marketingErrorMessage } from '@/utils/marketingErrors';
+import { canSaveFeedback, canSaveStatusChange } from '@/utils/marketingFormRules';
 import type { FollowUpFilter, MarketingRecordStatus } from '@/types/marketing';
 
-const TABS: { value: FollowUpFilter; label: string; labelKey: MessageKey }[] = [
+const TABS: { value: FollowUpFilter; label?: string; labelKey: MessageKey }[] = [
   { value: 'today', label: "Today's Follow-ups", labelKey: 'option.marketing.todaysFollowUps' },
   { value: 'upcoming', label: 'Upcoming', labelKey: 'option.marketing.tabUpcoming' },
   { value: 'overdue', label: 'Overdue', labelKey: 'option.marketing.tabOverdue' },
+  { value: 'all', labelKey: 'option.marketing.tabAll' },
 ];
 
 const RECORD_STATUS_OPTIONS: { value: MarketingRecordStatus; label: string; labelKey: MessageKey }[] = [
@@ -82,53 +86,57 @@ export function FollowUpsPage() {
   const completeMutation = useMutation({
     mutationFn: (id: number) => marketingApi.followUps.complete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketing-follow-ups'] });
+      // A follow-up action can change the record (status, feedback) and the dashboard counters, so every Marketing query is refreshed.
+      invalidateMarketing(queryClient);
       show(t('notify.marketing.followUpCompleted'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotCompleteFollowUp'), 'error'),
+    onError: (err) => show(marketingErrorMessage(err, t('notify.marketing.couldNotCompleteFollowUp')), 'error'),
   });
 
   const rescheduleMutation = useMutation({
     mutationFn: (id: number) => marketingApi.followUps.reschedule(id, rescheduleDate),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketing-follow-ups'] });
+      // A follow-up action can change the record (status, feedback) and the dashboard counters, so every Marketing query is refreshed.
+      invalidateMarketing(queryClient);
       closeEditor();
       show(t('notify.marketing.followUpRescheduled'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotRescheduleFollowUp'), 'error'),
+    onError: (err) => show(marketingErrorMessage(err, t('notify.marketing.couldNotRescheduleFollowUp')), 'error'),
   });
 
   const feedbackMutation = useMutation({
     mutationFn: (id: number) => marketingApi.followUps.addFeedback(id, feedbackText),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketing-follow-ups'] });
+      // A follow-up action can change the record (status, feedback) and the dashboard counters, so every Marketing query is refreshed.
+      invalidateMarketing(queryClient);
       closeEditor();
       show(t('notify.marketing.feedbackAdded'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotAddFeedback'), 'error'),
+    onError: (err) => show(marketingErrorMessage(err, t('notify.marketing.couldNotAddFeedback')), 'error'),
   });
 
   const statusMutation = useMutation({
     mutationFn: (id: number) => marketingApi.followUps.updateRecordStatus(id, statusValue),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketing-follow-ups'] });
+      // A follow-up action can change the record (status, feedback) and the dashboard counters, so every Marketing query is refreshed.
+      invalidateMarketing(queryClient);
       closeEditor();
       show(t('notify.marketing.statusUpdated'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotUpdateStatus'), 'error'),
+    onError: (err) => show(marketingErrorMessage(err, t('notify.marketing.couldNotUpdateStatus')), 'error'),
   });
 
   return (
     <div>
       <PageHeader title={t('nav.marketing.followUps')} breadcrumb={[{ label: t('nav.marketing.marketing'), to: '/marketing' }, { label: t('nav.marketing.followUps') }]} />
 
-      <div className="mb-4 flex gap-1 rounded-md border border-border bg-surface p-1">
+      <div className="mb-4 flex flex-wrap gap-1 rounded-md border border-border bg-surface p-1">
         {TABS.map((tabItem) => (
           <button
             key={tabItem.value}
             type="button"
             onClick={() => setTab(tabItem.value)}
-            className={`flex-1 rounded-sm px-3 py-2 text-sm font-medium transition ${
+            className={`min-w-[7rem] flex-1 rounded-sm px-3 py-2 text-sm font-medium transition ${
               tab === tabItem.value ? 'bg-primary text-white' : 'text-ink-muted hover:bg-surface-alt'
             }`}
           >
@@ -220,17 +228,25 @@ export function FollowUpsPage() {
                   )}
 
                   <PermissionGate module="marketing">
-                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditor({ id: fu.id, kind: 'feedback' })}>
+                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => {
+                        setFeedbackText(fu.record_feedback ?? '');
+                        setEditor({ id: fu.id, kind: 'feedback' });
+                      }}>
                       <Icon name="pencil" size={13} /> {t('action.marketing.addFeedback')}
                     </Button>
-                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditor({ id: fu.id, kind: 'status' })}>
+                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => {
+                        setStatusValue(fu.record_status ?? 'pending');
+                        setEditor({ id: fu.id, kind: 'status' });
+                      }}>
                       <Icon name="flag" size={13} /> {t('action.marketing.updateStatus')}
                     </Button>
+                    {fu.status !== 'completed' && (
                     <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditor({ id: fu.id, kind: 'reschedule' })}>
                       {t('action.marketing.reschedule')}
                     </Button>
+                    )}
                     {fu.status !== 'completed' && (
-                      <Button size="sm" className="h-7 px-2 text-xs" isLoading={completeMutation.isPending} onClick={() => completeMutation.mutate(fu.id)}>
+                      <Button size="sm" className="h-7 px-2 text-xs" isLoading={completeMutation.isPending && completeMutation.variables === fu.id} onClick={() => completeMutation.mutate(fu.id)}>
                         {t('action.marketing.complete')}
                       </Button>
                     )}
@@ -261,14 +277,17 @@ export function FollowUpsPage() {
 
                 {editor?.id === fu.id && editor.kind === 'feedback' && (
                   <div className="mt-2.5 flex items-start gap-1.5 border-t border-border pt-2.5">
-                    <textarea
+                    <div className="min-w-0 flex-1">
+                      <textarea
                       rows={2}
                       placeholder={t('option.marketing.feedbackPlaceholder')}
                       value={feedbackText}
                       onChange={(e) => setFeedbackText(e.target.value)}
-                      className={inputClasses + ' h-auto flex-1 py-1.5 text-xs'}
+                      className={inputClasses + ' h-auto w-full py-1.5 text-xs'}
                     />
-                    <Button size="sm" disabled={!feedbackText.trim()} isLoading={feedbackMutation.isPending} onClick={() => feedbackMutation.mutate(fu.id)}>
+                      <p className="mt-1 text-[11px] text-ink-faint">{t('warning.marketing.feedbackReplacesHint')}</p>
+                    </div>
+                    <Button size="sm" disabled={!canSaveFeedback(feedbackText, fu.record_feedback)} isLoading={feedbackMutation.isPending} onClick={() => feedbackMutation.mutate(fu.id)}>
                       {t('action.save')}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={closeEditor}>
@@ -280,7 +299,7 @@ export function FollowUpsPage() {
                 {editor?.id === fu.id && editor.kind === 'status' && (
                   <div className="mt-2.5 flex items-center gap-1.5 border-t border-border pt-2.5">
                     <Select value={statusValue} onChange={(e) => setStatusValue(e.target.value as MarketingRecordStatus)} options={RECORD_STATUS_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))} className="h-8 w-36 text-xs" />
-                    <Button size="sm" isLoading={statusMutation.isPending} onClick={() => statusMutation.mutate(fu.id)}>
+                    <Button size="sm" disabled={!canSaveStatusChange(statusValue, fu.record_status)} title={canSaveStatusChange(statusValue, fu.record_status) ? undefined : t('warning.marketing.statusUnchanged')} isLoading={statusMutation.isPending} onClick={() => statusMutation.mutate(fu.id)}>
                       {t('action.save')}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={closeEditor}>

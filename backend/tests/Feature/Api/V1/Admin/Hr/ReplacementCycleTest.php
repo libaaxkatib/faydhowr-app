@@ -6,6 +6,7 @@ use App\Models\Admin;
 use App\Models\AssignmentAbsence;
 use App\Models\AssignmentCycleEvent;
 use App\Models\AssignmentSuccession;
+use App\Models\AuditLog;
 use App\Models\ClientCompany;
 use App\Models\Employee;
 use App\Models\EmployeeAttendance;
@@ -166,6 +167,25 @@ class ReplacementCycleTest extends TestCase
         $this->assertSame('2026-10-13', $original->salaryHistories()->get()->last()->effective_from->toDateString());
         $this->assertSame('330.00', (string) $original->fresh()->salary_amount);
         $this->assertSame(2, EmployeeWorkAssignment::query()->where('client_company_id', $this->company->id)->count(), 'still no second Permanent row');
+    }
+
+    /** Found in the Employee Detail browser QA (2026-11-06): reopening the Replacement of a finished cycle put it and the returned holder on the position together. */
+    public function test_a_replacement_whose_holder_has_returned_cannot_be_reopened_and_the_refusal_changes_nothing(): void
+    {
+        $original = $this->original();
+        $replacementId = $this->replace($original)->assertOk()->json('data.replacement.id');
+        $this->giveBack($replacementId, '2026-10-13')->assertOk();
+
+        $before = EmployeeWorkAssignment::query()->orderBy('id')->get(['id', 'status', 'end_date', 'notes'])->map(fn ($a): array => [$a->id, $a->status->value, $a->end_date?->toDateString(), $a->notes])->all();
+        $audits = AuditLog::query()->count();
+
+        $this->as($this->admin)->postJson($this->url()."/{$replacementId}/reopen", ['reason' => 'reopened by mistake'])
+            ->assertUnprocessable()->assertJsonPath('error_code', 'ASSIGNMENT_COVER_FINISHED');
+
+        $this->assertSame($before, EmployeeWorkAssignment::query()->orderBy('id')->get(['id', 'status', 'end_date', 'notes'])->map(fn ($a): array => [$a->id, $a->status->value, $a->end_date?->toDateString(), $a->notes])->all(), 'no assignment changed');
+        $this->assertSame($audits, AuditLog::query()->count(), 'nothing was audited as reopened');
+        $this->assertSame(1, EmployeeWorkAssignment::query()->where('client_company_id', $this->company->id)->where('status', 'active')->count(), 'only the returned holder holds the position');
+        $this->assertSame('active', $original->fresh()->status->value);
     }
 
     public function test_the_validation_message_names_the_last_working_day_when_that_is_what_is_wrong(): void

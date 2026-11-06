@@ -25,8 +25,11 @@ import { useI18n } from '@/i18n/useI18n';
 import { TABLE_SCROLL_CLASS } from '@/components/ui/TableScroll';
 import type { MessageKey } from '@/i18n/messages';
 import { formatCurrency, formatDate } from '@/utils/formatters';
-import { friendlyErrorMessage, localToday, nextMonth } from '@/utils/hrHelpers';
+import { facilityToday } from '@/utils/facility';
+import { friendlyErrorMessage, nextMonth } from '@/utils/hrHelpers';
+import { invalidatePayrollDependents } from '@/utils/payrollQueries';
 import { defaultPayrollMonth } from '@/utils/payrollMonth';
+import { parsePayrollMonthParam } from '@/utils/hrDashboardLinks';
 import { PayrollCorrectionsPanel } from '@/features/hrm/PayrollCorrectionsPanel';
 import { useAuth } from '@/features/auth/useAuth';
 import { canVoidPayrollPayment, validateWriteOffReason } from '@/utils/payrollCorrections';
@@ -37,7 +40,7 @@ import { PaymentListPreviewDialog } from '@/features/hrm/PaymentListPreviewDialo
 import { WorkplacePaymentsPanel } from '@/features/hrm/WorkplacePaymentsPanel';
 import { CompanySectionsPanel } from '@/features/hrm/CompanySectionsPanel';
 import { DeductionCarryNote } from '@/features/hrm/DeductionCarryNote';
-import { MONTH_STATUS_LABEL, itemsOfSection, lineIsFinalized, monthDisplayStatus, selectedSection } from '@/utils/payrollSections';
+import { MONTH_STATUS_LABEL, adjustmentAmountProblem, itemsOfSection, lineCanBePaid, lineIsFinalized, monthDisplayStatus, selectedSection } from '@/utils/payrollSections';
 import type {
   PayrollAdjustmentKind,
   PayrollDeductionDetail,
@@ -110,7 +113,8 @@ export function PayrollRunsPage() {
   const canDownloadPaymentList = hasPermission('hr.manage');
 
   // Opens on the PREVIOUS calendar month (owner decision 2026-11-04); any other month can still be picked.
-  const [period, setPeriod] = useState(defaultPayrollMonth());
+  // A link from the HR dashboard names the month it describes (?month=YYYY-MM); otherwise the screen opens on the previous month.
+  const [period, setPeriod] = useState(() => parsePayrollMonthParam(window.location.search) ?? defaultPayrollMonth());
   // The company whose lines the table shows (null = every company); dropped when the month no longer has that company.
   const [selectedSectionId, setSelectedSectionId] = useState<number | null>(null);
   const [adjustingItem, setAdjustingItem] = useState<PayrollItem | null>(null);
@@ -135,6 +139,8 @@ export function PayrollRunsPage() {
     queryClient.invalidateQueries({ queryKey: id ? ['payroll-run', id] : ['payroll-run'] });
     // A line paid or voided one by one changes what its workplace has been paid.
     queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
+    // ... and the dashboard, ledger and employee screens that show payroll results.
+    invalidatePayrollDependents(queryClient);
   };
 
   // There is no month-level Reopen (owner decision O-1): a company is reopened from its own row in the company list (CompanySectionsPanel).
@@ -659,7 +665,7 @@ function ItemsTable({
                     {item.payment_status === 'paid' ? (
                       <StatusBadge status="paid" label={item.paid_at ? t('status.payroll.paidOn', { date: formatDate(item.paid_at) }) : t('status.payroll.paid')} tone="success" />
                     ) : (
-                      <span className="text-xs text-ink-faint">{lineFinal(item) ? t('status.payroll.notPaidYet') : '—'}</span>
+                      <span className="text-xs text-ink-faint">{lineFinal(item) ? (Number(item.net) > 0 ? t('status.payroll.notPaidYet') : t('status.payroll.nothingToPayLine')) : '—'}</span>
                     )}
                     {(item.payment_voids?.length ?? 0) > 0 && (
                       <span className="mt-1 block text-xs text-warning" data-testid="payment-voided-note">
@@ -672,7 +678,7 @@ function ItemsTable({
                       {lineFinal(item) && (
                       <div className="flex items-center gap-1">
                         <Button size="sm" variant="outline" onClick={() => onAdjust(item)}>{t('action.recordAdjustment')}</Button>
-                        {item.payment_status !== 'paid' && (
+                        {lineCanBePaid(item) && (
                           <Button size="sm" onClick={() => onPay(item)}>{t('action.markPaid')}</Button>
                         )}
                         {item.payment_status === 'paid' && canVoid && (
@@ -767,7 +773,8 @@ function AdjustmentModal({
   const [appliesIn, setAppliesIn] = useState(earliest);
 
   const amountValue = Number(amount);
-  const isAmountValid = kind === 'reversal' || (amount.trim() !== '' && Number.isFinite(amountValue) && amountValue !== 0);
+  const amountMessage = kind === 'correction' ? adjustmentAmountProblem(amount) : null;
+  const isAmountValid = kind === 'reversal' || (amount.trim() !== '' && Number.isFinite(amountValue) && amountValue !== 0 && amountMessage === null);
   const isPeriodValid = PERIOD_PATTERN.test(appliesIn) && appliesIn > item.period;
   const canSave = isAmountValid && isPeriodValid && reason.trim().length >= 10;
 
@@ -821,6 +828,7 @@ function AdjustmentModal({
           htmlFor="adj-amount"
           required
           hint={t('validation.payroll.adjustAmountHint')}
+          error={amountMessage ? t(amountMessage) : undefined}
         >
           <input id="adj-amount" type="number" step="0.01" className={inputClasses} value={amount} onChange={(e) => setAmount(e.target.value)} />
         </FormField>
@@ -893,7 +901,8 @@ function MarkPaidModal({
   isLoading: boolean;
 }) {
   const { t } = useI18n();
-  const [paymentDate, setPaymentDate] = useState(localToday());
+  // The payment date is a Mogadishu calendar day (the server's), not the day of the browser's own clock.
+  const [paymentDate, setPaymentDate] = useState(() => facilityToday());
 
   return (
     <Modal
@@ -904,7 +913,7 @@ function MarkPaidModal({
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
-          <Button size="sm" isLoading={isLoading} disabled={paymentDate === ''} onClick={() => onConfirm(paymentDate)}>
+          <Button size="sm" isLoading={isLoading} disabled={paymentDate === '' || paymentDate > facilityToday()} onClick={() => onConfirm(paymentDate)}>
             {t('action.markAsPaid')}
           </Button>
         </>
@@ -914,7 +923,7 @@ function MarkPaidModal({
         {t('confirm.payroll.markPaidBody', { name: item.employee_name ?? t('confirm.payroll.theEmployee'), net: money(item.net), month: monthLabel(item.period) })}
       </p>
       <FormField label={t('option.payroll.paymentDate')} htmlFor="paid-date" required>
-        <input id="paid-date" type="date" max={localToday()} className={inputClasses} value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+        <input id="paid-date" type="date" max={facilityToday()} className={inputClasses} value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
       </FormField>
     </Modal>
   );

@@ -14,6 +14,9 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
+import { LogCommissionDialog } from '@/features/marketing/LogCommissionDialog';
+import { invalidateMarketing } from '@/utils/marketingCache';
+import { marketingErrorMessage } from '@/utils/marketingErrors';
 import { useI18n } from '@/i18n/useI18n';
 import type { MessageKey } from '@/i18n/messages';
 import { needLabel } from '@/utils/marketingLabels';
@@ -46,6 +49,7 @@ export function MarketingRecordDetailPage() {
   const { t, tValue } = useI18n();
 
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isCommissionOpen, setIsCommissionOpen] = useState(false);
   const [followUpDate, setFollowUpDate] = useState('');
   const [quotationAmount, setQuotationAmount] = useState('');
   const [assignTeamId, setAssignTeamId] = useState('');
@@ -77,9 +81,9 @@ export function MarketingRecordDetailPage() {
     }
   }, [record]);
 
+  // A change here can alter the lists, the dashboard counters, the follow-ups and the reports too, so every Marketing query is refreshed.
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['marketing-record', recordId] });
-    queryClient.invalidateQueries({ queryKey: ['marketing-records'] });
+    invalidateMarketing(queryClient);
   };
 
   const statusMutation = useMutation({
@@ -88,7 +92,7 @@ export function MarketingRecordDetailPage() {
       invalidate();
       show(t('notify.marketing.statusUpdated'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotUpdateStatus'), 'error'),
+    onError: (err) => show(marketingErrorMessage(err, t('notify.marketing.couldNotUpdateStatus')), 'error'),
   });
 
   const followUpMutation = useMutation({
@@ -98,7 +102,7 @@ export function MarketingRecordDetailPage() {
       setFollowUpDate('');
       show(t('notify.marketing.followUpScheduled'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotScheduleFollowUp'), 'error'),
+    onError: (err) => show(marketingErrorMessage(err, t('notify.marketing.couldNotScheduleFollowUp')), 'error'),
   });
 
   const completeFollowUpMutation = useMutation({
@@ -107,7 +111,7 @@ export function MarketingRecordDetailPage() {
       invalidate();
       show(t('notify.marketing.followUpCompleted'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotCompleteFollowUp'), 'error'),
+    onError: (err) => show(marketingErrorMessage(err, t('notify.marketing.couldNotCompleteFollowUp')), 'error'),
   });
 
   const quotationMutation = useMutation({
@@ -117,7 +121,7 @@ export function MarketingRecordDetailPage() {
       setQuotationAmount('');
       show(t('notify.marketing.quotationAdded'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotAddQuotation'), 'error'),
+    onError: (err) => show(marketingErrorMessage(err, t('notify.marketing.couldNotAddQuotation')), 'error'),
   });
 
   const quotationStatusMutation = useMutation({
@@ -126,7 +130,7 @@ export function MarketingRecordDetailPage() {
       invalidate();
       show(t('notify.marketing.quotationStatusUpdated'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotUpdateQuotationStatus'), 'error'),
+    onError: (err) => show(marketingErrorMessage(err, t('notify.marketing.couldNotUpdateQuotationStatus')), 'error'),
   });
 
   const assignMutation = useMutation({
@@ -139,7 +143,7 @@ export function MarketingRecordDetailPage() {
       invalidate();
       show(t('notify.marketing.assignmentUpdated'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.marketing.couldNotUpdateAssignment'), 'error'),
+    onError: (err) => show(marketingErrorMessage(err, t('notify.marketing.couldNotUpdateAssignment')), 'error'),
   });
 
   if (isLoading) return <LoadingState label={t('option.marketing.loadingRecord')} />;
@@ -159,10 +163,16 @@ export function MarketingRecordDetailPage() {
         ]}
         actions={
           <PermissionGate module="marketing">
-            <Button variant="outline" size="sm" onClick={() => setIsEditOpen(true)}>
-              <Icon name="pencil" size={14} />
-              {t('action.edit')}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setIsCommissionOpen(true)}>
+                <Icon name="credit-card" size={14} />
+                {t('action.marketing.logCommission')}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setIsEditOpen(true)}>
+                <Icon name="pencil" size={14} />
+                {t('action.edit')}
+              </Button>
+            </div>
           </PermissionGate>
         }
       />
@@ -174,7 +184,7 @@ export function MarketingRecordDetailPage() {
             <StatusBadge status={record.status} label={tValue('status.marketing.record', record.status)} tone={record.status === 'done' ? 'success' : record.status === 'cancelled' ? 'danger' : record.status === 'quotation' ? 'info' : 'warning'} />
           </CardHeader>
           <CardBody>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
+            <dl className="grid grid-cols-1 gap-x-4 sm:grid-cols-2 gap-y-4 text-sm">
               {isXarun ? (
                 <>
                   <Field label={t('option.marketing.facilityCompany')} value={record.xarun?.facility_name ?? '—'} />
@@ -342,6 +352,7 @@ export function MarketingRecordDetailPage() {
                       <PermissionGate module="marketing" fallback={<StatusBadge status={q.status} label={tValue('status.marketing.quotation', q.status)} />}>
                         <Select
                           value={q.status}
+                          disabled={quotationStatusMutation.isPending}
                           onChange={(e) => quotationStatusMutation.mutate({ id: q.id, status: e.target.value as MarketingQuotationStatus })}
                           options={QUOTATION_STATUS_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
                           className="mt-1 h-7 w-28 text-xs"
@@ -372,6 +383,8 @@ export function MarketingRecordDetailPage() {
           </Card>
         </div>
       </div>
+
+      <LogCommissionDialog isOpen={isCommissionOpen} onClose={() => setIsCommissionOpen(false)} recordId={record.id} recordNumber={record.record_number} />
 
       {isXarun ? (
         <XarunFormDialog isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} mode="edit" record={record} />

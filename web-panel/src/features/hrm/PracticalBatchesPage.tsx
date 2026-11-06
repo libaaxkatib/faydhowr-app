@@ -17,6 +17,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate } from '@/utils/formatters';
+import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import { useI18n } from '@/i18n/useI18n';
 
 /**
@@ -31,7 +32,7 @@ export function PracticalBatchesPage() {
   const { show } = useToast();
   const { t, tValue } = useI18n();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [batchDate, setBatchDate] = useState(new Date().toISOString().slice(0, 10));
+  const [batchDate, setBatchDate] = useState(localToday());
   const [location, setLocation] = useState('');
   const [teamOrGroup, setTeamOrGroup] = useState('');
 
@@ -46,7 +47,7 @@ export function PracticalBatchesPage() {
       setLocation('');
       setTeamOrGroup('');
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.somethingWrong'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.somethingWrong')), 'error'),
   });
 
   return (

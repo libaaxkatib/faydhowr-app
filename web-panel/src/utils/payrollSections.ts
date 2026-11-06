@@ -37,8 +37,37 @@ export type PaymentAction = 'approve_paid' | 'approve_partial';
  * The payment buttons: "Approve Paid" (the whole balance) and "Approve Partial" (an amount). Offered only to someone who may record payments, for a
  * company that is finalized and still owes something (the server says so in `can_pay`; it checks everything again).
  */
-export function paymentActions(section: Pick<PayrollRunSection, 'can_pay' | 'outstanding_cents'>, canApprove: boolean): PaymentAction[] {
+export function paymentActions(section: Pick<PayrollRunSection, 'can_pay' | 'outstanding_cents'> & { client_company_id?: number | null }, canApprove: boolean): PaymentAction[] {
+  // The "no company" lines can only be paid line by line (the server refuses a company payment for them), so these buttons are never offered for them.
+  if (section.client_company_id === null) return [];
+
   return canApprove && section.can_pay && section.outstanding_cents > 0 ? ['approve_paid', 'approve_partial'] : [];
+}
+
+/** True for a finalized "no company" section that still owes something: the screen says it is paid line by line. */
+export function isPaidLineByLineOnly(section: Pick<PayrollRunSection, 'client_company_id' | 'status' | 'outstanding_cents'>): boolean {
+  return section.client_company_id === null && section.status === 'finalized' && section.outstanding_cents > 0;
+}
+
+/** A line can be marked paid only when there is a positive net to pay (the server refuses a line with nothing to pay). */
+export function lineCanBePaid(item: Pick<PayrollItem, 'net' | 'payment_status'>): boolean {
+  return item.payment_status !== 'paid' && Number(item.net) > 0;
+}
+
+/** True when any line of the company was marked paid one by one: the server then refuses to reopen the finalized company until those payments are voided. */
+export function sectionHasPaidLines(items: readonly Pick<PayrollItem, 'section_id' | 'payment_status'>[] | undefined, sectionId: number): boolean {
+  return (items ?? []).some((item) => item.section_id === sectionId && item.payment_status === 'paid');
+}
+
+/** The largest payroll adjustment the server accepts, in either direction (CreatePayrollAdjustmentRequest). */
+export const MAX_ADJUSTMENT = 100000;
+
+/** The message under the amount of a payroll adjustment when it is out of the server's range, or null (an empty or zero amount only keeps the button off). */
+export function adjustmentAmountProblem(text: string): MessageKey | null {
+  const value = Number(text);
+  if (text.trim() === '' || !Number.isFinite(value)) return null;
+
+  return Math.abs(value) > MAX_ADJUSTMENT ? 'validation.payroll.adjustAmountRange' : null;
 }
 
 /** How a company's payment / approval state is shown: Partially paid is a warning, never the green of Approved. */

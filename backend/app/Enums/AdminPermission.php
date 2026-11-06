@@ -198,12 +198,19 @@ enum AdminPermission: string
     /**
      * Permissions reserved for the Super Admin role. They are implicit for Super Admin and can never be
      * granted to another role or admin, whether through the Roles & Permissions screen, the direct
-     * admin-permission endpoint, or a stray database row (the resolver ignores such grants). None is
-     * reserved at present; hr.import is limited to the HR Manager role instead (see restrictedToRoles()).
+     * admin-permission endpoint, or a stray database row (the resolver ignores such grants).
+     *
+     * Owner decision UG-4 (2026-11-05): admins.manage (Admin Users) and roles.manage (Roles & Permissions) are reserved for the Super Admin. Existing
+     * role-permission rows are NOT deleted or migrated - the resolver simply ignores them. The HR Manager keeps READ-ONLY access to the audit log
+     * through a separate role rule (EnsureAuditLogReader), not through either permission. hr.import is limited to the HR Manager role instead
+     * (see restrictedToRoles()).
      */
     public function isSuperAdminOnly(): bool
     {
-        return false;
+        return match ($this) {
+            self::AdminsManage, self::RolesManage => true,
+            default => false,
+        };
     }
 
     /**

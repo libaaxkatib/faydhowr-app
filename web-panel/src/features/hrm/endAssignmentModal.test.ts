@@ -37,7 +37,8 @@ test('a valid replacement becomes the request payload', () => {
 test('the dialog no longer forces a choice: it uses the optional check and says the replacement is optional', () => {
   assert.ok(modal.length > 200, 'the dialog source was found');
   assert.match(modal, /optionalSuccessor\(successor, endDate\)/);
-  assert.match(modal, /onConfirm\(endDate, note \|\| undefined, chosen\.payload\)/);
+  // (updated 2026-11-05: the dialog now hands the whole request body to the page, so the correction reason and the away confirmation can travel too)
+  assert.match(modal, /successor: chosen\.payload,/);
   assert.match(modal, /data-testid="end-successor-optional">\{t\('option\.correction\.replacementOptional'\)\}/);
   // The old rule asked for a complete choice on every Permanent assignment.
   assert.doesNotMatch(modal, /validateSuccessor\(/);
@@ -47,6 +48,8 @@ test('the dialog no longer forces a choice: it uses the optional check and says 
 test('the end date is still required and non-Permanent assignments are not asked for a replacement at all', () => {
   assert.match(modal, /htmlFor="end-date" required/);
   assert.match(modal, /const askSuccessor = needsSuccessor\(assignment\.assignment_type\);/);
-  assert.match(modal, /askSuccessor && <SuccessorPicker /);
-  assert.match(modal, /const chosen = askSuccessor \? optionalSuccessor\(successor, endDate\) : \{ error: null, payload: undefined \};/);
+  assert.match(modal, /showPicker && <SuccessorPicker /);
+  // (updated 2026-11-05: no picker either when the server says the position already has someone working it - the same as Stop)
+  assert.match(modal, /const showPicker = askSuccessor && !serverDemandsConfirm;/);
+  assert.match(modal, /const chosen = showPicker \? optionalSuccessor\(successor, endDate\) : \{ error: null, payload: undefined \};/);
 });

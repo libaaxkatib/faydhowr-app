@@ -42,6 +42,8 @@ abstract class OfficeStaffRequest extends FormRequest
             'confirm_overwrite.*' => ['string', Rule::in(['emergency_contact', 'guarantor', 'position'])],
             'confirm_additional_assignment' => ['sometimes', 'boolean'],
             'override_capacity' => ['sometimes', 'boolean'],
+            // Needed only when the start date reaches an approved or finalized payroll month (a recorded correction; ClosedPayrollCorrection).
+            'correction_reason' => ['nullable', 'string', 'max:500'],
         ];
     }
 

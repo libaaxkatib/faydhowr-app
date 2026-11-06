@@ -7,7 +7,9 @@ use App\Models\Admin;
 use App\Models\AuditLog;
 use App\Models\ClientCompany;
 use App\Models\Employee;
+use App\Models\EmployeePayment;
 use App\Models\PayrollCorrection;
+use App\Models\PayrollCorrectionTransaction;
 use App\Models\PayrollItem;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunSection;
@@ -217,6 +219,60 @@ class PayrollCorrectionSupersessionTest extends TestCase
 
         $this->assertSame('draft', $this->novSection()->status);
         $this->assertSame('superseded', $this->corrections()->sole()->status);
+    }
+
+    /** UI audit C-1: a superseded correction is history only; no money may be recorded against it and nothing else is touched by the refusal. */
+    public function test_nothing_can_be_paid_against_a_superseded_underpayment_and_the_refusal_changes_nothing(): void
+    {
+        $this->addNewcomer();
+        $this->reopenNovember()->assertOk();
+        $correction = $this->corrections()->sole();
+        $this->assertSame('superseded', $correction->status);
+
+        $before = $this->moneySnapshot($correction);
+
+        $this->as($this->super)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions", ['type' => 'underpayment_payment', 'amount' => '10.00', 'transaction_date' => '2026-11-05', 'idempotency_key' => 'pay-superseded-0001'])
+            ->assertStatus(422)->assertJsonPath('error_code', 'CORRECTION_SUPERSEDED');
+
+        $this->assertSame($before, $this->moneySnapshot($correction), 'no transaction, no employee-payment row, the correction and every payroll line exactly as before');
+        $this->assertSame(0, (int) EmployeePayment::query()->where('employee_id', $this->newcomer->id)->count());
+    }
+
+    public function test_nothing_can_be_repaid_or_written_off_against_a_superseded_overpayment(): void
+    {
+        $employee = $this->makeEmployee();
+        $first = $this->makeAssignment($employee, $this->co, null, 300, '2026-01-01');
+        $sept = $this->generate('2026-09');
+        $this->finalizeEveryCompany($sept, $this->super);
+        $this->as($this->super)->postJson("/api/v1/admin/hr/client-companies/{$this->co->id}/employees/{$first->id}/stop", ['end_date' => '2026-09-10', 'reason' => 'Left', 'correction_reason' => 'Left on 10 September'])->assertOk();
+        $correction = PayrollCorrection::query()->where('employee_id', $employee->id)->where('kind', 'overpayment')->where('period', '2026-09')->sole();
+        $septSection = PayrollRunSection::query()->where('payroll_run_id', $sept)->where('client_company_id', $this->co->id)->firstOrFail();
+        $this->as($this->hrManager)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$septSection->id}/reopen", ['reason' => 'September is rebuilt with the true end date'])->assertOk();
+        $this->assertSame('superseded', $correction->fresh()->status);
+
+        $before = $this->moneySnapshot($correction);
+
+        $this->as($this->hrManager)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions", ['type' => 'debt_repayment', 'amount' => '5.00', 'transaction_date' => '2026-11-05', 'idempotency_key' => 'repay-superseded-0001'])
+            ->assertStatus(422)->assertJsonPath('error_code', 'CORRECTION_SUPERSEDED');
+        $this->as($this->super)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions", ['type' => 'debt_write_off', 'amount' => '5.00', 'transaction_date' => '2026-11-05', 'reason' => 'Should not be possible', 'idempotency_key' => 'writeoff-superseded-0001'])
+            ->assertStatus(422)->assertJsonPath('error_code', 'CORRECTION_SUPERSEDED');
+
+        $this->assertSame($before, $this->moneySnapshot($correction));
+    }
+
+    /** @return array<string, mixed> every row a refused settlement must leave exactly as it was */
+    private function moneySnapshot(PayrollCorrection $correction): array
+    {
+        return [
+            'transactions' => PayrollCorrectionTransaction::query()->count(),
+            'employee_payments' => EmployeePayment::query()->count(),
+            'correction' => (function () use ($correction): array {
+                $row = PayrollCorrection::query()->find($correction->id);
+
+                return [$row->status, (int) $row->outstanding_cents, (int) $row->difference_cents, (string) $row->superseded_at];
+            })(),
+            'items' => PayrollItem::query()->orderBy('id')->get(['id', 'gross_cents', 'net_cents', 'other_deduction_cents', 'payment_status'])->toArray(),
+        ];
     }
 
     public function test_a_superseded_overpayment_is_no_longer_recovered_from_later_salaries(): void

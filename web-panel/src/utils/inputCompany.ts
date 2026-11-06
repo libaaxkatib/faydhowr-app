@@ -10,15 +10,29 @@ export interface CompanyChoice {
   name: string;
 }
 
-type AssignmentLike = Pick<WorkAssignment, 'client_company_id' | 'client_company_name' | 'status'>;
+type AssignmentLike = Pick<WorkAssignment, 'client_company_id' | 'client_company_name' | 'status'> & Partial<Pick<WorkAssignment, 'start_date' | 'end_date'>>;
 
-/** The distinct companies of the employee's assignments (cancelled ones excluded), in the order they first appear. */
-export function companyChoices(assignments: readonly AssignmentLike[] | undefined, officeName: string): CompanyChoice[] {
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** The same rule the server uses (InputOwnership::keysOn): an assignment belongs to a window when it started on or before the window's last day and had not ended before its first day. */
+function overlaps(assignment: AssignmentLike, window: { from: string; to: string }): boolean {
+  if (!ISO_DAY.test(window.from) || !ISO_DAY.test(window.to)) return true;
+  if (!assignment.start_date) return true;
+
+  return assignment.start_date <= window.to && (!assignment.end_date || assignment.end_date >= window.from);
+}
+
+/**
+ * The distinct companies of the employee's assignments (cancelled ones excluded), in the order they first appear. With `window` (the dates of a leave or an
+ * absence) only the assignments that overlap those dates count - the server asks for a company only when several overlap, and refuses one that does not.
+ */
+export function companyChoices(assignments: readonly AssignmentLike[] | undefined, officeName: string, window?: { from: string; to: string }): CompanyChoice[] {
   const seen = new Set<string>();
   const choices: CompanyChoice[] = [];
 
   for (const assignment of assignments ?? []) {
     if (assignment.status === 'cancelled') continue;
+    if (window !== undefined && !overlaps(assignment, window)) continue;
 
     const key = assignment.client_company_id === null ? 'none' : String(assignment.client_company_id);
     if (seen.has(key)) continue;

@@ -14,6 +14,7 @@ import { RecordDeductionDialog } from '@/features/hrm/RecordDeductionDialog';
 import { useI18n } from '@/i18n/useI18n';
 import { centsText, deductionRowView, type DeductionKind, type DeductionRecord } from '@/utils/deductions';
 import { formatDate } from '@/utils/formatters';
+import { invalidatePayrollDependents } from '@/utils/payrollQueries';
 import type { CompanyChoice } from '@/utils/inputCompany';
 
 type Action = { type: 'void' | 'correct' | 'waive'; record: DeductionRecord };
@@ -60,6 +61,8 @@ export function DeductionRecordsCard({
     // A changed penalty / advance makes an already generated draft stale: the warnings are read again the next time a dialog opens.
     void queryClient.invalidateQueries({ queryKey: ['payroll-warnings'] });
     void queryClient.invalidateQueries({ queryKey: ['deduction-balances'] });
+    void queryClient.invalidateQueries({ queryKey: ['payroll-overview'] });
+    invalidatePayrollDependents(queryClient);
   };
   const done = (messageKey: 'notify.deduction.voided' | 'notify.deduction.corrected' | 'notify.deduction.waived') => () => {
     refresh();

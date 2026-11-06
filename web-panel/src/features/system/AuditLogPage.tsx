@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
 import { auditLogsApi } from '@/api/auditLogs';
-import { adminsApi } from '@/api/admins';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Select } from '@/components/ui/Select';
@@ -11,27 +10,13 @@ import { DataTable } from '@/components/ui/DataTable';
 import { Pagination } from '@/components/ui/Pagination';
 import { Modal } from '@/components/ui/Modal';
 import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { AUDIT_ACTIONS, entityTypeChoices, entityTypeLabel } from '@/utils/auditLog';
 import { formatDateTime } from '@/utils/formatters';
 import { adminRoleLabel } from '@/types/system';
 import { useI18n } from '@/i18n/useI18n';
 import type { AuditLogEntry } from '@/types/auditLog';
 
-/** Every AuditAction value the backend defines (App\Enums\AuditAction) — not fabricated, copied from source. */
-const ACTION_OPTIONS = [
-  'login', 'logout', 'create', 'update', 'delete', 'approve', 'cancel', 'payment',
-  'permission_update', 'role_update', 'password_change', 'password_reset',
-  'payment_confirm', 'payment_reject',
-  'booking_schedule', 'booking_start', 'booking_complete', 'booking_close', 'booking_cancel',
-  'store_order_status_change',
-  'quotation_assign', 'quotation_issue', 'quotation_revision', 'quotation_discussion_reply',
-  'quotation_close_discussion', 'quotation_expire', 'quotation_cancel', 'quotation_admin_accept',
-  'hero_banner_create', 'hero_banner_update', 'hero_banner_delete', 'hero_banner_publish', 'hero_banner_hide',
-  'gallery_create', 'gallery_update', 'gallery_delete',
-  'faq_create', 'faq_update', 'faq_delete',
-  'service_feature_toggle',
-].map((value) => ({ value, label: value.replace(/_/g, ' ') }));
 
 /** An audit action as the screen shows it in English: the stored value with spaces for underscores. */
 function englishAction(value: string): string {
@@ -58,11 +43,12 @@ export function AuditLogPage() {
   const setPage = url.setPage;
   const filterKeys = ['action', 'admin', 'entity', 'from', 'to'] as const;
   const [detail, setDetail] = useState<AuditLogEntry | null>(null);
-  const debouncedEntityType = useDebouncedValue(entityType);
+  const debouncedEntityType = entityType;
   const filtered = action !== '' || adminId !== '' || debouncedEntityType.trim() !== '' || dateFrom !== '' || dateTo !== '';
   const resetFilters = () => url.reset(filterKeys);
 
-  const admins = useQuery({ queryKey: ['admins-for-audit-filter'], queryFn: () => adminsApi.list({ per_page: 100 }) });
+  // The choices come from the audit-log API itself (the Admin Users API is Super-Admin-only): only admins, entity types and actions that really exist.
+  const filterOptions = useQuery({ queryKey: ['audit-log-filters'], queryFn: () => auditLogsApi.filters(), staleTime: 60_000 });
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['audit-logs', { action, entityType: debouncedEntityType, adminId, dateFrom, dateTo, page }],
@@ -109,7 +95,7 @@ export function AuditLogPage() {
         accessorKey: 'entity_type',
         cell: ({ row }) => (
           <span className="text-ink-muted">
-            {row.original.entity_type ? row.original.entity_type.split('\\').pop() : '—'}
+            {row.original.entity_type ? entityTypeLabel(row.original.entity_type) : '—'}
             {row.original.entity_id != null && ` #${row.original.entity_id}`}
           </span>
         ),
@@ -140,7 +126,7 @@ export function AuditLogPage() {
     [t, tValue, actionLabel],
   );
 
-  const actionOptions = ACTION_OPTIONS.map((option) => ({ value: option.value, label: actionLabel(option.value) }));
+  const actionOptions = (filterOptions.data?.actions ?? [...AUDIT_ACTIONS]).map((value) => ({ value, label: actionLabel(value) }));
 
   return (
     <div>
@@ -167,19 +153,19 @@ export function AuditLogPage() {
               setAdminId(event.target.value);
               setPage(1);
             }}
-            options={(admins.data?.data ?? []).map((a) => ({ value: String(a.id), label: a.full_name }))}
+            options={(filterOptions.data?.admins ?? []).map((a) => ({ value: String(a.id), label: a.name }))}
             placeholder={t('option.system.allAdmins')}
             className="w-44"
           />
-          <input
-            type="text"
+          <Select
             value={entityType}
             onChange={(event) => {
               setEntityType(event.target.value);
               setPage(1);
             }}
-            placeholder={t('option.system.entityTypePlaceholder')}
-            className="h-10 w-44 rounded-sm border border-border bg-surface px-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            options={entityTypeChoices(filterOptions.data?.entity_types ?? [], entityType)}
+            placeholder={t('option.system.allEntityTypes')}
+            className="w-44"
           />
           <input
             aria-label={t('option.reports.dateFrom')}

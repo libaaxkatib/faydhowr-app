@@ -14,7 +14,7 @@ import type { MessageKey, Translate } from '@/i18n/messages';
 import { formatDate } from '@/utils/formatters';
 import { EMPTY_SUCCESSOR, effectiveStart, needsSuccessor, toSuccessorPayload, validateSuccessor, type SuccessorDraft } from '@/utils/successor';
 import { SuccessorPicker } from '@/features/hrm/companyEmployees/SuccessorPicker';
-import { additionalCompanyQuestion, friendlyErrorMessage } from '@/utils/hrHelpers';
+import { additionalCompanyQuestion, friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   ASSIGNMENT_TYPE_OPTIONS,
@@ -38,7 +38,8 @@ import { EmployeePicker } from '@/features/hrm/companyEmployees/EmployeePicker';
 import { CreatePositionDialog } from '@/features/hrm/QuickCreateDialogs';
 import type { CompanyEmployeeCandidate, CompanyEmployeeRow } from '@/types/companyEmployees';
 
-const today = () => new Date().toISOString().slice(0, 10);
+// The user's own calendar day (Mogadishu), never the UTC day: between midnight and 03:00 the UTC date is still yesterday.
+const today = () => localToday();
 
 function ErrorBanner({ message }: { message: string | null }) {
   if (!message) return null;
@@ -66,6 +67,10 @@ function useActionState(companyId: number) {
     queryClient.invalidateQueries({ queryKey: ['company-employees', companyId] });
     queryClient.invalidateQueries({ queryKey: ['company-employee-history', companyId] });
     queryClient.invalidateQueries({ queryKey: ['company-employee-candidates', companyId] });
+    // The same person is shown on Employee Detail, the employee lists and the dashboard: they must not keep the old state.
+    queryClient.invalidateQueries({ queryKey: ['employee'] });
+    queryClient.invalidateQueries({ queryKey: ['employees'] });
+    queryClient.invalidateQueries({ queryKey: ['hr-dashboard'] });
     show(message);
     close();
   };
@@ -134,8 +139,8 @@ function useMoney() {
  * Shown only after the server said this change reaches an approved or finalized payroll month. Only a Super Admin can record such a
  * change, and only with a reason; the closed month itself is never edited.
  */
-/** `notice` is the warning above the reason: the default says only a Super Admin can record the correction; the Add Employee dialog says an HR Manager can too (owner decision 2026-11-04). */
-function CorrectionReasonField({ visible, value, onChange, error, notice = 'warning.company.correctionNotice' }: { visible: boolean; value: string; onChange: (value: string) => void; error?: string; notice?: 'warning.company.correctionNotice' | 'warning.company.correctionNoticeAdd' }) {
+/** `notice` is the warning above the reason. A Super Admin AND an HR Manager can record a correction of closed payroll (owner decision 2026-11-04); the Add Employee dialog adds that paying what is owed stays with a Super Admin. */
+export function CorrectionReasonField({ visible, value, onChange, error, notice = 'warning.company.correctionNoticeBoth' }: { visible: boolean; value: string; onChange: (value: string) => void; error?: string; notice?: 'warning.company.correctionNoticeBoth' | 'warning.company.correctionNoticeAdd' }) {
   const { t } = useI18n();
   if (!visible) return null;
   return (
@@ -685,7 +690,7 @@ export function ReturnEmployeeDialog({ row, onClose, companyId, companyName }: {
           <Summary
             rows={[
               [t('confirm.company.currentReplacement'), t('confirm.company.currentReplacementValue', { name: row.full_name ?? '', number: row.employee_number ?? '', date: formatDate(row.start_date) })],
-              [t('confirm.company.summaryOriginalEmployee'), original ? `${original.employee_name} (${original.employee_number})` : 'Loading…'],
+              [t('confirm.company.summaryOriginalEmployee'), original ? `${original.employee_name} (${original.employee_number})` : t('option.label.loading')],
             ]}
           />
           {step === 'form' && (

@@ -14,6 +14,9 @@ class FollowUpResource extends JsonResource
             'marketing_record_id' => $this->marketing_record_id,
             'record_number' => $this->whenLoaded('marketingRecord', fn () => $this->marketingRecord?->record_number),
             'record_type' => $this->whenLoaded('marketingRecord', fn () => $this->marketingRecord?->type?->value),
+            // The record's saved status and feedback, so the follow-up screen starts its "Update status" / "Add feedback" editors from what is saved.
+            'record_status' => $this->whenLoaded('marketingRecord', fn () => $this->marketingRecord?->status?->value),
+            'record_feedback' => $this->whenLoaded('marketingRecord', fn () => $this->marketingRecord?->feedback),
             'record_team_name' => $this->whenLoaded('marketingRecord', fn () => $this->marketingRecord?->assignedTeam?->name),
             'phone' => $this->whenLoaded('marketingRecord', fn () => $this->marketingRecord?->xarunDetail?->phone ?? $this->marketingRecord?->projectDetail?->phone),
             'location' => $this->whenLoaded('marketingRecord', fn () => $this->marketingRecord?->xarunDetail?->location ?? $this->marketingRecord?->projectDetail?->location),

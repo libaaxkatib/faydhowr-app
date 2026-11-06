@@ -131,7 +131,7 @@ export function ReconciliationListPage() {
     <div>
       <PageHeader
         title={t('option.system.pageDataIssues')}
-        breadcrumb={[{ label: t('option.system.system'), to: '/system/settings' }, { label: t('option.system.pageDataIssues') }]}
+        breadcrumb={[{ label: t('option.system.system'), to: '/system/data-issues' }, { label: t('option.system.pageDataIssues') }]}
         actions={
           hasPermission('reconciliation.create') ? (
             <Button onClick={() => setIsCreateOpen(true)}>

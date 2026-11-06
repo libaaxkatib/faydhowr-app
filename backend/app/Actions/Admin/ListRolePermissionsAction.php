@@ -2,6 +2,7 @@
 
 namespace App\Actions\Admin;
 
+use App\Enums\AdminPermission;
 use App\Enums\AdminRole;
 use App\Models\Permission;
 use Illuminate\Database\Eloquent\Collection;
@@ -38,8 +39,11 @@ class ListRolePermissionsAction
             return new Collection;
         }
 
+        // A Super-Admin-only permission (admins.manage, roles.manage - owner decision UG-4) still stored for this role is never honoured by the resolver,
+        // so it is not listed either: the Roles screen would otherwise carry it into a save and the save would be refused.
         return Permission::query()
             ->whereIn('id', $permissionIds)
+            ->whereNotIn('key', AdminPermission::superAdminOnlyValues())
             ->orderBy('group')
             ->orderBy('key')
             ->get();

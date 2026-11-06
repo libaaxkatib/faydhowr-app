@@ -17,6 +17,8 @@ import { useI18n } from '@/i18n/useI18n';
 import type { MessageKey } from '@/i18n/messages';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { isDirty } from '@/utils/unsavedChanges';
+import { useCorrectionFlow } from '@/features/hrm/useCorrectionFlow';
+import { CorrectionReasonField } from '@/features/hrm/companyEmployees/AssignmentDialogs';
 import { duplicateMatchesFromError, friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import { OFFICE_STAFF_CATEGORY } from '@/utils/employeeCategories';
 import { decideCreatePosition } from '@/utils/positions';
@@ -66,6 +68,8 @@ export function OfficeStaffRegistrationPage() {
   const [selected, setSelected] = useState<OfficeStaffSummary | null>(null);
   const [confirmOverwrite, setConfirmOverwrite] = useState<OverwriteField[]>([]);
   const [confirmAdditional, setConfirmAdditional] = useState(false);
+  // A start date inside an approved or finalized payroll month is recorded as a correction (Super Admin and HR Manager): the field appears when the server asks.
+  const correction = useCorrectionFlow();
   const [duplicateMatches, setDuplicateMatches] = useState<ReturnType<typeof duplicateMatchesFromError>>(null);
   const [duplicateReason, setDuplicateReason] = useState('');
   const [staged, setStaged] = useState<StagedFiles>({});
@@ -126,6 +130,7 @@ export function OfficeStaffRegistrationPage() {
       const options = {
         confirmOverwrite,
         confirmAdditionalAssignment: confirmAdditional,
+        correctionReason: correction.needed ? correction.reason : null,
         confirmDuplicate: duplicateMatches && duplicateMatches.length > 0 ? { reason: duplicateReason } : null,
       };
       if (mode === 'existing') return { summary: await hrApi.officeStaff.assignExisting(buildPayload('existing', form, selected?.id ?? null, options)), uploadFailures: [] as string[] };
@@ -152,6 +157,10 @@ export function OfficeStaffRegistrationPage() {
       show(mode === 'new' ? t('notify.employees.officeStaffRegistered') : t('notify.employees.officeStaffAdded'));
     },
     onError: (error) => {
+      if (correction.noteError(error)) {
+        show(friendlyErrorMessage(error, t('notify.employees.couldNotSave')), 'error');
+        return;
+      }
       const conflicts = overwriteConflictsFromError(error);
       if (conflicts !== null) {
         show(t('notify.employees.overwriteConflict', { fields: conflicts.map(overwriteLabel).join(', ') }), 'error');
@@ -217,6 +226,7 @@ export function OfficeStaffRegistrationPage() {
     if (mode === 'existing' && (selected === null || !selected.can_add)) return;
     if (unconfirmed.length > 0 || (needsAdditional && !confirmAdditional)) return;
     if (duplicateMatches && duplicateMatches.length > 0 && duplicateReason.trim().length < 10) return;
+    if (correction.problem !== undefined) return;
     saveMutation.mutate();
   };
 
@@ -397,6 +407,8 @@ export function OfficeStaffRegistrationPage() {
               <input aria-label={t('option.employees.reasonDifferentPerson')} className={`${inputClasses} mt-2`} value={duplicateReason} onChange={(e) => setDuplicateReason(e.target.value)} placeholder={t('option.employees.whyDifferentPerson')} />
             </div>
           )}
+
+          <CorrectionReasonField visible={correction.needed} value={correction.reason} onChange={correction.setReason} error={correction.problem} notice="warning.company.correctionNoticeAdd" />
 
           {showErrors && (Object.keys(errors).length > 0 || unconfirmed.length > 0) && (
             <p role="alert" className="mb-3 text-sm text-danger">

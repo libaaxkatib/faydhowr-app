@@ -183,7 +183,7 @@ export function validateReturnForm(returnDate: string, replacementStart: string,
   return errors;
 }
 
-/** The server asks for a reason (Super Admin only) when a change would alter an approved or finalized payroll month. */
+/** The server asks for a reason (a Super Admin or an HR Manager records it) when a change would alter an approved or finalized payroll month. */
 export function isCorrectionReasonRequired(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'CORRECTION_REASON_REQUIRED';
 }
@@ -201,11 +201,30 @@ export function validateStopForm(endDate: string, reason: string, start: string)
   return errors;
 }
 
+/** End Assignment (Employee Detail) checks the last day exactly like Stop: required, and never before the assignment started. The server refuses it too (END_BEFORE_ASSIGNMENT_START). */
+export function validateEndDate(endDate: string, start: string): string | undefined {
+  if (endDate === '') return tNow('validation.company.enterLastDay');
+  if (start !== '' && endDate < start) return tNow('validation.company.stopLastDayBeforeStart', { date: start });
+
+  return undefined;
+}
+
+/** A month of the assignment (YYYY-MM) that the company employees list can be asked about: the current month, kept inside the assignment's own months. */
+export function assignmentListMonth(startDate: string, endDate: string | null, currentMonth: string): string {
+  const first = startDate.slice(0, 7);
+  const last = endDate ? endDate.slice(0, 7) : null;
+
+  if (currentMonth < first) return first;
+  if (last !== null && currentMonth > last) return last;
+
+  return currentMonth;
+}
+
 /** A warning (not a refusal) shown while editing a start date: what the change touches. */
 export function startDateChangeWarning(oldStart: string, newStart: string): string | null {
   if (oldStart === newStart || newStart === '') return null;
   const earlier = newStart < oldStart ? newStart : oldStart;
-  return tNow('warning.company.startDateChange', { month: earlier.slice(0, 7), oldStart });
+  return tNow('warning.company.startDateChangeBoth', { month: earlier.slice(0, 7), oldStart });
 }
 
 export const EVENT_LABELS: Record<string, string> = {

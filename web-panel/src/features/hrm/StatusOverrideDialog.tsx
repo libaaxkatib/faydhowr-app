@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 
 import { hrApi } from '@/api/hr';
@@ -29,6 +29,18 @@ export function StatusOverrideDialog({ isOpen, employee, onClose, onDone }: Prop
   const [target, setTarget] = useState<string>('');
   const [reason, setReason] = useState('');
   const [touched, setTouched] = useState(false);
+  // The server's reason when it refuses (for example: the person still has an Active assignment): shown inside the dialog, where it stays readable.
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  // The dialog stays mounted on Employee Detail: every opening starts clean.
+  useEffect(() => {
+    if (isOpen) {
+      setTarget('');
+      setReason('');
+      setTouched(false);
+      setServerError(null);
+    }
+  }, [isOpen]);
 
   const mutation = useMutation({
     mutationFn: () => hrApi.employees.updateStatus(employee.id, target as EmployeeStatus, undefined, normalizeReason(reason)),
@@ -40,7 +52,7 @@ export function StatusOverrideDialog({ isOpen, employee, onClose, onDone }: Prop
       onDone();
       onClose();
     },
-    onError: (error) => show(friendlyErrorMessage(error, t('notify.employees.statusChangeFailed')), 'error'),
+    onError: (error) => setServerError(friendlyErrorMessage(error, t('notify.employees.statusChangeFailed'))),
   });
 
   const reasonError = touched ? overrideReasonError(reason) : null;
@@ -61,7 +73,10 @@ export function StatusOverrideDialog({ isOpen, employee, onClose, onDone }: Prop
             variant="danger"
             isLoading={mutation.isPending}
             disabled={!canSubmitOverride(employee.status, target, reason)}
-            onClick={() => mutation.mutate()}
+            onClick={() => {
+              setServerError(null);
+              mutation.mutate();
+            }}
           >
             {t('action.overrideStatus')}
           </Button>
@@ -69,6 +84,11 @@ export function StatusOverrideDialog({ isOpen, employee, onClose, onDone }: Prop
       }
     >
       <div className="space-y-4">
+        {serverError && (
+          <div role="alert" data-testid="override-server-error" className="rounded-md border border-danger/30 bg-danger-soft px-3.5 py-2.5 text-sm text-danger">
+            {serverError}
+          </div>
+        )}
         <p className="rounded-sm border border-border bg-warning-soft p-3 text-sm text-ink">
           {t('warning.employees.overrideIntro')}
         </p>

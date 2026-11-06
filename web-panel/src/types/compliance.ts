@@ -72,7 +72,24 @@ export interface ComplianceSummary {
   total_findings: number;
 }
 
+/** The most recent explicit scan (read from its audit record), or null when nobody has run one. */
+export interface ComplianceLastScan {
+  at: string | null;
+  by: string | null;
+  new: number;
+  reopened: number;
+  cleared: number;
+  employees_reviewed: number | null;
+}
+
+export interface ComplianceScanResult {
+  scan: { new: number; reopened: number; cleared: number; employees_reviewed: number };
+  summary: ComplianceSummary;
+  last_scan: ComplianceLastScan | null;
+}
+
 export interface ComplianceReportData {
+  last_scan: ComplianceLastScan | null;
   summary: ComplianceSummary;
   findings: ComplianceFinding[];
   filter_options: { companies: { id: number; name: string }[]; responsible: { id: number; name: string }[] };

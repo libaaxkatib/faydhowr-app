@@ -7,10 +7,10 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Modal } from '@/components/ui/Modal';
 import { CompanyChoiceField } from '@/features/hrm/CompanyChoiceField';
 import { useI18n } from '@/i18n/useI18n';
-import { amountProblem, amountReady, dateProblem, deductionErrorMessage, isDuplicateRecord, newIdempotencyKey, periodProblem, reasonReady, registerPayload, sanitizeAmountInput, type DeductionKind } from '@/utils/deductions';
-import { localToday } from '@/utils/hrHelpers';
+import { EARLIEST_DATE, MAX_NOTES_LENGTH, MAX_REASON_LENGTH, amountProblem, amountReady, dateProblem, deductionErrorMessage, isDuplicateRecord, newIdempotencyKey, periodProblem, reasonProblem, reasonReady, registerPayload, sanitizeAmountInput, type DeductionKind } from '@/utils/deductions';
+import { facilityToday } from '@/utils/facility';
+import { localMonth } from '@/utils/hrHelpers';
 import { companyMissing, companyPayload, type CompanyChoice } from '@/utils/inputCompany';
-import { defaultPayrollMonth } from '@/utils/payrollMonth';
 
 /**
  * Registers ONE penalty or one-month salary advance. The dialog is opened fresh each time, so it makes one idempotency key per opening and sends the same key
@@ -21,10 +21,12 @@ import { defaultPayrollMonth } from '@/utils/payrollMonth';
 export function RecordDeductionDialog({ kind, employeeId, choices, title, onClose, onRecorded }: { kind: DeductionKind; employeeId: number; choices: CompanyChoice[]; title: string; onClose: () => void; onRecorded: () => void }) {
   const { t } = useI18n();
   const [key] = useState(newIdempotencyKey);
-  const [date, setDate] = useState(localToday());
+  // Today is the Mogadishu calendar day (the server's), not the browser's own clock.
+  const [date, setDate] = useState(() => facilityToday());
   const [reason, setReason] = useState('');
   const [amount, setAmount] = useState('');
-  const [payrollPeriod, setPayrollPeriod] = useState(defaultPayrollMonth());
+  // Owner decision UG-7: a NEW penalty or advance opens on the CURRENT month (a form default only; the payroll screens keep the previous month).
+  const [payrollPeriod, setPayrollPeriod] = useState(localMonth());
   const [notes, setNotes] = useState('');
   const [company, setCompany] = useState('');
   const [serverError, setServerError] = useState<string | null>(null);
@@ -57,6 +59,7 @@ export function RecordDeductionDialog({ kind, employeeId, choices, title, onClos
   const amountMessage = amountProblem(amount);
   const periodMessage = periodProblem(payrollPeriod, now);
   const dateMessage = dateProblem(date, now);
+  const reasonMessage = reasonProblem(reason);
   const ready = amountReady(amount) && reasonReady(reason) && periodMessage === null && dateMessage === null && !companyMissing(choices, company);
   const busy = mutation.isPending;
   const submit = (confirmDuplicate: boolean) => {
@@ -66,12 +69,12 @@ export function RecordDeductionDialog({ kind, employeeId, choices, title, onClos
 
   const dateField = (
     <FormField label={t(kind === 'penalty' ? 'option.employeeDetail.fieldPenaltyDate' : 'option.employeeDetail.fieldAdvanceDate')} htmlFor={`${prefix}-date`} required error={dateMessage ? t(dateMessage) : undefined}>
-      <input id={`${prefix}-date`} type="date" className={inputClasses} value={date} onChange={(e) => setDate(e.target.value)} />
+      <input id={`${prefix}-date`} type="date" min={EARLIEST_DATE} max={facilityToday()} className={inputClasses} value={date} onChange={(e) => setDate(e.target.value)} />
     </FormField>
   );
   const reasonField = (
-    <FormField label={t('option.employeeDetail.fieldReason')} htmlFor={`${prefix}-reason`} required hint={t('option.deduction.reasonHint')} error={reason.trim() !== '' && !reasonReady(reason) ? t('validation.deduction.reasonShort') : undefined}>
-      <input id={`${prefix}-reason`} className={inputClasses} value={reason} onChange={(e) => setReason(e.target.value)} />
+    <FormField label={t('option.employeeDetail.fieldReason')} htmlFor={`${prefix}-reason`} required hint={t('option.deduction.reasonHint')} error={reasonMessage ? t(reasonMessage) : undefined}>
+      <input id={`${prefix}-reason`} maxLength={MAX_REASON_LENGTH} className={inputClasses} value={reason} onChange={(e) => setReason(e.target.value)} />
     </FormField>
   );
 
@@ -123,7 +126,7 @@ export function RecordDeductionDialog({ kind, employeeId, choices, title, onClos
         </FormField>
         {kind === 'advance' && reasonField}
         <FormField label={t('option.employeeDetail.fieldNotes')} htmlFor={`${prefix}-notes`}>
-          <textarea id={`${prefix}-notes`} rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <textarea id={`${prefix}-notes`} rows={2} maxLength={MAX_NOTES_LENGTH} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </FormField>
       </Modal>
 

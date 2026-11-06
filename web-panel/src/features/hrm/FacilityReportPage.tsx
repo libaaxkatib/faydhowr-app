@@ -177,7 +177,9 @@ export function FacilityReportPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Tile label={t('option.facility.tileInspectionsDone')} value={data.inspections.count} hint={t('option.facility.tileCompaniesOf', { done: data.inspections.companies_inspected, total: data.inspections.companies_in_scope })} to={inspectionsLink()} />
-            <Tile label={t('option.facility.tileOverdueDue')} value={data.inspections.overdue + data.inspections.due} hint={t('option.facility.tileDueSoon', { n: data.inspections.due_soon })} to={drillLink('/hr/facility-inspections', { state: 'overdue' })} />
+            {/* Each tile counts exactly the list its link opens (Overdue and Due are separate states on the inspections screen). */}
+            <Tile label={t('option.facility.state.overdue')} value={data.inspections.overdue} to={drillLink('/hr/facility-inspections', { state: 'overdue' })} />
+            <Tile label={t('option.facility.state.due')} value={data.inspections.due} hint={t('option.facility.tileDueSoon', { n: data.inspections.due_soon })} to={drillLink('/hr/facility-inspections', { state: 'due' })} />
             <Tile label={t('option.facility.state.never_inspected')} value={data.inspections.never_inspected} to={drillLink('/hr/facility-inspections', { state: 'never_inspected' })} />
             <Tile label={t('option.facility.tileUnsatisfactory')} value={data.items.unsatisfactory_total} hint={t('option.facility.tileUniformIssues', { n: data.items.uniform_issues })} />
             <Tile label={t('nav.complaints')} value={data.complaints.total} hint={t('option.facility.tileStaffCustomer', { staff: data.complaints.by_type.staff.total, customer: data.complaints.by_type.customer.total })} to={complaintsLink()} />

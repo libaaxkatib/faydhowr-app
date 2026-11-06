@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 
 import { Logo } from '@/components/Logo';
 import { Icon } from '@/components/ui/Icon';
+import { useAuth } from '@/features/auth/useAuth';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { useI18n } from '@/i18n/useI18n';
 import { NAV_GROUPS } from '@/layouts/nav.config';
@@ -16,6 +17,8 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const { hasPermission, isSuperAdmin, isLoading } = useEffectivePermissions();
+  // Some pages are opened by ROLE (audit log, compliance report), so the sidebar needs the role as well as the permissions.
+  const role = useAuth().admin?.role;
   const { t } = useI18n();
 
   return (
@@ -48,9 +51,9 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
         {/* Permissions haven't resolved yet — render nothing below Dashboard rather than
             flashing every group (or none) before the real effective-permission set loads. */}
         {!isLoading &&
-          NAV_GROUPS.filter((group) => isGroupVisible(group, hasPermission, isSuperAdmin)).map((group) => {
+          NAV_GROUPS.filter((group) => isGroupVisible(group, hasPermission, isSuperAdmin, role)).map((group) => {
             const isCollapsed = collapsedGroups[group.label];
-            const visibleItems = group.items.filter((item) => isItemRenderable(item, hasPermission, isSuperAdmin));
+            const visibleItems = group.items.filter((item) => isItemRenderable(item, hasPermission, isSuperAdmin, role));
 
             return (
               <div key={group.label} className="mb-1">

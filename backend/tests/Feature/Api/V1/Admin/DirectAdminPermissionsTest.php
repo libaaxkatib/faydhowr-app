@@ -17,10 +17,7 @@ class DirectAdminPermissionsTest extends TestCase
 
     public function test_authenticated_admin_can_list_direct_and_effective_permissions(): void
     {
-        $actor = Admin::factory()->create();
-        $this->assignDirectPermissions($actor, [
-            AdminPermission::RolesManage,
-        ]);
+        $actor = Admin::factory()->superAdmin()->create();
         $target = Admin::factory()->create([
             'role' => AdminRole::Manager,
         ]);
@@ -236,7 +233,7 @@ class DirectAdminPermissionsTest extends TestCase
             ->assertForbidden()
             ->assertExactJson([
                 'success' => false,
-                'message' => 'Only Super Admin may update direct admin permissions.',
+                'message' => 'You do not have permission to perform this action.',
                 'error_code' => 'FORBIDDEN',
             ]);
 

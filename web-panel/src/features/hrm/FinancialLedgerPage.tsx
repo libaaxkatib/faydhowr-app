@@ -54,8 +54,12 @@ export function FinancialLedgerPage() {
   const filtered = departmentId !== '' || type !== '' || from !== '' || to !== '';
   const resetFilters = () => url.reset(filterKeys);
 
+  // A range that ends before it starts would only be refused by the server: say so here and do not ask.
+  const rangeInvalid = from !== '' && to !== '' && to < from;
+
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['financial-ledger', { departmentId, type, from, to, page }],
+    enabled: !rangeInvalid,
     queryFn: () =>
       hrApi.reports.financialLedger({
         department_id: departmentId ? Number(departmentId) : undefined,
@@ -76,7 +80,14 @@ export function FinancialLedgerPage() {
         header: t('option.label.type'),
         accessorKey: 'type',
         cell: ({ row }) => (
-          <StatusBadge status={row.original.type} label={typeOptions.find((o) => o.value === row.original.type)?.label ?? row.original.type} tone={TYPE_TONE[row.original.type]} />
+          <div className="min-w-0">
+            <StatusBadge status={row.original.type} label={typeOptions.find((o) => o.value === row.original.type)?.label ?? row.original.type} tone={TYPE_TONE[row.original.type]} />
+            {row.original.is_reversal && (
+              <p className="mt-1 text-xs text-ink-muted" data-testid="ledger-reversal-note">
+                {t('option.payroll.ledgerReversalOf', { id: row.original.reverses_payment_id ?? '—' })}
+              </p>
+            )}
+          </div>
         ),
       },
       {
@@ -145,6 +156,7 @@ export function FinancialLedgerPage() {
             aria-label={t('option.reports.dateFrom')}
             type="date"
             value={from}
+            max={to || undefined}
             onChange={(e) => {
               setFrom(e.target.value);
               setPage(1);
@@ -155,6 +167,7 @@ export function FinancialLedgerPage() {
             aria-label={t('option.reports.dateTo')}
             type="date"
             value={to}
+            min={from || undefined}
             onChange={(e) => {
               setTo(e.target.value);
               setPage(1);
@@ -183,11 +196,14 @@ export function FinancialLedgerPage() {
           />
           <ResetFiltersButton count={url.activeCount(filterKeys)} onReset={resetFilters} />
         </div>
-        {data && <ListResultBar matching={data.meta.total} filtered={filtered} />}
+        {rangeInvalid && (
+          <p role="alert" className="border-b border-border bg-warning/10 px-5 py-2 text-sm text-ink" data-testid="ledger-range-invalid">{t('validation.reports.dateRangeOrder')}</p>
+        )}
+        {data && !rangeInvalid && <ListResultBar matching={data.meta.total} filtered={filtered} />}
 
         <DataTable
           columns={columns}
-          data={data?.data ?? []}
+          data={rangeInvalid ? [] : (data?.data ?? [])}
           isLoading={isLoading}
           error={error}
           onRetry={refetch}
@@ -196,7 +212,7 @@ export function FinancialLedgerPage() {
           emptyAction={filtered ? <ResetFiltersAction onReset={resetFilters} /> : undefined}
         />
 
-        {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}
+        {data && !rangeInvalid && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}
       </Card>
     </div>
   );

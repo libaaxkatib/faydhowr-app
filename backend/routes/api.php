@@ -150,6 +150,7 @@ use App\Http\Controllers\Api\V1\Search\SearchController;
 use App\Http\Controllers\Api\V1\StoreOrder\StoreOrderController;
 use App\Http\Controllers\Api\V1\Supplier\SupplierController;
 use App\Http\Controllers\Api\V1\Uploads\UploadController;
+use App\Http\Middleware\EnsureAuditLogReader;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -466,9 +467,15 @@ Route::prefix('v1/admin')
             ->middleware('permission:dashboard.view')
             ->name('api.v1.admin.dashboard.show');
 
+        // Owner decision UG-4: admins.manage is Super-Admin-only now, but the HR Manager keeps READ-ONLY access to the audit trail through a separate
+        // role rule (EnsureAuditLogReader: Super Admin + HR Manager). Only these two GET routes use it; no audit record can be written through the API.
         Route::get('audit-logs', [AuditLogController::class, 'index'])
-            ->middleware('permission:admins.manage')
+            ->middleware(EnsureAuditLogReader::class)
             ->name('api.v1.admin.audit-logs.index');
+
+        Route::get('audit-logs/filters', [AuditLogController::class, 'filters'])
+            ->middleware(EnsureAuditLogReader::class)
+            ->name('api.v1.admin.audit-logs.filters');
 
         Route::get('permissions', [PermissionController::class, 'index'])
             ->middleware('permission:roles.manage')
@@ -1483,6 +1490,9 @@ Route::middleware(['auth:sanctum', 'admin', 'permission:hr.manage', 'throttle:ad
     // Read-only preview of the same overlap rules the save enforces (docs/HR_PAYROLL_RULES.md U1, U12): lets the form warn before anything is saved.
     Route::get('v1/admin/hr/temporary-replacements/conflict-check', [AdminTemporaryReplacementController::class, 'conflictCheck'])
         ->name('api.v1.admin.hr.temporary-replacements.conflict-check');
+    // Owner decision UG-3: what saving a new cover would do (days, cost, approved/finalized months, whether a correction reason is needed). Saves nothing.
+    Route::get('v1/admin/hr/temporary-replacements/create-preview', [AdminTemporaryReplacementController::class, 'createPreview'])
+        ->name('api.v1.admin.hr.temporary-replacements.create-preview');
     Route::patch('v1/admin/hr/temporary-replacements/{temporaryReplacement}/end', [AdminTemporaryReplacementController::class, 'end'])
         ->whereNumber('temporaryReplacement')
         ->name('api.v1.admin.hr.temporary-replacements.end');
@@ -1939,9 +1949,11 @@ Route::prefix('v1/admin/recovery')
 
 // HR compliance and accountability report (HR Manager and Super Admin; the controller checks the role as well). Reading needs hr.reports.view,
 // recording a follow-up needs hr.manage too. Nothing here changes an employee, assignment or payroll record.
+// Owner decision UG-1: every GET is READ-ONLY. The scan runs only through POST scan (hr.manage, throttled): no scheduler, no scan on open.
 Route::prefix('v1/admin/hr/compliance')
     ->middleware(['auth:sanctum', 'admin', 'permission:hr.reports.view', 'throttle:admin-operations'])
     ->group(function (): void {
+        Route::post('scan', [AdminComplianceController::class, 'scan'])->middleware(['permission:hr.manage', 'throttle:6,1'])->name('api.v1.admin.hr.compliance.scan');
         Route::get('findings', [AdminComplianceController::class, 'index'])->name('api.v1.admin.hr.compliance.index');
         Route::get('findings/{finding}', [AdminComplianceController::class, 'show'])->whereNumber('finding')->name('api.v1.admin.hr.compliance.show');
         Route::patch('findings/{finding}', [AdminComplianceController::class, 'update'])->whereNumber('finding')->middleware('permission:hr.manage')->name('api.v1.admin.hr.compliance.update');

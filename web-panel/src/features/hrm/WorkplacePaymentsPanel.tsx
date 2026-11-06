@@ -15,6 +15,7 @@ import { getActiveLanguage } from '@/i18n/active';
 import { useI18n } from '@/i18n/useI18n';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
+import { invalidatePayrollDependents } from '@/utils/payrollQueries';
 import { WORKPLACE_STATUS, validateVoidReason, waitsForCompanyFinalization, workplaceName } from '@/utils/workplacePayments';
 import type { PayrollRun, WorkplacePaymentRecord, WorkplacePayrollSummary } from '@/types/payroll';
 
@@ -149,7 +150,7 @@ export function WorkplacePaymentsPanel({ run, canVoid }: { run: PayrollRun; canV
                                           {payment.voided ? (
                                             <span className="text-ink-muted no-underline">{t('option.payroll.wpVoidedMark', { reason: payment.void_reason ?? '' })}</span>
                                           ) : (
-                                            canVoid && workplace.can_record && (
+                                            canVoid && (
                                               <Button size="sm" variant="ghost" onClick={() => setVoiding({ workplace, payment })}>{t('action.payroll.wpVoid')}</Button>
                                             )
                                           )}
@@ -182,6 +183,8 @@ function useRefreshWorkplaces() {
 
   return () => {
     void queryClient.invalidateQueries({ queryKey: ['payroll-overview'] });
+    void queryClient.invalidateQueries({ queryKey: ['payroll-run'] });
+    invalidatePayrollDependents(queryClient);
 
     return queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
   };

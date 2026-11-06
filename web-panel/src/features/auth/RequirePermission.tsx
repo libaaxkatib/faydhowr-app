@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 
+import { LoadingState } from '@/components/ui/LoadingState';
 import { PageState } from '@/components/ui/PageState';
+import { PermissionsUnavailable } from '@/features/auth/PermissionsUnavailable';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { useI18n } from '@/i18n/useI18n';
 
@@ -17,12 +19,14 @@ import { useI18n } from '@/i18n/useI18n';
  * shell mounting and firing API calls that just come back 403.
  */
 export function RequirePermission({ permission, children }: { permission: string; children: ReactNode }) {
-  const { hasPermission, isLoading } = useEffectivePermissions();
+  const { hasPermission, isLoading, isError, refetch } = useEffectivePermissions();
   const { t } = useI18n();
 
-  // Permissions haven't resolved yet - render nothing rather than flashing
-  // the access-denied page before the real effective-permission set loads.
-  if (isLoading) return null;
+  // Permissions have not resolved yet - show the loading state rather than flashing the access-denied page (or a blank page) before the real set loads.
+  if (isLoading) return <LoadingState />;
+
+  // The list could not be fetched: that is not "no access". Say so and offer a retry.
+  if (isError) return <PermissionsUnavailable onRetry={() => void refetch()} />;
 
   if (!hasPermission(permission)) {
     return (

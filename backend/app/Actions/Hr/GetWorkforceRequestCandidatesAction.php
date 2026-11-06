@@ -5,6 +5,7 @@ namespace App\Actions\Hr;
 use App\Enums\EmployeeStatus;
 use App\Models\Employee;
 use App\Models\WorkforceRequest;
+use App\Support\Hr\EmployeeRegistrationWorkflow;
 use Illuminate\Support\Collection;
 
 /**
@@ -20,6 +21,7 @@ class GetWorkforceRequestCandidatesAction
 {
     public function handle(WorkforceRequest $request): Collection
     {
+        $workflow = new EmployeeRegistrationWorkflow;
         $alreadyMatchedEmployeeIds = $request->matches()->pluck('employee_id');
 
         return Employee::query()
@@ -43,6 +45,9 @@ class GetWorkforceRequestCandidatesAction
                 'gender_match' => $request->gender_requirement === null || $request->gender_requirement === $employee->gender,
                 'category_match' => $request->employee_category_id === null || $request->employee_category_id === $employee->employee_category_id,
                 'position_match' => $request->position_id === null || $request->position_id === $employee->position_id,
+                // Confirming a match is refused for a new registration that has not completed the registration workflow: say so before the click.
+                'eligible' => ! $workflow->blocks($employee),
+                'missing' => $workflow->blocks($employee) ? $workflow->missing($employee) : [],
             ]);
     }
 }

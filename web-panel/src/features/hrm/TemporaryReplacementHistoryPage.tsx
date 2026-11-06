@@ -15,6 +15,7 @@ import { DATE_RANGE_KEYS } from '@/utils/dateRangePreset';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useDateRangePreset } from '@/hooks/useDateRangePreset';
 import { formatDate } from '@/utils/formatters';
+import { lifecycleTone, lifecycleWord } from '@/utils/replacementChange';
 import type { TemporaryReplacement } from '@/types/employee';
 import { useI18n } from '@/i18n/useI18n';
 
@@ -91,9 +92,9 @@ export function TemporaryReplacementHistoryPage() {
         accessorKey: 'status',
         cell: ({ row }) => (
           <StatusBadge
-            status={row.original.status}
-            label={tValue('status.pipeline.replacement', row.original.status) ?? (row.original.status === 'active' ? 'Active' : 'Ended')}
-            tone={row.original.status === 'active' ? 'warning' : 'neutral'}
+            status={lifecycleWord(row.original)}
+            label={tValue('status.pipeline.replacement', lifecycleWord(row.original)) ?? lifecycleWord(row.original)}
+            tone={lifecycleTone(row.original)}
           />
         ),
       },
@@ -132,6 +133,7 @@ export function TemporaryReplacementHistoryPage() {
         <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
           <input
             aria-label={t('option.reports.dateFrom')}
+            max={to || undefined}
             type="date"
             value={from}
             onChange={(e) => {
@@ -142,6 +144,7 @@ export function TemporaryReplacementHistoryPage() {
           />
           <input
             aria-label={t('option.reports.dateTo')}
+            min={from || undefined}
             type="date"
             value={to}
             onChange={(e) => {

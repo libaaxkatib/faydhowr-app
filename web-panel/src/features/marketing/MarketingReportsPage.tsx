@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { marketingApi } from '@/api/marketing';
@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/Select';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { useI18n } from '@/i18n/useI18n';
+import { reportPresetRange, type ReportPreset } from '@/utils/marketingReportRange';
 import type { MessageKey } from '@/i18n/messages';
 import type { MarketingRecordStatus, MarketingRecordType } from '@/types/marketing';
 
@@ -18,6 +19,13 @@ const STATUS_OPTIONS: { value: MarketingRecordStatus; label: string; labelKey: M
   { value: 'done', label: 'Done', labelKey: 'status.marketing.record.done' },
   { value: 'cancelled', label: 'Cancelled', labelKey: 'status.marketing.record.cancelled' },
 ];
+
+const PRESET_KEYS: Record<ReportPreset, MessageKey> = {
+  today: 'option.marketing.presetToday',
+  last7: 'option.marketing.presetLast7',
+  last30: 'option.marketing.presetLast30',
+  thisMonth: 'option.marketing.presetThisMonth',
+};
 
 const TYPE_OPTIONS: { value: MarketingRecordType; label: string }[] = [
   { value: 'xarun', label: 'XARUN' },
@@ -35,18 +43,15 @@ export function MarketingReportsPage() {
 
   const { data: teams } = useQuery({ queryKey: ['marketing-teams'], queryFn: marketingApi.teams.list });
 
-  // Marketing Employee options are Admins who belong to at least one team — there's no
-  // separate "list admins" endpoint exposed to this panel yet, so this reuses real,
-  // already-available data rather than adding a new backend endpoint for one filter.
-  const employeeOptions = useMemo(() => {
-    const seen = new Map<number, string>();
-    for (const team of teams ?? []) {
-      for (const member of team.members ?? []) {
-        seen.set(member.id, member.full_name);
-      }
-    }
-    return Array.from(seen.entries()).map(([value, label]) => ({ value: String(value), label }));
-  }, [teams]);
+  // The same list the assignment pickers use (managers and employees, active), so a manager who belongs to no team can be filtered too.
+  const { data: employees } = useQuery({ queryKey: ['marketing-employees'], queryFn: marketingApi.employees.list });
+  const employeeOptions = (employees ?? []).map((employee) => ({ value: String(employee.id), label: employee.full_name }));
+
+  const applyPreset = (preset: ReportPreset) => {
+    const range = reportPresetRange(preset, new Date());
+    setFrom(range.from);
+    setTo(range.to);
+  };
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['marketing-reports-summary', { from, to, teamId, adminId, status, type }],
@@ -67,6 +72,19 @@ export function MarketingReportsPage() {
 
       <Card className="mb-4">
         <CardBody className="flex flex-wrap items-end gap-3">
+          <div className="flex w-full flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-ink-muted">{t('option.marketing.reportQuickRange')}</span>
+            {(['today', 'last7', 'last30', 'thisMonth'] as const).map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => applyPreset(preset)}
+                className="rounded-full border border-border px-3 py-1 text-xs font-medium text-ink-muted hover:bg-surface-alt hover:text-primary"
+              >
+                {t(PRESET_KEYS[preset])}
+              </button>
+            ))}
+          </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-ink-muted">{t('option.marketing.dateFrom')}</label>
             <input aria-label={t('option.reports.dateFrom')} type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-sm border border-border bg-surface px-2 text-sm" />
@@ -111,6 +129,13 @@ export function MarketingReportsPage() {
           </div>
         </CardBody>
       </Card>
+
+      {data && (
+        <p className="mb-3 text-xs text-ink-muted">
+          {t('option.marketing.reportPeriod', { from: data.range.from, to: data.range.to })}
+          {from === '' && to === '' ? ` ${t('warning.marketing.reportDefaultPeriod')}` : ''}
+        </p>
+      )}
 
       {isLoading && <LoadingState label={t('option.reports.loading')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}

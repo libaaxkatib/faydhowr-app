@@ -40,7 +40,7 @@ export function CloseCompanyDialog({ company, onClose }: { company: ClientCompan
       show(t('notify.correction.companyClosed', { ended: result.summary?.assignments_ended ?? 0 }));
       onClose();
     },
-    onError: (err) => setServerError(friendlyErrorMessage(err, t('notify.payroll.reopenFailed'))),
+    onError: (err) => setServerError(friendlyErrorMessage(err, t('notify.company.somethingWentWrongNothingChanged'))),
   });
 
   return (
@@ -101,7 +101,7 @@ export function ReopenCompanyDialog({ company, onClose }: { company: ClientCompa
       show(t('notify.correction.companyReopened'));
       onClose();
     },
-    onError: (err) => setServerError(friendlyErrorMessage(err, t('notify.payroll.reopenFailed'))),
+    onError: (err) => setServerError(friendlyErrorMessage(err, t('notify.company.somethingWentWrongNothingChanged'))),
   });
 
   const toggle = (id: number) => setChosen((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));

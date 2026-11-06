@@ -169,7 +169,13 @@ class RoleAccessMatrixTest extends TestCase
         $hr = Admin::factory()->create(['role' => AdminRole::HrManager]);
         $token = $hr->createToken('t')->plainTextToken;
 
-        foreach (['/api/v1/admin/admins', '/api/v1/admin/permissions', '/api/v1/admin/roles/hr_manager/permissions', '/api/v1/admin/audit-logs', '/api/v1/admin/settings'] as $uri) {
+        // Owner decision UG-4: admins.manage / roles.manage belong to the Super Admin alone; the HR Manager keeps only READ access to the audit log, through its own role rule.
+        foreach (['/api/v1/admin/audit-logs', '/api/v1/admin/audit-logs/filters'] as $uri) {
+            $this->app['auth']->forgetGuards();
+            $this->withToken($token)->getJson($uri)->assertOk();
+        }
+
+        foreach (['/api/v1/admin/admins', '/api/v1/admin/permissions', '/api/v1/admin/roles/hr_manager/permissions', '/api/v1/admin/settings'] as $uri) {
             $this->app['auth']->forgetGuards();
             $this->withToken($token)->getJson($uri)->assertForbidden();
         }

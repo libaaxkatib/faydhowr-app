@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { ApiClientError } from '@/api/client';
 import { complianceApi } from '@/api/compliance';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Icon } from '@/components/ui/Icon';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { LoadingState } from '@/components/ui/LoadingState';
@@ -15,12 +17,13 @@ import { Select } from '@/components/ui/Select';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { TableScroll } from '@/components/ui/TableScroll';
 import { useToast } from '@/components/ui/useToast';
+import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import type { MessageKey } from '@/i18n/messages';
 import { useI18n } from '@/i18n/useI18n';
 import type { ComplianceFilters, ComplianceFinding, ComplianceStatus, ComplianceSummary } from '@/types/compliance';
 import { canSave, confidenceTone, EMPTY_FILTERS, severityTone } from '@/utils/compliance';
-import { formatDate } from '@/utils/formatters';
+import { formatDate, formatDateTime } from '@/utils/formatters';
 
 const FILTER_KEYS = ['q', 'company', 'responsible', 'type', 'category', 'severity', 'status', 'confidence'] as const;
 const STATUSES: ComplianceStatus[] = ['open', 'in_progress', 'resolved'];
@@ -39,7 +42,8 @@ const SUMMARY: { key: keyof ComplianceSummary; messageKey: MessageKey }[] = [
 /**
  * HR compliance and accountability report (HR Manager and Super Admin). It lists who works, or is assigned to work, while a requirement the system already
  * defines is not met, whether the finding is confirmed or only needs HR review, who is on record as responsible (never guessed), and lets the HR Manager track
- * the follow-up. Opening the report only reads; saving a follow-up changes the finding's status and note and nothing about the employee, assignment or payroll.
+ * the follow-up. Owner decision UG-1: opening the report (and every filter, search and page) only READS what the last scan stored; the live records are checked only
+ * when someone presses "Run scan" (hr.manage). Saving a follow-up changes the finding's status and note and nothing about the employee, assignment or payroll.
  */
 export function ComplianceReportPage() {
   const { t } = useI18n();
@@ -72,6 +76,20 @@ export function ComplianceReportPage() {
     placeholderData: keepPreviousData,
   });
 
+  const queryClient = useQueryClient();
+  const { show } = useToast();
+  const { hasPermission } = useEffectivePermissions();
+  // The follow-up and the scan both need hr.manage on the server; without it the buttons are not offered.
+  const canManage = hasPermission('hr.manage');
+
+  const scan = useMutation({
+    mutationFn: () => complianceApi.scan(),
+    onSuccess: async (result) => {
+      show(t('notify.compliance.scanDone', { new: result.scan.new, reopened: result.scan.reopened, cleared: result.scan.cleared }));
+      await queryClient.invalidateQueries({ queryKey: ['hr', 'compliance'] });
+    },
+    onError: (error) => show(error instanceof ApiClientError && error.code === 'COMPLIANCE_SCAN_RUNNING' ? t('notify.compliance.scanRunning') : t('notify.compliance.scanFailed'), 'error'),
+  });
   const data = report.data?.data;
   const activeFilters = url.activeCount(FILTER_KEYS);
 
@@ -81,10 +99,22 @@ export function ComplianceReportPage() {
 
   return (
     <div>
-      <PageHeader title={t('option.compliance.title')} breadcrumb={[{ label: t('nav.complianceReport') }]} />
+      <PageHeader
+        title={t('option.compliance.title')}
+        breadcrumb={[{ label: t('nav.complianceReport') }]}
+        actions={canManage ? <Button onClick={() => scan.mutate()} isLoading={scan.isPending}><Icon name="refresh" size={15} />{t('action.compliance.runScan')}</Button> : undefined}
+      />
 
       <Card className="mb-4 p-4">
         <p className="text-sm text-ink-muted">{t('warning.compliance.intro')}</p>
+        <p className="mt-2 text-sm text-ink-muted">{t('warning.compliance.readOnlyNote')}</p>
+        {data && (
+          <p className="mt-2 text-sm font-medium text-ink" data-testid="compliance-last-scan">
+            {data.last_scan
+              ? t('option.compliance.lastScan', { when: data.last_scan.at ? formatDateTime(data.last_scan.at) : '—', name: data.last_scan.by ?? '—', new: data.last_scan.new, reopened: data.last_scan.reopened, cleared: data.last_scan.cleared })
+              : t('warning.compliance.neverScanned')}
+          </p>
+        )}
       </Card>
 
       {report.isLoading && <LoadingState />}
@@ -137,7 +167,7 @@ export function ComplianceReportPage() {
                   </thead>
                   <tbody>
                     {data.findings.map((f) => (
-                      <FindingRow key={f.id} finding={f} onFollowUp={() => setFollowUp(f)} />
+                      <FindingRow key={f.id} finding={f} onFollowUp={() => setFollowUp(f)} canFollowUp={canManage} />
                     ))}
                   </tbody>
                 </table>
@@ -157,7 +187,7 @@ function typeLabel(t: ReturnType<typeof useI18n>['t'], type: ComplianceFinding['
   return type === 'Replacement' ? t('option.assignmentType.replacement') : t(`option.employmentType.${type.toLowerCase() as 'permanent' | 'temporary'}`);
 }
 
-function FindingRow({ finding: f, onFollowUp }: { finding: ComplianceFinding; onFollowUp: () => void }) {
+function FindingRow({ finding: f, onFollowUp, canFollowUp }: { finding: ComplianceFinding; onFollowUp: () => void; canFollowUp: boolean }) {
   const { t, tValue } = useI18n();
 
   return (
@@ -165,6 +195,8 @@ function FindingRow({ finding: f, onFollowUp }: { finding: ComplianceFinding; on
       <td className="px-3 py-3">
         <p className="font-medium text-ink">{f.employee_name}</p>
         <p className="text-xs text-ink-faint">{f.employee_number}</p>
+        {/* First column on purpose: on a narrow screen the table scrolls sideways and the last column is out of sight. */}
+        {canFollowUp && <Button variant="outline" size="sm" className="mt-2" onClick={onFollowUp}>{t('action.compliance.followUp')}</Button>}
       </td>
       <td className="px-3 py-3">
         <p>{f.company ?? '—'}</p>
@@ -199,7 +231,6 @@ function FindingRow({ finding: f, onFollowUp }: { finding: ComplianceFinding; on
         <StatusBadge status={f.status} tone={f.status === 'resolved' ? 'success' : f.status === 'in_progress' ? 'info' : 'warning'} label={t(`option.compliance.status.${f.status}`)} />
         {f.resolution_source === 'system_cleared' && <p className="mt-1 text-xs text-ink-muted">{t('warning.compliance.systemCleared')}</p>}
         {f.note && <p className="mt-1 max-w-48 text-xs text-ink-muted">{f.note}</p>}
-        <Button variant="outline" size="sm" className="mt-2" onClick={onFollowUp}>{t('action.compliance.followUp')}</Button>
       </td>
     </tr>
   );

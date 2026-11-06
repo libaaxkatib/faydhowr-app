@@ -51,6 +51,9 @@ export interface FollowUp {
   record_number?: string;
   record_type?: MarketingRecordType;
   record_team_name?: string | null;
+  /** The record's saved status and feedback (so the follow-up editors start from what is saved). */
+  record_status?: MarketingRecordStatus;
+  record_feedback?: string | null;
   phone?: string | null;
   location?: string | null;
   follow_up_date: string;
@@ -131,6 +134,8 @@ export interface CreateXarunPayload {
   description?: string | null;
   assigned_team_id?: number | null;
   assigned_admin_id?: number | null;
+  /** Only when registering the lead for another employee; the server credits the creator when absent. */
+  brought_by_admin_id?: number | null;
 }
 export type UpdateXarunPayload = Partial<CreateXarunPayload> & { feedback?: string | null };
 
@@ -147,6 +152,8 @@ export interface CreateProjectPayload {
   description?: string | null;
   assigned_team_id?: number | null;
   assigned_admin_id?: number | null;
+  /** Only when registering the lead for another employee; the server credits the creator when absent. */
+  brought_by_admin_id?: number | null;
 }
 export type UpdateProjectPayload = Partial<CreateProjectPayload> & { feedback?: string | null };
 

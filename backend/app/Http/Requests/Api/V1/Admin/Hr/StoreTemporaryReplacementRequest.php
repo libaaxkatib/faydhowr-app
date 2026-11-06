@@ -24,6 +24,8 @@ class StoreTemporaryReplacementRequest extends FormRequest
             'daily_rate' => ['nullable', 'numeric', 'min:0'], // legacy: the rate is derived from the covered employee's salary
             'currency' => ['nullable', 'string', 'size:3'],
             'reason' => ['nullable', 'string'],
+            // Owner decision UG-3: the written reason (10+ characters) the server asks for when the cover reaches an approved or finalized payroll month.
+            'correction_reason' => ['nullable', 'string', 'max:1000'],
             'notes' => ['nullable', 'string'],
         ];
     }

@@ -168,7 +168,10 @@ test('the warnings never disable a button and never add a mandatory confirmation
     assert.ok(!/disabled=\{[^}]*(warning|Warning)/.test(text), `${name}: a warning never disables a button`);
   }
   assert.ok(!/disabled=/.test(generateDialog.replace(/disabled=\{mutation\.isPending\}/g, '')), 'the generate button is always available (only while it is being sent is it busy)');
-  assert.ok(!/disabled=/.test(actionDialog.replace(/disabled=\{isLoading\}/g, '')), 'review / finalize confirm stays available');
+  // UI audit U-1 (this assertion described the old behaviour): the confirm button is off ONLY while a stale-draft notice is shown, because the server would
+  // refuse the step anyway. The Temporary Replacement warnings still never disable it (the first check above), and it is never off for any other reason.
+  assert.ok(!/disabled=/.test(actionDialog.replace(/disabled=\{isLoading\}/g, '').replace(/disabled=\{blocked\}/g, '')), 'review / finalize confirm is off only while a stale-draft notice is shown');
+  assert.match(actionDialog, /const blocked = reviewIsBlocked\(warnings, refusedChanges !== null\);/);
   assert.match(generateDialog, /<GenerationWarningsPanel period=\{period\} company=\{row\.client_company_id\}( context="generate")? \/>/);
   assert.match(actionDialog, /<GenerationWarningsPanel period=\{period\} company=\{company\}( context="action")? \/>/);
   assert.match(panel, /<SectionActionDialog[\s\S]{0,300}sectionReviewTitle/);

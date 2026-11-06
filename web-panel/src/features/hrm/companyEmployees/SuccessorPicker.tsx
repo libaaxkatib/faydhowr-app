@@ -67,12 +67,17 @@ export function SuccessorPicker({
 
   return (
     <fieldset className="mb-4 rounded-sm border border-border p-3" aria-describedby={`${idPrefix}-help`}>
-      <legend className="px-1 text-sm font-medium text-ink">{t('option.hr.successorQuestion')} <span className="text-danger">*</span></legend>
+      <legend className="px-1 text-sm font-medium text-ink">{t('option.hr.successorQuestionOptional')}</legend>
       <p id={`${idPrefix}-help`} className="mb-3 text-xs text-ink-muted">
-        {t('option.hr.successorHelp', { start: startText })}
+        {t('option.hr.successorHelpOptional', { start: startText })}
       </p>
 
       <div className="mb-3 flex flex-col gap-2 text-sm text-ink">
+        {/* The replacement is OPTIONAL (owner decision 2026-11-04): this choice puts the picker back to "nobody chosen", so a half-made choice never blocks Save. */}
+        <label className="flex items-center gap-2">
+          <input type="radio" name={`${idPrefix}-type`} data-testid={`${idPrefix}-none`} checked={value.type === ''} onChange={() => onChange(EMPTY_SUCCESSOR)} />
+          {t('option.hr.successorNone')}
+        </label>
         <label className="flex items-center gap-2">
           <input type="radio" name={`${idPrefix}-type`} checked={value.type === 'temporary'} onChange={() => choose('temporary')} />
           {t('option.hr.successorTemporaryChoice')}
@@ -83,9 +88,11 @@ export function SuccessorPicker({
         </label>
       </div>
 
-      <FormField label={t('option.hr.successorEffectiveDate')} htmlFor={`${idPrefix}-effective`} hint={t('option.hr.successorEffectiveDateHint')}>
-        <input id={`${idPrefix}-effective`} type="date" className={inputClasses} value={value.effectiveDate} onChange={(e) => onChange({ ...value, effectiveDate: e.target.value })} />
-      </FormField>
+      {value.type !== '' && (
+        <FormField label={t('option.hr.successorEffectiveDate')} htmlFor={`${idPrefix}-effective`} hint={t('option.hr.successorEffectiveDateHint')}>
+          <input id={`${idPrefix}-effective`} type="date" className={inputClasses} value={value.effectiveDate} onChange={(e) => onChange({ ...value, effectiveDate: e.target.value })} />
+        </FormField>
+      )}
 
       {value.type === 'temporary' && (
         <FormField label={t('option.pipeline.temporaryEmployeeFallback')} htmlFor={`${idPrefix}-temp`} required hint={t('option.hr.successorTemporaryHint')}>

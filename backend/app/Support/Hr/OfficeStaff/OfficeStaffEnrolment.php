@@ -66,6 +66,7 @@ class OfficeStaffEnrolment
             'salary_currency' => 'USD',
             'salary_frequency' => 'monthly',
             'override_capacity' => (bool) ($data['override_capacity'] ?? false),
+            'correction_reason' => $data['correction_reason'] ?? null,
         ], $actor);
 
         // A brand-new employee already has its own "registered as Office Staff" audit entry from the create step.

@@ -7,8 +7,12 @@ import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Modal } from '@/components/ui/Modal';
 import { CompanyChoiceField } from '@/features/hrm/CompanyChoiceField';
 import { useI18n } from '@/i18n/useI18n';
+import { facilityToday } from '@/utils/facility';
 import {
   DEDUCTION_PATH,
+  EARLIEST_DATE,
+  MAX_NOTES_LENGTH,
+  MAX_REASON_LENGTH,
   amountProblem,
   amountReady,
   centsText,
@@ -16,6 +20,7 @@ import {
   dateProblem,
   deductionErrorMessage,
   periodProblem,
+  reasonProblem,
   reasonReady,
   sanitizeAmountInput,
   toCents,
@@ -53,10 +58,11 @@ function ErrorBox({ message }: { message: string | null }) {
 
 function ReasonField({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) {
   const { t } = useI18n();
+  const problem = reasonProblem(value);
 
   return (
-    <FormField label={label} htmlFor={id} required hint={t('option.deduction.reasonHint')} error={value.trim() !== '' && !reasonReady(value) ? t('validation.deduction.reasonShort') : undefined}>
-      <textarea id={id} rows={2} maxLength={500} className={`${inputClasses} h-auto py-2`} value={value} onChange={(e) => onChange(e.target.value)} />
+    <FormField label={label} htmlFor={id} required hint={t('option.deduction.reasonHint')} error={problem ? t(problem) : undefined}>
+      <textarea id={id} rows={2} maxLength={MAX_REASON_LENGTH} className={`${inputClasses} h-auto py-2`} value={value} onChange={(e) => onChange(e.target.value)} />
     </FormField>
   );
 }
@@ -141,7 +147,10 @@ export function CorrectDeductionDialog({ kind, employeeId, record, choices, onCl
   const amountMessage = amountProblem(amount);
   const periodMessage = periodProblem(payrollPeriod, now);
   const dateMessage = dateProblem(date, now);
-  const ready = hasChange && amountReady(amount) && reason.trim() !== '' && reasonReady(correctionReason) && periodMessage === null && dateMessage === null;
+  // The record's own reason is only checked when it is being changed (an older record may hold a shorter one that is simply left as it is).
+  const reasonMessage = changed.reason === undefined ? null : reasonProblem(reason);
+  const reasonStillValid = reason.trim() !== '' && (changed.reason === undefined || reasonReady(reason));
+  const ready = hasChange && amountReady(amount) && reasonStillValid && reasonReady(correctionReason) && periodMessage === null && dateMessage === null;
 
   const payload = (): CorrectDeductionPayload => {
     const body: CorrectDeductionPayload = { correction_reason: correctionReason.trim(), expected_version: record.version ?? 0 };
@@ -196,16 +205,16 @@ export function CorrectDeductionDialog({ kind, employeeId, record, choices, onCl
         </FormField>
       </div>
       <FormField label={t(kind === 'penalty' ? 'option.employeeDetail.fieldPenaltyDate' : 'option.employeeDetail.fieldAdvanceDate')} htmlFor={`${prefix}-date`} required error={dateMessage ? t(dateMessage) : undefined}>
-        <input id={`${prefix}-date`} type="date" className={inputClasses} value={date} onChange={(e) => setDate(e.target.value)} />
+        <input id={`${prefix}-date`} type="date" min={EARLIEST_DATE} max={facilityToday()} className={inputClasses} value={date} onChange={(e) => setDate(e.target.value)} />
       </FormField>
       <FormField label={t('option.employeeDetail.fieldPayrollPeriod')} htmlFor={`${prefix}-period`} required error={periodMessage ? t(periodMessage) : undefined}>
         <input id={`${prefix}-period`} type="month" min="2020-01" className={inputClasses} value={payrollPeriod} onChange={(e) => setPayrollPeriod(e.target.value)} />
       </FormField>
-      <FormField label={t('option.employeeDetail.fieldReason')} htmlFor={`${prefix}-reason`} required>
-        <input id={`${prefix}-reason`} className={inputClasses} value={reason} onChange={(e) => setReason(e.target.value)} />
+      <FormField label={t('option.employeeDetail.fieldReason')} htmlFor={`${prefix}-reason`} required error={reasonMessage ? t(reasonMessage) : undefined}>
+        <input id={`${prefix}-reason`} maxLength={MAX_REASON_LENGTH} className={inputClasses} value={reason} onChange={(e) => setReason(e.target.value)} />
       </FormField>
       <FormField label={t('option.employeeDetail.fieldNotes')} htmlFor={`${prefix}-notes`}>
-        <textarea id={`${prefix}-notes`} rows={2} className={`${inputClasses} h-auto py-2`} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <textarea id={`${prefix}-notes`} rows={2} maxLength={MAX_NOTES_LENGTH} className={`${inputClasses} h-auto py-2`} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </FormField>
       {!hasChange && <p className="mb-3 text-xs text-ink-muted" data-testid="correct-nothing-changed">{t('warning.deduction.nothingChanged')}</p>}
       <p className="mb-3 text-xs text-ink-muted">{t('warning.deduction.regenerateNote')}</p>

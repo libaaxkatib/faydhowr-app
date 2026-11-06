@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/useToast';
 import { GenerationWarningsPanel } from '@/features/hrm/GenerationWarningsPanel';
 import { useI18n } from '@/i18n/useI18n';
 import { draftFailureMessage, errorCodeOf } from '@/utils/hrHelpers';
+import { invalidatePayrollDependents } from '@/utils/payrollQueries';
 import { expectedStatusOf, generateResetsReview } from '@/utils/payrollOverview';
 import type { PayrollOverviewCompany } from '@/types/payroll';
 
@@ -29,6 +30,7 @@ export function GenerateCompanyDialog({ period, monthLabel, name, row, onClose }
     void queryClient.invalidateQueries({ queryKey: ['payroll-run'] });
     void queryClient.invalidateQueries({ queryKey: ['payroll-warnings'] });
     void queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
+    invalidatePayrollDependents(queryClient);
   };
 
   const mutation = useMutation({

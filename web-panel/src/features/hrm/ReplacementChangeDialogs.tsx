@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { hrApi } from '@/api/hr';
 import { Button } from '@/components/ui/Button';
@@ -8,17 +8,20 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/useToast';
 import { conflictHeading, conflictMessage } from '@/utils/coverConflict';
 import { formatDate } from '@/utils/formatters';
-import { friendlyErrorMessage } from '@/utils/hrHelpers';
+import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import {
   canEndCoverage,
   centsToAmount,
   defaultLastDay,
   describeEndChange,
+  editChangeReason,
+  editReasonOk,
   isIsoDate,
+  isStaleCoverError,
   validChangeReason,
   validPeriod,
 } from '@/utils/replacementChange';
-import type { ReplacementChangePreview, ReplacementHistoryEntry, TemporaryReplacement } from '@/types/employee';
+import type { ReplacementCreatePreview, ReplacementHistoryEntry, TemporaryReplacement } from '@/types/employee';
 import { useI18n } from '@/i18n/useI18n';
 import type { MessageKey } from '@/i18n/messages';
 import { EmployeePicker } from './ReplacementEmployeePicker';
@@ -27,7 +30,7 @@ import { EmployeePicker } from './ReplacementEmployeePicker';
  * What a change would do, as the server worked it out without saving anything: the days before and after, the cost of each month (for people who may see
  * payroll), the months that are already approved or finalized, whether the approval has to be given again, and whether the change would be refused.
  */
-function ChangePreviewPanel({ preview, loading }: { preview: ReplacementChangePreview | undefined; loading: boolean }) {
+export function ChangePreviewPanel({ preview, loading }: { preview: (ReplacementCreatePreview & { approval_will_be_cleared?: boolean }) | undefined; loading: boolean }) {
   const { t } = useI18n();
 
   if (!preview) return loading ? <p className="mb-3 text-xs text-ink-faint">{t('warning.pipeline.previewLoading')}</p> : null;
@@ -90,7 +93,7 @@ function ChangePreviewPanel({ preview, loading }: { preview: ReplacementChangePr
   );
 }
 
-function ConflictBox({ preview }: { preview: ReplacementChangePreview | undefined }) {
+export function ConflictBox({ preview }: { preview: ReplacementCreatePreview | undefined }) {
   const { t } = useI18n();
   const conflict = preview?.conflict ?? null;
   const error = preview?.errors?.[0] ?? null;
@@ -113,7 +116,7 @@ function ConflictBox({ preview }: { preview: ReplacementChangePreview | undefine
 }
 
 /** Reason box shown only when the change reaches approved or finalized payroll (Super Admin, written reason). */
-function ClosedPayrollReason({ preview, value, onChange }: { preview: ReplacementChangePreview | undefined; value: string; onChange: (value: string) => void }) {
+export function ClosedPayrollReason({ preview, value, onChange }: { preview: ReplacementCreatePreview | undefined; value: string; onChange: (value: string) => void }) {
   const { t } = useI18n();
 
   if (!preview?.requires_reason_for_closed_payroll || preview.requires_super_admin) return null;
@@ -135,6 +138,7 @@ function ClosedPayrollReason({ preview, value, onChange }: { preview: Replacemen
 export function EndReplacementModal({ replacement, onClose, onEnded }: { replacement: TemporaryReplacement; onClose: () => void; onEnded: () => void }) {
   const { t } = useI18n();
   const { show } = useToast();
+  const queryClient = useQueryClient();
   const [lastDay, setLastDay] = useState(defaultLastDay(replacement.end_date));
   const [confirmed, setConfirmed] = useState(false);
   const [reason, setReason] = useState('');
@@ -144,7 +148,8 @@ export function EndReplacementModal({ replacement, onClose, onEnded }: { replace
 
   const { data: preview, isFetching } = useQuery({
     queryKey: ['replacement-change-preview', 'end', replacement.id, lastDay],
-    queryFn: () => hrApi.temporaryReplacements.changePreview(replacement.id, { end_date: lastDay }),
+    // `for: 'end'` asks the same question the save asks: only a LATER last day can run into another cover (ending early is always allowed).
+    queryFn: () => hrApi.temporaryReplacements.changePreview(replacement.id, { end_date: lastDay, for: 'end' }),
     enabled: valid && isIsoDate(lastDay),
   });
 
@@ -164,12 +169,21 @@ export function EndReplacementModal({ replacement, onClose, onEnded }: { replace
       show(t('notify.pipeline.coverageEndedOn', { day: formatDate(lastDay) }));
       onEnded();
     },
-    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.couldNotEndCoverage')), 'error'),
+    onError: (err) => {
+      if (isStaleCoverError(err)) {
+        // Someone else changed the cover: the version held here can never succeed again, so refresh the list and close; reopening starts from the new version.
+        void queryClient.invalidateQueries({ queryKey: ['temporary-replacements'] });
+        show(t('notify.uiAuditB.coverChangedReloaded'), 'error');
+        onClose();
+        return;
+      }
+      show(friendlyErrorMessage(err, t('notify.pipeline.couldNotEndCoverage')), 'error');
+    },
   });
 
   const plannedEnd = replacement.end_date;
   const days = Math.abs(change.daysDelta);
-  const today = preview?.today ?? new Date().toISOString().slice(0, 10);
+  const today = preview?.today ?? localToday();
 
   return (
     <Modal
@@ -268,6 +282,7 @@ export function EndReplacementModal({ replacement, onClose, onEnded }: { replace
 export function EditReplacementModal({ replacement, onClose, onSaved }: { replacement: TemporaryReplacement; onClose: () => void; onSaved: () => void }) {
   const { t } = useI18n();
   const { show } = useToast();
+  const queryClient = useQueryClient();
   const [start, setStart] = useState(replacement.start_date);
   const [end, setEnd] = useState(replacement.end_date ?? '');
   const [employeeId, setEmployeeId] = useState(String(replacement.replacement_employee_id));
@@ -295,7 +310,8 @@ export function EditReplacementModal({ replacement, onClose, onSaved }: { replac
 
   const blocked = preview?.conflict != null || (preview?.errors?.length ?? 0) > 0 || (employeeChanged && preview?.employee_locked_by_records === true);
   const needsSuperAdmin = preview?.requires_super_admin === true;
-  const closedReasonOk = !preview?.requires_reason_for_closed_payroll || needsSuperAdmin || validChangeReason(closedReason);
+  // One written reason: the closed-payroll one when the change reaches approved or finalized payroll, the ordinary one otherwise.
+  const reachesClosed = preview?.requires_reason_for_closed_payroll === true && !needsSuperAdmin;
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -305,14 +321,22 @@ export function EditReplacementModal({ replacement, onClose, onSaved }: { replac
         replacement_employee_id: employeeChanged ? Number(employeeId) : undefined,
         reason: reason.trim() === '' ? null : reason.trim(),
         notes: notes.trim() === '' ? null : notes.trim(),
-        change_reason: preview?.requires_reason_for_closed_payroll && validChangeReason(closedReason) ? closedReason.trim() : whyChanged.trim(),
+        change_reason: editChangeReason(reachesClosed, whyChanged, closedReason),
         version: replacement.version,
       }),
     onSuccess: () => {
       show(t('notify.pipeline.replacementCorrected'));
       onSaved();
     },
-    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.couldNotCorrect')), 'error'),
+    onError: (err) => {
+      if (isStaleCoverError(err)) {
+        void queryClient.invalidateQueries({ queryKey: ['temporary-replacements'] });
+        show(t('notify.uiAuditB.coverChangedReloaded'), 'error');
+        onClose();
+        return;
+      }
+      show(friendlyErrorMessage(err, t('notify.pipeline.couldNotCorrect')), 'error');
+    },
   });
 
   return (
@@ -327,7 +351,7 @@ export function EditReplacementModal({ replacement, onClose, onSaved }: { replac
           <Button
             size="sm"
             isLoading={saveMutation.isPending}
-            disabled={!changed || !periodOk || !validChangeReason(whyChanged) || blocked || needsSuperAdmin || !closedReasonOk || isFetching}
+            disabled={!changed || !periodOk || !editReasonOk(reachesClosed, whyChanged, closedReason) || blocked || needsSuperAdmin || isFetching}
             onClick={() => saveMutation.mutate()}
           >
             {t('action.pipeline.saveCorrection')}
@@ -372,9 +396,11 @@ export function EditReplacementModal({ replacement, onClose, onSaved }: { replac
       {periodOk && datesChanged && <ChangePreviewPanel preview={preview} loading={isFetching} />}
       <ClosedPayrollReason preview={preview} value={closedReason} onChange={setClosedReason} />
 
-      <FormField label={t('option.pipeline.whyCorrecting')} htmlFor="tr-edit-why" required hint={t('validation.pipeline.minTenCharacters')}>
-        <textarea id="tr-edit-why" rows={2} maxLength={1000} className={`${inputClasses} h-auto py-2`} value={whyChanged} onChange={(e) => setWhyChanged(e.target.value)} />
-      </FormField>
+      {!reachesClosed && (
+        <FormField label={t('option.pipeline.whyCorrecting')} htmlFor="tr-edit-why" required hint={t('validation.pipeline.minTenCharacters')}>
+          <textarea id="tr-edit-why" rows={2} maxLength={1000} className={`${inputClasses} h-auto py-2`} value={whyChanged} onChange={(e) => setWhyChanged(e.target.value)} />
+        </FormField>
+      )}
     </Modal>
   );
 }

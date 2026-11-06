@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { returnState } from '@/utils/urlFilters';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +15,8 @@ import { Pagination } from '@/components/ui/Pagination';
 import { ListResultBar, ResetFiltersAction, ResetFiltersButton } from '@/components/ui/ListFilterControls';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PermissionGate } from '@/components/ui/PermissionGate';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import { useToast } from '@/components/ui/useToast';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { formatDate, initialsOf } from '@/utils/formatters';
@@ -50,13 +52,19 @@ export function FormerEmployeesPage() {
     placeholderData: (previous) => previous,
   });
 
+  // Rehiring is a real change (the person is Active again): it is confirmed first, exactly like on Employee Detail.
+  const [rehiring, setRehiring] = useState<Employee | null>(null);
+
   const rehireMutation = useMutation({
     mutationFn: (employeeId: number) => hrApi.employees.rehire(employeeId),
-    onSuccess: () => {
+    onSuccess: (_data, employeeId) => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['employee', employeeId] });
+      setRehiring(null);
       show(t('notify.pipeline.employeeRehired'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.couldNotRehire'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.couldNotRehire')), 'error'),
+    onSettled: () => setRehiring(null),
   });
 
   const columns = useMemo<ColumnDef<Employee, unknown>[]>(
@@ -114,10 +122,11 @@ export function FormerEmployeesPage() {
               size="sm"
               variant="outline"
               className="h-8 px-3 text-xs"
-              isLoading={rehireMutation.isPending}
+              isLoading={rehireMutation.isPending && rehireMutation.variables === row.original.id}
+              disabled={rehireMutation.isPending}
               onClick={(event) => {
                 event.stopPropagation();
-                rehireMutation.mutate(row.original.id);
+                setRehiring(row.original);
               }}
             >
               {t('action.rehire')}
@@ -162,6 +171,16 @@ export function FormerEmployeesPage() {
 
         {data && data.meta.total > 0 && <Pagination meta={data.meta} onPageChange={setPage} />}
       </Card>
+
+      <ConfirmDialog
+        isOpen={rehiring !== null}
+        title={t('confirm.employeeDetail.rehireTitle')}
+        description={`${rehiring?.full_name ?? ''} (${rehiring?.employee_number ?? ''}) - ${t('confirm.employeeDetail.rehireBody')}`}
+        confirmLabel={t('action.rehire')}
+        isLoading={rehireMutation.isPending}
+        onCancel={() => setRehiring(null)}
+        onConfirm={() => rehiring && rehireMutation.mutate(rehiring.id)}
+      />
     </div>
   );
 }

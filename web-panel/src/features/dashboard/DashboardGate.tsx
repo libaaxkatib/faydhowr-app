@@ -1,6 +1,9 @@
 import { Navigate } from 'react-router-dom';
 
+import { LoadingState } from '@/components/ui/LoadingState';
 import { PageState } from '@/components/ui/PageState';
+import { PermissionsUnavailable } from '@/features/auth/PermissionsUnavailable';
+import { useAuth } from '@/features/auth/useAuth';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { useI18n } from '@/i18n/useI18n';
@@ -12,13 +15,15 @@ import { firstAllowedPath } from '@/layouts/navVisibility';
  * an error. They are taken to the first page in their sidebar instead (or told they have no access when there is none).
  */
 export function DashboardGate() {
-  const { hasPermission, isSuperAdmin, isLoading } = useEffectivePermissions();
+  const { hasPermission, isSuperAdmin, isLoading, isError, refetch } = useEffectivePermissions();
+  const role = useAuth().admin?.role;
   const { t } = useI18n();
 
-  if (isLoading) return null;
+  if (isLoading) return <LoadingState />;
+  if (isError) return <PermissionsUnavailable onRetry={() => void refetch()} />;
   if (isSuperAdmin || hasPermission('dashboard.view')) return <DashboardPage />;
 
-  const home = firstAllowedPath(NAV_GROUPS, hasPermission, isSuperAdmin);
+  const home = firstAllowedPath(NAV_GROUPS, hasPermission, isSuperAdmin, role);
   if (home) return <Navigate to={home} replace />;
 
   return <PageState icon="shield" title={t('warning.shell.accessRestricted')} description={t('warning.common.noAccessText')} />;

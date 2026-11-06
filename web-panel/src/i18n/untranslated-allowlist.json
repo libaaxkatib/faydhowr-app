@@ -370,16 +370,6 @@
     "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
   },
   {
-    "file": "features/hrm/TemporaryReplacementHistoryPage.tsx",
-    "text": "Active",
-    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
-  },
-  {
-    "file": "features/hrm/TemporaryReplacementHistoryPage.tsx",
-    "text": "Ended",
-    "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."
-  },
-  {
     "file": "features/hrm/TemporaryReplacementsPage.tsx",
     "text": "Temporary Replacements",
     "reason": "English fallback or label beside a labelKey / stored value: the screen shows tValue(prefix, value) or t(key) and falls back to this text, so English is unchanged."

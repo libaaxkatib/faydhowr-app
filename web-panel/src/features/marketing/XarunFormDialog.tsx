@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
 import { useI18n } from '@/i18n/useI18n';
+import { useAuth } from '@/features/auth/useAuth';
+import { defaultTeamId, isMarketingUnrestricted } from '@/utils/marketingAccess';
+import { invalidateMarketing } from '@/utils/marketingCache';
 import { needLabel } from '@/utils/marketingLabels';
 import type { MarketingRecord } from '@/types/marketing';
 
@@ -32,6 +35,7 @@ const emptyForm = {
   feedback: '',
   assigned_team_id: '',
   assigned_admin_id: '',
+  brought_by_admin_id: '',
 };
 
 /** XARUN-only form, per docs/HRM_MARKETING_SRS.md §7-8 — never shared with PROJECT. */
@@ -41,13 +45,19 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
   const { t } = useI18n();
   const [form, setForm] = useState(emptyForm);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const { admin, isSuperAdmin } = useAuth();
+  const unrestricted = isMarketingUnrestricted({ isSuperAdmin, role: admin?.role });
+  // A team member who belongs to exactly one team starts with that team chosen (they can change it); nobody else gets a team chosen for them.
+  const [teamTouched, setTeamTouched] = useState(false);
 
   const { data: teams } = useQuery({ queryKey: ['marketing-teams'], queryFn: marketingApi.teams.list });
   const { data: employees } = useQuery({ queryKey: ['marketing-employees'], queryFn: marketingApi.employees.list });
+  const effectiveTeamId = teamTouched ? form.assigned_team_id : form.assigned_team_id || defaultTeamId(unrestricted, teams);
 
   useEffect(() => {
     if (isOpen) {
       setFieldErrors({});
+      setTeamTouched(false);
       setForm(
         record?.xarun
           ? {
@@ -61,6 +71,7 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
               feedback: record.feedback ?? '',
               assigned_team_id: record.assigned_team_id ? String(record.assigned_team_id) : '',
               assigned_admin_id: record.assigned_admin_id ? String(record.assigned_admin_id) : '',
+              brought_by_admin_id: '',
             }
           : emptyForm,
       );
@@ -81,15 +92,16 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
       if (mode === 'create') {
         return marketingApi.xarun.create({
           ...base,
-          assigned_team_id: form.assigned_team_id ? Number(form.assigned_team_id) : null,
+          assigned_team_id: effectiveTeamId ? Number(effectiveTeamId) : null,
           assigned_admin_id: form.assigned_admin_id ? Number(form.assigned_admin_id) : null,
+          ...(unrestricted && form.brought_by_admin_id ? { brought_by_admin_id: Number(form.brought_by_admin_id) } : {}),
         });
       }
       return marketingApi.xarun.update(record!.id, { ...base, feedback: form.feedback || null });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketing-records'] });
-      if (record) queryClient.invalidateQueries({ queryKey: ['marketing-record', record.id] });
+      // Everything Marketing shows may change with a record (lists, this record, dashboard counters, follow-ups, reports).
+      invalidateMarketing(queryClient);
       show(mode === 'create' ? t('notify.marketing.recordRegistered', { type: 'XARUN' }) : t('notify.marketing.recordUpdated', { type: 'XARUN' }));
       onClose();
     },
@@ -134,7 +146,7 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
           <input id="facility_name" required className={inputClasses} value={form.facility_name} onChange={(e) => setForm({ ...form, facility_name: e.target.value })} />
         </FormField>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField label={t('option.marketing.managerContactPerson')} htmlFor="manager_name" error={fieldErrors.manager_name?.[0]}>
             <input id="manager_name" className={inputClasses} value={form.manager_name} onChange={(e) => setForm({ ...form, manager_name: e.target.value })} />
           </FormField>
@@ -143,7 +155,7 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
           </FormField>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField label={t('option.label.phone')} htmlFor="phone" error={fieldErrors.phone?.[0]}>
             <input id="phone" className={inputClasses} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </FormField>
@@ -170,12 +182,15 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
         </FormField>
 
         {mode === 'create' && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormField label={t('option.marketing.assignedTeam')} htmlFor="assigned_team_id">
               <Select
                 id="assigned_team_id"
-                value={form.assigned_team_id}
-                onChange={(e) => setForm({ ...form, assigned_team_id: e.target.value })}
+                value={effectiveTeamId}
+                onChange={(e) => {
+                  setTeamTouched(true);
+                  setForm({ ...form, assigned_team_id: e.target.value });
+                }}
                 placeholder={t('option.employees.unassigned')}
                 options={(teams ?? []).map((team) => ({ value: String(team.id), label: team.name }))}
               />
@@ -192,7 +207,20 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
           </div>
         )}
 
-        <FormField label={t('option.label.description')} htmlFor="description" error={fieldErrors.description?.[0]}>
+        {mode === 'create' && unrestricted && (
+          <FormField label={t('option.marketing.broughtBy')} htmlFor="brought_by_admin_id" hint={t('option.marketing.broughtByHint')} error={fieldErrors.brought_by_admin_id?.[0]}>
+            <Select
+              id="brought_by_admin_id"
+              value={form.brought_by_admin_id}
+              onChange={(e) => setForm({ ...form, brought_by_admin_id: e.target.value })}
+              placeholder={t('option.marketing.broughtByDefault')}
+              options={(employees ?? []).map((e) => ({ value: String(e.id), label: e.full_name }))}
+            />
+          </FormField>
+        )}
+
+        <FormField label={t('option.label.description')}
+ htmlFor="description" error={fieldErrors.description?.[0]}>
           <textarea id="description" rows={3} className={inputClasses + ' h-auto py-2'} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </FormField>
 

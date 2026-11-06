@@ -61,13 +61,14 @@ export function FacilityComplaintsPage() {
   const from = dateParam(searchParams.get('from'));
   const to = dateParam(searchParams.get('to'));
   const page = pageFromParam(searchParams.get('page'));
+  const showVoided = searchParams.get('voided') === '1';
   const [creating, setCreating] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
 
   const { data: companies } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list });
   const list = useQuery({
-    queryKey: ['facility-complaints', company, type, status, satisfaction, from, to, page],
-    queryFn: () => facilityApi.complaints.list({ client_company_id: company ? Number(company) : undefined, type, status, satisfaction, from: from || undefined, to: to || undefined, page, per_page: 15 }),
+    queryKey: ['facility-complaints', company, type, status, satisfaction, from, to, page, showVoided],
+    queryFn: () => facilityApi.complaints.list({ client_company_id: company ? Number(company) : undefined, type, status, satisfaction, from: from || undefined, to: to || undefined, include_voided: showVoided ? 1 : undefined, page, per_page: 15 }),
     placeholderData: (previous) => previous,
   });
 
@@ -111,6 +112,10 @@ export function FacilityComplaintsPage() {
           <Select value={type} onChange={(e) => setParam('type', e.target.value)} placeholder={t('option.facility.allTypes')} aria-label={t('option.label.type')} className="w-44" options={TYPE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))} />
           <Select value={status} onChange={(e) => setParam('status', e.target.value)} placeholder={t('option.facility.anyStatus')} aria-label={t('option.label.status')} className="w-44" options={STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))} />
           <Select value={satisfaction} onChange={(e) => setParam('satisfaction', e.target.value)} placeholder={t('option.facility.anySatisfaction')} aria-label={t('option.facility.satisfactionLabel')} className="w-48" options={SATISFACTION_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))} />
+          <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+            <input type="checkbox" checked={showVoided} onChange={(e) => setParam('voided', e.target.checked ? '1' : '')} data-testid="show-voided" />
+            {t('option.facility.showVoided')}
+          </label>
           {(from || to) && (
             <span className="rounded-full bg-surface-alt px-3 py-1 text-xs text-ink-muted" data-testid="period-filter">{t('option.facility.reportedPeriod', { from: from ? formatDate(from) : t('option.facility.fromTheStart'), to: to ? formatDate(to) : t('option.facility.todayWord') })}</span>
           )}
@@ -135,6 +140,7 @@ export function FacilityComplaintsPage() {
                   <p className="truncate text-xs text-ink-muted">{complaint.details}</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {complaint.voided && <StatusBadge status="voided" tone="neutral" label={t('status.facility.voided')} />}
                   <StatusBadge status={complaint.status} label={tValue('option.facility.status', complaint.status) ?? complaint.status_label} tone={complaintStatusTone(complaint.status)} />
                   <span className="text-xs text-ink-muted">{satisfactionText(complaint.satisfaction)}</span>
                 </div>

@@ -41,9 +41,54 @@ class TemporaryReplacementController extends Controller
         $workAssignment = EmployeeWorkAssignment::query()->findOrFail($request->validated('work_assignment_id'));
         $replacementEmployee = Employee::query()->findOrFail($request->validated('replacement_employee_id'));
 
-        $replacement = $action->handle($workAssignment, $replacementEmployee, $request->safe()->except(['work_assignment_id', 'replacement_employee_id']), $request->user());
+        $replacement = $action->handle(
+            $workAssignment,
+            $replacementEmployee,
+            $request->safe()->except(['work_assignment_id', 'replacement_employee_id', 'correction_reason']),
+            $request->user(),
+            $request->validated('correction_reason'),
+        );
 
         return ApiResponse::success('Temporary replacement recorded successfully.', new TemporaryReplacementResource($replacement), 201);
+    }
+
+    /**
+     * What SAVING a new cover would do (owner decision UG-3), without saving anything: the days, the cost of each month (for people who may see payroll), which
+     * months are approved or finalized (a cover that reaches one needs a correction reason from a Super Admin or HR Manager), and whether it would be refused.
+     */
+    public function createPreview(Request $request, ReplacementChangeImpact $impact, AdminPermissionResolver $permissions): JsonResponse
+    {
+        $data = $request->validate([
+            'work_assignment_id' => ['required', 'integer', 'exists:employee_work_assignments,id'],
+            'replacement_employee_id' => ['required', 'integer', 'exists:employees,id'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['nullable', 'date'],
+        ]);
+
+        $position = EmployeeWorkAssignment::query()->findOrFail($data['work_assignment_id']);
+        $employee = Employee::query()->findOrFail($data['replacement_employee_id']);
+        $start = CarbonImmutable::parse($data['start_date'])->toDateString();
+        $end = empty($data['end_date']) ? null : CarbonImmutable::parse($data['end_date'])->toDateString();
+
+        $errors = [];
+
+        if ($end !== null && $end < $start) {
+            $errors[] = ['code' => 'TEMPORARY_REPLACEMENT_END_BEFORE_START', 'message' => 'The end date cannot be before the start date.'];
+        }
+
+        $seesMoney = $permissions->has($request->user(), AdminPermission::HrPayrollView->value, $request);
+        $result = $impact->forCreate(new TemporaryReplacement(['work_assignment_id' => $position->id, 'replacement_employee_id' => $employee->id, 'start_date' => $start, 'end_date' => $end]), $seesMoney);
+        $conflict = $errors === [] ? CoverConflicts::find($position, $employee, $start, $end) : null;
+        $mayCorrectClosed = CorrectionAuthority::mayCorrectClosedPayroll($request->user());
+
+        return ApiResponse::success('Create preview completed.', [
+            ...$result,
+            'errors' => $errors,
+            'conflict' => $conflict,
+            'requires_super_admin' => $result['changes_locked_period'] && ! $mayCorrectClosed,
+            'requires_reason_for_closed_payroll' => $result['changes_locked_period'],
+            'sees_money' => $seesMoney,
+        ]);
     }
 
     /** Would this cover be refused? Never saves anything; the save runs the very same check again. */
@@ -115,7 +160,12 @@ class TemporaryReplacementController extends Controller
         $employee = ! empty($data['replacement_employee_id']) ? Employee::query()->find($data['replacement_employee_id']) : $temporaryReplacement->replacementEmployee;
         $conflict = null;
 
-        if ($errors === [] && $employee !== null) {
+        // End Coverage (`for=end`) is checked exactly like the save: only a LATER last day can add days, so only then can it run into another cover (ending
+        // early or on the recorded day is always allowed - EndTemporaryReplacementAction). Every other change is checked as the correction is.
+        $recordedEnd = $temporaryReplacement->end_date?->toDateString();
+        $skipConflictCheck = $request->query('for') === 'end' && ! ($recordedEnd !== null && $end !== null && $end > $recordedEnd);
+
+        if ($errors === [] && $employee !== null && ! $skipConflictCheck) {
             $conflict = CoverConflicts::find($temporaryReplacement->workAssignment()->firstOrFail(), $employee, $start, $end, $temporaryReplacement->id);
         }
 

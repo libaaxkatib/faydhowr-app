@@ -4,12 +4,18 @@ namespace App\Actions\Hr;
 
 use App\Enums\AuditAction;
 use App\Enums\EmployeeStatus;
+use App\Enums\TemporaryReplacementStatus;
+use App\Enums\WorkAssignmentStatus;
 use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\Employee;
 use App\Models\EmployeeStatusHistory;
+use App\Models\EmployeeWorkAssignment;
+use App\Models\TemporaryReplacement;
+use App\Support\ApiResponse;
 use App\Support\Hr\EmployeeRegistrationWorkflow;
 use App\Support\Hr\EmployeeTransitionGuard;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -41,6 +47,10 @@ class UpdateEmployeeStatusAction
             $from = $locked->status;
 
             $usedOverride = $this->guard->authorize($from, $status, EmployeeTransitionGuard::CONTEXT_STATUS_UPDATE, $actor, $overrideReason);
+
+            if ($status === EmployeeStatus::Inactive) {
+                $this->assertNothingStillOpen($locked);
+            }
 
             // A NEW registration cannot become Waiting / Approved / Active before the registration workflow is complete; only a Super
             // Admin can go around it, with a written reason that is recorded. Existing records are not held to this.
@@ -97,5 +107,31 @@ class UpdateEmployeeStatusAction
 
             return $locked->load(['category', 'department', 'position', 'statusHistories.changedBy']);
         });
+    }
+
+    /**
+     * Owner decision UG-6: this path (the Super Admin override) may NOT make a person Inactive while an assignment is still Active - even one whose
+     * end date is already in the past - or while the person covers a position as a Temporary Replacement. Nothing is closed automatically and no
+     * other assignment is touched: HR ends the assignments and covers first, or uses Separation, which closes assignments itself.
+     */
+    private function assertNothingStillOpen(Employee $employee): void
+    {
+        $assignments = EmployeeWorkAssignment::query()->where('employee_id', $employee->id)->where('status', WorkAssignmentStatus::Active)->count();
+        $covers = TemporaryReplacement::query()->where('replacement_employee_id', $employee->id)->where('status', TemporaryReplacementStatus::Active)->count();
+
+        if ($assignments === 0 && $covers === 0) {
+            return;
+        }
+
+        $parts = array_filter([
+            $assignments > 0 ? "{$assignments} assignment(s) still marked Active (an assignment with an end date in the past is still Active until it is ended)" : null,
+            $covers > 0 ? "{$covers} active Temporary Replacement cover(s)" : null,
+        ]);
+
+        throw new HttpResponseException(ApiResponse::error(
+            "{$employee->full_name} cannot be made Inactive here: the person still has ".implode(' and ', $parts).'. End those first, or use Separation (Mark Inactive), which closes the assignments itself. Nothing was changed.',
+            'EMPLOYEE_HAS_OPEN_ASSIGNMENTS',
+            422,
+        ));
     }
 }

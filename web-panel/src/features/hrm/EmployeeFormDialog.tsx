@@ -13,7 +13,7 @@ import { ApiClientError } from '@/api/client';
 import type { I18nContextValue } from '@/i18n/i18nContext';
 import type { MessageKey, Translate } from '@/i18n/messages';
 import { useI18n } from '@/i18n/useI18n';
-import { duplicateMatchesFromError, friendlyErrorMessage } from '@/utils/hrHelpers';
+import { duplicateMatchesFromError, friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import { recruitmentCategories } from '@/utils/employeeCategories';
 import { isBlockedTypeChange, isTypeChangeBlockedError } from '@/utils/employmentTypeChange';
 import type {
@@ -62,7 +62,8 @@ const emptyForm = {
   category_specialization: '',
   department_id: '',
   position_id: '',
-  application_date: new Date().toISOString().slice(0, 10),
+  // Filled with the user's own calendar day each time the form opens (never the day the page was loaded, never the UTC day).
+  application_date: '',
   joining_date: '',
   experience: '',
   training_fee_amount: '',
@@ -75,7 +76,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
   const queryClient = useQueryClient();
   const { show } = useToast();
   const { t } = useI18n();
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => ({ ...emptyForm, application_date: localToday() }));
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   // Live warning from GET employees/duplicate-check, shown while typing.
   const [liveMatches, setLiveMatches] = useState<DuplicateEmployeeMatch[]>([]);
@@ -132,7 +133,7 @@ export function EmployeeFormDialog({ isOpen, onClose, mode, employee }: Employee
               source: employee.source ?? '',
               notes: employee.notes ?? '',
             }
-          : emptyForm,
+          : { ...emptyForm, application_date: localToday() },
       );
     }
   }, [isOpen, employee]);

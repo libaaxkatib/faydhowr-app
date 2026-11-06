@@ -77,7 +77,8 @@ test('routes, permissions, icons and flags of the Marketing, Mobile App and Syst
     ['Settings', '/system/settings', 'settings', 'settings.view', false, false],
     ['Translations', '/system/translations', 'message-circle', null, false, false],
     ['Recovery Center', '/system/recovery', 'refresh', null, false, false],
-    ['Audit Log', '/system/audit-log', 'list', 'admins.manage', false, false],
+    // Owner decision UG-4: the audit log is opened by role (Super Admin + HR Manager), not by admins.manage; the other two items are Super-Admin-only.
+    ['Audit Log', '/system/audit-log', 'list', null, false, false],
     ['Data Issues & Reconciliation', '/system/data-issues', 'alert-triangle', 'reconciliation.view', false, false],
   ]);
 });

@@ -9,6 +9,7 @@ import { getActiveLanguage, tNow } from '../i18n/active.ts';
 import type { MessageKey } from '../i18n/messages/index.ts';
 import type { EmployeeAdvance, EmployeePenalty, RecordEmployeeAdvancePayload, RecordEmployeePenaltyPayload } from '../types/employee.ts';
 import type { DeductionBalanceFilters, DeductionBalanceRow, DeductionBalances, DeductionPath, PayrollDeductionDetail, PayrollDeductionKind } from '../types/payroll.ts';
+import { facilityToday } from './facility.ts';
 import { formatCurrency } from './formatters.ts';
 import { errorCodeOf, friendlyErrorMessage } from './hrHelpers.ts';
 
@@ -24,6 +25,18 @@ export const MIN_REASON_LENGTH = 3;
 
 /** The earliest payroll month the server accepts. */
 export const EARLIEST_PERIOD = '2020-01';
+
+/** The earliest date of a penalty or an advance the server accepts (DeductionRules::date). */
+export const EARLIEST_DATE = '2020-01-01';
+
+/** The largest single amount the server accepts (DeductionRules::MAX_AMOUNT: a typing-mistake guard). */
+export const MAX_AMOUNT = 1000000;
+
+/** The longest reason the server accepts (DeductionRules::reason: 3 to 500 characters). */
+export const MAX_REASON_LENGTH = 500;
+
+/** The longest note the server accepts. */
+export const MAX_NOTES_LENGTH = 2000;
 
 // ---------------------------------------------------------------- who is offered what (the server checks the role again)
 
@@ -72,7 +85,9 @@ export function amountProblem(text: string): MessageKey | null {
   if (value === '') return null;
   if (!AMOUNT_PATTERN.test(value)) return /^\d+\.\d{3,}$/.test(value) ? 'validation.deduction.amountDecimals' : 'validation.deduction.amountPositive';
 
-  return Number(value) > 0 ? null : 'validation.deduction.amountPositive';
+  if (Number(value) <= 0) return 'validation.deduction.amountPositive';
+
+  return Number(value) > MAX_AMOUNT ? 'validation.deduction.amountTooLarge' : null;
 }
 
 /** True when the amount box holds a valid positive amount of at most two decimals. */
@@ -89,9 +104,20 @@ export function waiveAmountProblem(text: string, owedCents: number): MessageKey 
   return toCents(text) > owedCents ? 'validation.deduction.amountTooMuch' : null;
 }
 
-/** A reason (or correction reason) of at least three characters once trimmed. */
+/** A reason (or correction reason) of 3 to 500 characters once trimmed (the server's rule). */
 export function reasonReady(text: string): boolean {
-  return text.trim().length >= MIN_REASON_LENGTH;
+  const length = text.trim().length;
+
+  return length >= MIN_REASON_LENGTH && length <= MAX_REASON_LENGTH;
+}
+
+/** Why the reason typed so far cannot be sent, or null (an empty box is not an error here: the button stays off). */
+export function reasonProblem(text: string): MessageKey | null {
+  const length = text.trim().length;
+  if (length === 0) return null;
+  if (length < MIN_REASON_LENGTH) return 'validation.deduction.reasonShort';
+
+  return length > MAX_REASON_LENGTH ? 'validation.deduction.reasonLong' : null;
 }
 
 /** The payroll month as the server accepts it: YYYY-MM, not before 2020-01 and not after next month. `now` is the current moment (a parameter for tests). */
@@ -103,14 +129,18 @@ export function periodProblem(period: string, now: Date): MessageKey | null {
   return period < EARLIEST_PERIOD || period > latest ? 'validation.deduction.periodRange' : null;
 }
 
-/** The date of a penalty or an advance: a real date that is not in the future (owner decision: no future-dated records). `date` is YYYY-MM-DD. */
+/**
+ * The date of a penalty or an advance: a real date from 2020-01-01 that is not in the future (owner decision: no future-dated records). `date` is YYYY-MM-DD.
+ * "Today" is the Mogadishu calendar day, the same day the server checks the date against - not the day of the browser's own clock.
+ */
 export function dateProblem(date: string, now: Date): MessageKey | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return 'validation.deduction.dateInvalid';
   const [year, month, day] = date.split('-').map(Number);
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const picked = new Date(year, month - 1, day);
+  if (picked.getFullYear() !== year || picked.getMonth() !== month - 1 || picked.getDate() !== day) return 'validation.deduction.dateInvalid';
+  if (date < EARLIEST_DATE) return 'validation.deduction.dateTooEarly';
 
-  return picked.getTime() > today.getTime() ? 'validation.deduction.dateFuture' : null;
+  return date > facilityToday(now) ? 'validation.deduction.dateFuture' : null;
 }
 
 // ---------------------------------------------------------------- registering

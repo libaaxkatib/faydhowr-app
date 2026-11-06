@@ -10,7 +10,10 @@ const dashboard = readFileSync(new URL('../features/hrm/HrDashboardPage.tsx', im
 
 test('the financial cards are labelled with the calendar month and the payroll group with its payroll month', () => {
   assert.match(dashboard, /data-testid="dashboard-calendar-month"[^>]*>\{t\('option\.hr\.calendarMonthLabel', \{ month: monthName\(data\.calendar_month\) \}\)\}/);
-  assert.match(dashboard, /data-testid="dashboard-payroll-month-label"[^>]*>\{t\('option\.hr\.payrollMonthLabel', \{ month: monthName\(payrollMonth \?\? data\.payroll\.period\) \}\)\}/);
+  // D-9 (2026-11-05): the label names the month of the FIGURES on screen (data.payroll.period), not the month just picked - while a new month loads, the
+  // old figures stay on screen and a label of the picked month would describe numbers that are not that month's.
+  assert.match(dashboard, /data-testid="dashboard-payroll-month-label"[^>]*>\{t\('option\.hr\.payrollMonthLabel', \{ month: monthName\(data\.payroll\.period\) \}\)\}/);
+  assert.doesNotMatch(dashboard, /monthName\(payrollMonth \?\? data\.payroll\.period\)/);
 });
 
 test('the labels are the two proposed messages with their {month} placeholder in both languages', () => {

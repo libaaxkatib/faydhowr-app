@@ -13,6 +13,7 @@ import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
 import { inputClasses } from '@/components/ui/FormField';
 import type { AttendanceStatus } from '@/types/employee';
+import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import type { MessageKey } from '@/i18n/messages';
 import { useI18n } from '@/i18n/useI18n';
 
@@ -38,7 +39,7 @@ export function AttendancePage() {
   const queryClient = useQueryClient();
   const { show } = useToast();
   const { t } = useI18n();
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(localToday());
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['attendance', date],
@@ -53,7 +54,7 @@ export function AttendancePage() {
       queryClient.invalidateQueries({ queryKey: ['attendance', date] });
       queryClient.invalidateQueries({ queryKey: ['hr-dashboard'] });
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.couldNotRecordAttendance'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.couldNotRecordAttendance')), 'error'),
   });
 
   return (
@@ -75,14 +76,14 @@ export function AttendancePage() {
         {data && data.length > 0 && (
           <div className="divide-y divide-border">
             {data.map((entry) => (
-              <div key={entry.id} className="flex items-center justify-between gap-3 px-5 py-3">
-                <div className="min-w-0">
+              <div key={entry.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+                <div className="min-w-0 basis-40 flex-1">
                   <p className="truncate text-sm font-medium text-ink">{entry.full_name}</p>
                   <p className="truncate text-xs text-ink-muted">
                     {entry.employee_number} {entry.position_name && `· ${entry.position_name}`}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {entry.attendance_status ? (
                     <StatusBadge status={entry.attendance_status} label={t(STATUS_LABEL_KEY[entry.attendance_status])} tone={STATUS_TONE[entry.attendance_status]} />
                   ) : (

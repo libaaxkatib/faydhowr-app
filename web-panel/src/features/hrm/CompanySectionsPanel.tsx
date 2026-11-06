@@ -19,8 +19,9 @@ import { useI18n } from '@/i18n/useI18n';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import { sourceChangesFromError } from '@/utils/sourceChanges';
+import { invalidatePayrollDependents } from '@/utils/payrollQueries';
 import { amountOrDash, buildCompanyRows, canGenerateCompany, companyStateBadge, reopenNeedsSuperAdmin, type CompanyListRow } from '@/utils/payrollOverview';
-import { MONTH_STATUS_LABEL, PAYMENT_STATUS_LABEL, canReconcile, monthDisplayStatus, paymentActions, sectionActions, sectionName, type PaymentAction, type SectionAction } from '@/utils/payrollSections';
+import { MONTH_STATUS_LABEL, PAYMENT_STATUS_LABEL, canReconcile, isPaidLineByLineOnly, monthDisplayStatus, paymentActions, sectionActions, sectionHasPaidLines, sectionName, type PaymentAction, type SectionAction } from '@/utils/payrollSections';
 import type { PayrollOverviewCompany, PayrollRun, PayrollRunSection, SourceChange } from '@/types/payroll';
 
 const PERIOD_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -96,6 +97,8 @@ export function CompanySectionsPanel({ period, run, monthLabel, canManage, canAp
     void queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
     // Reopening a company's month supersedes its corrections, so the corrections panel is refreshed as well.
     void queryClient.invalidateQueries({ queryKey: ['payroll-corrections'] });
+    // The dashboard, the ledger and the employee screens show payroll results too.
+    invalidatePayrollDependents(queryClient);
   };
 
   const mutation = useMutation({
@@ -187,7 +190,7 @@ export function CompanySectionsPanel({ period, run, monthLabel, canManage, canAp
           <table className="w-full min-w-[80rem] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs text-ink-muted">
-                <th className="px-4 py-2 font-medium">{t('option.payroll.fieldCompany')}</th>
+                <th className="sticky left-0 !z-20 bg-surface-alt px-4 py-2 font-medium">{t('option.payroll.fieldCompany')}</th>
                 <th className="px-3 py-2 font-medium">{t('option.payroll.colState')}</th>
                 <th className="px-3 py-2 text-right font-medium">{t('option.label.employees')}</th>
                 <th className="px-3 py-2 text-right font-medium">{t('option.payroll.gross')}</th>
@@ -207,7 +210,9 @@ export function CompanySectionsPanel({ period, run, monthLabel, canManage, canAp
                 const payStatus = section ? PAYMENT_STATUS_LABEL[section.payment_status] : null;
                 const stateBadge = ov ? companyStateBadge(ov) : null;
                 const paidReopenBlocked = section ? reopenNeedsSuperAdmin(section, isSuperAdmin) : false;
-                const actions = section ? sectionActions(section.status, canManage, canApprove, paidReopenBlocked) : [];
+                // A finalized company with lines marked paid one by one cannot be reopened (the server asks for those payments to be voided first).
+                const paidLinesBlocked = section ? section.status === 'finalized' && sectionHasPaidLines(run?.items, section.id) : false;
+                const actions = section ? sectionActions(section.status, canManage, canApprove, paidReopenBlocked || paidLinesBlocked) : [];
                 const payments = section ? paymentActions(section, canApprove) : [];
                 const selected = section !== null && selectedSectionId === section.id;
                 const warningCount = ov ? ov.generation_warning_count : (section?.generation_warnings?.length ?? 0);
@@ -222,7 +227,7 @@ export function CompanySectionsPanel({ period, run, monthLabel, canManage, canAp
                     data-payment-status={section?.payment_status ?? ''}
                     data-state={ov?.state ?? ''}
                   >
-                    <td className="px-4 py-2 font-medium text-ink">
+                    <td className={`sticky left-0 z-[1] px-4 py-2 font-medium text-ink ${selected ? 'bg-primary-soft' : 'bg-surface'}`}>
                       {rowName(row)}
                       {warningCount > 0 && (
                         <span className="mt-1 block w-fit rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning" data-testid="company-warning-count">
@@ -305,8 +310,14 @@ export function CompanySectionsPanel({ period, run, monthLabel, canManage, canAp
                           </Button>
                         )}
                       </div>
-                      {canApprove && paidReopenBlocked && (
+                      {canApprove && paidReopenBlocked && !paidLinesBlocked && (
                         <p className="mt-1 max-w-[18rem] text-right text-xs text-ink-muted" data-testid={`section-reopen-hint-${section?.id}`}>{t('warning.payroll.reopenPaidSuperAdmin')}</p>
+                      )}
+                      {canApprove && paidLinesBlocked && (
+                        <p className="mt-1 max-w-[18rem] text-right text-xs text-ink-muted" data-testid={`section-paid-lines-hint-${section?.id}`}>{t('warning.payroll.reopenPaidLines')}</p>
+                      )}
+                      {canApprove && section && isPaidLineByLineOnly(section) && (
+                        <p className="mt-1 max-w-[18rem] text-right text-xs text-ink-muted" data-testid={`section-line-by-line-hint-${section.id}`}>{t('warning.payroll.noCompanyPayLine')}</p>
                       )}
                     </td>
                   </tr>

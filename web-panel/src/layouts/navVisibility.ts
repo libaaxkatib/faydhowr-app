@@ -20,10 +20,13 @@ export function isRealItemVisible(
   item: NavLeaf,
   hasPermission: (key: string) => boolean,
   isSuperAdmin: boolean,
+  role?: string,
 ): boolean {
   if (item.comingSoon) return false;
   if (item.superAdminOnly) return isSuperAdmin;
   if (isSuperAdmin) return true;
+  // A page the backend opens by ROLE (audit log, compliance report): the role must be one of the listed ones, on top of any permission it also needs.
+  if (item.roles && (role === undefined || !item.roles.includes(role))) return false;
   if (!item.permission) return true;
   if (item.alsoPermission && !hasPermission(item.alsoPermission)) return false;
   return hasPermission(item.permission);
@@ -33,10 +36,10 @@ export function isRealItemVisible(
  * Where an admin who may not open the Dashboard (the backend asks for dashboard.view, which only some roles hold) should land instead: the first page
  * in the sidebar they can really use, or null when there is none.
  */
-export function firstAllowedPath(groups: NavGroup[], hasPermission: (key: string) => boolean, isSuperAdmin: boolean): string | null {
+export function firstAllowedPath(groups: NavGroup[], hasPermission: (key: string) => boolean, isSuperAdmin: boolean, role?: string): string | null {
   for (const group of groups) {
     for (const item of group.items) {
-      if (isRealItemVisible(item, hasPermission, isSuperAdmin)) return item.to;
+      if (isRealItemVisible(item, hasPermission, isSuperAdmin, role)) return item.to;
     }
   }
 
@@ -52,8 +55,8 @@ export function firstAllowedPath(groups: NavGroup[], hasPermission: (key: string
  * group — including any comingSoon placeholders — disappears rather than
  * showing a section with nothing real in it.
  */
-export function isGroupVisible(group: NavGroup, hasPermission: (key: string) => boolean, isSuperAdmin: boolean): boolean {
-  return isSuperAdmin || group.items.some((item) => isRealItemVisible(item, hasPermission, isSuperAdmin));
+export function isGroupVisible(group: NavGroup, hasPermission: (key: string) => boolean, isSuperAdmin: boolean, role?: string): boolean {
+  return isSuperAdmin || group.items.some((item) => isRealItemVisible(item, hasPermission, isSuperAdmin, role));
 }
 
 /**
@@ -62,6 +65,6 @@ export function isGroupVisible(group: NavGroup, hasPermission: (key: string) => 
  * (same UX as before this fix, for anyone who does have real access to the
  * group) — only a real item needs its own permission check.
  */
-export function isItemRenderable(item: NavLeaf, hasPermission: (key: string) => boolean, isSuperAdmin: boolean): boolean {
-  return item.comingSoon === true || isRealItemVisible(item, hasPermission, isSuperAdmin);
+export function isItemRenderable(item: NavLeaf, hasPermission: (key: string) => boolean, isSuperAdmin: boolean, role?: string): boolean {
+  return item.comingSoon === true || isRealItemVisible(item, hasPermission, isSuperAdmin, role);
 }

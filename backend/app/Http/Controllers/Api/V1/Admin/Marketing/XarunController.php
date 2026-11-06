@@ -19,6 +19,9 @@ class XarunController extends Controller
     public function store(StoreXarunRequest $request, CreateXarunRecordAction $action): JsonResponse
     {
         MarketingScope::guardAssignment($request->user(), $request->validated('assigned_team_id'), $request->validated('assigned_admin_id'));
+        // "Brought by" credits a person with the lead, so a restricted caller may name only themselves or a member of their own team - the same
+        // guard as an assignee or the employee of a commission entry.
+        MarketingScope::guardAssignment($request->user(), null, $request->validated('brought_by_admin_id'));
         $record = $action->handle($request->validated(), $request->user());
 
         return ApiResponse::success('XARUN registered successfully.', new MarketingRecordResource($record), 201);

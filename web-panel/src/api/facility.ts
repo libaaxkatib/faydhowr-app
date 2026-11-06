@@ -35,7 +35,7 @@ export const facilityApi = {
   },
 
   inspections: {
-    list: async (filters: { client_company_id?: number; from?: string; to?: string; has_issues?: boolean; include_voided?: boolean; page?: number; per_page?: number }) => {
+    list: async (filters: { client_company_id?: number; from?: string; to?: string; has_issues?: boolean; include_voided?: 1; page?: number; per_page?: number }) => {
       const { data, meta } = await apiRequestWithMeta<FacilityInspectionRow[]>(base, { query: filters });
       return { data, meta: meta as PageMeta };
     },
@@ -59,6 +59,8 @@ export const facilityApi = {
       type?: FacilityComplaintType | '';
       status?: FacilityComplaintStatus | 'unresolved' | '';
       satisfaction?: FacilitySatisfaction | 'not_recorded' | '';
+      /** 1 = also list voided complaints (the server keeps them but hides them by default). */
+      include_voided?: 1;
       from?: string;
       to?: string;
       page?: number;

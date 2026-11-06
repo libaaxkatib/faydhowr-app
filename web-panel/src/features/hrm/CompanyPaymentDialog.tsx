@@ -8,8 +8,10 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/useToast';
 import { useI18n } from '@/i18n/useI18n';
 import { formatCurrency } from '@/utils/formatters';
-import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
+import { facilityToday } from '@/utils/facility';
+import { friendlyErrorMessage } from '@/utils/hrHelpers';
 import { newIdempotencyKey } from '@/utils/payrollCorrections';
+import { invalidatePayrollDependents } from '@/utils/payrollQueries';
 import { MAX_PAYMENT_REFERENCE, companyPaymentPayload, sectionName } from '@/utils/payrollSections';
 import { validatePartialAmount } from '@/utils/workplacePayments';
 import type { PayrollRunSection } from '@/types/payroll';
@@ -30,7 +32,8 @@ export function CompanyPaymentDialog({ section, mode, monthLabel, onClose }: { s
   const { show } = useToast();
   const queryClient = useQueryClient();
   const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(localToday());
+  // The payment date is a Mogadishu calendar day (the server's check), not the day of the browser's own clock.
+  const [date, setDate] = useState(() => facilityToday());
   const [note, setNote] = useState('');
   const [reference, setReference] = useState('');
   // One key per dialog opening: a retry or a double click of the same submission is recorded once.
@@ -38,7 +41,7 @@ export function CompanyPaymentDialog({ section, mode, monthLabel, onClose }: { s
   const [serverError, setServerError] = useState<string | null>(null);
   const name = sectionName(section, t('option.payroll.sectionNoCompany'));
   const problem = mode === 'partial' && amount !== '' ? validatePartialAmount(amount, section.outstanding_cents) : null;
-  const ready = date !== '' && date <= localToday() && (mode === 'full' || (amount !== '' && validatePartialAmount(amount, section.outstanding_cents) === null));
+  const ready = date !== '' && date <= facilityToday() && (mode === 'full' || (amount !== '' && validatePartialAmount(amount, section.outstanding_cents) === null));
 
   const mutation = useMutation({
     mutationFn: () => hrApi.payrollRuns.payCompany(section.id, companyPaymentPayload(mode, amount, date, note, key, reference)),
@@ -47,6 +50,7 @@ export function CompanyPaymentDialog({ section, mode, monthLabel, onClose }: { s
       void queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-run'] });
       void queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
+      invalidatePayrollDependents(queryClient);
       show(t(result.company?.approved ? 'notify.payroll.apApproved' : 'notify.payroll.apPartial'));
       onClose();
     },
@@ -88,7 +92,7 @@ export function CompanyPaymentDialog({ section, mode, monthLabel, onClose }: { s
         </FormField>
       )}
       <FormField label={t('option.payroll.paymentDate')} htmlFor="ap-date" required hint={t('option.payroll.datesMogadishu')}>
-        <input id="ap-date" type="date" max={localToday()} className={inputClasses} value={date} onChange={(e) => setDate(e.target.value)} />
+        <input id="ap-date" type="date" max={facilityToday()} className={inputClasses} value={date} onChange={(e) => setDate(e.target.value)} />
       </FormField>
       <FormField label={t('option.payroll.paymentReference')} htmlFor="ap-reference">
         <input

@@ -10,7 +10,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
 import { dashboardPayrollCards, isPayrollPeriod } from '@/utils/payrollOverview';
-import { categoryTileLabel, categoryTileTo, dashboardCardTo } from '@/utils/hrDashboardLinks';
+import { categoryTileLabel, categoryTileTo, dashboardCardTo, financialLedgerLink, payrollLink } from '@/utils/hrDashboardLinks';
 import { getActiveLanguage } from '@/i18n/active';
 import { monthYearLabel } from '@/i18n/dates';
 import { useI18n } from '@/i18n/useI18n';
@@ -24,7 +24,7 @@ export function HrDashboardPage() {
   const { t } = useI18n();
   // The Company payroll group has its OWN month: until one is picked the server's (the previous month) is used.
   const [payrollMonth, setPayrollMonth] = useState<string | null>(null);
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error, refetch, isFetching, isPlaceholderData } = useQuery({
     queryKey: ['hr-dashboard', payrollMonth],
     queryFn: () => hrApi.dashboard(payrollMonth ?? undefined),
     // Changing the month refetches without blanking the other cards.
@@ -86,8 +86,8 @@ export function HrDashboardPage() {
               </div>
             </CardHeader>
             <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <KpiCard label={t('option.payroll.penalties')} value={data.month_penalties_total} icon="x" color="bg-danger" to="/hr/reports/financial-ledger" isCurrency />
-              <KpiCard label={t('option.payroll.advances')} value={data.month_advances_total} icon="credit-card" color="bg-warning" to="/hr/reports/financial-ledger" isCurrency />
+              <KpiCard label={t('option.payroll.penalties')} value={data.month_penalties_total} icon="x" color="bg-danger" to={financialLedgerLink('penalty', data.calendar_month)} isCurrency />
+              <KpiCard label={t('option.payroll.advances')} value={data.month_advances_total} icon="credit-card" color="bg-warning" to={financialLedgerLink('advance', data.calendar_month)} isCurrency />
             </CardBody>
           </Card>
 
@@ -96,7 +96,7 @@ export function HrDashboardPage() {
               <CardHeader className="flex-wrap gap-3">
                 <div>
                   <h3 className="font-display text-sm font-bold text-ink">{t('option.hr.companyPayrollTitle')}</h3>
-                  <p className="mt-0.5 text-xs font-medium text-ink" data-testid="dashboard-payroll-month-label">{t('option.hr.payrollMonthLabel', { month: monthName(payrollMonth ?? data.payroll.period) })}</p>
+                  <p className="mt-0.5 text-xs font-medium text-ink" data-testid="dashboard-payroll-month-label">{t('option.hr.payrollMonthLabel', { month: monthName(data.payroll.period) })}</p>
                   <p className="mt-0.5 text-xs text-ink-muted">{t('option.hr.companyPayrollHelp')}</p>
                 </div>
                 <div>
@@ -112,9 +112,9 @@ export function HrDashboardPage() {
                   />
                 </div>
               </CardHeader>
-              <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <CardBody className={`grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 ${isFetching && isPlaceholderData ? 'opacity-60' : ''}`} aria-busy={isFetching && isPlaceholderData}>
                 {dashboardPayrollCards(data.payroll).map((card) => (
-                  <KpiCard key={card.labelKey} label={t(card.labelKey)} value={card.value} icon={card.currency ? 'credit-card' : 'briefcase'} color={card.currency ? 'bg-primary' : 'bg-secondary'} to="/hr/payroll" isCurrency={card.currency} />
+                  <KpiCard key={card.labelKey} label={t(card.labelKey)} value={card.value} icon={card.currency ? 'credit-card' : 'briefcase'} color={card.currency ? 'bg-primary' : 'bg-secondary'} to={payrollLink(data.payroll?.period ?? '')} isCurrency={card.currency} />
                 ))}
               </CardBody>
             </Card>

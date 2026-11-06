@@ -11,13 +11,16 @@ use App\Support\Hr\Compliance\ComplianceReport;
 use App\Support\Hr\Compliance\ComplianceScanner;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 
 /**
  * HR compliance and accountability report. For the HR Manager and Super Admin only (the route needs hr.reports.view; the role is checked here as well,
  * because the report names the people who allowed work to start): it shows who works while a defined requirement is unmet and who is on record as
- * responsible, and lets the HR Manager track the follow-up. Opening it scans the live records and stores the findings; it changes no employee,
- * assignment, status, salary or payroll record. Changing a finding's status or note needs hr.manage too and is audited.
+ * responsible, and lets the HR Manager track the follow-up. Owner decision UG-1: every GET here (list, filters, search, pages, one finding) is strictly
+ * READ-ONLY - it creates no finding, rewrites no timestamp, resolves nothing and writes no audit row. Scanning the live records happens only through the
+ * explicit scan() action (hr.manage, throttled, audited); there is no schedule. Nothing here changes an employee, assignment, status, salary or payroll
+ * record. Changing a finding's status or note needs hr.manage too and is audited.
  */
 class ComplianceController extends Controller
 {
@@ -43,11 +46,11 @@ class ComplianceController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        $scan = $this->report->sync($request->user());
         $page = $this->report->query($filters)->paginate((int) ($filters['per_page'] ?? 50));
 
         return ApiResponse::success('HR compliance report retrieved successfully.', [
-            'summary' => $this->report->summary($scan['reviewed']),
+            'summary' => $this->report->summary($this->report->employeesReviewed()),
+            'last_scan' => $this->report->lastScan(),
             'findings' => $page->getCollection()->map(fn (HrComplianceFinding $f): array => $this->present($f))->all(),
             'filter_options' => [
                 'companies' => HrComplianceFinding::query()->whereNotNull('client_company_id')->select('client_company_id', 'company_name')->distinct()->orderBy('company_name')->get()
@@ -56,6 +59,35 @@ class ComplianceController extends Controller
                     ->map(fn (Admin $a): array => ['id' => $a->id, 'name' => $a->full_name])->all(),
             ],
         ], 200, ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'per_page' => $page->perPage(), 'total' => $page->total()]);
+    }
+
+    /**
+     * POST hr/compliance/scan - the ONLY place a scan runs. Stores new/changed findings, marks cleared ones Resolved by the system, and records who ran it.
+     * A second scan started while one is running is refused instead of queued.
+     */
+    public function scan(Request $request): JsonResponse
+    {
+        if ($denied = $this->deny($request)) {
+            return $denied;
+        }
+
+        $lock = Cache::lock('hr-compliance-scan', 300);
+
+        if (! $lock->get()) {
+            return ApiResponse::error('A compliance scan is already running. Wait a moment and open the report again.', 'COMPLIANCE_SCAN_RUNNING', 409);
+        }
+
+        try {
+            $result = $this->report->sync($request->user());
+        } finally {
+            $lock->release();
+        }
+
+        return ApiResponse::success('HR compliance scan finished.', [
+            'scan' => ['new' => $result['new'], 'reopened' => $result['reopened'], 'cleared' => $result['cleared'], 'employees_reviewed' => $result['reviewed']],
+            'summary' => $this->report->summary($result['reviewed']),
+            'last_scan' => $this->report->lastScan(),
+        ]);
     }
 
     public function show(Request $request, HrComplianceFinding $finding): JsonResponse

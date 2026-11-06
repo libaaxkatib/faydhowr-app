@@ -2,6 +2,7 @@
 
 namespace App\Actions\Admin;
 
+use App\Enums\AdminPermission;
 use App\Enums\AdminRole;
 use App\Models\Admin;
 use App\Models\Permission;
@@ -69,6 +70,7 @@ class ListAdminPermissionsAction
 
         return Permission::query()
             ->whereIn('id', $permissionIds)
+            ->whereNotIn('key', AdminPermission::superAdminOnlyValues())
             ->orderBy('group')
             ->orderBy('key')
             ->get();
@@ -89,6 +91,7 @@ class ListAdminPermissionsAction
 
         return Permission::query()
             ->whereIn('id', $permissionIds)
+            ->whereNotIn('key', AdminPermission::superAdminOnlyValues())
             ->orderBy('group')
             ->orderBy('key')
             ->get();

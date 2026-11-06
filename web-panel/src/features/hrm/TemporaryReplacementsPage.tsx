@@ -23,12 +23,12 @@ import { useToast } from '@/components/ui/useToast';
 import { useEffectivePermissions } from '@/hooks/usePermissions';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { parseReplacementStatus } from '@/utils/hrDashboardLinks';
-import { matchesStatusFilter } from '@/utils/replacementChange';
+import { canCreateCover, createNeedsReason, isCorrectionReasonAsked, matchesStatusFilter, type CreateCoverState } from '@/utils/replacementChange';
 import { assignmentLabel, describeDailyRate, expandDateRange, friendlyErrorMessage, localMonth, localToday } from '@/utils/hrHelpers';
 import type { TemporaryReplacement, TemporaryReplacementWorkday, TemporaryReplacementWorkdayStatus } from '@/types/employee';
 import { Msg } from '@/i18n/Msg';
 import type { MessageKey } from '@/i18n/messages';
-import { EditReplacementModal, EndReplacementModal, ReplacementHistoryModal } from './ReplacementChangeDialogs';
+import { ChangePreviewPanel, EditReplacementModal, EndReplacementModal, ReplacementHistoryModal } from './ReplacementChangeDialogs';
 import { EmployeePicker } from './ReplacementEmployeePicker';
 import { useI18n } from '@/i18n/useI18n';
 
@@ -237,6 +237,10 @@ export function TemporaryReplacementsPage() {
         onClose={() => setIsCreateOpen(false)}
         onCreated={() => {
           queryClient.invalidateQueries({ queryKey: ['temporary-replacements'] });
+          // Saving a cover can make a Waiting / Applicant person Temporary and Active, and it moves the dashboard's Active Replacements card: refresh them too.
+          queryClient.invalidateQueries({ queryKey: ['hr-dashboard'] });
+          queryClient.invalidateQueries({ queryKey: ['employees'] });
+          queryClient.invalidateQueries({ queryKey: ['employee'] });
           setIsCreateOpen(false);
         }}
       />
@@ -308,11 +312,17 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
 
   const fieldsKey = [workAssignmentId, replacementEmployeeId, startDate, endDate].join('|');
   const checkable = canCheckConflict({ workAssignmentId, replacementEmployeeId, startDate, endDate });
-  // Asks the server the same question the save asks (overlap with another Temporary cover of the position or the person, or the person's own assignment).
-  const { data: preview } = useQuery({
-    queryKey: ['cover-conflict', fieldsKey],
+  // Owner decision UG-3: a back-dated cover that reaches an approved or finalized payroll month is a correction of closed payroll and needs a written reason.
+  const [closedReason, setClosedReason] = useState('');
+  // The server asked for that reason on a save although the preview had not said so (for example an older preview); the box then appears.
+  const [reasonAsked, setReasonAsked] = useState(false);
+
+  // Asks the server what saving would do: the same overlap question the save asks (another Temporary cover of the position or the person, or the person's own
+  // assignment), the days and cost, and whether approved or finalized payroll months are reached. Saves nothing.
+  const { data: preview, isFetching: isChecking } = useQuery({
+    queryKey: ['cover-create-preview', fieldsKey],
     queryFn: () =>
-      hrApi.temporaryReplacements.conflictCheck({
+      hrApi.temporaryReplacements.createPreview({
         work_assignment_id: Number(workAssignmentId),
         replacement_employee_id: Number(replacementEmployeeId),
         start_date: startDate,
@@ -320,7 +330,18 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
       }),
     enabled: isOpen && checkable,
   });
-  const conflict = (checkable ? preview?.conflict : null) ?? (refused?.key === fieldsKey ? refused.conflict : null);
+  const livePreview = checkable ? preview : undefined;
+  const conflict = (livePreview?.conflict ?? null) ?? (refused?.key === fieldsKey ? refused.conflict : null);
+  const createState: CreateCoverState = {
+    hasFields: workAssignmentId !== '' && replacementEmployeeId !== '' && startDate !== '',
+    blocked: conflict !== null || (livePreview?.errors?.length ?? 0) > 0,
+    reachesClosedPayroll: livePreview?.changes_locked_period === true,
+    reasonAsked,
+    roleMayNotCorrect: livePreview?.requires_super_admin === true,
+    reason: closedReason,
+    checking: checkable && isChecking,
+  };
+  const needsReason = createNeedsReason(createState);
 
   const { data: coveredEmployee } = useQuery({
     queryKey: ['employee', coveredEmployeeId],
@@ -336,6 +357,7 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
         start_date: startDate,
         end_date: endDate || null,
         reason: reason || undefined,
+        correction_reason: needsReason ? closedReason.trim() : undefined,
       }),
     onSuccess: () => {
       show(t('notify.pipeline.replacementRecorded'));
@@ -344,12 +366,17 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
       setReplacementEmployeeId('');
       setEndDate('');
       setReason('');
+      setClosedReason('');
+      setReasonAsked(false);
       onCreated();
     },
     onError: (err) => {
       const refusal = conflictFromError(err);
       if (refusal) setRefused({ key: fieldsKey, conflict: refusal });
-      else show(friendlyErrorMessage(err, t('notify.pipeline.couldNotCreateReplacement')), 'error');
+      else {
+        if (isCorrectionReasonAsked(err)) setReasonAsked(true);
+        show(friendlyErrorMessage(err, t('notify.pipeline.couldNotCreateReplacement')), 'error');
+      }
     },
   });
 
@@ -372,7 +399,7 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
           <Button
             size="sm"
             isLoading={createMutation.isPending}
-            disabled={!workAssignmentId || !replacementEmployeeId || !startDate || conflict !== null}
+            disabled={!canCreateCover(createState)}
             onClick={() => createMutation.mutate()}
           >
             {t('action.create')}
@@ -426,11 +453,22 @@ function CreateReplacementModal({ isOpen, onClose, onCreated }: { isOpen: boolea
         <textarea id="tr-reason" rows={2} className={inputClasses + ' h-auto py-2'} value={reason} onChange={(e) => setReason(e.target.value)} />
       </FormField>
       {conflict && (
-        <div role="alert" data-testid="cover-conflict" className="rounded-sm bg-danger-soft px-3 py-2 text-xs text-ink">
+        <div role="alert" data-testid="cover-conflict" className="mb-4 rounded-sm bg-danger-soft px-3 py-2 text-xs text-ink">
           <p className="font-semibold text-danger">{conflictHeading(conflict.code)}</p>
           <p className="mt-1">{conflictMessage(conflict)}</p>
           <p className="mt-1 text-ink-muted">{t('warning.pipeline.conflictNothingChanged')}</p>
         </div>
+      )}
+      <ChangePreviewPanel preview={livePreview} loading={createState.checking} />
+      {needsReason && (
+        <>
+          <p className="mb-3 rounded-sm border border-warning px-3 py-2 text-xs text-ink" role="note" data-testid="create-closed-payroll-note">
+            {t('warning.uiAuditB.createReachesClosedPayroll', { months: (livePreview?.locked_periods_changed ?? []).join(', ') || '—' })}
+          </p>
+          <FormField label={t('option.pipeline.closedPayrollReason')} htmlFor="tr-create-closed-reason" required hint={t('validation.pipeline.closedPayrollReasonHint')}>
+            <textarea id="tr-create-closed-reason" rows={2} maxLength={1000} className={`${inputClasses} h-auto py-2`} value={closedReason} onChange={(e) => setClosedReason(e.target.value)} />
+          </FormField>
+        </>
       )}
     </Modal>
   );
@@ -679,7 +717,7 @@ function WorkdaysModal({ replacement, onClose }: { replacement: TemporaryReplace
                   <dd className="text-ink">{cost.covered_days ?? cost.verified_days}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-ink-muted">{t('option.pipeline.dailyRateLabel')}</dt>
+                  <dt className="text-ink-muted">{t('option.uiAuditB.dailyRateLabel')}</dt>
                   <dd className="text-right text-ink">{describeDailyRate(cost.daily_rate)}</dd>
                 </div>
                 <div className="flex justify-between border-t border-border pt-1.5 font-semibold">
@@ -794,7 +832,7 @@ function RecordPaymentModal({
   isLoading: boolean;
 }) {
   const { t, tValue } = useI18n();
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentDate, setPaymentDate] = useState(localToday());
   const [amount, setAmount] = useState('');
   const [touched, setTouched] = useState(false);
   const [notes, setNotes] = useState('');

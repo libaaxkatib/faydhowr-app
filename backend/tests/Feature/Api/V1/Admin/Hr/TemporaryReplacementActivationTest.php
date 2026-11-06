@@ -287,6 +287,9 @@ class TemporaryReplacementActivationTest extends TestCase
         $this->save($active, ['start_date' => '2026-10-16', 'end_date' => '2026-10-18'])->assertCreated();
 
         $this->app['auth']->forgetGuards();
+        // Owner decision UG-1: reading the report never scans; the explicit scan runs first, as the "Run scan" button does.
+        $this->withToken($this->token)->postJson('/api/v1/admin/hr/compliance/scan')->assertOk();
+        $this->app['auth']->forgetGuards();
         $findings = $this->withToken($this->token)->getJson('/api/v1/admin/hr/compliance/findings')->assertOk()->json('data.findings');
         $codesOf = fn (Employee $e): array => array_column(array_filter($findings, fn (array $f): bool => $f['employee_id'] === $e->id), 'code');
 

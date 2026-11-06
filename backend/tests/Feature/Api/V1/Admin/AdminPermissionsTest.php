@@ -17,8 +17,7 @@ class AdminPermissionsTest extends TestCase
 
     public function test_authenticated_admin_can_list_permissions(): void
     {
-        $admin = Admin::factory()->create();
-        $this->grantPermissions($admin, [AdminPermission::RolesManage]);
+        $admin = Admin::factory()->superAdmin()->create();
 
         $response = $this
             ->withToken($admin->createToken('admin-panel')->plainTextToken)
@@ -37,11 +36,10 @@ class AdminPermissionsTest extends TestCase
             'group' => 'Products',
         ]);
 
-        $response->assertJsonFragment([
-            'key' => AdminPermission::RolesManage->value,
-            'name' => AdminPermission::RolesManage->label(),
-            'group' => 'Admins',
-        ]);
+        // Owner decision UG-4: admins.manage and roles.manage are reserved for the Super Admin, so they are not part of the grantable catalogue.
+        $response->assertJsonMissing(['key' => AdminPermission::RolesManage->value]);
+        $response->assertJsonMissing(['key' => AdminPermission::AdminsManage->value]);
+        $response->assertJsonFragment(['key' => AdminPermission::NotificationsManage->value]);
 
         $this->assertSame(
             Permission::query()->whereNotIn('key', AdminPermission::superAdminOnlyValues())->orderBy('group')->orderBy('key')->pluck('key')->all(),
@@ -51,8 +49,7 @@ class AdminPermissionsTest extends TestCase
 
     public function test_authenticated_admin_can_view_a_roles_current_permissions(): void
     {
-        $admin = Admin::factory()->create();
-        $this->grantPermissions($admin, [AdminPermission::RolesManage]);
+        $admin = Admin::factory()->superAdmin()->create();
 
         DB::table('admin_role_permissions')->insert([
             'role' => AdminRole::Manager->value,
@@ -204,6 +201,8 @@ class AdminPermissionsTest extends TestCase
         $admin = Admin::factory()->create([
             'role' => AdminRole::Manager,
         ]);
+        // Owner decision UG-4: roles.manage is Super-Admin-only, so a stray grant of it is ignored and the route's own permission check refuses first
+        // (the action's "Only Super Admin" check stays behind it as a second lock).
         $this->grantPermissions($admin, [AdminPermission::RolesManage]);
 
         $this
@@ -214,7 +213,7 @@ class AdminPermissionsTest extends TestCase
             ->assertForbidden()
             ->assertExactJson([
                 'success' => false,
-                'message' => 'Only Super Admin may update role permissions.',
+                'message' => 'You do not have permission to perform this action.',
                 'error_code' => 'FORBIDDEN',
             ]);
 

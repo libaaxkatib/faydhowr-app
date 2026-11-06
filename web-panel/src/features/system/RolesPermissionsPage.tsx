@@ -142,6 +142,9 @@ function RoleTab() {
           )}
         </div>
 
+        {!actorIsSuperAdmin && (
+          <p className="mb-3 rounded-md border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-ink-muted" data-testid="roles-view-only">{t('warning.system.rolesViewOnly')}</p>
+        )}
         {(catalog.isLoading || rolePermissions.isLoading) && <LoadingState label={t('option.system.loadingPermissions')} />}
         {(catalog.error || rolePermissions.error) && (
           <ErrorState error={catalog.error ?? rolePermissions.error} onRetry={() => rolePermissions.refetch()} />
@@ -150,7 +153,7 @@ function RoleTab() {
           <EmptyState icon="shield" title={t('warning.system.noPermissions')} />
         )}
         {catalog.data && rolePermissions.data && groups.length > 0 && (
-          <PermissionChecklist groups={groups} selected={draft} onToggle={(key) => {
+          <PermissionChecklist groups={groups} selected={draft} disabled={!actorIsSuperAdmin} onToggle={(key) => {
             setDraft((prev) => {
               const next = new Set(prev);
               if (next.has(key)) {
@@ -234,6 +237,9 @@ function AdminOverridesTab() {
             <ErrorState error={catalog.error ?? adminPermissions.error} onRetry={() => adminPermissions.refetch()} />
           )}
 
+          {!actorIsSuperAdmin && adminPermissions.data && (
+            <p className="mb-3 rounded-md border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-ink-muted" data-testid="overrides-view-only">{t('warning.system.rolesViewOnly')}</p>
+          )}
           {adminPermissions.data && (
             <>
               <p className="mb-3 text-xs text-ink-faint">
@@ -256,7 +262,7 @@ function AdminOverridesTab() {
               </div>
 
               {groups.length > 0 && (
-                <PermissionChecklist groups={groups} selected={draft} onToggle={(key) => {
+                <PermissionChecklist groups={groups} selected={draft} disabled={!actorIsSuperAdmin} onToggle={(key) => {
                   setDraft((prev) => {
                     const next = new Set(prev);
                     if (next.has(key)) {

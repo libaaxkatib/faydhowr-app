@@ -29,6 +29,11 @@ export interface NavLeaf {
   permission?: string;
   /** Shown to Super Admin only (the backend checks the role itself; this only hides the link). */
   superAdminOnly?: boolean;
+  /**
+   * Roles (besides the Super Admin, who always passes) that may open this page because the BACKEND checks the role itself, not a permission (the audit log
+   * and the compliance report). When `permission` is also set, the link needs both.
+   */
+  roles?: string[];
   /** A second permission the page's own API also requires (a link shown without it would lead to "Access restricted"). */
   alsoPermission?: string;
 }
@@ -47,7 +52,8 @@ export const NAV_GROUPS: NavGroup[] = [
     labelKey: 'nav.hrGroup',
     items: [
       { label: 'Dashboard', to: '/hr', icon: 'briefcase', end: true, permission: 'hr.dashboard.view' },
-      { label: 'Employee Registration', labelKey: 'nav.registration', to: '/hr/employees', icon: 'plus', permission: 'hr.view' },
+      // Registering needs hr.manage on the server; a view-only person is not offered a second "Employees" link under that name.
+      { label: 'Employee Registration', labelKey: 'nav.registration', to: '/hr/employees', icon: 'plus', permission: 'hr.manage' },
       { label: 'Employees', labelKey: 'nav.employees', to: '/hr/employees', icon: 'users', permission: 'hr.view' },
       { label: 'Damiin Needed', labelKey: 'nav.damiinNeeded', to: '/hr/pipeline/damiin', icon: 'file-text', permission: 'hr.view' },
       { label: 'Contract Pending', labelKey: 'nav.contractPending', to: '/hr/pipeline/contracts', icon: 'file-text', permission: 'hr.view' },
@@ -79,7 +85,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Waiting Analytics', labelKey: 'nav.waitingAnalytics', to: '/hr/reports/waiting-analytics', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Workforce Request History', labelKey: 'nav.workforceRequestHistory', to: '/hr/reports/workforce-requests', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Temporary Replacement History', labelKey: 'nav.temporaryReplacementHistory', to: '/hr/reports/temporary-replacements', icon: 'bar-chart', permission: 'hr.reports.view', alsoPermission: 'hr.view' },
-      { label: 'HR Compliance & Accountability', labelKey: 'nav.complianceReport', to: '/hr/reports/compliance', icon: 'shield', permission: 'hr.reports.view', alsoPermission: 'hr.view' },
+      // The backend asks for hr.reports.view AND the HR Manager / Super Admin role (ComplianceController::deny) - not hr.view.
+      { label: 'HR Compliance & Accountability', labelKey: 'nav.complianceReport', to: '/hr/reports/compliance', icon: 'shield', permission: 'hr.reports.view', roles: ['hr_manager'] },
       { label: 'Leave Report', labelKey: 'nav.leaveReport', to: '/hr/reports/leaves', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Performance Report', labelKey: 'nav.performanceReport', to: '/hr/reports/performance-reviews', icon: 'bar-chart', permission: 'hr.reports.view' },
       { label: 'Financial Ledger', labelKey: 'nav.financialLedger', to: '/hr/reports/financial-ledger', icon: 'bar-chart', permission: 'hr.reports.view', alsoPermission: 'hr.view' },
@@ -124,12 +131,14 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'System',
     labelKey: 'nav.shell.system',
     items: [
-      { label: 'Admin Users', labelKey: 'nav.shell.adminUsers', to: '/system/admins', icon: 'users', permission: 'admins.manage' },
-      { label: 'Roles & Permissions', labelKey: 'nav.shell.rolesPermissions', to: '/system/roles', icon: 'shield', permission: 'roles.manage' },
+      // Owner decision UG-4: admins.manage and roles.manage are Super-Admin-only (the backend ignores any other grant).
+      { label: 'Admin Users', labelKey: 'nav.shell.adminUsers', to: '/system/admins', icon: 'users', permission: 'admins.manage', superAdminOnly: true },
+      { label: 'Roles & Permissions', labelKey: 'nav.shell.rolesPermissions', to: '/system/roles', icon: 'shield', permission: 'roles.manage', superAdminOnly: true },
       { label: 'Settings', labelKey: 'nav.shell.settings', to: '/system/settings', icon: 'settings', permission: 'settings.view' },
       { label: 'Translations', labelKey: 'nav.shell.translations', to: '/system/translations', icon: 'message-circle', superAdminOnly: true },
       { label: 'Recovery Center', labelKey: 'nav.recovery.center', to: '/system/recovery', icon: 'refresh', superAdminOnly: true },
-      { label: 'Audit Log', labelKey: 'nav.shell.auditLog', to: '/system/audit-log', icon: 'list', permission: 'admins.manage' },
+      // READ-ONLY for the HR Manager and the Super Admin: the backend checks the role (EnsureAuditLogReader), no permission is involved.
+      { label: 'Audit Log', labelKey: 'nav.shell.auditLog', to: '/system/audit-log', icon: 'list', roles: ['hr_manager'] },
       { label: 'Data Issues & Reconciliation', labelKey: 'nav.shell.dataIssues', to: '/system/data-issues', icon: 'alert-triangle', permission: 'reconciliation.view' },
     ],
   },

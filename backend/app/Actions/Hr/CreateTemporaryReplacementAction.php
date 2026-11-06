@@ -16,6 +16,8 @@ use App\Support\ApiResponse;
 use App\Support\Hr\CoverConflicts;
 use App\Support\Hr\EmployeeRegistrationWorkflow;
 use App\Support\Hr\EmploymentTypeChange;
+use App\Support\Hr\ReplacementChangeGuard;
+use App\Support\Hr\ReplacementChangeImpact;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -35,7 +37,16 @@ use Illuminate\Support\Facades\DB;
  */
 class CreateTemporaryReplacementAction
 {
-    public function handle(EmployeeWorkAssignment $workAssignment, Employee $replacementEmployee, array $data, Admin $actor): TemporaryReplacement
+    public function __construct(
+        private readonly ReplacementChangeImpact $impact = new ReplacementChangeImpact,
+        private readonly ReplacementChangeGuard $guard = new ReplacementChangeGuard,
+    ) {}
+
+    /**
+     * @param  ?string  $correctionReason  owner decision UG-3: required (10+ characters; Super Admin or HR Manager only) when the cover reaches an approved or
+     *                                     finalized payroll month. A cover that touches only open months needs none.
+     */
+    public function handle(EmployeeWorkAssignment $workAssignment, Employee $replacementEmployee, array $data, Admin $actor, ?string $correctionReason = null): TemporaryReplacement
     {
         if ($workAssignment->status !== WorkAssignmentStatus::Active) {
             throw new HttpResponseException(
@@ -49,7 +60,23 @@ class CreateTemporaryReplacementAction
 
         $this->assertEmployeeCanCover($workAssignment, $replacementEmployee, allowNotYetActive: true);
 
-        return DB::transaction(function () use ($workAssignment, $replacementEmployee, $data, $actor) {
+        // Owner decision UG-3: a cover that adds days to an approved or finalized payroll month is a correction of closed payroll (reason, role, recorded
+        // correction). The closed run itself is never rewritten. Worked out on an unsaved cover whose "before" is no days at all.
+        $draft = new TemporaryReplacement([
+            'work_assignment_id' => $workAssignment->id,
+            'replacement_employee_id' => $replacementEmployee->id,
+            'start_date' => CarbonImmutable::parse($data['start_date'])->toDateString(),
+            'end_date' => empty($data['end_date']) ? null : CarbonImmutable::parse($data['end_date'])->toDateString(),
+        ]);
+        $impact = $this->impact->forCreate($draft, false);
+
+        return $this->guard->run($actor, $draft, $impact, $correctionReason, 'cover_created', ['new' => $impact['new'], 'replacement_employee_id' => $replacementEmployee->id], fn (): TemporaryReplacement => $this->save($workAssignment, $replacementEmployee, $data, $actor, $impact, $correctionReason));
+    }
+
+    /** @param  array<string, mixed>  $impact */
+    private function save(EmployeeWorkAssignment $workAssignment, Employee $replacementEmployee, array $data, Admin $actor, array $impact, ?string $correctionReason): TemporaryReplacement
+    {
+        return DB::transaction(function () use ($workAssignment, $replacementEmployee, $data, $actor, $impact, $correctionReason) {
             // Two people saving at the same moment must not both pass the overlap check: the position and the person are locked, in this order, until the cover is saved.
             EmployeeWorkAssignment::query()->whereKey($workAssignment->id)->lockForUpdate()->first();
             $locked = Employee::query()->whereKey($replacementEmployee->id)->lockForUpdate()->firstOrFail();
@@ -87,6 +114,13 @@ class CreateTemporaryReplacementAction
                 description: "Employee '{$replacementEmployee->full_name}' recorded as a temporary replacement for work assignment #{$workAssignment->id}.",
                 entityType: TemporaryReplacement::class,
                 entityId: $replacement->id,
+                metadata: $impact['changes_locked_period'] ? [
+                    'event' => 'temporary_replacement_created_in_closed_payroll',
+                    'reason' => trim((string) $correctionReason),
+                    'locked_periods_changed' => $impact['locked_periods_changed'],
+                    'start_date' => $impact['new']['start_date'],
+                    'end_date' => $impact['new']['end_date'],
+                ] : [],
             ));
 
             return $replacement->load('workAssignment.employee', 'workAssignment.workLocation.clientCompany', 'workAssignment.clientCompany', 'replacementEmployee', 'createdBy', 'payments.paidBy');

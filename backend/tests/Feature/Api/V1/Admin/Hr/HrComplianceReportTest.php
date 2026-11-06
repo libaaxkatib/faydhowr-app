@@ -17,7 +17,10 @@ use App\Models\Permission;
 use App\Models\Position;
 use App\Models\TemporaryReplacement;
 use Carbon\CarbonImmutable;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\HrFixtures;
 use Tests\TestCase;
@@ -34,6 +37,8 @@ class HrComplianceReportTest extends TestCase
     use RefreshDatabase;
 
     private const URL = '/api/v1/admin/hr/compliance/findings';
+
+    private const SCAN_URL = '/api/v1/admin/hr/compliance/scan';
 
     private ClientCompany $company;
 
@@ -86,10 +91,24 @@ class HrComplianceReportTest extends TestCase
         return [$e, $a->refresh()];
     }
 
-    /** @return list<array<string, mixed>> */
-    private function findings(array $query = []): array
+    /**
+     * Owner decision UG-1: opening the report only READS, so a test that wants today's findings runs the explicit scan first (POST scan), exactly like the
+     * "Run scan" button; pass $scan = false to read what is already stored.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function findings(array $query = [], bool $scan = true): array
     {
+        if ($scan) {
+            $this->scan();
+        }
+
         return $this->as($this->hr)->getJson(self::URL.'?'.http_build_query($query))->assertOk()->json('data.findings');
+    }
+
+    private function scan(?string $token = null): array
+    {
+        return $this->as($token ?? $this->hr)->postJson(self::SCAN_URL)->assertOk()->json('data');
     }
 
     private function codes(array $findings, ?int $employeeId = null): array
@@ -116,6 +135,7 @@ class HrComplianceReportTest extends TestCase
     public function test_a_sound_worker_produces_no_finding_and_is_counted_as_reviewed(): void
     {
         $this->sound();
+        $this->scan();
 
         $data = $this->as($this->hr)->getJson(self::URL)->assertOk()->json('data');
 
@@ -335,7 +355,9 @@ class HrComplianceReportTest extends TestCase
         DB::table('employee_work_assignments')->where('id', $aAssignment->id)->update(['position_id' => null]);
         DB::table('employees')->where('id', $b->id)->update(['registration_origin' => 'new', 'employment_type' => 'temporary']);
 
+        $this->scan();
         $first = $this->as($this->hr)->getJson(self::URL)->assertOk()->json('data');
+        $this->scan();
         $second = $this->as($this->hr)->getJson(self::URL)->assertOk()->json('data');
 
         $this->assertSame($first['summary']['total_findings'], $second['summary']['total_findings'], 'scanning again adds nothing: one issue, one finding');
@@ -346,19 +368,19 @@ class HrComplianceReportTest extends TestCase
         $this->assertSame(2, $first['summary']['needs_hr_review'], "the imported worker's missing profile field, and the unrecorded position and shift");
         $this->assertSame($first['summary']['total_findings'], $first['summary']['open']);
 
-        $this->assertSame(['Alpha Hospital'], array_unique(array_column($this->findings(['client_company_id' => $this->company->id]), 'company')));
-        $this->assertSame([$b->id], array_values(array_unique(array_column($this->findings(['client_company_id' => $beta->id]), 'employee_id'))));
-        $this->assertSame([$a->id], array_values(array_unique(array_column($this->findings(['employee_id' => $a->id]), 'employee_id'))));
-        $this->assertSame([$a->id], array_values(array_unique(array_column($this->findings(['search' => $a->employee_number]), 'employee_id'))));
-        $this->assertSame([$a->id], array_values(array_unique(array_column($this->findings(['responsible_admin_id' => $carla->id]), 'employee_id'))));
-        $unattributed = $this->findings(['responsible_admin_id' => 'none']);
+        $this->assertSame(['Alpha Hospital'], array_unique(array_column($this->findings(['client_company_id' => $this->company->id], false), 'company')));
+        $this->assertSame([$b->id], array_values(array_unique(array_column($this->findings(['client_company_id' => $beta->id], false), 'employee_id'))));
+        $this->assertSame([$a->id], array_values(array_unique(array_column($this->findings(['employee_id' => $a->id], false), 'employee_id'))));
+        $this->assertSame([$a->id], array_values(array_unique(array_column($this->findings(['search' => $a->employee_number], false), 'employee_id'))));
+        $this->assertSame([$a->id], array_values(array_unique(array_column($this->findings(['responsible_admin_id' => $carla->id], false), 'employee_id'))));
+        $unattributed = $this->findings(['responsible_admin_id' => 'none'], false);
         $this->assertNotEmpty($unattributed);
         $this->assertSame([null], array_values(array_unique(array_column($unattributed, 'responsible'))), 'only findings that no record attributes to anybody');
-        $this->assertSame(['Temporary'], array_values(array_unique(array_column($this->findings(['employment_type' => 'Temporary']), 'employment_type'))));
-        $this->assertSame(['job_requirements'], array_values(array_unique(array_column($this->findings(['category' => 'job_requirements']), 'category'))));
-        $this->assertSame(['needs_review'], array_values(array_unique(array_column($this->findings(['confidence' => 'needs_review']), 'confidence'))));
-        $this->assertSame(['high'], array_values(array_unique(array_column($this->findings(['severity' => 'high']), 'severity'))));
-        $this->assertSame([], $this->findings(['status' => 'resolved']));
+        $this->assertSame(['Temporary'], array_values(array_unique(array_column($this->findings(['employment_type' => 'Temporary'], false), 'employment_type'))));
+        $this->assertSame(['job_requirements'], array_values(array_unique(array_column($this->findings(['category' => 'job_requirements'], false), 'category'))));
+        $this->assertSame(['needs_review'], array_values(array_unique(array_column($this->findings(['confidence' => 'needs_review'], false), 'confidence'))));
+        $this->assertSame(['high'], array_values(array_unique(array_column($this->findings(['severity' => 'high'], false), 'severity'))));
+        $this->assertSame([], $this->findings(['status' => 'resolved'], false));
         $this->as($this->hr)->getJson(self::URL.'?category=nonsense')->assertStatus(422);
     }
 
@@ -442,6 +464,113 @@ class HrComplianceReportTest extends TestCase
         $this->as($this->hr)->getJson(self::URL."/{$id}")->assertOk()->assertJsonPath('data.status', 'in_progress');
     }
 
+    public function test_only_hr_manage_with_the_hr_manager_or_super_admin_role_can_run_the_scan(): void
+    {
+        $this->sound('Scanned');
+        [, $super] = $this->superAdminToken();
+        $hrEmployee = Admin::factory()->create(['role' => AdminRole::HrEmployee]);
+        $this->grant($hrEmployee, ['hr.view', 'hr.reports.view', 'hr.manage']);
+        $reportsOnly = Admin::factory()->create(['role' => AdminRole::HrManager]);
+        $this->grant($reportsOnly, ['hr.view', 'hr.reports.view']);
+        $noPermission = Admin::factory()->create(['role' => AdminRole::HrManager]);
+
+        $this->as($reportsOnly->createToken('t')->plainTextToken)->postJson(self::SCAN_URL)->assertForbidden();
+        $this->as($hrEmployee->createToken('t')->plainTextToken)->postJson(self::SCAN_URL)->assertForbidden();
+        $this->as($noPermission->createToken('t')->plainTextToken)->postJson(self::SCAN_URL)->assertForbidden();
+        $this->app['auth']->forgetGuards();
+        $this->flushHeaders()->postJson(self::SCAN_URL)->assertUnauthorized();
+        $this->assertSame(0, AuditLog::query()->where('entity_type', HrComplianceFinding::class)->count(), 'a refused scan leaves no trace');
+
+        $this->as($super)->postJson(self::SCAN_URL)->assertOk();
+        $this->as($this->hr)->postJson(self::SCAN_URL)->assertOk();
+    }
+
+    public function test_the_scan_is_throttled_and_a_second_scan_started_while_one_runs_is_refused(): void
+    {
+        $this->sound('Busy');
+
+        $lock = Cache::lock('hr-compliance-scan', 60);
+        $this->assertTrue($lock->get());
+        $this->as($this->hr)->postJson(self::SCAN_URL)->assertStatus(409)->assertJsonPath('error_code', 'COMPLIANCE_SCAN_RUNNING');
+        $lock->release();
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->as($this->hr)->postJson(self::SCAN_URL)->assertOk();
+        }
+
+        $this->as($this->hr)->postJson(self::SCAN_URL)->assertStatus(429);
+    }
+
+    // ------------------------------------------------------------------ owner decision UG-1: opening the report writes nothing
+
+    public function test_opening_the_report_in_every_way_is_strictly_read_only_and_a_scan_is_only_ever_explicit(): void
+    {
+        [$e] = $this->sound('Needs A Scan');
+        DB::table('employees')->where('id', $e->id)->update(['location' => null]);
+        $before = ['findings' => HrComplianceFinding::query()->count(), 'audit' => AuditLog::query()->count()];
+
+        // Plain open, every filter, search, page, a single finding that does not exist yet: nothing is created and no audit row is written.
+        $open = $this->as($this->hr)->getJson(self::URL)->assertOk()->json('data');
+        $this->as($this->hr)->getJson(self::URL.'?search=Needs&category=profile&severity=high&status=open&confidence=confirmed&page=2&per_page=5')->assertOk();
+        $this->as($this->hr)->getJson(self::URL.'?client_company_id='.$this->company->id.'&employment_type=Permanent&responsible_admin_id=none')->assertOk();
+        $this->as($this->hr)->getJson(self::URL)->assertOk();
+
+        $this->assertSame([], $open['findings'], 'nothing is scanned on open');
+        $this->assertNull($open['last_scan'], 'nobody has run a scan yet');
+        $this->assertSame(1, $open['summary']['active_employees_reviewed'], 'the reviewed count is read cheaply, without scanning');
+        $this->assertSame(0, $open['summary']['total_findings']);
+        $this->assertSame($before, ['findings' => HrComplianceFinding::query()->count(), 'audit' => AuditLog::query()->count()]);
+
+        // The explicit scan stores the finding and records who ran it.
+        $scan = $this->scan();
+        $this->assertGreaterThan(0, $scan['scan']['new']);
+        $this->assertSame(1, $scan['scan']['employees_reviewed']);
+        $this->assertSame(1, AuditLog::query()->where('entity_type', HrComplianceFinding::class)->where('description', 'like', 'HR compliance scan:%')->count());
+
+        $stored = fn (): array => [HrComplianceFinding::query()->orderBy('id')->get()->toArray(), AuditLog::query()->count()];
+        $afterScan = $stored();
+
+        // Time passes; the data is FIXED; the report is opened again many times: nothing is rewritten, nothing is auto-resolved, no audit row appears.
+        $this->travelTo(CarbonImmutable::parse('2026-11-08 10:00:00'));
+        DB::table('employees')->where('id', $e->id)->update(['location' => 'Hargeisa']);
+        $reopened = $this->as($this->hr)->getJson(self::URL)->assertOk()->json('data');
+        $this->as($this->hr)->getJson(self::URL.'?status=open')->assertOk();
+        $this->as($this->hr)->getJson(self::URL.'?page=1&per_page=1')->assertOk();
+        $this->as($this->hr)->getJson(self::URL.'/'.$reopened['findings'][0]['id'])->assertOk();
+
+        $this->assertEquals($afterScan, $stored(), 'last_detected_at, status and the audit trail are untouched by reading');
+        $this->assertSame('open', $reopened['findings'][0]['status'], 'a fixed issue is not auto-resolved by reading');
+        $this->assertSame(['at', 'by', 'new', 'reopened', 'cleared', 'employees_reviewed'], array_keys($reopened['last_scan']));
+        $this->assertSame($this->hrManager->full_name, $reopened['last_scan']['by']);
+
+        // Only the next explicit scan notices the fix.
+        $this->scan();
+        $this->assertSame('resolved', HrComplianceFinding::query()->where('employee_id', $e->id)->firstOrFail()->status);
+        $this->assertSame(2, AuditLog::query()->where('entity_type', HrComplianceFinding::class)->where('description', 'like', 'HR compliance scan:%')->count(), 'every explicit scan is recorded, even one that finds nothing new');
+    }
+
+    public function test_previous_findings_and_their_audit_history_survive_the_change(): void
+    {
+        [$e] = $this->sound('History Kept');
+        DB::table('employees')->where('id', $e->id)->update(['location' => null]);
+        $this->scan();
+        $id = HrComplianceFinding::query()->where('employee_id', $e->id)->value('id');
+        $this->as($this->hr)->patchJson(self::URL."/{$id}", ['status' => 'in_progress', 'note' => 'Following up'])->assertOk();
+        $audit = AuditLog::query()->orderBy('id')->get()->toArray();
+
+        $this->as($this->hr)->getJson(self::URL)->assertOk();
+        $this->as($this->hr)->getJson(self::URL."/{$id}")->assertOk()->assertJsonPath('data.status', 'in_progress')->assertJsonCount(1, 'data.history');
+
+        $this->assertEquals($audit, AuditLog::query()->orderBy('id')->get()->toArray(), 'no audit row is added or changed by reading');
+    }
+
+    public function test_no_scheduler_or_command_scans_the_report(): void
+    {
+        $events = collect(app(Schedule::class)->events())->map(fn ($event): string => (string) ($event->command ?? $event->description ?? ''));
+        $this->assertSame([], $events->filter(fn (string $text): bool => stripos($text, 'compliance') !== false)->values()->all(), 'owner decision UG-1: no automatic scanning');
+        $this->assertSame([], collect(array_keys(Artisan::all()))->filter(fn (string $name): bool => stripos($name, 'compliance') !== false)->values()->all());
+    }
+
     // ------------------------------------------------------------------ the report changes nothing
 
     public function test_the_report_never_changes_employees_assignments_status_salary_or_payroll(): void
@@ -461,6 +590,7 @@ class HrComplianceReportTest extends TestCase
         ];
         $before = $state();
 
+        $this->scan();
         $first = $this->as($this->hr)->getJson(self::URL)->assertOk()->json('data');
         $this->as($this->hr)->getJson(self::URL)->assertOk();
         $this->as($this->hr)->patchJson(self::URL.'/'.$first['findings'][0]['id'], ['status' => 'in_progress', 'note' => 'Following up'])->assertOk();

@@ -92,6 +92,8 @@ export function FacilityInspectionsPage() {
   const to = dateParam(searchParams.get('to'));
   const search = searchParams.get('q') ?? '';
   const page = pageFromParam(searchParams.get('page'));
+  // Voided inspections are kept by the server but listed only when asked for.
+  const showVoided = searchParams.get('voided') === '1';
   const [recording, setRecording] = useState<{ companyId: number | null } | null>(null);
   const [scheduling, setScheduling] = useState<FacilityStatusRow | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
@@ -106,8 +108,8 @@ export function FacilityInspectionsPage() {
   const counts = allStatus.data?.meta.counts;
 
   const history = useQuery({
-    queryKey: ['facility-inspections', companyParam, from, to, page],
-    queryFn: () => facilityApi.inspections.list({ client_company_id: companyParam, from: from || undefined, to: to || undefined, page, per_page: 10 }),
+    queryKey: ['facility-inspections', companyParam, from, to, page, showVoided],
+    queryFn: () => facilityApi.inspections.list({ client_company_id: companyParam, from: from || undefined, to: to || undefined, include_voided: showVoided ? 1 : undefined, page, per_page: 10 }),
     placeholderData: (previous) => previous,
   });
 
@@ -243,6 +245,10 @@ export function FacilityInspectionsPage() {
             {t('action.facility.showAllCompanies')}
           </button>
         )}
+        <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+          <input type="checkbox" checked={showVoided} onChange={(event) => setParam('voided', event.target.checked ? '1' : '')} data-testid="show-voided" />
+          {t('option.facility.showVoided')}
+        </label>
       </div>
       <Card>
         {history.isLoading && <LoadingState label={t('option.facility.loadingInspections')} />}

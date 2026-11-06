@@ -321,6 +321,8 @@ export interface CreateWorkAssignmentPayload {
   override_capacity?: boolean;
   /** Sent only after HR answered "yes" to the additional-company question the server asked. */
   confirm_additional_company?: boolean;
+  /** Needed only when the start date reaches an approved or finalized payroll month (a Super Admin or an HR Manager records the correction). */
+  correction_reason?: string | null;
 }
 
 export type UpdateWorkAssignmentPayload = Partial<Omit<CreateWorkAssignmentPayload, 'client_company_id' | 'work_location_id'>> & {
@@ -329,13 +331,19 @@ export type UpdateWorkAssignmentPayload = Partial<Omit<CreateWorkAssignmentPaylo
   /** Date a new salary starts to apply (defaults to today on the server). Earlier salaries are kept as history. */
   salary_effective_from?: string;
   salary_change_reason?: string | null;
+  /** Needed only when the change reaches an approved or finalized payroll month. */
+  correction_reason?: string | null;
 };
 
 export interface EndWorkAssignmentPayload {
   end_date: string;
   note?: string | null;
-  /** Required by the server for an open Permanent assignment (docs/HR_PAYROLL_RULES.md N1). */
+  /** OPTIONAL (owner decision 2026-11-04): a replacement that is chosen is validated and carried out; none is needed to end one assignment. */
   successor?: SuccessorPayload;
+  /** Needed only when the last day reaches an approved or finalized payroll month: the server answers CORRECTION_REASON_REQUIRED. */
+  correction_reason?: string | null;
+  /** The holder is away while a Replacement works: HR confirms that ending this assignment does NOT end the Replacement. */
+  confirm_replacement_continues?: boolean;
 }
 
 export type WorkforceRequestStatus = 'open' | 'partially_filled' | 'fulfilled' | 'cancelled';
@@ -404,6 +412,9 @@ export interface WaitingCandidate {
   gender_match: boolean;
   category_match: boolean;
   position_match: boolean;
+  /** False when the registration workflow is incomplete, so "Confirm match" would be refused; `missing` names the steps. Absent on an older server. */
+  eligible?: boolean;
+  missing?: string[];
 }
 
 export type EmployeeSeparationReason = 'resigned' | 'terminated' | 'contract_ended' | 'other';
@@ -428,6 +439,8 @@ export interface MarkEmployeeSeparatedPayload {
   successors?: (SuccessorPayload & { assignment_id: number })[];
   /** Needed only when the separation date reaches an approved or finalized payroll month: the correction is recorded with this reason. */
   correction_reason?: string | null;
+  /** The employee holds an assignment while away and a Replacement works it: HR confirms the Replacement carries on. */
+  confirm_replacement_continues?: boolean;
 }
 
 export type EmployeeHistoricalCompletionStage = 'training' | 'practical' | 'uniform';
@@ -498,6 +511,8 @@ export interface CreateTemporaryReplacementPayload {
   end_date?: string | null;
   reason?: string | null;
   notes?: string | null;
+  /** Owner decision UG-3: the written reason (10+ characters) the server asks for when the cover reaches an approved or finalized payroll month. */
+  correction_reason?: string | null;
 }
 
 export type TemporaryReplacementWorkdayStatus = 'recorded' | 'verified' | 'void';
@@ -602,6 +617,9 @@ export interface ReplacementChangePreview {
   sees_money: boolean;
   version: string;
 }
+
+/** What SAVING a new cover would do (owner decision UG-3): the figures of a change, without the fields that only exist for a saved cover. */
+export type ReplacementCreatePreview = Omit<ReplacementChangePreview, 'employee_locked_by_records' | 'approval_will_be_cleared' | 'is_approved' | 'version'>;
 
 export interface ReplacementHistoryEntry {
   id: number;
@@ -1236,6 +1254,9 @@ export interface FinancialLedgerRow {
   currency: string;
   reason: string | null;
   notes: string | null;
+  /** A payment row only: true for the negative row that cancels a voided payment, which names the payment it reverses. */
+  is_reversal?: boolean;
+  reverses_payment_id?: number | null;
 }
 
 export interface GetPayrollRollupParams {

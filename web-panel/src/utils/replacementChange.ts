@@ -91,3 +91,72 @@ export function validPeriod(start: string, end: string): boolean {
 
   return isIsoDate(end) && end >= start;
 }
+
+/**
+ * The server refused a save because the cover was changed by someone else since the screen loaded it (409). The screen then has to REFRESH the cover - the
+ * version it holds can never succeed again - not just show the message.
+ */
+export function isStaleCoverError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'TEMPORARY_REPLACEMENT_CHANGED';
+}
+
+/** The server asks for the written reason of a closed-payroll correction (422 CORRECTION_REASON_REQUIRED) when the preview did not already say so. */
+export function isCorrectionReasonAsked(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'CORRECTION_REASON_REQUIRED';
+}
+
+/** What the New Temporary Replacement form knows when the person presses Create (owner decision UG-3). */
+export interface CreateCoverState {
+  /** The covered position, the Temporary employee and a start date are chosen. */
+  hasFields: boolean;
+  /** An overlap, an invalid period or any other error the preview or a refused save reported. */
+  blocked: boolean;
+  /** The server's preview says this cover reaches an approved or finalized payroll month. */
+  reachesClosedPayroll: boolean;
+  /** The server asked for a reason on a save although the preview had not said so. */
+  reasonAsked: boolean;
+  /** The role may not correct closed payroll (anyone but a Super Admin or an HR Manager). */
+  roleMayNotCorrect: boolean;
+  reason: string;
+  checking: boolean;
+}
+
+/** The reason box shows when the preview or a refused save said the cover reaches closed payroll and the role may correct it. */
+export function createNeedsReason(state: Pick<CreateCoverState, 'reachesClosedPayroll' | 'reasonAsked' | 'roleMayNotCorrect'>): boolean {
+  return (state.reachesClosedPayroll || state.reasonAsked) && !state.roleMayNotCorrect;
+}
+
+/** The Create button: the choices are made, nothing blocks, the preview has finished, and a closed-payroll cover has its written reason (10+ characters). */
+export function canCreateCover(state: CreateCoverState): boolean {
+  if (!state.hasFields || state.blocked || state.checking) return false;
+  if (state.roleMayNotCorrect && state.reachesClosedPayroll) return false;
+
+  return !createNeedsReason(state) || validChangeReason(state.reason);
+}
+
+/**
+ * The single written reason an Edit correction sends. When the change reaches approved or finalized payroll the closed-payroll reason IS the correction
+ * reason (the person writes it once); otherwise it is the "why are you correcting this" text.
+ */
+export function editChangeReason(reachesClosedPayroll: boolean, whyChanged: string, closedReason: string): string {
+  return (reachesClosedPayroll ? closedReason : whyChanged).trim();
+}
+
+/** The reason the Edit button waits for: the closed-payroll reason when the change reaches closed payroll, the ordinary one otherwise. */
+export function editReasonOk(reachesClosedPayroll: boolean, whyChanged: string, closedReason: string): boolean {
+  return validChangeReason(editChangeReason(reachesClosedPayroll, whyChanged, closedReason));
+}
+
+/** The word a cover's badge uses in every list ("status.pipeline.replacement.<word>"): the server's lifecycle, with a running cover called "active". */
+export function lifecycleWord(cover: { lifecycle?: ReplacementLifecycle; status: string }): 'active' | 'scheduled' | 'expired' | 'ended' {
+  const lifecycle = cover.lifecycle ?? (cover.status === 'ended' ? 'ended' : 'running');
+
+  return lifecycle === 'running' ? 'active' : lifecycle;
+}
+
+/** The colour of that badge: an expired cover is a problem, a running one is open work, a scheduled one is information, an ended one is quiet. */
+export function lifecycleTone(cover: { lifecycle?: ReplacementLifecycle; status: string }): 'danger' | 'warning' | 'info' | 'neutral' {
+  const word = lifecycleWord(cover);
+
+  return word === 'expired' ? 'danger' : word === 'active' ? 'warning' : word === 'scheduled' ? 'info' : 'neutral';
+}

@@ -15,7 +15,13 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PermissionGate } from '@/components/ui/PermissionGate';
 import { useToast } from '@/components/ui/useToast';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { SearchInput } from '@/components/ui/SearchInput';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { completionSummary, needTrainingTruncated, participantOptionLabel } from '@/utils/trainingBatch';
+import type { TrainingBatch } from '@/types/employee';
 import { formatDate } from '@/utils/formatters';
+import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import { useI18n } from '@/i18n/useI18n';
 
 /**
@@ -28,16 +34,21 @@ export function TrainingBatchesPage() {
   const { show } = useToast();
   const { t, tValue } = useI18n();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [batchDate, setBatchDate] = useState(new Date().toISOString().slice(0, 10));
+  const [batchDate, setBatchDate] = useState(localToday());
   const [location, setLocation] = useState('');
   const [teamOrGroup, setTeamOrGroup] = useState('');
   const [pendingEmployeeByBatch, setPendingEmployeeByBatch] = useState<Record<number, string>>({});
   const [absenteesByBatch, setAbsenteesByBatch] = useState<Record<number, Set<number>>>({});
 
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['training-batches'], queryFn: hrApi.trainingBatches.list });
+  // Everybody in Need Training can be found: the list is a page of 100, and typing a name, number or phone searches all of them.
+  const [needSearch, setNeedSearch] = useState('');
+  const debouncedNeedSearch = useDebouncedValue(needSearch).trim();
+  const [completing, setCompleting] = useState<TrainingBatch | null>(null);
   const { data: eligible } = useQuery({
-    queryKey: ['employees', { pipeline_stage: 'need_training' }],
-    queryFn: () => hrApi.employees.list({ pipeline_stage: 'need_training', per_page: 100 }),
+    queryKey: ['employees', { pipeline_stage: 'need_training', search: debouncedNeedSearch }],
+    queryFn: () => hrApi.employees.list({ pipeline_stage: 'need_training', search: debouncedNeedSearch || undefined, per_page: 100 }),
+    placeholderData: (previous) => previous,
   });
 
   const createMutation = useMutation({
@@ -49,7 +60,7 @@ export function TrainingBatchesPage() {
       setLocation('');
       setTeamOrGroup('');
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.somethingWrong'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.somethingWrong')), 'error'),
   });
 
   const addParticipantMutation = useMutation({
@@ -60,7 +71,7 @@ export function TrainingBatchesPage() {
       setPendingEmployeeByBatch((prev) => ({ ...prev, [variables.batchId]: '' }));
       show(t('notify.pipeline.participantAdded'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.couldNotAddParticipant'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.couldNotAddParticipant')), 'error'),
   });
 
   const removeParticipantMutation = useMutation({
@@ -70,7 +81,7 @@ export function TrainingBatchesPage() {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       show(t('notify.pipeline.participantRemoved'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.couldNotRemoveParticipant'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.pipeline.couldNotRemoveParticipant')), 'error'),
   });
 
   const completeMutation = useMutation({
@@ -79,8 +90,12 @@ export function TrainingBatchesPage() {
       queryClient.invalidateQueries({ queryKey: ['training-batches'] });
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       show(t('notify.pipeline.batchCompleted'));
+      setCompleting(null);
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.pipeline.couldNotCompleteBatch'), 'error'),
+    onError: (err) => {
+      setCompleting(null);
+      show(friendlyErrorMessage(err, t('notify.pipeline.couldNotCompleteBatch')), 'error');
+    },
   });
 
   function toggleAbsent(batchId: number, employeeId: number) {
@@ -110,6 +125,20 @@ export function TrainingBatchesPage() {
       {isLoading && <LoadingState label={t('option.pipeline.loadingTrainingBatches')} />}
       {error && <ErrorState error={error} onRetry={refetch} />}
       {data && data.length === 0 && <EmptyState icon="calendar" title={t('option.pipeline.noTrainingBatchesYet')} />}
+
+      {data && data.some((batch) => batch.status === 'scheduled') && (
+        <PermissionGate module="hr">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <SearchInput value={needSearch} onChange={setNeedSearch} placeholder={t('option.uiAuditB.searchNeedTraining')} className="w-full max-w-sm" />
+            {eligible && debouncedNeedSearch !== '' && eligible.data.length === 0 && <span className="text-xs text-ink-muted">{t('option.uiAuditB.needTrainingNoMatch')}</span>}
+            {eligible && needTrainingTruncated(eligible.data.length, eligible.meta.total) && (
+              <span className="text-xs text-ink-muted" data-testid="need-training-truncated">
+                {t('option.uiAuditB.needTrainingShown', { shown: eligible.data.length, total: eligible.meta.total })}
+              </span>
+            )}
+          </div>
+        </PermissionGate>
+      )}
 
       {data && data.length > 0 && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -172,7 +201,7 @@ export function TrainingBatchesPage() {
                       placeholder={t('option.addEligibleEmployee')}
                       options={(eligible?.data ?? [])
                         .filter((e) => !batch.participants.some((p) => p.employee_id === e.id))
-                        .map((e) => ({ value: String(e.id), label: e.full_name }))}
+                        .map((e) => ({ value: String(e.id), label: participantOptionLabel(e) }))}
                       className="h-8 flex-1 text-xs"
                     />
                     <Button
@@ -190,8 +219,8 @@ export function TrainingBatchesPage() {
                       size="sm"
                       variant="outline"
                       className="mt-2 w-full"
-                      isLoading={completeMutation.isPending}
-                      onClick={() => completeMutation.mutate({ batchId: batch.id, absentIds: Array.from(absenteesByBatch[batch.id] ?? []) })}
+                      isLoading={completeMutation.isPending && completing?.id === batch.id}
+                      onClick={() => setCompleting(batch)}
                     >
                       {t('action.markBatchCompleted')}
                     </Button>
@@ -202,6 +231,22 @@ export function TrainingBatchesPage() {
           ))}
         </div>
       )}
+
+      {(() => {
+        const summary = completing ? completionSummary(completing.participants, absenteesByBatch[completing.id]) : { go: 0, absent: 0 };
+
+        return (
+          <ConfirmDialog
+            isOpen={completing !== null}
+            title={t('confirm.uiAuditB.completeBatchTitle', { batch: completing?.batch_number ?? '' })}
+            description={t('confirm.uiAuditB.completeBatchBody', { go: summary.go, absent: summary.absent })}
+            confirmLabel={t('action.markBatchCompleted')}
+            isLoading={completeMutation.isPending}
+            onConfirm={() => completing && completeMutation.mutate({ batchId: completing.id, absentIds: Array.from(absenteesByBatch[completing.id] ?? []) })}
+            onCancel={() => setCompleting(null)}
+          />
+        );
+      })()}
 
       <Modal
         isOpen={isCreateOpen}

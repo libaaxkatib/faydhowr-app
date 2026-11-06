@@ -21,6 +21,7 @@ import type {
   DuplicateEmployeeMatch,
   EndTemporaryReplacementPayload,
   ReplacementChangePreview,
+  ReplacementCreatePreview,
   ReplacementHistoryEntry,
   UpdateTemporaryReplacementPayload,
   Employee,
@@ -318,10 +319,13 @@ export const hrApi = {
     update: (id: number, payload: UpdateTemporaryReplacementPayload) =>
       apiRequest<TemporaryReplacement>(`admin/hr/temporary-replacements/${id}`, { method: 'PATCH', body: payload }),
     /** What a change of dates would do (days, cost per month, closed payroll months), without saving anything. An omitted date keeps today's value; an empty end_date means no end. */
-    changePreview: (id: number, params: { start_date?: string; end_date?: string | null; replacement_employee_id?: number }) =>
+    changePreview: (id: number, params: { start_date?: string; end_date?: string | null; replacement_employee_id?: number; for?: 'end' }) =>
       apiRequest<ReplacementChangePreview>(`admin/hr/temporary-replacements/${id}/change-preview`, {
-        query: { start_date: params.start_date, end_date: params.end_date === undefined ? undefined : (params.end_date ?? ''), replacement_employee_id: params.replacement_employee_id },
+        query: { start_date: params.start_date, end_date: params.end_date === undefined ? undefined : (params.end_date ?? ''), replacement_employee_id: params.replacement_employee_id, for: params.for },
       }),
+    /** Owner decision UG-3: what SAVING a new cover would do (days, cost, approved/finalized months, whether a correction reason is needed). Saves nothing. */
+    createPreview: (params: { work_assignment_id: number; replacement_employee_id: number; start_date: string; end_date?: string | null }) =>
+      apiRequest<ReplacementCreatePreview>('admin/hr/temporary-replacements/create-preview', { query: params }),
     /** Closes a cover whose end date has passed, keeping its dates exactly as recorded. */
     close: (id: number) => apiRequest<TemporaryReplacement>(`admin/hr/temporary-replacements/${id}/close`, { method: 'PATCH' }),
     history: (id: number) => apiRequest<ReplacementHistoryEntry[]>(`admin/hr/temporary-replacements/${id}/history`),

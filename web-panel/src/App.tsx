@@ -52,6 +52,7 @@ import { AuditLogPage } from '@/features/system/AuditLogPage';
 import { TranslationsPage } from '@/features/system/TranslationsPage';
 import { RecoveryCenterPage } from '@/features/system/recovery/RecoveryCenterPage';
 import { RequireSuperAdmin } from '@/features/auth/RequireSuperAdmin';
+import { RequireRole } from '@/features/auth/RequireRole';
 import { DashboardGate } from '@/features/dashboard/DashboardGate';
 import { NotFoundPage } from '@/features/shell/NotFoundPage';
 import { ReconciliationListPage } from '@/features/system/ReconciliationListPage';
@@ -180,7 +181,8 @@ export default function App() {
         <Route path="/hr/reports/waiting-analytics" element={<RequirePermission permission="hr.reports.view"><WaitingAnalyticsPage /></RequirePermission>} />
         <Route path="/hr/reports/workforce-requests" element={<RequirePermission permission="hr.reports.view"><WorkforceRequestHistoryPage /></RequirePermission>} />
         <Route path="/hr/reports/temporary-replacements" element={<RequirePermission permission="hr.reports.view"><RequirePermission permission="hr.view"><TemporaryReplacementHistoryPage /></RequirePermission></RequirePermission>} />
-        <Route path="/hr/reports/compliance" element={<RequirePermission permission="hr.reports.view"><RequirePermission permission="hr.view"><ComplianceReportPage /></RequirePermission></RequirePermission>} />
+        {/* The backend asks for hr.reports.view AND the HR Manager / Super Admin role (not hr.view). */}
+        <Route path="/hr/reports/compliance" element={<RequirePermission permission="hr.reports.view"><RequireRole roles={['hr_manager']}><ComplianceReportPage /></RequireRole></RequirePermission>} />
         <Route path="/hr/reports/leaves" element={<RequirePermission permission="hr.reports.view"><LeaveReportPage /></RequirePermission>} />
         <Route path="/hr/reports/performance-reviews" element={<RequirePermission permission="hr.reports.view"><PerformanceReportPage /></RequirePermission>} />
         <Route path="/hr/reports/financial-ledger" element={<RequirePermission permission="hr.reports.view"><RequirePermission permission="hr.view"><FinancialLedgerPage /></RequirePermission></RequirePermission>} />
@@ -212,12 +214,13 @@ export default function App() {
         <Route path="/marketing/commission" element={<RequirePermission permission="marketing.commission.view"><CommissionPage /></RequirePermission>} />
         <Route path="/marketing/reports" element={<RequirePermission permission="marketing.reports.view"><MarketingReportsPage /></RequirePermission>} />
 
-        <Route path="/system/admins" element={<RequirePermission permission="admins.manage"><AdminUsersPage /></RequirePermission>} />
-        <Route path="/system/roles" element={<RequirePermission permission="roles.manage"><RolesPermissionsPage /></RequirePermission>} />
+        {/* Owner decision UG-4: Admin Users and Roles & Permissions are Super-Admin-only; the audit log is read-only for the HR Manager too. */}
+        <Route path="/system/admins" element={<RequireSuperAdmin><AdminUsersPage /></RequireSuperAdmin>} />
+        <Route path="/system/roles" element={<RequireSuperAdmin><RolesPermissionsPage /></RequireSuperAdmin>} />
         <Route path="/system/settings" element={<RequirePermission permission="settings.view"><SettingsPage /></RequirePermission>} />
         <Route path="/system/translations" element={<RequireSuperAdmin><TranslationsPage /></RequireSuperAdmin>} />
         <Route path="/system/recovery" element={<RequireSuperAdmin><RecoveryCenterPage /></RequireSuperAdmin>} />
-        <Route path="/system/audit-log" element={<RequirePermission permission="admins.manage"><AuditLogPage /></RequirePermission>} />
+        <Route path="/system/audit-log" element={<RequireRole roles={['hr_manager']}><AuditLogPage /></RequireRole>} />
         <Route path="/system/data-issues" element={<RequirePermission permission="reconciliation.view"><ReconciliationListPage /></RequirePermission>} />
         <Route path="/system/data-issues/:id" element={<RequirePermission permission="reconciliation.view"><ReconciliationDetailPage /></RequirePermission>} />
 

@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/useToast';
 import { ApiClientError } from '@/api/client';
 import { useI18n } from '@/i18n/useI18n';
+import { useAuth } from '@/features/auth/useAuth';
+import { defaultTeamId, isMarketingUnrestricted } from '@/utils/marketingAccess';
+import { invalidateMarketing } from '@/utils/marketingCache';
 import type { MessageKey } from '@/i18n/messages';
 import type { MarketingRecord, ResponsiblePartyType } from '@/types/marketing';
 
@@ -40,6 +43,7 @@ const emptyForm = {
   feedback: '',
   assigned_team_id: '',
   assigned_admin_id: '',
+  brought_by_admin_id: '',
 };
 
 /**
@@ -53,13 +57,19 @@ export function ProjectFormDialog({ isOpen, onClose, mode, record }: ProjectForm
   const { t } = useI18n();
   const [form, setForm] = useState(emptyForm);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const { admin, isSuperAdmin } = useAuth();
+  const unrestricted = isMarketingUnrestricted({ isSuperAdmin, role: admin?.role });
+  // A team member who belongs to exactly one team starts with that team chosen (they can change it); nobody else gets a team chosen for them.
+  const [teamTouched, setTeamTouched] = useState(false);
 
   const { data: teams } = useQuery({ queryKey: ['marketing-teams'], queryFn: marketingApi.teams.list });
   const { data: employees } = useQuery({ queryKey: ['marketing-employees'], queryFn: marketingApi.employees.list });
+  const effectiveTeamId = teamTouched ? form.assigned_team_id : form.assigned_team_id || defaultTeamId(unrestricted, teams);
 
   useEffect(() => {
     if (isOpen) {
       setFieldErrors({});
+      setTeamTouched(false);
       setForm(
         record?.project
           ? {
@@ -76,6 +86,7 @@ export function ProjectFormDialog({ isOpen, onClose, mode, record }: ProjectForm
               feedback: record.feedback ?? '',
               assigned_team_id: record.assigned_team_id ? String(record.assigned_team_id) : '',
               assigned_admin_id: record.assigned_admin_id ? String(record.assigned_admin_id) : '',
+              brought_by_admin_id: '',
             }
           : emptyForm,
       );
@@ -99,15 +110,16 @@ export function ProjectFormDialog({ isOpen, onClose, mode, record }: ProjectForm
       if (mode === 'create') {
         return marketingApi.project.create({
           ...base,
-          assigned_team_id: form.assigned_team_id ? Number(form.assigned_team_id) : null,
+          assigned_team_id: effectiveTeamId ? Number(effectiveTeamId) : null,
           assigned_admin_id: form.assigned_admin_id ? Number(form.assigned_admin_id) : null,
+          ...(unrestricted && form.brought_by_admin_id ? { brought_by_admin_id: Number(form.brought_by_admin_id) } : {}),
         });
       }
       return marketingApi.project.update(record!.id, { ...base, feedback: form.feedback || null });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketing-records'] });
-      if (record) queryClient.invalidateQueries({ queryKey: ['marketing-record', record.id] });
+      // Everything Marketing shows may change with a record (lists, this record, dashboard counters, follow-ups, reports).
+      invalidateMarketing(queryClient);
       show(mode === 'create' ? t('notify.marketing.recordRegistered', { type: 'PROJECT' }) : t('notify.marketing.recordUpdated', { type: 'PROJECT' }));
       onClose();
     },
@@ -156,7 +168,7 @@ export function ProjectFormDialog({ isOpen, onClose, mode, record }: ProjectForm
           </FormField>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField label={t('option.marketing.engineerResponsible')} htmlFor="responsible_person_name" error={fieldErrors.responsible_person_name?.[0]}>
             <input id="responsible_person_name" className={inputClasses} value={form.responsible_person_name} onChange={(e) => setForm({ ...form, responsible_person_name: e.target.value })} />
           </FormField>
@@ -165,7 +177,7 @@ export function ProjectFormDialog({ isOpen, onClose, mode, record }: ProjectForm
           </FormField>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField label={t('option.label.location')} htmlFor="location" error={fieldErrors.location?.[0]}>
             <input id="location" className={inputClasses} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
           </FormField>
@@ -178,7 +190,7 @@ export function ProjectFormDialog({ isOpen, onClose, mode, record }: ProjectForm
           <input id="project_size" className={inputClasses} value={form.project_size} onChange={(e) => setForm({ ...form, project_size: e.target.value })} />
         </FormField>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField label={t('option.marketing.constructionCompletionDate')} htmlFor="construction_completion_date" error={fieldErrors.construction_completion_date?.[0]}>
             <input id="construction_completion_date" type="date" className={inputClasses} value={form.construction_completion_date} onChange={(e) => setForm({ ...form, construction_completion_date: e.target.value })} />
           </FormField>
@@ -188,12 +200,15 @@ export function ProjectFormDialog({ isOpen, onClose, mode, record }: ProjectForm
         </div>
 
         {mode === 'create' && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormField label={t('option.marketing.assignedTeam')} htmlFor="assigned_team_id">
               <Select
                 id="assigned_team_id"
-                value={form.assigned_team_id}
-                onChange={(e) => setForm({ ...form, assigned_team_id: e.target.value })}
+                value={effectiveTeamId}
+                onChange={(e) => {
+                  setTeamTouched(true);
+                  setForm({ ...form, assigned_team_id: e.target.value });
+                }}
                 placeholder={t('option.employees.unassigned')}
                 options={(teams ?? []).map((team) => ({ value: String(team.id), label: team.name }))}
               />
@@ -210,7 +225,20 @@ export function ProjectFormDialog({ isOpen, onClose, mode, record }: ProjectForm
           </div>
         )}
 
-        <FormField label={t('option.label.description')} htmlFor="description" error={fieldErrors.description?.[0]}>
+        {mode === 'create' && unrestricted && (
+          <FormField label={t('option.marketing.broughtBy')} htmlFor="brought_by_admin_id" hint={t('option.marketing.broughtByHint')} error={fieldErrors.brought_by_admin_id?.[0]}>
+            <Select
+              id="brought_by_admin_id"
+              value={form.brought_by_admin_id}
+              onChange={(e) => setForm({ ...form, brought_by_admin_id: e.target.value })}
+              placeholder={t('option.marketing.broughtByDefault')}
+              options={(employees ?? []).map((e) => ({ value: String(e.id), label: e.full_name }))}
+            />
+          </FormField>
+        )}
+
+        <FormField label={t('option.label.description')}
+ htmlFor="description" error={fieldErrors.description?.[0]}>
           <textarea id="description" rows={3} className={inputClasses + ' h-auto py-2'} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </FormField>
 

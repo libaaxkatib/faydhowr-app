@@ -21,21 +21,23 @@ function permissionSetOf(keys: string[]): (key: string) => boolean {
   return (key: string) => set.has(key);
 }
 
-function groupLabels(hasPermission: (key: string) => boolean, isSuperAdmin: boolean): string[] {
-  return NAV_GROUPS.filter((group) => isGroupVisible(group, hasPermission, isSuperAdmin)).map((group) => group.label);
+function groupLabels(hasPermission: (key: string) => boolean, isSuperAdmin: boolean, role?: string): string[] {
+  return NAV_GROUPS.filter((group) => isGroupVisible(group, hasPermission, isSuperAdmin, role)).map((group) => group.label);
 }
 
 test('HR Manager with the intended HR grant sees only Human Resources, nothing else', () => {
   const hasPermission = permissionSetOf(['dashboard.view', 'hr.dashboard.view', 'hr.view', 'hr.manage', 'hr.reports.view', 'hr.inspections.view', 'hr.inspections.manage']);
 
-  const visibleGroups = groupLabels(hasPermission, false);
-  assert.deepEqual(visibleGroups, ['Human Resources']);
+  const visibleGroups = groupLabels(hasPermission, false, 'hr_manager');
+  // Owner decision UG-4: the HR Manager also keeps the READ-ONLY Audit Log, so the System group appears - with that one entry (below).
+  assert.deepEqual(visibleGroups, ['Human Resources', 'System']);
   assert.ok(!visibleGroups.includes('Mobile App Management'));
   assert.ok(!visibleGroups.includes('Marketing'));
-  assert.ok(!visibleGroups.includes('System'));
+  const systemItems = NAV_GROUPS.find((g) => g.label === 'System')!.items.filter((item) => isItemRenderable(item, hasPermission, false, 'hr_manager')).map((i) => i.label);
+  assert.deepEqual(systemItems, ['Audit Log'], 'no Admin Users, Roles & Permissions, Settings, Translations, Recovery Center or Data Issues for an HR Manager with only the HR grant');
 
   const hrGroup = NAV_GROUPS.find((g) => g.label === 'Human Resources')!;
-  const renderable = hrGroup.items.filter((item) => isItemRenderable(item, hasPermission, false)).map((i) => i.label);
+  const renderable = hrGroup.items.filter((item) => isItemRenderable(item, hasPermission, false, 'hr_manager')).map((i) => i.label);
   // Every HR item requires hr.view or hr.reports.view, both granted here - all should render,
   // except Payroll (needs its own hr.payroll.view) and Excel Imports (hr.import, reserved for Super Admin).
   assert.deepEqual(
@@ -78,7 +80,7 @@ test('HR Manager with zero grants sees no group at all - a title/submenu alone n
 test('Marketing Manager sees only Marketing', () => {
   const hasPermission = permissionSetOf(['dashboard.view', 'marketing.view', 'marketing.manage']);
 
-  const visibleGroups = groupLabels(hasPermission, false);
+  const visibleGroups = groupLabels(hasPermission, false, 'marketing_manager');
   assert.deepEqual(visibleGroups, ['Marketing']);
   assert.ok(!visibleGroups.includes('Human Resources'));
   assert.ok(!visibleGroups.includes('Mobile App Management'));
@@ -87,7 +89,7 @@ test('Marketing Manager sees only Marketing', () => {
 test('Mobile App Manager with customers.view sees Mobile App Management, with its comingSoon placeholders, but nothing else', () => {
   const hasPermission = permissionSetOf(['dashboard.view', 'customers.view']);
 
-  const visibleGroups = groupLabels(hasPermission, false);
+  const visibleGroups = groupLabels(hasPermission, false, 'mobile_app_manager');
   assert.deepEqual(visibleGroups, ['Mobile App Management']);
 
   const mobileGroup = NAV_GROUPS.find((g) => g.label === 'Mobile App Management')!;
@@ -117,6 +119,7 @@ test('every real (non-comingSoon) nav item declares the permission its own page 
   for (const group of NAV_GROUPS) {
     for (const item of group.items) {
       if (item.comingSoon || item.superAdminOnly) continue;
+      if (item.roles) continue; // opened by ROLE (audit log, compliance report); covered by the role tests below
       assert.ok(
         typeof item.permission === 'string' && item.permission.length > 0,
         `"${item.label}" in "${group.label}" has no permission tag - it would be visible to every role`,
@@ -203,4 +206,56 @@ test('a report that needs a second permission is listed only with both, like the
     assert.equal(isItemRenderable(item, permissionSetOf(['hr.reports.view', second]), false), true, to + ' with both');
     assert.equal(isItemRenderable(item, permissionSetOf([]), true), true, to + ' for Super Admin');
   }
+});
+
+test('owner decision UG-4: Admin Users and Roles & Permissions are Super Admin only, even for someone holding admins.manage / roles.manage by mistake', () => {
+  const system = NAV_GROUPS.find((group) => group.label === 'System')!;
+  const admins = system.items.find((item) => item.to === '/system/admins')!;
+  const roles = system.items.find((item) => item.to === '/system/roles')!;
+  const stray = permissionSetOf(['admins.manage', 'roles.manage']);
+
+  for (const item of [admins, roles]) {
+    assert.ok(item.superAdminOnly);
+    assert.equal(isItemRenderable(item, stray, false, 'hr_manager'), false);
+    assert.equal(isItemRenderable(item, permissionSetOf([]), true), true);
+  }
+});
+
+test('owner decision UG-4: the Audit Log is listed for the Super Admin and the HR Manager only, by role and with no permission', () => {
+  const audit = NAV_GROUPS.flatMap((g) => g.items).find((item) => item.to === '/system/audit-log')!;
+  assert.deepEqual(audit.roles, ['hr_manager']);
+  assert.equal(audit.permission, undefined);
+
+  assert.equal(isItemRenderable(audit, permissionSetOf([]), false, 'hr_manager'), true, 'the HR Manager needs no permission for it');
+  assert.equal(isItemRenderable(audit, permissionSetOf([]), true), true);
+  for (const role of ['manager', 'sales', 'hr_employee', 'marketing_manager', 'mobile_app_manager', undefined]) {
+    assert.equal(isItemRenderable(audit, permissionSetOf(['admins.manage', 'settings.view']), false, role), false, `${role ?? 'no role'}`);
+  }
+});
+
+test('owner decision UG-1 / D-11: the compliance report needs hr.reports.view AND the HR Manager or Super Admin role (like the backend), not hr.view', () => {
+  const compliance = NAV_GROUPS.flatMap((g) => g.items).find((item) => item.to === '/hr/reports/compliance')!;
+  assert.equal(compliance.permission, 'hr.reports.view');
+  assert.deepEqual(compliance.roles, ['hr_manager']);
+  assert.equal(compliance.alsoPermission, undefined);
+
+  assert.equal(isItemRenderable(compliance, permissionSetOf(['hr.reports.view']), false, 'hr_manager'), true);
+  assert.equal(isItemRenderable(compliance, permissionSetOf(['hr.reports.view', 'hr.view', 'hr.manage']), false, 'hr_employee'), false, 'the right permissions in the wrong role');
+  assert.equal(isItemRenderable(compliance, permissionSetOf(['hr.view']), false, 'hr_manager'), false, 'the right role without the report permission');
+  assert.equal(isItemRenderable(compliance, permissionSetOf([]), true), true);
+});
+
+test('an HR Manager whose only allowed page is the audit log is sent there instead of to a dead end', () => {
+  assert.equal(firstAllowedPath(NAV_GROUPS, permissionSetOf([]), false, 'hr_manager'), '/system/audit-log');
+  assert.equal(firstAllowedPath(NAV_GROUPS, permissionSetOf([]), false, 'sales'), null);
+});
+
+test('Employee Registration needs hr.manage (registering is refused to view-only people), and Employees stays for hr.view', () => {
+  const hr = NAV_GROUPS.find((g) => g.label === 'Human Resources')!;
+  const registration = hr.items.find((i) => i.label === 'Employee Registration')!;
+  const employees = hr.items.find((i) => i.label === 'Employees')!;
+
+  assert.equal(isItemRenderable(registration, permissionSetOf(['hr.view']), false), false);
+  assert.equal(isItemRenderable(registration, permissionSetOf(['hr.view', 'hr.manage']), false), true);
+  assert.equal(isItemRenderable(employees, permissionSetOf(['hr.view']), false), true);
 });

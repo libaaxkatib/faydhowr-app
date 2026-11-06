@@ -8,6 +8,7 @@ use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\ClientCompany;
 use App\Models\EmployeeWorkAssignment;
+use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\CompanyEmployees\CompanyAssignmentGuard;
 use App\Support\Hr\ConcurrentAssignmentGuard;
@@ -45,6 +46,12 @@ class ReopenEndedAssignmentAction
         }
 
         CompanyAssignmentGuard::requireAssignable($employee);
+
+        // Found in the Employee Detail browser QA (2026-11-06): the Replacement of a FINISHED cycle (its holder returned to the same assignment) is history, the
+        // same definition every succession check uses. Reopening it would put the Replacement and the returned holder on the position at the same time.
+        if (AbsenceCycles::finishedCycleReplacementIds()->where('replacement_assignment_id', $assignment->id)->exists()) {
+            CompanyAssignmentGuard::fail('The employee this Replacement covered has returned to the position, so this cover is over and cannot be reopened. Nothing was changed.', 'ASSIGNMENT_COVER_FINISHED');
+        }
 
         if (PermanentSuccession::recorded($assignment) !== null || PositionSuccession::successorsOf($assignment)->exists()) {
             CompanyAssignmentGuard::fail('This position was given to someone else after the assignment ended, so it cannot be reopened. Correct the other assignment first.', 'ASSIGNMENT_POSITION_FILLED');

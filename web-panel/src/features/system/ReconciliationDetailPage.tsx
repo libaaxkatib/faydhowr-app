@@ -100,13 +100,15 @@ export function ReconciliationDetailPage() {
 
   const canEdit = hasPermission('reconciliation.update');
   const canResolve = hasPermission('reconciliation.resolve');
+  // An affected employee opens the HR employee page, which needs hr.view; without it the row is plain text instead of a link to "Access restricted".
+  const canOpenEmployee = hasPermission('hr.view');
   const isClosing = issue.status === 'resolved' || issue.status === 'accepted_difference' || issue.status === 'cannot_resolve';
 
   return (
     <div>
       <PageHeader
         title={`${issue.issue_number} — ${issue.title}`}
-        breadcrumb={[{ label: t('option.system.system'), to: '/system/settings' }, { label: fromLabel, to: fromPath }, { label: issue.issue_number }]}
+        breadcrumb={[{ label: t('option.system.system'), to: '/system/data-issues' }, { label: fromLabel, to: fromPath }, { label: issue.issue_number }]}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate(fromPath)}>
@@ -227,9 +229,9 @@ export function ReconciliationDetailPage() {
                     {pagedRecords.map((record) => (
                       <tr
                         key={record.id}
-                        className="cursor-pointer border-b border-border last:border-0 hover:bg-surface-alt"
+                        className={`border-b border-border last:border-0 hover:bg-surface-alt ${canOpenEmployee ? 'cursor-pointer' : ''}`}
                         onClick={() =>
-                          record.employee &&
+                          record.employee && canOpenEmployee &&
                           navigate(`/hr/employees/${record.employee.id}`, {
                             state: { fromPath: `/system/data-issues/${issue.id}`, fromLabel: issue.issue_number },
                           })

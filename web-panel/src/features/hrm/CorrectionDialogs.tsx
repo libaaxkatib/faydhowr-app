@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { hrApi } from '@/api/hr';
@@ -9,7 +9,9 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/useToast';
 import { useI18n } from '@/i18n/useI18n';
 import { formatCurrency, formatDate } from '@/utils/formatters';
-import { friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
+import { facilityToday } from '@/utils/facility';
+import { friendlyErrorMessage } from '@/utils/hrHelpers';
+import { invalidatePayrollDependents } from '@/utils/payrollQueries';
 import { newIdempotencyKey } from '@/utils/payrollCorrections';
 import { MIN_REOPEN_FINALIZED_REASON, sectionName } from '@/utils/payrollSections';
 import { validatePartialAmount } from '@/utils/workplacePayments';
@@ -46,6 +48,7 @@ export function ReopenFinalizedDialog({ section, monthLabel, onClose }: { sectio
       void queryClient.invalidateQueries({ queryKey: ['payroll-run'] });
       void queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-corrections'] });
+      invalidatePayrollDependents(queryClient);
       show(t('notify.correction.reopened'));
       onClose();
     },
@@ -88,13 +91,14 @@ export function ReconcileDialog({ section, onClose }: { section: PayrollRunSecti
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<ReconciliationMethod>('returned');
   const [reason, setReason] = useState('');
-  const [date, setDate] = useState(localToday());
+  // The settlement date is a Mogadishu calendar day (the server's check), not the day of the browser's own clock.
+  const [date, setDate] = useState(() => facilityToday());
   const [key] = useState(newIdempotencyKey);
   const [serverError, setServerError] = useState<string | null>(null);
   const name = sectionName(section, t('option.payroll.sectionNoCompany'));
   const excessCents = section.unreconciled_overpaid_cents ?? 0;
   const problem = mode === 'partial' && amount !== '' ? validatePartialAmount(amount, excessCents) : null;
-  const ready = reason.trim().length >= 5 && date !== '' && date <= localToday() && (mode === 'full' || (amount !== '' && problem === null));
+  const ready = reason.trim().length >= 5 && date !== '' && date <= facilityToday() && (mode === 'full' || (amount !== '' && problem === null));
 
   const mutation = useMutation({
     mutationFn: () => hrApi.payrollRuns.reconcileCompany(section.id, { mode, ...(mode === 'partial' ? { amount } : {}), method, reason: reason.trim(), settled_on: date, idempotency_key: key }),
@@ -103,6 +107,7 @@ export function ReconcileDialog({ section, onClose }: { section: PayrollRunSecti
       void queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-run'] });
       void queryClient.invalidateQueries({ queryKey: ['workplace-payments'] });
+      invalidatePayrollDependents(queryClient);
       show(t('notify.correction.reconciled'));
       onClose();
     },
@@ -145,7 +150,7 @@ export function ReconcileDialog({ section, onClose }: { section: PayrollRunSecti
         </select>
       </FormField>
       <FormField label={t('option.correction.settledOn')} htmlFor="rc-date" required hint={t('option.payroll.datesMogadishu')}>
-        <input id="rc-date" type="date" max={localToday()} className={inputClasses} value={date} onChange={(e) => setDate(e.target.value)} />
+        <input id="rc-date" type="date" max={facilityToday()} className={inputClasses} value={date} onChange={(e) => setDate(e.target.value)} />
       </FormField>
       <FormField label={t('option.correction.reason')} htmlFor="rc-reason" required hint={t('validation.correction.reasonHint5')}>
         <textarea id="rc-reason" rows={2} maxLength={500} className={`${inputClasses} h-auto py-2`} value={reason} onChange={(e) => setReason(e.target.value)} />
@@ -167,13 +172,22 @@ export function ReopenAssignmentDialog({ row, onClose, companyId, companyName }:
     mutationFn: () => companyEmployeesApi.reopen(companyId, row!.assignment_id, { reason: reason.trim(), ...(correctionReason.trim() !== '' ? { correction_reason: correctionReason.trim() } : {}) }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['company-employees'] });
+      void queryClient.invalidateQueries({ queryKey: ['employee'] });
+      void queryClient.invalidateQueries({ queryKey: ['employees'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-overview'] });
       void queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
       show(t('notify.correction.assignmentReopened'));
       onClose();
     },
-    onError: (err) => setServerError(friendlyErrorMessage(err, t('notify.payroll.reopenFailed'))),
+    onError: (err) => setServerError(friendlyErrorMessage(err, t('notify.company.somethingWentWrongNothingChanged'))),
   });
+
+  // The dialog stays mounted on the company page: every opening (a different row) starts with empty fields and no old error.
+  useEffect(() => {
+    setReason('');
+    setCorrectionReason('');
+    setServerError(null);
+  }, [row?.assignment_id]);
 
   if (row === null) return null;
 

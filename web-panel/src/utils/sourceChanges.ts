@@ -12,6 +12,16 @@ import type { SourceChange, SourceChangeCategory, SourceChangeKind } from '../ty
 /** The most changes the server lists (and the screen shows); the real total is always reported next to them. */
 export const MAX_LISTED_SOURCE_CHANGES = 50;
 
+/**
+ * True when Review / Finalize of a company can only be refused: a penalty or advance changed (PAYROLL_INPUTS_CHANGED) or an assignment, salary row, Temporary
+ * cover or absence changed (PAYROLL_SOURCES_CHANGED) after the draft was generated, or the server has just said so. The confirm button is then off and the
+ * notice points at Generate. The Temporary Replacement warnings are NOT part of this: they never block. While the warnings load, or if they cannot be read,
+ * nothing is blocked here (the server still decides).
+ */
+export function reviewIsBlocked(warnings: { deduction_inputs_changed?: boolean; source_inputs_changed?: boolean } | null | undefined, refusedByServer: boolean): boolean {
+  return refusedByServer || warnings?.deduction_inputs_changed === true || warnings?.source_inputs_changed === true;
+}
+
 /** The server's error code when Review or Finalize is refused because the source data changed. */
 export const SOURCES_CHANGED_CODE = 'PAYROLL_SOURCES_CHANGED';
 

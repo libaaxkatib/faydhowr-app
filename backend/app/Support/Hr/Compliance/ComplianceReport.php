@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\DB;
  * The HR compliance and accountability report: the scanner's findings, tracked. A scan only writes to hr_compliance_findings - it never touches an
  * employee, assignment, status, salary or payroll record, and it never deactivates or penalises anyone.
  *
+ * Owner decision UG-1: reading the report (query, summary, lastScan, history) NEVER writes anything. Only sync(), reached through the explicit
+ * "Run scan" action (POST hr/compliance/scan), scans and stores; each such run is audited with who ran it and what it found. There is no schedule.
+ *
  * Tracking rules:
  *  - a new issue is stored Open with its first-detected time; a known issue keeps its status, note and first-detected time and has its facts refreshed;
  *  - an issue the scan no longer finds is marked Resolved by the system (resolution_source system_cleared): the condition is gone;
@@ -68,7 +71,8 @@ final class ComplianceReport
             ->where('status', '!=', HrComplianceFinding::STATUS_RESOLVED)
             ->update(['status' => HrComplianceFinding::STATUS_RESOLVED, 'resolution_source' => 'system_cleared', 'resolved_at' => $now, 'updated_at' => $now]);
 
-        if ($actor !== null && ($new + $cleared + $reopened) > 0) {
+        // An explicit scan is always recorded (who ran it, when, what it found), so "last scanned" can be shown without a new table.
+        if ($actor !== null) {
             event(AuditEvent::record(
                 action: AuditAction::Update,
                 admin: $actor,
@@ -80,6 +84,41 @@ final class ComplianceReport
         }
 
         return ['new' => $new, 'cleared' => $cleared, 'reopened' => $reopened, 'reviewed' => $scan['employees_reviewed']];
+    }
+
+    /** How many people an explicit scan reviews right now - two cheap read queries, nothing scanned or stored (owner decision UG-1). */
+    public function employeesReviewed(): int
+    {
+        return $this->scanner->employeesInScopeCount();
+    }
+
+    /**
+     * The most recent explicit scan, read from its audit record (no table of its own): when, who, and what it found. Null when nobody has run one.
+     *
+     * @return array{at: string|null, by: string|null, new: int, reopened: int, cleared: int, employees_reviewed: int|null}|null
+     */
+    public function lastScan(): ?array
+    {
+        $log = AuditLog::query()
+            ->with('admin:id,full_name')
+            ->where('entity_type', HrComplianceFinding::class)
+            ->whereNull('entity_id')
+            ->where('description', 'like', 'HR compliance scan:%')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($log === null) {
+            return null;
+        }
+
+        return [
+            'at' => $log->created_at?->toIso8601String(),
+            'by' => $log->admin?->full_name,
+            'new' => (int) ($log->metadata['new'] ?? 0),
+            'reopened' => (int) ($log->metadata['reopened'] ?? 0),
+            'cleared' => (int) ($log->metadata['cleared'] ?? 0),
+            'employees_reviewed' => isset($log->metadata['employees_reviewed']) ? (int) $log->metadata['employees_reviewed'] : null,
+        ];
     }
 
     /**

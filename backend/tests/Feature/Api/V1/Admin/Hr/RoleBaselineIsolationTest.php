@@ -79,9 +79,13 @@ class RoleBaselineIsolationTest extends TestCase
         ['GET', '/api/v1/admin/customers'],
     ];
 
+    // Owner decision UG-4: the audit log is opened by ROLE (Super Admin + HR Manager, read-only), so it is listed apart from the System Administration routes.
+    private const AUDIT = [
+        ['GET', '/api/v1/admin/audit-logs'],
+    ];
+
     private const SYSTEM = [
         ['GET', '/api/v1/admin/admins'],
-        ['GET', '/api/v1/admin/audit-logs'],
         ['GET', '/api/v1/admin/permissions'],
         ['GET', '/api/v1/admin/settings'],
     ];
@@ -95,6 +99,10 @@ class RoleBaselineIsolationTest extends TestCase
         }
         foreach ([...self::MARKETING, ...self::MOBILE, ...self::SYSTEM] as [$method, $uri]) {
             $this->assertSame(403, $this->httpStatus($token, $method, $uri), "HR Manager must not reach $uri");
+        }
+        // Owner decision UG-4: what the HR Manager keeps of System is the READ-ONLY audit log (a role rule, no permission).
+        foreach (self::AUDIT as [$method, $uri]) {
+            $this->assertSame(200, $this->httpStatus($token, $method, $uri), "HR Manager must reach $uri");
         }
     }
 
@@ -117,7 +125,7 @@ class RoleBaselineIsolationTest extends TestCase
         foreach (self::MARKETING as [$method, $uri]) {
             $this->assertSame(200, $this->httpStatus($token, $method, $uri), "Marketing Manager must reach $uri");
         }
-        foreach ([...self::HR, ...self::HR_MONEY_AND_IMPORT, ...self::MOBILE, ...self::SYSTEM] as [$method, $uri]) {
+        foreach ([...self::HR, ...self::HR_MONEY_AND_IMPORT, ...self::MOBILE, ...self::SYSTEM, ...self::AUDIT] as [$method, $uri]) {
             $this->assertSame(403, $this->httpStatus($token, $method, $uri), "Marketing Manager must not reach $uri");
         }
     }
@@ -129,7 +137,7 @@ class RoleBaselineIsolationTest extends TestCase
         foreach (self::MOBILE as [$method, $uri]) {
             $this->assertSame(200, $this->httpStatus($token, $method, $uri), "Mobile App Manager must reach $uri");
         }
-        foreach ([...self::HR, ...self::HR_MONEY_AND_IMPORT, ...self::MARKETING, ...self::SYSTEM] as [$method, $uri]) {
+        foreach ([...self::HR, ...self::HR_MONEY_AND_IMPORT, ...self::MARKETING, ...self::SYSTEM, ...self::AUDIT] as [$method, $uri]) {
             $this->assertSame(403, $this->httpStatus($token, $method, $uri), "Mobile App Manager must not reach $uri");
         }
         // Read-only: the baseline carries no write key.
@@ -144,6 +152,11 @@ class RoleBaselineIsolationTest extends TestCase
             foreach ([...self::HR, ...self::MARKETING, ...self::MOBILE, ...self::SYSTEM] as [$method, $uri]) {
                 $this->assertSame(403, $this->httpStatus($token, $method, $uri), "{$role->value} with no grants must not reach $uri");
             }
+
+            // The audit log is opened by ROLE, not by a grant (owner decision UG-4): the HR Manager reads it even with no grants; every other role does not.
+            foreach (self::AUDIT as [$method, $uri]) {
+                $this->assertSame($role === AdminRole::HrManager ? 200 : 403, $this->httpStatus($token, $method, $uri), "{$role->value} with no grants and $uri");
+            }
         }
     }
 
@@ -154,7 +167,7 @@ class RoleBaselineIsolationTest extends TestCase
         foreach ([AdminRole::Manager, AdminRole::Sales, AdminRole::Inventory, AdminRole::Accountant] as $role) {
             $token = $this->tokenFor($role, ['dashboard.view']);
 
-            foreach ([...self::HR, ...self::MARKETING, ...self::SYSTEM] as [$method, $uri]) {
+            foreach ([...self::HR, ...self::MARKETING, ...self::SYSTEM, ...self::AUDIT] as [$method, $uri]) {
                 $this->assertSame(403, $this->httpStatus($token, $method, $uri), "{$role->value} must not reach $uri");
             }
         }
@@ -165,7 +178,7 @@ class RoleBaselineIsolationTest extends TestCase
         $this->app['auth']->forgetGuards();
         $token = Admin::factory()->superAdmin()->create()->createToken('t')->plainTextToken;
 
-        foreach ([...self::HR, ...self::HR_MONEY_AND_IMPORT, ...self::MARKETING, ...self::MOBILE, ...self::SYSTEM] as [$method, $uri]) {
+        foreach ([...self::HR, ...self::HR_MONEY_AND_IMPORT, ...self::MARKETING, ...self::MOBILE, ...self::SYSTEM, ...self::AUDIT] as [$method, $uri]) {
             $this->assertContains($this->httpStatus($token, $method, $uri), [200, 422], "Super Admin must reach $uri");
         }
     }

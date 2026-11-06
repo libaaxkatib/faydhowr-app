@@ -3,9 +3,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { authApi } from '@/api/auth';
 import { getStoredToken, registerUnauthenticatedHandler, setStoredToken } from '@/api/client';
+import { sessionOutcomeAfterFailure } from '@/utils/accessRules';
 import type { Admin, LoginPayload } from '@/types/admin';
 
-type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated';
+/** 'unavailable' = the session could not be checked because the server or network did not answer; the stored sign-in is kept and a retry is offered. */
+type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated' | 'unavailable';
 
 export interface AuthContextValue {
   status: AuthStatus;
@@ -16,6 +18,8 @@ export interface AuthContextValue {
   logout: () => void;
   /** super_admin holds every permission implicitly — see AdminPermissionResolver on the backend. */
   isSuperAdmin: boolean;
+  /** Asks the server again who is signed in (after 'unavailable'). */
+  retrySession: () => void;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -38,25 +42,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => registerUnauthenticatedHandler(null);
   }, [clearSession]);
 
-  useEffect(() => {
+  const loadSession = useCallback(() => {
     const token = getStoredToken();
     if (!token) {
       setStatus('unauthenticated');
       return;
     }
+    setStatus('checking');
     authApi
       .me()
       .then((fetchedAdmin) => {
         setAdmin(fetchedAdmin);
         setStatus('authenticated');
       })
-      .catch(() => {
-        // apiRequest already cleared the token via the unauthenticated handler on a 401;
-        // any other failure (network, 500) should still drop back to the login screen.
-        setStoredToken(null);
-        setStatus('unauthenticated');
+      .catch((error: unknown) => {
+        // Only an answer that says "this sign-in is not valid" (401 not signed in, 403 account switched off) ends the session. A network failure or a
+        // 5xx says nothing about the sign-in, so the stored token is KEPT and the person is offered a retry instead of being signed out.
+        if (sessionOutcomeAfterFailure(error) === 'signed_out') {
+          setStoredToken(null);
+          setStatus('unauthenticated');
+          return;
+        }
+        setStatus('unavailable');
       });
   }, []);
+
+  useEffect(() => {
+    loadSession();
+  }, [loadSession]);
 
   const loginMutation = useMutation({
     mutationFn: authApi.login,
@@ -85,8 +98,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoggingIn: loginMutation.isPending,
       logout,
       isSuperAdmin: admin?.role === 'super_admin',
+      retrySession: loadSession,
     }),
-    [status, admin, loginMutation, logout],
+    [status, admin, loginMutation, logout, loadSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

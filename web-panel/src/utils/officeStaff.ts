@@ -165,6 +165,8 @@ export interface OfficeStaffPayloadOptions {
   confirmOverwrite?: OverwriteField[];
   confirmAdditionalAssignment?: boolean;
   confirmDuplicate?: { reason: string } | null;
+  /** Sent only after the server said the start date reaches an approved or finalized payroll month (CORRECTION_REASON_REQUIRED). */
+  correctionReason?: string | null;
 }
 
 /** The JSON body for the server. Blank optional fields are left out so they can never blank an existing value. */
@@ -182,6 +184,7 @@ export function buildPayload(mode: OfficeStaffMode, form: OfficeStaffForm, emplo
   if (form.guarantor_relationship.trim() !== '') payload.guarantor_relationship = form.guarantor_relationship.trim();
   if (options.confirmOverwrite && options.confirmOverwrite.length > 0) payload.confirm_overwrite = options.confirmOverwrite;
   if (options.confirmAdditionalAssignment) payload.confirm_additional_assignment = true;
+  if (options.correctionReason && options.correctionReason.trim() !== '') payload.correction_reason = options.correctionReason.trim();
 
   if (mode === 'existing') {
     payload.employee_id = employeeId;

@@ -1,8 +1,9 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { hrApi } from '@/api/hr';
+import { ApiClientError } from '@/api/client';
 import { DeductionRecordsCard } from '@/features/hrm/DeductionRecordsCard';
 import { ReplacesNote } from '@/features/hrm/ReplacesNote';
 import { useI18n } from '@/i18n/useI18n';
@@ -16,6 +17,11 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { SuccessorPicker } from '@/features/hrm/companyEmployees/SuccessorPicker';
+import { CorrectionReasonField } from '@/features/hrm/companyEmployees/AssignmentDialogs';
+import { useCorrectionFlow } from '@/features/hrm/useCorrectionFlow';
+import { EmbeddedAssignmentWorkflows } from '@/features/hrm/EmbeddedAssignmentWorkflows';
+import { canStartEmbeddedWorkflow, type EmbeddedWorkflow, type EmbeddedWorkflowKind } from '@/features/hrm/embeddedWorkflow';
+import { validateEndDate } from '@/utils/companyEmployees';
 import { EMPTY_SUCCESSOR, missingSuccessors, needsSuccessor, optionalSuccessor, toSuccessorPayload, validateSuccessor, type SuccessorDraft } from '@/utils/successor';
 import { Select } from '@/components/ui/Select';
 import { CompanyChoiceField } from '@/features/hrm/CompanyChoiceField';
@@ -34,10 +40,10 @@ import { advanceBlockedByWorkflow, canOfferStageMove } from '@/utils/registratio
 import { EmployeeFormDialog } from '@/features/hrm/EmployeeFormDialog';
 import { formatDate, formatDateTime, initialsOf } from '@/utils/formatters';
 import { defaultPayrollMonth } from '@/utils/payrollMonth';
-import { additionalCompanyQuestion, assignmentLabel, friendlyErrorMessage, isWorkplaceMissing, localToday, officeLabel } from '@/utils/hrHelpers';
+import { additionalCompanyQuestion, assignmentLabel, errorCodeOf, friendlyErrorMessage, isWorkplaceMissing, localToday, officeLabel } from '@/utils/hrHelpers';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { submitPracticalDecision } from '@/utils/practicalDecision';
-import type { AttendanceStatus, Employee, MarkEmployeeSeparatedPayload, SuccessorPayload, EmployeeDocument, EmployeeLeave, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, RecordEmployeeLeavePayload, SalaryFrequency, WorkAssignment } from '@/types/employee';
+import type { AttendanceStatus, EndWorkAssignmentPayload, Employee, MarkEmployeeSeparatedPayload, SuccessorPayload, EmployeeDocument, EmployeeLeave, EmployeeSeparationReason, EmployeeStatus, LeaveType, PerformanceRating, PracticalDecision, RecordEmployeeLeavePayload, SalaryFrequency, WorkAssignment } from '@/types/employee';
 
 const SEPARATION_REASON_OPTIONS: { value: EmployeeSeparationReason; labelKey: MessageKey }[] = [
   { value: 'resigned', labelKey: 'option.separation.resigned' },
@@ -182,10 +188,13 @@ export function EmployeeDetailPage() {
   const [isLeaveOpen, setIsLeaveOpen] = useState(false);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  // Replace Employee, Return Original and Reopen Assignment run the company page's own dialogs (EmbeddedAssignmentWorkflows).
+  const [embedded, setEmbedded] = useState<EmbeddedWorkflow | null>(null);
+  const startEmbedded = (kind: EmbeddedWorkflowKind, assignment: WorkAssignment) => setEmbedded({ kind, assignment });
   const pictureInputRef = useRef<HTMLInputElement>(null);
 
   const [guarantorForm, setGuarantorForm] = useState({ guarantor_name: '', guarantor_phone: '', relationship: '' });
-  const [signedDate, setSignedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [signedDate, setSignedDate] = useState(localToday());
   const [documentCategoryId, setDocumentCategoryId] = useState('');
   const [practicalBatchId, setPracticalBatchId] = useState('');
   // Documents card: the document whose category is being corrected, and the category picked for it.
@@ -203,6 +212,11 @@ export function EmployeeDetailPage() {
     queryClient.invalidateQueries({ queryKey: ['employee', employeeId] });
     queryClient.invalidateQueries({ queryKey: ['employees'] });
     queryClient.invalidateQueries({ queryKey: ['payroll-summary', employeeId] });
+    // The same person is shown in the company lists, the dashboard, the replacement lists and payroll: they must not keep the old state.
+    queryClient.invalidateQueries({ queryKey: ['company-employees'] });
+    queryClient.invalidateQueries({ queryKey: ['hr-dashboard'] });
+    queryClient.invalidateQueries({ queryKey: ['temporary-replacements'] });
+    queryClient.invalidateQueries({ queryKey: ['payroll-overview'] });
   };
 
   const statusMutation = useMutation({
@@ -211,7 +225,7 @@ export function EmployeeDetailPage() {
       invalidate();
       show(t('notify.employeeDetail.statusUpdated'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.statusUpdateFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.statusUpdateFailed')), 'error'),
   });
 
   const separateMutation = useMutation({
@@ -221,7 +235,8 @@ export function EmployeeDetailPage() {
       show(t('notify.employeeDetail.separated'));
       setIsSeparateOpen(false);
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.separateFailed'), 'error'),
+    // The modal stays open and shows the answer itself (it may ask for a confirmation or a correction reason).
+    onError: () => undefined,
   });
 
   const rehireMutation = useMutation({
@@ -231,7 +246,7 @@ export function EmployeeDetailPage() {
       show(t('notify.employeeDetail.rehired'));
       setIsRehireOpen(false);
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.rehireFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.rehireFailed')), 'error'),
   });
 
   const supervisorMutation = useMutation({
@@ -240,7 +255,7 @@ export function EmployeeDetailPage() {
       invalidate();
       show(isSupervisor ? t('notify.employeeDetail.supervisorAdded') : t('notify.employeeDetail.supervisorRemoved'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.supervisorFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.supervisorFailed')), 'error'),
   });
 
   const [rejectingLeave, setRejectingLeave] = useState<EmployeeLeave | null>(null);
@@ -273,7 +288,7 @@ export function EmployeeDetailPage() {
       show(t('notify.employeeDetail.leaveRecorded'));
       setIsLeaveOpen(false);
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.leaveRecordFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.leaveRecordFailed')), 'error'),
   });
 
   const reviewMutation = useMutation({
@@ -284,7 +299,7 @@ export function EmployeeDetailPage() {
       show(t('notify.employeeDetail.reviewRecorded'));
       setIsReviewOpen(false);
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.reviewFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.reviewFailed')), 'error'),
   });
 
   const paymentMutation = useMutation({
@@ -295,7 +310,7 @@ export function EmployeeDetailPage() {
       show(t('notify.employeeDetail.paymentRecorded'));
       setIsPaymentOpen(false);
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.paymentFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.paymentFailed')), 'error'),
   });
 
   const { data: documentCategories } = useQuery({ queryKey: ['employee-document-categories'], queryFn: hrApi.documentCategories.list });
@@ -307,7 +322,7 @@ export function EmployeeDetailPage() {
       invalidate();
       show(t('notify.employeeDetail.guarantorSaved'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.guarantorSaveFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.guarantorSaveFailed')), 'error'),
   });
 
   const guarantorVerifyMutation = useMutation({
@@ -316,7 +331,7 @@ export function EmployeeDetailPage() {
       invalidate();
       show(t('notify.employeeDetail.guarantorVerified'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.guarantorVerifyFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.guarantorVerifyFailed')), 'error'),
   });
 
   const contractCreateMutation = useMutation({
@@ -325,7 +340,7 @@ export function EmployeeDetailPage() {
       invalidate();
       show(t('notify.employeeDetail.contractIssued'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.contractIssueFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.contractIssueFailed')), 'error'),
   });
 
   const contractSignMutation = useMutation({
@@ -334,7 +349,7 @@ export function EmployeeDetailPage() {
       invalidate();
       show(t('notify.employeeDetail.contractSigned'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.contractSignFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.contractSignFailed')), 'error'),
   });
 
   const uniformUpdateMutation = useMutation({
@@ -343,7 +358,7 @@ export function EmployeeDetailPage() {
       invalidate();
       show(t('notify.employeeDetail.uniformUpdated'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.uniformUpdateFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.uniformUpdateFailed')), 'error'),
   });
 
   const uniformConfirmMutation = useMutation({
@@ -352,7 +367,7 @@ export function EmployeeDetailPage() {
       invalidate();
       show(t('notify.employeeDetail.uniformConfirmed'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.uniformConfirmFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.uniformConfirmFailed')), 'error'),
   });
 
   // The clicked decision is passed in as the mutation variable, never read from component state:
@@ -362,14 +377,14 @@ export function EmployeeDetailPage() {
       submitPracticalDecision(
         (payload) => hrApi.employees.addPracticalAssessment(employeeId, payload),
         result,
-        { assessmentDate: new Date().toISOString().slice(0, 10), practicalBatchId, notes: assessmentNotes },
+        { assessmentDate: localToday(), practicalBatchId, notes: assessmentNotes },
       ),
     onSuccess: () => {
       invalidate();
       setAssessmentNotes('');
       show(t('notify.employeeDetail.decisionRecorded'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.decisionFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.decisionFailed')), 'error'),
   });
 
   const uploadMutation = useMutation({
@@ -381,7 +396,7 @@ export function EmployeeDetailPage() {
       invalidate();
       show(t('notify.employeeDetail.documentUploaded'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.documentUploadFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.documentUploadFailed')), 'error'),
   });
 
   const deleteDocumentMutation = useMutation({
@@ -390,7 +405,7 @@ export function EmployeeDetailPage() {
       invalidate();
       show(t('notify.employeeDetail.documentRemoved'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.documentRemoveFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.documentRemoveFailed')), 'error'),
   });
 
   const verifyDocumentMutation = useMutation({
@@ -399,7 +414,7 @@ export function EmployeeDetailPage() {
       invalidate();
       show(t('notify.employeeDetail.documentVerified'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.documentVerifyFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.documentVerifyFailed')), 'error'),
   });
 
   // Opens the stored file through the authenticated download endpoint (no public URL exists). Works for any document,
@@ -435,19 +450,33 @@ export function EmployeeDetailPage() {
       invalidate();
       show(t('notify.employeeDetail.pictureUpdated'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.pictureFailed'), 'error'),
+    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.pictureFailed')), 'error'),
   });
 
   const endAssignmentMutation = useMutation({
-    mutationFn: (payload: { id: number; end_date: string; note?: string | null; successor?: SuccessorPayload }) =>
-      hrApi.employees.workAssignments.end(payload.id, { end_date: payload.end_date, note: payload.note, successor: payload.successor }),
+    mutationFn: (payload: EndWorkAssignmentPayload & { id: number }) => {
+      const { id: assignmentId, ...body } = payload;
+
+      return hrApi.employees.workAssignments.end(assignmentId, body);
+    },
     onSuccess: () => {
       invalidate();
       setEndingAssignment(null);
       show(t('notify.employeeDetail.assignmentEnded'));
     },
-    onError: (err) => show(err instanceof Error ? err.message : t('notify.employeeDetail.assignmentEndFailed'), 'error'),
+    // No toast: the End dialog stays open and shows the server's answer, with the field or confirmation that answer asks for.
+    onError: () => undefined,
   });
+
+  /** Every opening of End / Separation starts without the previous attempt's error. */
+  const openEnd = (assignment: WorkAssignment) => {
+    endAssignmentMutation.reset();
+    setEndingAssignment(assignment);
+  };
+  const openSeparate = () => {
+    separateMutation.reset();
+    setIsSeparateOpen(true);
+  };
 
   if (isLoading) return <LoadingState label={t('option.employeeDetail.loadingEmployee')} />;
   if (error || !employee) return <ErrorState error={error} onRetry={refetch} />;
@@ -695,7 +724,7 @@ export function EmployeeDetailPage() {
                   </Button>
                 )}
                 {employee.status !== 'inactive' && (
-                  <Button variant="danger" size="sm" onClick={() => setIsSeparateOpen(true)}>
+                  <Button variant="danger" size="sm" onClick={openSeparate}>
                     {t('action.markInactive')}
                   </Button>
                 )}
@@ -759,16 +788,30 @@ export function EmployeeDetailPage() {
                             {t('action.setWorkplace')}
                           </button>
                         )}
+                        {assignment.assignment_type === 'replacement' ? (
+                          <span className="text-xs text-ink-faint" data-testid="salary-inherited-note">{t('option.employeeDetail.salaryInheritedShort')}</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setChangingSalaryFor(assignment)}
+                            className="text-xs font-medium text-primary hover:underline"
+                          >
+                            {t('action.employeeDetail.changeSalary')}
+                          </button>
+                        )}
+                        {canStartEmbeddedWorkflow('replace', assignment) && (
+                          <button type="button" onClick={() => startEmbedded('replace', assignment)} className="text-xs font-medium text-primary hover:underline">
+                            {t('action.replace')}
+                          </button>
+                        )}
+                        {canStartEmbeddedWorkflow('return', assignment) && (
+                          <button type="button" onClick={() => startEmbedded('return', assignment)} className="text-xs font-medium text-primary hover:underline">
+                            {t('action.returnOriginal')}
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() => setChangingSalaryFor(assignment)}
-                          className="text-xs font-medium text-primary hover:underline"
-                        >
-                          {t('action.employeeDetail.changeSalary')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEndingAssignment(assignment)}
+                          onClick={() => openEnd(assignment)}
                           className="text-xs font-medium text-danger hover:underline"
                         >
                           {t('action.employeeDetail.endAssignmentLink')}
@@ -798,6 +841,13 @@ export function EmployeeDetailPage() {
                       <p className="mt-1 text-xs text-ink-faint">
                         {formatDate(assignment.start_date)} → {assignment.end_date ? formatDate(assignment.end_date) : t('option.employeeDetail.present')}
                       </p>
+                      {canStartEmbeddedWorkflow('reopen', assignment) && (
+                        <PermissionGate module="hr" hideWhen={employee.is_archived}>
+                          <button type="button" onClick={() => startEmbedded('reopen', assignment)} className="mt-1 text-xs font-medium text-primary hover:underline">
+                            {t('action.correction.reopenAssignment')}
+                          </button>
+                        </PermissionGate>
+                      )}
                     </div>
                   ))
               ) : (
@@ -1410,15 +1460,19 @@ export function EmployeeDetailPage() {
       <EmployeeFormDialog isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} mode="edit" employee={employee} />
       {employee.is_archived && <RestoreEmployeeDialog isOpen={isRestoreOpen} employee={employee} onClose={() => setIsRestoreOpen(false)} onDone={invalidate} />}
 
-      <AssignWorkLocationModal
-        isOpen={isAssignOpen}
-        employeeId={employeeId}
-        onClose={() => setIsAssignOpen(false)}
-        onSaved={() => {
-          invalidate();
-          setIsAssignOpen(false);
-        }}
-      />
+      {isAssignOpen && (
+        <AssignWorkLocationModal
+          isOpen
+          employeeId={employeeId}
+          onClose={() => setIsAssignOpen(false)}
+          onSaved={() => {
+            invalidate();
+            setIsAssignOpen(false);
+          }}
+        />
+      )}
+
+      <EmbeddedAssignmentWorkflows workflow={embedded} employee={employee} onClose={() => setEmbedded(null)} />
 
       {settingWorkplaceFor && (
         <SetWorkplaceModal
@@ -1446,8 +1500,9 @@ export function EmployeeDetailPage() {
         <EndAssignmentModal
           assignment={endingAssignment}
           onClose={() => setEndingAssignment(null)}
-          onConfirm={(endDate, note, successor) => endAssignmentMutation.mutate({ id: endingAssignment.id, end_date: endDate, note, successor })}
+          onConfirm={(payload) => endAssignmentMutation.mutate({ id: endingAssignment.id, ...payload })}
           isLoading={endAssignmentMutation.isPending}
+          error={endAssignmentMutation.error}
         />
       )}
 
@@ -1457,20 +1512,25 @@ export function EmployeeDetailPage() {
         <StatusOverrideDialog isOpen={isOverrideOpen} employee={employee} onClose={() => setIsOverrideOpen(false)} onDone={invalidate} />
       )}
 
-      <MarkSeparatedModal
-        isOpen={isSeparateOpen}
-        permanentAssignments={(employee.active_work_assignments ?? []).filter((a) => a.status === 'active' && needsSuccessor(a.assignment_type))}
-        onClose={() => setIsSeparateOpen(false)}
-        onConfirm={(payload) => separateMutation.mutate(payload)}
-        isLoading={separateMutation.isPending}
-      />
+      {isSeparateOpen && (
+        <MarkSeparatedModal
+          isOpen
+          permanentAssignments={(employee.active_work_assignments ?? []).filter((a) => a.status === 'active' && needsSuccessor(a.assignment_type))}
+          onClose={() => setIsSeparateOpen(false)}
+          onConfirm={(payload) => separateMutation.mutate(payload)}
+          isLoading={separateMutation.isPending}
+          error={separateMutation.error}
+        />
+      )}
 
-      <RehireModal
-        isOpen={isRehireOpen}
-        onClose={() => setIsRehireOpen(false)}
-        onConfirm={(note) => rehireMutation.mutate(note)}
-        isLoading={rehireMutation.isPending}
-      />
+      {isRehireOpen && (
+        <RehireModal
+          isOpen
+          onClose={() => setIsRehireOpen(false)}
+          onConfirm={(note) => rehireMutation.mutate(note)}
+          isLoading={rehireMutation.isPending}
+        />
+      )}
 
       <Modal
         isOpen={rejectingLeave !== null}
@@ -1492,27 +1552,33 @@ export function EmployeeDetailPage() {
         </FormField>
       </Modal>
 
-      <RecordLeaveModal
-        choices={choices}
-        isOpen={isLeaveOpen}
-        onClose={() => setIsLeaveOpen(false)}
-        onConfirm={(payload) => leaveMutation.mutate(payload)}
-        isLoading={leaveMutation.isPending}
-      />
+      {isLeaveOpen && (
+        <RecordLeaveModal
+          assignments={employee.work_assignments ?? employee.active_work_assignments ?? []}
+          isOpen
+          onClose={() => setIsLeaveOpen(false)}
+          onConfirm={(payload) => leaveMutation.mutate(payload)}
+          isLoading={leaveMutation.isPending}
+        />
+      )}
 
-      <RecordPerformanceReviewModal
-        isOpen={isReviewOpen}
-        onClose={() => setIsReviewOpen(false)}
-        onConfirm={(payload) => reviewMutation.mutate(payload)}
-        isLoading={reviewMutation.isPending}
-      />
+      {isReviewOpen && (
+        <RecordPerformanceReviewModal
+          isOpen
+          onClose={() => setIsReviewOpen(false)}
+          onConfirm={(payload) => reviewMutation.mutate(payload)}
+          isLoading={reviewMutation.isPending}
+        />
+      )}
 
-      <RecordEmployeePaymentModal
-        isOpen={isPaymentOpen}
-        onClose={() => setIsPaymentOpen(false)}
-        onConfirm={(payload) => paymentMutation.mutate(payload)}
-        isLoading={paymentMutation.isPending}
-      />
+      {isPaymentOpen && (
+        <RecordEmployeePaymentModal
+          isOpen
+          onClose={() => setIsPaymentOpen(false)}
+          onConfirm={(payload) => paymentMutation.mutate(payload)}
+          isLoading={paymentMutation.isPending}
+        />
+      )}
     </div>
   );
 }
@@ -1576,6 +1642,9 @@ function AssignWorkLocationModal({
   const [notes, setNotes] = useState('');
   const [overrideCapacity, setOverrideCapacity] = useState(false);
   const [question, setQuestion] = useState<string | null>(null);
+  // A start date inside an approved or finalized payroll month is recorded as a correction: the server asks, the field then appears (Super Admin and HR Manager).
+  const correction = useCorrectionFlow();
+  const [serverError, setServerError] = useState<string | null>(null);
 
   const isOffice = companyChoice === OFFICE_CHOICE;
   const office = (locations ?? []).find((l) => l.location_type === 'office');
@@ -1597,6 +1666,7 @@ function AssignWorkLocationModal({
         notes: notes || null,
         ...(isSuperAdmin && overrideCapacity ? { override_capacity: true } : {}),
         ...(confirmAdditional ? { confirm_additional_company: true } : {}),
+        ...correction.payload,
       }),
     onSuccess: () => {
       show(t('notify.employeeDetail.assignmentCreated'));
@@ -1609,10 +1679,20 @@ function AssignWorkLocationModal({
     onError: (err) => {
       // The server asks for an explicit yes before an employee who already works for another company is given a second one.
       const asked = additionalCompanyQuestion(err);
-      if (asked !== null) setQuestion(asked);
-      else show(friendlyErrorMessage(err, t('notify.employeeDetail.assignmentCreateFailed')), 'error');
+      if (asked !== null) {
+        setQuestion(asked);
+        return;
+      }
+      correction.noteError(err);
+      setServerError(friendlyErrorMessage(err, t('notify.employeeDetail.assignmentCreateFailed')));
     },
   });
+
+  const save = (confirmAdditional: boolean) => {
+    setServerError(null);
+    if (correction.problem !== undefined) return;
+    assignMutation.mutate(confirmAdditional);
+  };
 
   if (!isOpen) return null;
 
@@ -1634,7 +1714,7 @@ function AssignWorkLocationModal({
       onCancel={() => setQuestion(null)}
       onConfirm={() => {
         setQuestion(null);
-        assignMutation.mutate(true);
+        save(true);
       }}
     />
     <Modal
@@ -1649,13 +1729,14 @@ function AssignWorkLocationModal({
             size="sm"
             isLoading={assignMutation.isPending}
             disabled={companyChoice === '' || salaryAmount === ''}
-            onClick={() => assignMutation.mutate(false)}
+            onClick={() => save(false)}
           >
             {t('action.save')}
           </Button>
         </>
       }
     >
+      {serverError && <div role="alert" className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3.5 py-2.5 text-sm text-danger">{serverError}</div>}
       <FormField label={t('option.employeeDetail.fieldCompany')} htmlFor="wa-company" required>
         <Select
           id="wa-company"
@@ -1705,6 +1786,7 @@ function AssignWorkLocationModal({
       <FormField label={t('option.employeeDetail.fieldNotes')} htmlFor="wa-notes">
         <textarea id="wa-notes" rows={2} className={inputClasses + ' h-auto py-2'} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </FormField>
+      <CorrectionReasonField visible={correction.needed} value={correction.reason} onChange={correction.setReason} error={correction.problem} notice="warning.company.correctionNoticeAdd" />
       {isSuperAdmin && (
         <label className="mt-2 flex items-center gap-2 text-xs text-ink-muted">
           <input type="checkbox" checked={overrideCapacity} onChange={(e) => setOverrideCapacity(e.target.checked)} />
@@ -1810,6 +1892,10 @@ function ChangeSalaryModal({
   const [salaryFrequency, setSalaryFrequency] = useState<SalaryFrequency>(assignment.salary_frequency);
   const [effectiveFrom, setEffectiveFrom] = useState(localToday());
   const [reason, setReason] = useState('');
+  // A salary that takes effect inside an approved or finalized payroll month is recorded as a correction (Super Admin and HR Manager, with a reason).
+  const correction = useCorrectionFlow();
+  const [serverError, setServerError] = useState<string | null>(null);
+  const beforeStart = effectiveFrom !== '' && effectiveFrom < assignment.start_date;
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -1819,12 +1905,16 @@ function ChangeSalaryModal({
         salary_frequency: salaryFrequency,
         salary_effective_from: effectiveFrom,
         salary_change_reason: reason || null,
+        ...correction.payload,
       }),
     onSuccess: () => {
       show(t('notify.employeeDetail.salaryUpdated'));
       onSaved();
     },
-    onError: (err) => show(friendlyErrorMessage(err, t('notify.employeeDetail.salaryUpdateFailed')), 'error'),
+    onError: (err) => {
+      correction.noteError(err);
+      setServerError(friendlyErrorMessage(err, t('notify.employeeDetail.salaryUpdateFailed')));
+    },
   });
 
   return (
@@ -1836,13 +1926,22 @@ function ChangeSalaryModal({
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
-          <Button size="sm" isLoading={saveMutation.isPending} disabled={salaryAmount === '' || effectiveFrom === ''} onClick={() => saveMutation.mutate()}>
+          <Button
+            size="sm"
+            isLoading={saveMutation.isPending}
+            disabled={salaryAmount === '' || effectiveFrom === '' || beforeStart}
+            onClick={() => {
+              setServerError(null);
+              if (correction.problem === undefined) saveMutation.mutate();
+            }}
+          >
             {t('action.employeeDetail.saveSalary')}
           </Button>
         </>
       }
     >
       <p className="mb-3 text-sm text-ink-muted">{assignmentLabel(assignment)}</p>
+      {serverError && <div role="alert" className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3.5 py-2.5 text-sm text-danger">{serverError}</div>}
       <div className="grid grid-cols-3 gap-2">
         <FormField label={t('option.employeeDetail.fieldNewSalary')} htmlFor="cs-salary" required>
           <input id="cs-salary" type="number" min={0} step="0.01" className={inputClasses} value={salaryAmount} onChange={(e) => setSalaryAmount(e.target.value)} />
@@ -1859,13 +1958,33 @@ function ChangeSalaryModal({
         htmlFor="cs-effective"
         required
         hint={t('confirm.employeeDetail.effectiveFromHint')}
+        error={beforeStart ? t('validation.company.salaryBeforeAssignment') : undefined}
       >
         <input id="cs-effective" type="date" className={inputClasses} value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
       </FormField>
       <FormField label={t('option.employeeDetail.fieldReasonOptional')} htmlFor="cs-reason">
         <input id="cs-reason" className={inputClasses} value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />
       </FormField>
+      <CorrectionReasonField visible={correction.needed} value={correction.reason} onChange={correction.setReason} error={correction.problem} />
     </Modal>
+  );
+}
+
+/** The server's answer for one field of a failed request (a FormRequest or business-rule 422 names the field), if it named it. */
+function serverFieldError(error: unknown, field: string): string | undefined {
+  return error instanceof ApiClientError ? error.fieldErrors?.[field]?.[0] : undefined;
+}
+
+/** The server's "the holder is away and a Replacement works the position" answer: ending only this assignment needs an explicit confirmation. */
+const REPLACEMENT_CONTINUES_CODE = 'REPLACEMENT_CONTINUES_CONFIRMATION_REQUIRED';
+
+function ServerAnswer({ error, fallback }: { error: unknown; fallback: string }) {
+  if (!error) return null;
+
+  return (
+    <div role="alert" data-testid="server-answer" className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3.5 py-2.5 text-sm text-danger">
+      {friendlyErrorMessage(error, fallback)}
+    </div>
   );
 }
 
@@ -1874,19 +1993,57 @@ function EndAssignmentModal({
   onClose,
   onConfirm,
   isLoading,
+  error,
 }: {
   assignment: WorkAssignment;
   onClose: () => void;
-  onConfirm: (endDate: string, note?: string, successor?: SuccessorPayload) => void;
+  onConfirm: (payload: EndWorkAssignmentPayload) => void;
   isLoading: boolean;
+  /** The failed request's error, if any: it may ask for a correction reason or for the away-holder confirmation. */
+  error: unknown;
 }) {
   const { t } = useI18n();
-  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState(localToday());
   const [note, setNote] = useState('');
   // A replacement is OPTIONAL when one assignment is ended (owner decision 2026-11-04): it is checked only when HR started choosing one.
   const askSuccessor = needsSuccessor(assignment.assignment_type);
   const [successor, setSuccessor] = useState<SuccessorDraft>(EMPTY_SUCCESSOR);
   const [successorError, setSuccessorError] = useState<string | undefined>();
+  const [dateError, setDateError] = useState<string | undefined>();
+  // The same two steps Stop has on the company page, shown when the server asks for them: a correction reason (closed payroll month) and the confirmation
+  // that a Replacement who works the position of an away holder carries on.
+  const correction = useCorrectionFlow();
+  const [serverDemandsConfirm, setServerDemandsConfirm] = useState(false);
+  const [confirmContinues, setConfirmContinues] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | undefined>();
+  const noteCorrectionError = correction.noteError;
+
+  useEffect(() => {
+    if (!error) return;
+    noteCorrectionError(error);
+    if (errorCodeOf(error) === REPLACEMENT_CONTINUES_CODE) setServerDemandsConfirm(true);
+  }, [error, noteCorrectionError]);
+
+  // The position already has someone working it: no replacement is asked for (the same as Stop).
+  const showPicker = askSuccessor && !serverDemandsConfirm;
+
+  const submit = () => {
+    const chosen = showPicker ? optionalSuccessor(successor, endDate) : { error: null, payload: undefined };
+    const dateProblem = validateEndDate(endDate, assignment.start_date);
+    const confirmProblem = serverDemandsConfirm && !confirmContinues ? t('validation.company.awayStopConfirm') : undefined;
+    setDateError(dateProblem);
+    setSuccessorError(chosen.error ?? undefined);
+    setConfirmError(confirmProblem);
+    if (dateProblem !== undefined || chosen.error !== null || confirmProblem !== undefined || correction.problem !== undefined) return;
+
+    onConfirm({
+      end_date: endDate,
+      note: note || undefined,
+      successor: chosen.payload,
+      ...correction.payload,
+      ...(serverDemandsConfirm && confirmContinues ? { confirm_replacement_continues: true } : {}),
+    });
+  };
 
   return (
     <Modal
@@ -1897,30 +2054,32 @@ function EndAssignmentModal({
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose}>{t('action.cancel')}</Button>
-          <Button
-            variant="danger"
-            size="sm"
-            isLoading={isLoading}
-            onClick={() => {
-              const chosen = askSuccessor ? optionalSuccessor(successor, endDate) : { error: null, payload: undefined };
-              setSuccessorError(chosen.error ?? undefined);
-              if (chosen.error === null) onConfirm(endDate, note || undefined, chosen.payload);
-            }}
-          >
+          <Button variant="danger" size="sm" isLoading={isLoading} onClick={submit}>
             {t('action.endAssignment')}
           </Button>
         </>
       }
     >
+      <ServerAnswer error={error} fallback={t('notify.employeeDetail.assignmentEndFailed')} />
       <p className="mb-3 text-sm text-ink-muted">{assignmentLabel(assignment)}</p>
-      <FormField label={t('option.employeeDetail.fieldEndDate')} htmlFor="end-date" required>
+      <FormField label={t('option.employeeDetail.fieldEndDate')} htmlFor="end-date" required error={dateError ?? serverFieldError(error, 'end_date')}>
         <input id="end-date" type="date" className={inputClasses} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
       </FormField>
-      {askSuccessor && <p className="mb-2 text-xs text-ink-muted" data-testid="end-successor-optional">{t('option.correction.replacementOptional')}</p>}
-      {askSuccessor && <SuccessorPicker assignmentId={assignment.id} lastDay={endDate} value={successor} onChange={setSuccessor} error={successorError} idPrefix="end-successor" />}
+      {showPicker && <p className="mb-2 text-xs text-ink-muted" data-testid="end-successor-optional">{t('option.correction.replacementOptional')}</p>}
+      {showPicker && <SuccessorPicker assignmentId={assignment.id} lastDay={endDate} value={successor} onChange={setSuccessor} error={successorError} idPrefix="end-successor" />}
+      {serverDemandsConfirm && (
+        <div role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs text-warning" data-testid="away-end-confirm">
+          <label className="flex items-start gap-2">
+            <input type="checkbox" id="end-confirm-continues" className="mt-0.5" checked={confirmContinues} onChange={(e) => setConfirmContinues(e.target.checked)} />
+            {t('confirm.company.awayStopConfirm')}
+          </label>
+          {confirmError && <p className="mt-1 text-danger">{confirmError}</p>}
+        </div>
+      )}
       <FormField label={t('option.employeeDetail.fieldNote')} htmlFor="end-note">
         <textarea id="end-note" rows={2} className={inputClasses + ' h-auto py-2'} value={note} onChange={(e) => setNote(e.target.value)} />
       </FormField>
+      <CorrectionReasonField visible={correction.needed} value={correction.reason} onChange={correction.setReason} error={correction.problem} />
     </Modal>
   );
 }
@@ -1931,17 +2090,28 @@ function MarkSeparatedModal({
   onClose,
   onConfirm,
   isLoading,
+  error,
 }: {
   isOpen: boolean;
-  /** The employee's open Permanent assignments: each needs the replacement choice (docs/HR_PAYROLL_RULES.md N1). */
+  /** The employee's open Permanent assignments: each MAY get a replacement choice (optional since the owner decision of 2026-11-04). */
   permanentAssignments: WorkAssignment[];
   onClose: () => void;
   onConfirm: (payload: MarkEmployeeSeparatedPayload) => void;
   isLoading: boolean;
+  /** The failed request's error, if any: it may ask for the away-holder confirmation or a correction reason. */
+  error: unknown;
 }) {
   const { t } = useI18n();
   const [reason, setReason] = useState<EmployeeSeparationReason>('resigned');
-  const [separationDate, setSeparationDate] = useState(new Date().toISOString().slice(0, 10));
+  const [separationDate, setSeparationDate] = useState(localToday());
+  // A holder who is away while a Replacement works the position: HR must confirm that the Replacement carries on (the server asks, then the box appears).
+  const [serverDemandsConfirm, setServerDemandsConfirm] = useState(false);
+  const [confirmContinues, setConfirmContinues] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (errorCodeOf(error) === REPLACEMENT_CONTINUES_CODE) setServerDemandsConfirm(true);
+  }, [error]);
   const [rehireEligible, setRehireEligible] = useState(true);
   const [notes, setNotes] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
@@ -1972,12 +2142,17 @@ function MarkSeparatedModal({
                 setShowMissing(true);
                 return;
               }
+              if (serverDemandsConfirm && !confirmContinues) {
+                setConfirmError(t('validation.company.awayStopConfirm'));
+                return;
+              }
               onConfirm({
                 reason,
                 separation_date: separationDate,
                 rehire_eligible: rehireEligible,
                 notes: notes || null,
                 ...(correctionReason.trim() !== '' ? { correction_reason: correctionReason.trim() } : {}),
+                ...(serverDemandsConfirm && confirmContinues ? { confirm_replacement_continues: true } : {}),
                 successors: chosen.map((id) => ({ assignment_id: id, ...(toSuccessorPayload(drafts[id] ?? EMPTY_SUCCESSOR, separationDate) as SuccessorPayload) })),
               });
             }}
@@ -1987,6 +2162,7 @@ function MarkSeparatedModal({
         </>
       }
     >
+      <ServerAnswer error={error} fallback={t('notify.employeeDetail.separateFailed')} />
       <p className="mb-3 rounded-sm bg-surface-alt px-3 py-2 text-xs text-ink-muted">
         {t('confirm.employeeDetail.markInactiveBody')}
       </p>
@@ -2008,6 +2184,15 @@ function MarkSeparatedModal({
       <FormField label={t('option.correction.payrollCorrectionReason')} htmlFor="sep-correction-reason">
         <input id="sep-correction-reason" maxLength={500} className={inputClasses} value={correctionReason} onChange={(e) => setCorrectionReason(e.target.value)} />
       </FormField>
+      {serverDemandsConfirm && (
+        <div role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs text-warning" data-testid="away-separate-confirm">
+          <label className="flex items-start gap-2">
+            <input type="checkbox" id="sep-confirm-continues" className="mt-0.5" checked={confirmContinues} onChange={(e) => setConfirmContinues(e.target.checked)} />
+            {t('confirm.company.awayStopConfirm')}
+          </label>
+          {confirmError && <p className="mt-1 text-danger">{confirmError}</p>}
+        </div>
+      )}
       {permanentAssignments.length > 0 && <p className="mb-2 text-xs text-ink-muted" data-testid="separation-replacement-optional">{t('option.correction.replacementOptional')}</p>}
       {permanentAssignments.map((assignment) => (
         <div key={assignment.id}>
@@ -2064,13 +2249,13 @@ function RehireModal({
 }
 
 function RecordLeaveModal({
-  choices,
+  assignments,
   isOpen,
   onClose,
   onConfirm,
   isLoading,
 }: {
-  choices: CompanyChoice[];
+  assignments: readonly WorkAssignment[];
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (payload: RecordEmployeeLeavePayload) => void;
@@ -2078,11 +2263,12 @@ function RecordLeaveModal({
 }) {
   const { t } = useI18n();
   const [leaveType, setLeaveType] = useState<LeaveType>('annual');
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
-  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(localToday());
+  const [endDate, setEndDate] = useState(localToday());
   const [notes, setNotes] = useState('');
   const [company, setCompany] = useState('');
-  // Only unpaid leave reduces pay, so only it belongs to a company.
+  // Only unpaid leave reduces pay, so only it belongs to a company - and only the companies the person works for ON THESE DATES count (the server's rule).
+  const choices = companyChoices(assignments, officeLabel(), { from: startDate, to: endDate });
   const needsCompany = leaveType === 'unpaid' && companyMissing(choices, company);
 
   if (!isOpen) return null;
@@ -2141,7 +2327,7 @@ function RecordPerformanceReviewModal({
   isLoading: boolean;
 }) {
   const { t } = useI18n();
-  const [reviewDate, setReviewDate] = useState(new Date().toISOString().slice(0, 10));
+  const [reviewDate, setReviewDate] = useState(localToday());
   const [rating, setRating] = useState<PerformanceRating>('good');
   const [notes, setNotes] = useState('');
 
@@ -2187,7 +2373,7 @@ function RecordEmployeePaymentModal({
   isLoading: boolean;
 }) {
   const { t } = useI18n();
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentDate, setPaymentDate] = useState(localToday());
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USD');
   const [notes, setNotes] = useState('');

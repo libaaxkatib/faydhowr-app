@@ -111,7 +111,10 @@ test('recording and voiding are offered by permission, and the lists refresh aft
   // Payments are recorded from the company list ("Approve Paid" / "Approve Partial"); this panel keeps the history and the void of a mistaken payment.
   assert.match(page, /<WorkplacePaymentsPanel run=\{run\} canVoid=\{canVoid\} \/>/);
   assert.ok(!/canRecord|setPaying|PaymentDialog|wpPayFull|wpPayPartial/.test(panel), 'no payment buttons in the workplace history panel');
-  assert.match(panel, /canVoid && workplace\.can_record/);
+  // UI audit S-1 (this assertion described the old behaviour): the void is offered by role only. The server lets a Super Admin or HR Manager void a mistaken
+  // payment whatever the company's state, and a reopened company keeps its payments, so hiding it for a company that is not finalized trapped a wrong payment.
+  assert.match(panel, /canVoid && \(/);
+  assert.ok(!/canVoid && workplace\.can_record/.test(panel), 'the void is not hidden when the company is not finalized');
   assert.match(panel, /waitsForCompanyFinalization\(workplace\)/);
   assert.match(panel, /queryClient\.invalidateQueries\(\{ queryKey: \['workplace-payments'\] \}\)/);
   assert.match(page, /queryClient\.invalidateQueries\(\{ queryKey: \['workplace-payments'\] \}\)/, 'paying or voiding a single line refreshes the workplace figures');

@@ -147,3 +147,32 @@ export function parseReplacementStatus(search: string | URLSearchParams): Replac
 
   return (REPLACEMENT_STATUS_VALUES as readonly string[]).includes(status ?? '') ? (status as ReplacementStatusValue) : null;
 }
+
+const PAYROLL_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/**
+ * The Financial ledger filtered to ONE calendar month and ONE kind, so the list a "Penalties" / "Advances" dashboard card opens adds up to the number on the
+ * card (the card counts the active records dated in the calendar month; the ledger's own default would be every record ever, payments included).
+ * `calendarMonth` is the dashboard's `calendar_month` (YYYY-MM).
+ */
+export function financialLedgerLink(type: 'penalty' | 'advance', calendarMonth: string): string {
+  if (!PAYROLL_MONTH.test(calendarMonth)) return '/hr/reports/financial-ledger';
+  const year = Number(calendarMonth.slice(0, 4));
+  const month = Number(calendarMonth.slice(5, 7));
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+  return withQuery('/hr/reports/financial-ledger', { type, preset: 'custom', from: `${calendarMonth}-01`, to: `${calendarMonth}-${String(lastDay).padStart(2, '0')}` });
+}
+
+/** The payroll screen on the month the dashboard's Company payroll cards describe (the payroll screen reads `?month=`). */
+export function payrollLink(period: string): string {
+  return PAYROLL_MONTH.test(period) ? withQuery('/hr/payroll', { month: period }) : '/hr/payroll';
+}
+
+/** The payroll month named in the address bar (`?month=YYYY-MM`), or null when it is missing or not a real month. */
+export function parsePayrollMonthParam(search: string | URLSearchParams): string | null {
+  const params = typeof search === 'string' ? new URLSearchParams(search) : search;
+  const month = params.get('month');
+
+  return month !== null && PAYROLL_MONTH.test(month) ? month : null;
+}

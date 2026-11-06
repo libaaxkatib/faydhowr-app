@@ -180,6 +180,7 @@ class AdminDashboardTest extends TestCase
             AdminPermission::RolesManage,
             AdminPermission::SuppliersManage,
         ]);
+        // Owner decision UG-4: roles.manage is Super-Admin-only, so the stray direct grant above must NOT unlock the Roles module.
 
         $response = $this
             ->withToken($admin->createToken('admin-panel')->plainTextToken)
@@ -190,7 +191,6 @@ class AdminDashboardTest extends TestCase
             ->assertJsonPath('data.dashboard_type', 'operations')
             ->assertJsonPath('data.visible_modules', [
                 'dashboard',
-                'roles_permissions',
                 'store',
                 'inventory',
             ]);

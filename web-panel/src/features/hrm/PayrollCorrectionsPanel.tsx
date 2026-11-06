@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { hrApi } from '@/api/hr';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { FormField, inputClasses } from '@/components/ui/FormField';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -16,7 +18,8 @@ import type { MessageKey } from '@/i18n/messages';
 import { formatCents } from '@/utils/companyEmployees';
 import { formatDate } from '@/utils/formatters';
 import { friendlyErrorMessage } from '@/utils/hrHelpers';
-import { canManageDebt, correctionStatusLabel, canPayUnderpayment, canVoidPayment, canWriteOff, newIdempotencyKey, settlementToday, validateSettlementAmount, validateSettlementDate, validateWriteOffReason } from '@/utils/payrollCorrections';
+import { canManageDebt, canSettleCorrection, canVoidPayment, canWriteOffCorrection, correctionStatusLabel, newIdempotencyKey, settlementToday, validateSettlementAmount, validateSettlementDate, validateWriteOffReason } from '@/utils/payrollCorrections';
+import { invalidatePayrollDependents } from '@/utils/payrollQueries';
 import type { PayrollCorrection, PayrollCorrectionTransaction } from '@/types/payroll';
 
 const KIND_LABEL: Record<PayrollCorrection['kind'], MessageKey> = { overpayment: 'option.payroll.kindOverpayment', underpayment: 'option.payroll.kindUnderpayment' };
@@ -33,15 +36,34 @@ export function PayrollCorrectionsPanel() {
   const { t } = useI18n();
   const { admin } = useAuth();
   const { hasPermission } = useEffectivePermissions();
-  const { data, isLoading, error } = useQuery({ queryKey: ['payroll-corrections'], queryFn: hrApi.payrollRuns.corrections });
+  const { data, isLoading, error, refetch } = useQuery({ queryKey: ['payroll-corrections'], queryFn: hrApi.payrollRuns.corrections });
   const [dialog, setDialog] = useState<{ correction: PayrollCorrection; mode: 'settle' | 'write_off' } | null>(null);
   const [voiding, setVoiding] = useState<{ correction: PayrollCorrection; transaction: PayrollCorrectionTransaction } | null>(null);
 
-  if (isLoading || error || !data || (data.corrections.length === 0 && (data.payroll_payment_voids?.length ?? 0) === 0)) return null;
+  // The ledger says so while it loads and when it cannot be read; it stays out of the way only when there is genuinely nothing in it.
+  if (isLoading) {
+    return (
+      <Card className="mt-4" data-testid="payroll-corrections-loading">
+        <CardBody><LoadingState label={t('option.payroll.loadingPayroll')} /></CardBody>
+      </Card>
+    );
+  }
+  if (error) {
+    return (
+      <Card className="mt-4" data-testid="payroll-corrections-error">
+        <CardHeader>
+          <h3 className="font-display text-sm font-bold text-ink">{t('option.payroll.correctionsTitle')}</h3>
+        </CardHeader>
+        <CardBody><ErrorState error={error} onRetry={() => void refetch()} /></CardBody>
+      </Card>
+    );
+  }
+  if (!data || (data.corrections.length === 0 && (data.payroll_payment_voids?.length ?? 0) === 0)) return null;
 
   const money = (cents: number) => formatCents(cents, data.totals.currency);
   const mayManage = hasPermission('hr.payroll.manage');
-  const mayDo = (c: PayrollCorrection) => mayManage && c.outstanding_cents > 0 && (c.kind === 'underpayment' ? canPayUnderpayment(admin?.role) : canManageDebt(admin?.role));
+  // Money is recorded only against an OPEN correction that still has something to settle: a superseded one is history (the server refuses it too).
+  const mayDo = (c: PayrollCorrection) => canSettleCorrection(c, mayManage, admin?.role);
 
   return (
     <Card className="mt-4" data-testid="payroll-corrections">
@@ -116,9 +138,10 @@ export function PayrollCorrectionsPanel() {
                           {c.kind === 'underpayment' ? t('action.payroll.recordPayment') : t('action.payroll.recordRepayment')}
                         </Button>
                       )}
-                      {mayManage && c.kind === 'overpayment' && c.available_to_settle_cents > 0 && canWriteOff(admin?.role) && (
+                      {canWriteOffCorrection(c, mayManage, admin?.role) && (
                         <Button size="sm" variant="outline" onClick={() => setDialog({ correction: c, mode: 'write_off' })}>{t('action.payroll.writeOff')}</Button>
                       )}
+                      {c.status === 'superseded' && <p className="max-w-[14rem] text-xs text-ink-muted" data-testid={`correction-superseded-note-${c.id}`}>{t('warning.correction.supersededNoActions')}</p>}
                     </div>
                   </td>
                 </tr>
@@ -163,7 +186,13 @@ export function PayrollCorrectionsPanel() {
 
 function useRefresh() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: ['payroll-corrections'] });
+
+  return () => {
+    // An underpayment paid (or its reversal) is a payment-ledger row: the ledger, the dashboard and the employee screens show it too.
+    invalidatePayrollDependents(queryClient);
+
+    return queryClient.invalidateQueries({ queryKey: ['payroll-corrections'] });
+  };
 }
 
 const TX_LABEL: Record<PayrollCorrectionTransaction['type'], MessageKey> = {

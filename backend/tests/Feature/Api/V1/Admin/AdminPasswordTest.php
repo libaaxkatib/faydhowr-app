@@ -192,10 +192,8 @@ class AdminPasswordTest extends TestCase
     }
 
     /**
-     * Each of these three is granted admins.manage DIRECTLY (the permission the
-     * route middleware checks) so the test isolates the ACTION's own role check
-     * — proving the 403 comes from `$actor->role !== AdminRole::SuperAdmin` in
-     * ResetAdminPasswordAction, not merely from the route's permission gate.
+     * Each of these three is granted admins.manage DIRECTLY (a stray row). Owner decision UG-4 made admins.manage Super-Admin-only, so the resolver ignores
+     * the grant and the ROUTE refuses first ("You do not have permission..."); ResetAdminPasswordAction keeps its own Super Admin check behind it.
      */
     public function test_hr_manager_cannot_reset_another_admins_password_even_with_admins_manage_granted(): void
     {
@@ -226,7 +224,7 @@ class AdminPasswordTest extends TestCase
             ])
             ->assertForbidden()
             ->assertJsonPath('error_code', 'FORBIDDEN')
-            ->assertJsonPath('message', 'Only Super Admin may reset another admin\'s password.');
+            ->assertJsonPath('message', 'You do not have permission to perform this action.');
 
         $this->assertTrue(Hash::check('password', $target->fresh()->password));
     }

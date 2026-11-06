@@ -55,6 +55,12 @@ class RecordCorrectionTransactionAction
                 return ['transaction' => $existing, 'correction' => $correction, 'replayed' => true];
             }
 
+            // A superseded correction (its month was reopened and rebuilt) is history only: nothing may be paid, repaid or written off against it, or the
+            // rebuilt line and this old correction would both be settled (UI audit C-1). Its outstanding amount stays as it was, for the record.
+            if ($correction->status === PayrollCorrection::STATUS_SUPERSEDED) {
+                $this->fail('This payroll correction was superseded when the company payroll was reopened and rebuilt, so nothing can be recorded against it. Nothing was recorded.', 'CORRECTION_SUPERSEDED');
+            }
+
             $expected = $type === PayrollCorrectionTransaction::TYPE_UNDERPAYMENT_PAYMENT ? PayrollCorrection::KIND_UNDERPAYMENT : PayrollCorrection::KIND_OVERPAYMENT;
 
             if ($correction->kind !== $expected) {

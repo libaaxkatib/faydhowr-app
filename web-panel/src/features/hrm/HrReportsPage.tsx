@@ -1,4 +1,4 @@
-import { useState } from 'react';
+
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -10,12 +10,18 @@ import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { useAuth } from '@/features/auth/useAuth';
 import { useDateRangePreset } from '@/hooks/useDateRangePreset';
+import { useEffectivePermissions } from '@/hooks/usePermissions';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { NAV_GROUPS } from '@/layouts/nav.config';
+import { isRealItemVisible } from '@/layouts/navVisibility';
 import type { WorkAssignmentStatus } from '@/types/employee';
 import type { MessageKey } from '@/i18n/messages';
 import { useI18n } from '@/i18n/useI18n';
 import { titleCase } from '@/utils/chartMath';
 
+/** The detailed reports. Which of them a person sees follows the sidebar's own rule for the same page (`isRealItemVisible`), so no link leads to "Access restricted". */
 const REPORT_LINKS: { labelKey: MessageKey; to: string }[] = [
   { labelKey: 'nav.waitingAnalytics', to: '/hr/reports/waiting-analytics' },
   { labelKey: 'nav.workforceRequestHistory', to: '/hr/reports/workforce-requests' },
@@ -24,6 +30,8 @@ const REPORT_LINKS: { labelKey: MessageKey; to: string }[] = [
   { labelKey: 'nav.performanceReport', to: '/hr/reports/performance-reviews' },
   { labelKey: 'nav.financialLedger', to: '/hr/reports/financial-ledger' },
   { labelKey: 'nav.payrollRollup', to: '/hr/reports/payroll-rollup' },
+  { labelKey: 'nav.complianceReport', to: '/hr/reports/compliance' },
+  { labelKey: 'nav.facilityReport', to: '/hr/reports/facility' },
 ];
 
 const STATUS_LABELS: Record<string, string> = {
@@ -56,9 +64,21 @@ const ASSIGNMENT_STATUS_OPTIONS: { value: WorkAssignmentStatus; label: string }[
 export function HrReportsPage() {
   const { t, tValue } = useI18n();
   const { preset, setPreset, from, to, setFrom, setTo, options: presetOptions } = useDateRangePreset();
-  const [clientCompanyId, setClientCompanyId] = useState('');
-  const [workLocationId, setWorkLocationId] = useState('');
-  const [assignmentStatus, setAssignmentStatus] = useState<WorkAssignmentStatus | ''>('');
+  // The filters live in the address bar with the date range (like the other report screens), so a reload, Back or a shared link bring the report back.
+  const url = useUrlFilters();
+  const clientCompanyId = url.get('company');
+  const workLocationId = url.get('location');
+  const assignmentStatus = url.get('assignment') as WorkAssignmentStatus | '';
+  const setClientCompanyId = (value: string) => url.set('company', value);
+  const setWorkLocationId = (value: string) => url.set('location', value);
+  const setAssignmentStatus = (value: WorkAssignmentStatus | '') => url.set('assignment', value);
+  const { hasPermission, isSuperAdmin } = useEffectivePermissions();
+  const role = useAuth().admin?.role;
+  const visibleLinks = REPORT_LINKS.filter((link) => {
+    const item = NAV_GROUPS.flatMap((group) => group.items).find((entry) => entry.to === link.to);
+
+    return item === undefined || isRealItemVisible(item, hasPermission, isSuperAdmin, role);
+  });
 
   const { data: companies } = useQuery({ queryKey: ['client-companies'], queryFn: hrApi.clientCompanies.list });
   const { data: locations } = useQuery({ queryKey: ['work-locations'], queryFn: () => hrApi.workLocations.list() });
@@ -151,7 +171,7 @@ export function HrReportsPage() {
           <h3 className="font-display text-sm font-bold text-ink">{t('option.reports.detailedReports')}</h3>
         </CardHeader>
         <CardBody className="flex flex-wrap gap-2">
-          {REPORT_LINKS.map((link) => (
+          {visibleLinks.map((link) => (
             <Link key={link.to} to={link.to}>
               <Button type="button" size="sm" variant="outline" className="h-8 px-3 text-xs">
                 {t(link.labelKey)}

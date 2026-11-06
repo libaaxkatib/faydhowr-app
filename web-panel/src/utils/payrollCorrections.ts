@@ -4,6 +4,7 @@ import { tNow, tValueNow } from '../i18n/active.ts';
  * Pure helpers of the corrections ledger. The server is the authority on who may do what; these only decide which buttons to offer.
  */
 
+import type { PayrollCorrection } from '../types/payroll.ts';
 import { facilityToday } from './facility.ts';
 
 export type CorrectionKind = 'overpayment' | 'underpayment';
@@ -25,6 +26,22 @@ export function canVoidPayment(role: string | null | undefined): boolean {
 /** A payroll payment marked Paid can be voided by a Super Admin or an HR Manager (the server checks the role again). */
 export function canVoidPayrollPayment(role: string | null | undefined): boolean {
   return role === 'super_admin' || role === 'hr_manager';
+}
+
+/**
+ * Money can be recorded against a correction only while it is OPEN and something can still be settled. A superseded correction (its company's month was
+ * reopened and rebuilt) is history only, and an overpayment whose whole balance is already scheduled in draft payroll months has nothing left to settle
+ * by hand. The server refuses a superseded one too (CORRECTION_SUPERSEDED).
+ */
+export function canSettleCorrection(correction: Pick<PayrollCorrection, 'status' | 'kind' | 'outstanding_cents' | 'available_to_settle_cents'>, mayManage: boolean, role: string | null | undefined): boolean {
+  if (!mayManage || correction.status !== 'open' || correction.outstanding_cents <= 0 || correction.available_to_settle_cents <= 0) return false;
+
+  return correction.kind === 'underpayment' ? canPayUnderpayment(role) : canManageDebt(role);
+}
+
+/** A debt is written off (Super Admin only) only while its correction is OPEN and part of it can still be settled. */
+export function canWriteOffCorrection(correction: Pick<PayrollCorrection, 'status' | 'kind' | 'available_to_settle_cents'>, mayManage: boolean, role: string | null | undefined): boolean {
+  return mayManage && correction.status === 'open' && correction.kind === 'overpayment' && correction.available_to_settle_cents > 0 && canWriteOff(role);
 }
 
 /** A write-off needs a real reason (the server requires at least 5 characters too). */

@@ -12,6 +12,7 @@ use App\Models\PayrollItem;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunSection;
 use App\Models\PayrollWorkplacePayment;
+use App\Models\WorkLocation;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\FinalizesCompanies;
@@ -417,5 +418,29 @@ class CompanyPaymentApprovalTest extends TestCase
         $row = $this->row($this->alpha);
         $this->assertSame([$workplace['paid'], $workplace['outstanding'], $workplace['status']], [$row['paid'], $row['outstanding'], 'partial']);
         $this->assertSame('partially_paid', $row['payment_status']);
+    }
+
+    /** UI audit C-4: the "no company" lines can only be paid line by line, so the section must not offer Approve Paid / Approve Partial (can_pay false). */
+    public function test_the_no_company_section_does_not_offer_company_payment_but_a_company_does(): void
+    {
+        // An office workplace and no company: the database requires one of the two on every assignment (a row with neither is refused on PostgreSQL).
+        $this->makeAssignment($this->makeEmployee(), null, WorkLocation::query()->where('location_type', 'office')->firstOrFail(), 120);
+        $runId = (int) $this->as($this->super)->postJson('/api/v1/admin/hr/payroll-runs', ['period' => self::P])->assertCreated()->json('data.id');
+        $this->finalizeEveryCompany($runId, $this->super);
+
+        $sections = collect($this->as($this->super)->getJson("/api/v1/admin/hr/payroll-runs/{$runId}")->assertOk()->json('data.sections'));
+        $none = $sections->firstWhere('client_company_id', null);
+        $alpha = $sections->firstWhere('client_company_id', $this->alpha->id);
+
+        $this->assertNotNull($none, 'the no-company section exists');
+        $this->assertGreaterThan(0, (int) $none['outstanding_cents'], 'it still owes money');
+        $this->assertFalse($none['can_pay'], 'but company payment is not offered for it');
+        $this->assertTrue($alpha['can_pay'], 'a real company that owes money is still offered');
+
+        $paymentsBefore = PayrollWorkplacePayment::query()->count();
+        $fingerprint = PayrollItem::query()->orderBy('id')->get(['id', 'net_cents', 'payment_status'])->toArray();
+        $this->approvePaid((int) $none['id'], $this->super)->assertStatus(422)->assertJsonPath('error_code', 'WORKPLACE_NOT_IN_PAYROLL');
+        $this->assertSame($paymentsBefore, PayrollWorkplacePayment::query()->count());
+        $this->assertSame($fingerprint, PayrollItem::query()->orderBy('id')->get(['id', 'net_cents', 'payment_status'])->toArray(), 'finalized lines are untouched');
     }
 }

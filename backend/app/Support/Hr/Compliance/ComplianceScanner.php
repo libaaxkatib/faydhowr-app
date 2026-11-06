@@ -13,6 +13,7 @@ use App\Models\HrComplianceFinding;
 use App\Models\TemporaryReplacement;
 use App\Support\Hr\EmployeeRegistrationWorkflow;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
@@ -63,18 +64,13 @@ final class ComplianceScanner
         $today ??= CarbonImmutable::now()->startOfDay();
         $todayText = $today->toDateString();
 
-        // Who is working (or marked as working): every assignment that is Active, or whose dates include today, and every Active employee.
-        $assignments = EmployeeWorkAssignment::query()
+        $assignments = $this->assignmentsInScope($todayText)
             ->with(['clientCompany', 'workLocation.clientCompany', 'position', 'salaryHistories'])
-            ->where('status', '!=', WorkAssignmentStatus::Cancelled)
-            ->where(fn ($q) => $q->where('status', WorkAssignmentStatus::Active)
-                ->orWhere(fn ($w) => $w->whereDate('start_date', '<=', $todayText)->where(fn ($e) => $e->whereNull('end_date')->orWhereDate('end_date', '>=', $todayText))))
             ->orderBy('id')
             ->get();
 
-        $employees = Employee::query()
+        $employees = $this->employeesInScope($assignments->pluck('employee_id')->unique()->all())
             ->with('category')
-            ->where(fn ($q) => $q->where('status', EmployeeStatus::Active)->orWhereIn('id', $assignments->pluck('employee_id')->unique()->all() ?: [0]))
             ->orderBy('id')
             ->get()
             ->keyBy('id');
@@ -104,6 +100,41 @@ final class ComplianceScanner
         }
 
         return ['employees_reviewed' => $employees->count(), 'findings' => array_values($findings)];
+    }
+
+    /**
+     * How many people a scan reviews, worked out with two cheap queries and WITHOUT scanning or storing anything. It uses the same scope as scan(), so
+     * the figure the read-only report shows matches what an explicit scan reviews.
+     */
+    public function employeesInScopeCount(?CarbonImmutable $today = null): int
+    {
+        $todayText = ($today ?? CarbonImmutable::now()->startOfDay())->toDateString();
+
+        return $this->employeesInScope($this->assignmentsInScope($todayText)->pluck('employee_id')->unique()->all())->count();
+    }
+
+    /**
+     * Who is working (or marked as working): every assignment that is Active, or whose dates include today.
+     *
+     * @return Builder<EmployeeWorkAssignment>
+     */
+    private function assignmentsInScope(string $todayText): Builder
+    {
+        return EmployeeWorkAssignment::query()
+            ->where('status', '!=', WorkAssignmentStatus::Cancelled)
+            ->where(fn ($q) => $q->where('status', WorkAssignmentStatus::Active)
+                ->orWhere(fn ($w) => $w->whereDate('start_date', '<=', $todayText)->where(fn ($e) => $e->whereNull('end_date')->orWhereDate('end_date', '>=', $todayText))));
+    }
+
+    /**
+     * Every Active employee plus everyone with an assignment in scope.
+     *
+     * @param  list<int>  $assignedEmployeeIds
+     * @return Builder<Employee>
+     */
+    private function employeesInScope(array $assignedEmployeeIds): Builder
+    {
+        return Employee::query()->where(fn ($q) => $q->where('status', EmployeeStatus::Active)->orWhereIn('id', $assignedEmployeeIds ?: [0]));
     }
 
     // ------------------------------------------------------------------ one employee

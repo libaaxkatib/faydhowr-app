@@ -123,6 +123,7 @@ export function LeaveReportPage() {
         <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
           <input
             aria-label={t('option.reports.dateFrom')}
+            max={to || undefined}
             type="date"
             value={from}
             onChange={(e) => {
@@ -133,6 +134,7 @@ export function LeaveReportPage() {
           />
           <input
             aria-label={t('option.reports.dateTo')}
+            min={from || undefined}
             type="date"
             value={to}
             onChange={(e) => {
