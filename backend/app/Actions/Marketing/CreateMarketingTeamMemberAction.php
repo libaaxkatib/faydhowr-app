@@ -27,11 +27,12 @@ class CreateMarketingTeamMemberAction
     public const BASELINE_PERMISSIONS = ['marketing.view', 'marketing.manage', 'marketing.commission.view'];
 
     /**
-     * @param  array{full_name: string, email: string, phone: string, password: string, team_id: int, status?: string}  $data
+     * @param  array{full_name: string, email: string, phone: string, password: string, team_id?: ?int, status?: string}  $data
      */
     public function handle(Admin $actor, array $data): Admin
     {
-        $team = MarketingTeam::query()->findOrFail((int) $data['team_id']);
+        // Owner decision E-8: the team is optional. Without one the account sees only the records assigned to, created by or brought by the person (MarketingScope).
+        $team = isset($data['team_id']) ? MarketingTeam::query()->findOrFail((int) $data['team_id']) : null;
 
         $member = DB::transaction(function () use ($data, $team): Admin {
             $member = Admin::query()->create([
@@ -43,7 +44,7 @@ class CreateMarketingTeamMemberAction
                 'status' => $data['status'] ?? AdminStatus::Active->value,
             ]);
 
-            $team->members()->syncWithoutDetaching([$member->id]);
+            $team?->members()->syncWithoutDetaching([$member->id]);
 
             $now = now();
             DB::table('admin_permissions')->insert(
@@ -61,16 +62,19 @@ class CreateMarketingTeamMemberAction
             description: 'Marketing team member account created.',
             entityType: Admin::class,
             entityId: $member->id,
-            metadata: ['created_admin_id' => $member->id, 'role' => AdminRole::MarketingEmployee->value, 'team_id' => $team->id, 'permissions' => self::BASELINE_PERMISSIONS],
+            metadata: ['created_admin_id' => $member->id, 'role' => AdminRole::MarketingEmployee->value, 'team_id' => $team?->id, 'permissions' => self::BASELINE_PERMISSIONS],
         ));
-        event(AuditEvent::record(
-            action: AuditAction::Update,
-            admin: $actor,
-            description: "Admin #{$member->id} added to marketing team '{$team->name}'.",
-            entityType: MarketingTeam::class,
-            entityId: $team->id,
-            metadata: ['admin_id' => $member->id],
-        ));
+
+        if ($team !== null) {
+            event(AuditEvent::record(
+                action: AuditAction::Update,
+                admin: $actor,
+                description: "Admin #{$member->id} added to marketing team '{$team->name}'.",
+                entityType: MarketingTeam::class,
+                entityId: $team->id,
+                metadata: ['admin_id' => $member->id],
+            ));
+        }
 
         return $member;
     }

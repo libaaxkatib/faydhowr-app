@@ -13,7 +13,9 @@ use App\Models\CompanyClosure;
 use App\Models\CompanyClosureAssignment;
 use App\Models\EmployeeWorkAssignment;
 use App\Support\ApiResponse;
+use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\ConcurrentAssignmentGuard;
+use App\Support\Hr\CoverConflicts;
 use App\Support\Hr\Payroll\ClosedPayrollCorrection;
 use App\Support\Hr\Payroll\CorrectionAuthority;
 use App\Support\Hr\PositionSuccession;
@@ -115,6 +117,12 @@ class ReopenCompanyAction
             $skipped = [];
 
             foreach ($closure->assignments()->with('assignment.employee')->whereIn('work_assignment_id', $chosen ?: [0])->orderBy('id')->get() as $entry) {
+                // Lock order for every Replacement/cover writer: the Replacement's own row, then the position row a cover locks (O-1).
+                if ($entry->assignment->replaces_assignment_id !== null) {
+                    EmployeeWorkAssignment::query()->whereKey($entry->assignment->id)->lockForUpdate()->first();
+                    EmployeeWorkAssignment::query()->whereKey($entry->assignment->replaces_assignment_id)->lockForUpdate()->first();
+                }
+
                 $conflict = $entry->restored_at !== null ? 'Already restored.' : self::conflict($entry, $entry->assignment);
 
                 if ($conflict !== null) {
@@ -168,6 +176,29 @@ class ReopenCompanyAction
 
         if (PositionSuccession::successorsOf($assignment)->exists()) {
             return 'The position was given to someone else after the closure.';
+        }
+
+        // Owner decision O-1 (symmetrical): a Replacement is not given back its days when a Temporary cover of the same position has them since.
+        // Only the days it gets back are judged (those after the day the closure ended it); a cancelled one gets all its days back.
+        $from = $entry->action === CompanyClosureAssignment::CANCELLED || $entry->new_end_date === null ? $assignment->start_date->toDateString() : $entry->new_end_date->addDay()->toDateString();
+        $coverInTheWay = CoverConflicts::findCoverOverlappingReplacement($assignment, $from, $entry->previous_end_date?->toDateString(), 'restored');
+
+        if ($coverInTheWay !== null) {
+            return trim(str_replace('Nothing was changed.', '', $coverInTheWay['message']));
+        }
+
+        // Owner rule A7: nor may the days it gets back be days another Replacement of the same position holds now.
+        $sibling = PositionSuccession::replacementOverlapConflict($assignment, $from, $entry->previous_end_date?->toDateString(), 'restored');
+
+        if ($sibling !== null) {
+            return $sibling['message'];
+        }
+
+        // Owner decision F-A: a Replacement of a holder who has returned is never given back a last day on or after that return.
+        $runsPastReturn = AbsenceCycles::replacementReturnConflict($assignment, $entry->previous_end_date?->toDateString());
+
+        if ($runsPastReturn !== null) {
+            return $runsPastReturn['message'];
         }
 
         $clash = EmployeeWorkAssignment::query()

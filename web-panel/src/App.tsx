@@ -218,7 +218,8 @@ export default function App() {
         <Route path="/system/admins" element={<RequireSuperAdmin><AdminUsersPage /></RequireSuperAdmin>} />
         <Route path="/system/roles" element={<RequireSuperAdmin><RolesPermissionsPage /></RequireSuperAdmin>} />
         <Route path="/system/settings" element={<RequirePermission permission="settings.view"><SettingsPage /></RequirePermission>} />
-        <Route path="/system/translations" element={<RequireSuperAdmin><TranslationsPage /></RequireSuperAdmin>} />
+        {/* Owner decision TRANSLATION-POLICY: the HR Manager and the Marketing Manager may PROPOSE wording changes; only the Super Admin approves (the server checks every call). */}
+        <Route path="/system/translations" element={<RequireRole roles={['hr_manager', 'marketing_manager']}><TranslationsPage /></RequireRole>} />
         <Route path="/system/recovery" element={<RequireSuperAdmin><RecoveryCenterPage /></RequireSuperAdmin>} />
         <Route path="/system/audit-log" element={<RequireRole roles={['hr_manager']}><AuditLogPage /></RequireRole>} />
         <Route path="/system/data-issues" element={<RequirePermission permission="reconciliation.view"><ReconciliationListPage /></RequirePermission>} />

@@ -27,6 +27,17 @@ export function canSaveStatusChange(chosen: string, saved: string | undefined): 
 }
 
 /** The feedback editor may save only when the text is not empty and differs from the saved feedback. */
-export function canSaveFeedback(text: string, saved: string | null | undefined): boolean {
-  return text.trim() !== '' && text.trim() !== (saved ?? '').trim();
+export function canSaveFeedback(text: string): boolean {
+  return text.trim() !== '';
+}
+
+/**
+ * Owner decision E-7: new feedback goes after the feedback already saved (the server's FeedbackLog::append does the same, blank line between entries),
+ * so an edit of a record sends the saved text followed by the new entry and the earlier feedback is never replaced.
+ */
+export function appendFeedback(saved: string | null | undefined, added: string): string {
+  const before = (saved ?? '').replace(/\r\n/g, '\n').trim();
+  const entry = added.replace(/\r\n/g, '\n').trim();
+
+  return before === '' ? entry : `${before}\n\n${entry}`;
 }

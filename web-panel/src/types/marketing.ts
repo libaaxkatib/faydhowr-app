@@ -33,7 +33,8 @@ export interface AddTeamMemberPayload {
   email: string;
   phone: string;
   password: string;
-  team_id: number;
+  /** Optional (owner decision E-8): a Marketing employee does not have to belong to a team. */
+  team_id: number | null;
   status?: 'active' | 'inactive';
 }
 

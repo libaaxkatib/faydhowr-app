@@ -153,7 +153,8 @@ class MarketingTeamMemberTest extends TestCase
         $this->as($this->superAdmin)->postJson('/api/v1/admin/marketing/employees', $this->payload())->assertCreated();
 
         $this->as($this->superAdmin)->postJson('/api/v1/admin/marketing/employees', [])->assertUnprocessable()->assertJsonPath('error_code', 'VALIDATION_ERROR')
-            ->assertJsonValidationErrors(['full_name', 'email', 'phone', 'password', 'team_id'], 'errors');
+            ->assertJsonValidationErrors(['full_name', 'email', 'phone', 'password'], 'errors')
+            ->assertJsonMissingValidationErrors('team_id', 'errors'); // owner decision E-8 (2026-11-06): a team is optional
         $this->as($this->superAdmin)->postJson('/api/v1/admin/marketing/employees', $this->payload(['phone' => '+252611000077']))->assertUnprocessable()->assertJsonPath('errors.email.0', fn ($m) => is_string($m)); // same e-mail, different case
         $this->as($this->superAdmin)->postJson('/api/v1/admin/marketing/employees', $this->payload(['email' => 'fresh@example.test']))->assertUnprocessable(); // same phone
         $this->as($this->superAdmin)->postJson('/api/v1/admin/marketing/employees', $this->payload(['email' => 'f2@example.test', 'phone' => '+252611000078', 'password' => 'short']))->assertUnprocessable();

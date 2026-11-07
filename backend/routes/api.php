@@ -110,6 +110,7 @@ use App\Http\Controllers\Api\V1\Admin\Settings\SettingsController;
 use App\Http\Controllers\Api\V1\Admin\Settings\SmtpTestController;
 use App\Http\Controllers\Api\V1\Admin\StoreOrders\StoreOrderController as AdminStoreOrderController;
 use App\Http\Controllers\Api\V1\Admin\TranslationOverrideController;
+use App\Http\Controllers\Api\V1\Admin\TranslationProposalController;
 use App\Http\Controllers\Api\V1\Auth\AuthenticatedUserController;
 use App\Http\Controllers\Api\V1\Auth\GoogleAuthController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
@@ -1930,6 +1931,23 @@ Route::prefix('v1/admin/i18n')
         Route::delete('overrides/{key}', [TranslationOverrideController::class, 'destroy'])
             ->middleware('super_admin')
             ->name('api.v1.admin.i18n.overrides.destroy');
+
+        // Owner decision TRANSLATION-POLICY: the HR Manager and the Marketing Manager PROPOSE wording changes, only the Super Admin approves. The controller
+        // checks the role on every call (no permission is involved); a proposal never changes the wording in use until it is approved.
+        Route::get('proposals', [TranslationProposalController::class, 'index'])
+            ->name('api.v1.admin.i18n.proposals.index');
+        Route::post('proposals', [TranslationProposalController::class, 'store'])
+            ->middleware('throttle:30,1')
+            ->name('api.v1.admin.i18n.proposals.store');
+        Route::post('proposals/{proposal}/approve', [TranslationProposalController::class, 'approve'])
+            ->whereNumber('proposal')->middleware('super_admin')
+            ->name('api.v1.admin.i18n.proposals.approve');
+        Route::post('proposals/{proposal}/reject', [TranslationProposalController::class, 'reject'])
+            ->whereNumber('proposal')->middleware('super_admin')
+            ->name('api.v1.admin.i18n.proposals.reject');
+        Route::post('proposals/{proposal}/withdraw', [TranslationProposalController::class, 'withdraw'])
+            ->whereNumber('proposal')
+            ->name('api.v1.admin.i18n.proposals.withdraw');
     });
 
 // Super Admin Recovery Center (HR first): previewed, reasoned, idempotent, audited corrections of assignment history. Reserved for Super Admin by the

@@ -50,7 +50,16 @@ class UpdateWorkAssignmentAction
      */
     public function handle(EmployeeWorkAssignment $assignment, array $data, Admin $actor): EmployeeWorkAssignment
     {
+        $this->guardEndNotBeforeStart($assignment, $data);
         $this->guardTypeAndInheritedSalary($assignment, $data);
+
+        // O-1 (symmetrical), read first so a refusal happens before anything else is looked at; repeated under lock in apply().
+        if (($period = $this->replacementPeriodChange($assignment, $data)) !== null) {
+            // Owner decision F-A: a Replacement of a holder who has returned must end the day before the return at the latest.
+            AbsenceCycles::assertReplacementEndsBeforeReturn($assignment, $period[1]);
+            PositionSuccession::assertReplacementClearOfSiblings($assignment, $period[0], $period[1], 'changed');
+            CoverConflicts::assertReplacementFreeOfCovers($assignment, $period[0], $period[1], 'changed');
+        }
 
         // Ending a holder who is away needs the explicit Stop / End step, which asks HR to confirm what happens to the Replacement and writes the cycle's
         // event; a plain edit of the end date must not skip that.
@@ -105,6 +114,31 @@ class UpdateWorkAssignmentAction
         }
 
         return PermanentSuccession::demand($assignment, $data['successor'] ?? null, $newEnd, optional: true);
+    }
+
+    /**
+     * Owner decision PUT-END-DATE: the last day can never be earlier than the first day. The request rule only compares with a `start_date` sent in the
+     * same request, so an edit that sends just the end date (or just a later start date) is checked here against the stored value. A correction reason does
+     * not bypass it, and the check runs before anything is written. An edit that touches neither date is not judged (an older, already inverted record
+     * can still have its notes edited).
+     */
+    private function guardEndNotBeforeStart(EmployeeWorkAssignment $assignment, array $data): void
+    {
+        if (! array_key_exists('end_date', $data) && ! array_key_exists('start_date', $data)) {
+            return;
+        }
+
+        $start = ! empty($data['start_date']) ? CarbonImmutable::parse($data['start_date'])->toDateString() : $assignment->start_date?->toDateString();
+        $end = array_key_exists('end_date', $data) ? ($data['end_date'] === null ? null : CarbonImmutable::parse($data['end_date'])->toDateString()) : $assignment->end_date?->toDateString();
+
+        if ($start !== null && $end !== null && $end < $start) {
+            throw new HttpResponseException(ApiResponse::error(
+                "The last day ({$end}) is before the assignment started ({$start}).",
+                'END_BEFORE_ASSIGNMENT_START',
+                422,
+                ['end_date' => ['The last day cannot be before the assignment started.']],
+            ));
+        }
     }
 
     /**
@@ -171,8 +205,52 @@ class UpdateWorkAssignmentAction
         return $dates === [] ? null : min($dates);
     }
 
+    /**
+     * Owner decision O-1 (symmetrical): when the dates of a REPLACEMENT change, the new period must not share a day with a Temporary cover of the position
+     * it holds. Returns the new [start, end] only when a Replacement's dates really change (a notes-only or shift-only edit is not judged), else null.
+     *
+     * @return ?array{0: string, 1: ?string}
+     */
+    private function replacementPeriodChange(EmployeeWorkAssignment $assignment, array $data): ?array
+    {
+        if ($assignment->assignment_type !== AssignmentType::Replacement || $assignment->replaces_assignment_id === null || $assignment->status === WorkAssignmentStatus::Cancelled) {
+            return null;
+        }
+
+        $start = CarbonImmutable::parse($data['start_date'] ?? $assignment->start_date)->toDateString();
+        $endValue = $data['end_date'] ?? $assignment->end_date;
+        $end = $endValue === null ? null : CarbonImmutable::parse($endValue)->toDateString();
+
+        return $start === $assignment->start_date?->toDateString() && $end === $assignment->end_date?->toDateString() ? null : [$start, $end];
+    }
+
     /** @param  array<string, mixed>|null  $plan  the validated replacement plan when this edit removes a Permanent assignment */
     private function apply(EmployeeWorkAssignment $assignment, array $data, Admin $actor, ?array $plan = null): EmployeeWorkAssignment
+    {
+        if ($this->replacementPeriodChange($assignment, $data) !== null) {
+            return DB::transaction(function () use ($assignment, $data, $actor, $plan): EmployeeWorkAssignment {
+                // Lock order for every Replacement/cover writer: the Replacement's own row, then the position row (the row a cover locks when it is created or
+                // edited). The judgement is repeated on the freshly read, locked rows, so two requests cannot both pass it.
+                EmployeeWorkAssignment::query()->whereKey($assignment->id)->lockForUpdate()->first();
+                EmployeeWorkAssignment::query()->whereKey($assignment->replaces_assignment_id)->lockForUpdate()->first();
+                $assignment->refresh();
+                $period = $this->replacementPeriodChange($assignment, $data);
+
+                if ($period !== null) {
+                    AbsenceCycles::assertReplacementEndsBeforeReturn($assignment, $period[1]);
+                    PositionSuccession::assertReplacementClearOfSiblings($assignment, $period[0], $period[1], 'changed');
+                    CoverConflicts::assertReplacementFreeOfCovers($assignment, $period[0], $period[1], 'changed');
+                }
+
+                return $this->applyPlanned($assignment, $data, $actor, $plan);
+            });
+        }
+
+        return $this->applyPlanned($assignment, $data, $actor, $plan);
+    }
+
+    /** @param  array<string, mixed>|null  $plan */
+    private function applyPlanned(EmployeeWorkAssignment $assignment, array $data, Admin $actor, ?array $plan = null): EmployeeWorkAssignment
     {
         if ($plan === null) {
             return $this->applyChanges($assignment, $data, $actor);

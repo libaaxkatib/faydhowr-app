@@ -189,6 +189,9 @@ class ReturnCompanyEmployeeAction
         ], fn (): array => DB::transaction(function () use ($company, $replacement, $original, $absence, $actor, $returnDate, $lastDay, $confirmed, $salaryChanged): array {
             // Two people pressing Return (or Return racing the termination of the original) must not both succeed: lock the original and the absence,
             // then look again at what the checks above saw.
+            // Lock order for every Replacement writer (O-1, F-A): the Replacement's own row first, then the holder's, so Return cannot deadlock with a date
+            // edit of the same Replacement, and an edit that waits for the return is judged against the new return date.
+            EmployeeWorkAssignment::query()->lockForUpdate()->findOrFail($replacement->id);
             $lockedOriginal = EmployeeWorkAssignment::query()->lockForUpdate()->findOrFail($original->id);
             $absence = AssignmentAbsence::query()->lockForUpdate()->findOrFail($absence->id);
             $this->assertCanResume($absence, $lockedOriginal);

@@ -45,13 +45,13 @@ class TranslationOverrideTest extends TestCase
     {
         $super = $this->superAdmin();
 
-        $this->asAdmin($super)->putJson('/api/v1/admin/i18n/overrides/action.save', ['so' => 'Kaydi', 'en' => 'Store'])->assertOk();
-        $this->asAdmin($super)->putJson('/api/v1/admin/i18n/overrides/action.save', ['so' => 'Keydi', 'en' => ''])->assertOk()
+        $this->asAdmin($super)->putJson('/api/v1/admin/i18n/overrides/action.uiAuditB.yesCancelRequest', ['so' => 'Kaydi', 'en' => 'Store'])->assertOk();
+        $this->asAdmin($super)->putJson('/api/v1/admin/i18n/overrides/action.uiAuditB.yesCancelRequest', ['so' => 'Keydi', 'en' => ''])->assertOk()
             ->assertJsonPath('data.override.so', 'Keydi')
             ->assertJsonMissingPath('data.override.en');
 
         $this->assertSame(1, SystemSetting::query()->category('i18n')->count());
-        $this->assertSame(['so' => 'Keydi'], SystemSetting::query()->category('i18n')->where('key', 'action.save')->firstOrFail()->value);
+        $this->assertSame(['so' => 'Keydi'], SystemSetting::query()->category('i18n')->where('key', 'action.uiAuditB.yesCancelRequest')->firstOrFail()->value);
     }
 
     public function test_only_super_admin_can_edit_or_reset_and_nothing_is_stored_for_anyone_else(): void

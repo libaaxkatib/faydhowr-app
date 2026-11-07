@@ -118,6 +118,74 @@ final class PositionSuccession
         }
     }
 
+    /** Owner rule A7 (docs/HR_PAYROLL_RULES.md): the stable error code of "another Replacement of this position already holds some of these days". */
+    public const CODE_REPLACEMENT_OVERLAPS_REPLACEMENT = 'REPLACEMENT_OVERLAPS_REPLACEMENT';
+
+    /**
+     * Owner rule A7: the same calendar day is never charged twice for the same position. Replace Employee already keeps two Replacements of one position
+     * apart; this is the same refusal for a Replacement whose dates are edited, that is reopened, or that a company reopening restores. Returns the OTHER
+     * non-cancelled Replacement of the same position (same replaced assignment) that shares a day with [$start, $end] (inclusive, null end = no end), or
+     * null. The Replacement being changed is never compared with itself.
+     */
+    public static function siblingReplacementOverlapping(EmployeeWorkAssignment $replacement, string $start, ?string $end): ?EmployeeWorkAssignment
+    {
+        if ($replacement->replaces_assignment_id === null) {
+            return null;
+        }
+
+        return EmployeeWorkAssignment::query()
+            ->with(['employee', 'clientCompany'])
+            ->where('replaces_assignment_id', $replacement->replaces_assignment_id)
+            ->where('assignment_type', AssignmentType::Replacement->value)
+            ->where('id', '!=', $replacement->id)
+            ->where('status', '!=', WorkAssignmentStatus::Cancelled)
+            ->orderBy('start_date')
+            ->get()
+            ->first(fn (EmployeeWorkAssignment $other): bool => $other->start_date->toDateString() <= ($end ?? '9999-12-31') && ($other->end_date === null || $other->end_date->toDateString() >= $start));
+    }
+
+    /**
+     * What is wrong when [$start, $end] shares a day with another Replacement of the same position; null when it is fine. No "nothing was changed" sentence:
+     * callers add it when they refuse, or show the text as a reason (company reopen, Recovery Center).
+     *
+     * @return ?array{message: string, conflict: array<string, mixed>}
+     */
+    public static function replacementOverlapConflict(EmployeeWorkAssignment $replacement, string $start, ?string $end, string $action = 'saved'): ?array
+    {
+        $other = self::siblingReplacementOverlapping($replacement, $start, $end);
+
+        if ($other === null) {
+            return null;
+        }
+
+        $who = $other->employee === null ? "Replacement #{$other->id}" : "Replacement #{$other->id} ({$other->employee->full_name}, {$other->employee->employee_number})";
+        $where = $other->clientCompany?->name;
+        $whereText = $where === null ? '' : " at {$where}";
+        $held = 'from '.$other->start_date->toDateString().' '.($other->end_date === null ? 'with no end date' : 'until '.$other->end_date->toDateString());
+
+        return [
+            'message' => "This Replacement cannot be {$action}: {$who} already holds the same position{$whereText} over some of these days ({$held}). A position has one holder each day and a day can be paid only once.",
+            'conflict' => ['kind' => 'replacement', 'id' => $other->id, 'start_date' => $other->start_date->toDateString(), 'end_date' => $other->end_date?->toDateString(), 'shift' => $other->shift?->value, 'company' => $where],
+        ];
+    }
+
+    /**
+     * Refuses (422, nothing written) a Replacement period that shares a day with another Replacement of the same position. Callers run it before anything is
+     * written and again under the row locks (the holder's row is the lock every Replacement writer takes).
+     *
+     * @throws HttpResponseException
+     */
+    public static function assertReplacementClearOfSiblings(EmployeeWorkAssignment $replacement, string $start, ?string $end, string $action = 'saved'): void
+    {
+        $conflict = self::replacementOverlapConflict($replacement, $start, $end, $action);
+
+        if ($conflict === null) {
+            return;
+        }
+
+        throw new HttpResponseException(ApiResponse::error($conflict['message'].' Nothing was changed.', self::CODE_REPLACEMENT_OVERLAPS_REPLACEMENT, 422, ['conflicts' => [$conflict['conflict']]]));
+    }
+
     /** Whole uncovered calendar days between the two (0 when back to back). */
     public static function gapDays(\DateTimeInterface $predecessorLastDay, \DateTimeInterface $successorStart): int
     {

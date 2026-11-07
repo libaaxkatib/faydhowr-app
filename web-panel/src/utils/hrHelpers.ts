@@ -3,6 +3,7 @@
 
 import { getActiveLanguage, tNow } from '../i18n/active.ts';
 import type { MessageKey } from '../i18n/messages/index.ts';
+import { replacementConflictMessage, replacementReturnMessage, replacementSiblingMessage } from './coverConflict.ts';
 
 export const OFFICE_LABEL = 'Fayadhowr Office';
 
@@ -211,6 +212,15 @@ export function additionalCompanyQuestion(error: unknown): string | null {
 
 /** A message safe to show an HR user: our plain-language wording for known codes, otherwise the server's message, otherwise `fallback`. */
 export function friendlyErrorMessage(error: unknown, fallback: string): string {
+  const replacementConflict = replacementConflictMessage(error);
+  if (replacementConflict !== null) return replacementConflict;
+
+  const pastReturn = replacementReturnMessage(error);
+  if (pastReturn !== null) return pastReturn;
+
+  const siblingOverlap = replacementSiblingMessage(error);
+  if (siblingOverlap !== null) return siblingOverlap;
+
   const code = errorCodeOf(error);
   if (code && ERROR_CODES.has(code)) return tNow(`notify.error.${code}` as MessageKey);
   if (code && SOMALI_WORDING_CODES.has(code) && getActiveLanguage() === 'so') return tNow(`notify.error.${code}` as MessageKey);

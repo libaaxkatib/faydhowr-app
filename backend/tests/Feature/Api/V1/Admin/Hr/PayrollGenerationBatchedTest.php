@@ -83,8 +83,10 @@ class PayrollGenerationBatchedTest extends TestCase
     private function richMonth(): void
     {
         // Plain people, so the month is big enough for ordering to matter.
+        $adjustee = null;
         foreach (range(1, 6) as $i) {
-            $this->permanent(200 + $i * 10);
+            [$employee] = $this->permanent(200 + $i * 10);
+            $adjustee ??= $employee; // the person the August money below is owed to (see the adjustment at the end of this method)
         }
 
         // Approved cover and a pending cover on two different people, an absence inside the approved cover.
@@ -147,8 +149,12 @@ class PayrollGenerationBatchedTest extends TestCase
         // Money from an earlier month that lands in this one, and a penalty whose employee has no line (orphan warning).
         $admin = Admin::factory()->superAdmin()->create();
         $this->generateAllCompanies('2026-08', $admin);
+        // The adjustment is owed to a NAMED person who is paid in September. It used to hang on "the first August item by id", which is the first company in
+        // name order - and company names are random, so it was sometimes the person whose assignment ended on 15 August. That person has no September line, so
+        // the adjustment correctly stayed pending (it is carried, not lost) and this fixture failed about 1 run in 25. The behaviour itself is tested on purpose in
+        // test_an_adjustment_owed_to_someone_with_no_line_that_month_stays_pending_and_is_not_lost.
         PayrollAdjustment::query()->create([
-            'payroll_item_id' => PayrollItem::query()->orderBy('id')->firstOrFail()->id, 'kind' => 'correction', 'amount_cents' => 1250,
+            'payroll_item_id' => PayrollItem::query()->where('period', '2026-08')->where('employee_id', $adjustee->id)->firstOrFail()->id, 'kind' => 'correction', 'amount_cents' => 1250,
             'reason' => 'Missed bonus', 'applies_in_period' => self::P, 'status' => 'pending', 'created_by' => $admin->id,
         ]);
         EmployeePenalty::query()->create(['employee_id' => $this->makeEmployee('active', 'permanent')->id, 'penalty_date' => '2026-09-05', 'reason' => 'No line', 'deduction_amount' => 5, 'currency' => 'USD', 'payroll_period' => self::P]);
@@ -266,6 +272,31 @@ class PayrollGenerationBatchedTest extends TestCase
         $this->assertSame('applied', $adjustment->status);
         $this->assertSame(1, PayrollItem::query()->where('id', $adjustment->applied_in_item_id)->where('period', self::P)->count());
         $this->assertSame(1250, (int) PayrollItem::query()->where('period', self::P)->sum('adjustment_cents'));
+    }
+
+    /** The behaviour the fixture above used to hit by accident (about 1 run in 25), now with a fixed order: money owed to someone with no line is carried, never lost or applied elsewhere. */
+    public function test_an_adjustment_owed_to_someone_with_no_line_that_month_stays_pending_and_is_not_lost(): void
+    {
+        $admin = Admin::factory()->superAdmin()->create();
+        // 'AAA' sorts first whatever the other (random) company names are, so its August line is the first August item by id.
+        $left = $this->makeEmployee('active', 'permanent');
+        $leftAssignment = $this->makeAssignment($left, $this->makeCompany('AAA First'), null, 300, '2026-01-01');
+        $leftAssignment->update(['end_date' => '2026-08-15', 'status' => 'ended']);
+        $this->permanent(300);
+        $this->generateAllCompanies('2026-08', $admin);
+
+        $firstAugust = PayrollItem::query()->where('period', '2026-08')->orderBy('id')->firstOrFail();
+        $this->assertSame($left->id, (int) $firstAugust->employee_id, 'the fixture really puts the leaver first');
+        $adjustment = PayrollAdjustment::query()->create(['payroll_item_id' => $firstAugust->id, 'kind' => 'correction', 'amount_cents' => 1250, 'reason' => 'Missed bonus', 'applies_in_period' => self::P, 'status' => 'pending', 'created_by' => $admin->id]);
+
+        $this->generateAllCompanies(self::P, $admin);
+        $this->generateAllCompanies(self::P, $admin);
+
+        $adjustment->refresh();
+        $this->assertSame('pending', $adjustment->status);
+        $this->assertNull($adjustment->applied_in_item_id);
+        $this->assertSame(0, (int) PayrollItem::query()->where('period', self::P)->sum('adjustment_cents'), 'it is not applied to anybody else');
+        $this->assertSame(1, PayrollAdjustment::query()->count(), 'and it still exists');
     }
 
     /** @return array{items: list<array<string, mixed>>, deductions: list<array<string, mixed>>, totals: mixed, item_count: int, audit: int} */

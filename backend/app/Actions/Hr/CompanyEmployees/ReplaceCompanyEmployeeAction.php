@@ -15,6 +15,7 @@ use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
 use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\CompanyEmployees\CompanyAssignmentGuard;
+use App\Support\Hr\CoverConflicts;
 use App\Support\Hr\Payroll\ClosedPayrollCorrection;
 use App\Support\Hr\PositionSuccession;
 use Illuminate\Support\Facades\DB;
@@ -86,6 +87,16 @@ class ReplaceCompanyEmployeeAction
 
         if (! $cover && ! $swap && ($original->assignment_type ?? AssignmentType::Permanent) === AssignmentType::Permanent && AbsenceCycles::open($original)?->terminated_on === null && AbsenceCycles::open($original) !== null) {
             CompanyAssignmentGuard::fail('This employee is away and a Replacement covers the position. To give the position to someone else permanently, first end this assignment with Stop Employee (the Replacement keeps working), then make the Replacement Permanent or replace them.', 'ORIGINAL_IS_AWAY');
+        }
+
+        // Owner decision O-1 (symmetrical): the Replacement may not hold the position over days a Temporary cover of it already has. Read here first so a refusal
+        // happens before anything is touched (the authoritative, locked check is in CreateWorkAssignmentAction, inside the transaction).
+        if ($data['assignment_type'] === AssignmentType::Replacement->value) {
+            $position = $swap ? EmployeeWorkAssignment::query()->find($covered->work_assignment_id) : $original;
+
+            if ($position !== null) {
+                CoverConflicts::assertReplacementDaysFreeOfCovers($position, $replacementDate->toDateString(), null);
+            }
         }
 
         return $this->corrections->run($actor, 'replaced', [$original->employee_id, $replacement->id], $lastDay->addDay()->toDateString(), $data['correction_reason'] ?? null, [

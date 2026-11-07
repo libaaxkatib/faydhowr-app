@@ -75,10 +75,11 @@ test('routes, permissions, icons and flags of the Marketing, Mobile App and Syst
     ['Admin Users', '/system/admins', 'users', 'admins.manage', false, false],
     ['Roles & Permissions', '/system/roles', 'shield', 'roles.manage', false, false],
     ['Settings', '/system/settings', 'settings', 'settings.view', false, false],
-    ['Translations', '/system/translations', 'message-circle', null, false, false],
     ['Recovery Center', '/system/recovery', 'refresh', null, false, false],
-    // Owner decision UG-4: the audit log is opened by role (Super Admin + HR Manager), not by admins.manage; the other two items are Super-Admin-only.
+    // Owner decision UG-4: the audit log is opened by role (Super Admin + HR Manager), not by admins.manage; Recovery Center is Super-Admin-only.
     ['Audit Log', '/system/audit-log', 'list', null, false, false],
+    // Owner decision TRANSLATION-POLICY: opened by role (Super Admin edits and approves; HR Manager and Marketing Manager propose).
+    ['Translations', '/system/translations', 'message-circle', null, false, false],
     ['Data Issues & Reconciliation', '/system/data-issues', 'alert-triangle', 'reconciliation.view', false, false],
   ]);
 });

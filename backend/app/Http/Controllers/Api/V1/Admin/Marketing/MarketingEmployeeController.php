@@ -31,7 +31,11 @@ class MarketingEmployeeController extends Controller
     public function store(StoreMarketingTeamMemberRequest $request, CreateMarketingTeamMemberAction $action): JsonResponse
     {
         MarketingScope::requireUnrestricted($request->user(), 'Only the Marketing Manager can add team members.');
-        MarketingScope::guardTeamManagement($request->user(), (int) $request->validated('team_id'));
+
+        // Owner decision E-8: the team is optional; a chosen team is still checked.
+        if ($request->validated('team_id') !== null) {
+            MarketingScope::guardTeamManagement($request->user(), (int) $request->validated('team_id'));
+        }
 
         $member = $action->handle($request->user(), $request->validated());
 

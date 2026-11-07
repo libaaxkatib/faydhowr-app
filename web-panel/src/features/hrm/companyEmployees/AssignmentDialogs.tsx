@@ -12,7 +12,7 @@ import { useToast } from '@/components/ui/useToast';
 import { useI18n } from '@/i18n/useI18n';
 import type { MessageKey, Translate } from '@/i18n/messages';
 import { formatDate } from '@/utils/formatters';
-import { EMPTY_SUCCESSOR, effectiveStart, needsSuccessor, toSuccessorPayload, validateSuccessor, type SuccessorDraft } from '@/utils/successor';
+import { EMPTY_SUCCESSOR, effectiveStart, needsSuccessor, stopSummaryReplacementKey, toSuccessorPayload, validateSuccessor, type SuccessorDraft } from '@/utils/successor';
 import { SuccessorPicker } from '@/features/hrm/companyEmployees/SuccessorPicker';
 import { additionalCompanyQuestion, friendlyErrorMessage, localToday } from '@/utils/hrHelpers';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -297,6 +297,12 @@ export function AssignEmployeeDialog({ isOpen, onClose, companyId, companyName }
       <form onSubmit={submit} noValidate>
         <ErrorBanner message={state.serverMessage} />
         <EmployeePicker companyId={companyId} inputId="assign-picker" label={t('confirm.company.registeredEmployee')} value={picked} onChange={setPicked} error={err('employee_id')} />
+        {isTemporaryWorker(picked) && (
+          // Owner decision B-Q2: allowed. The notice only says what stays the same; it does not ask for anything.
+          <div role="status" className="-mt-2 mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs text-warning" data-testid="temporary-permanent-assignment-notice">
+            {t('warning.ownerDecisions1c.temporaryPermanentAssignment')}
+          </div>
+        )}
         <PositionSelect id="assign-position" value={positionId} onChange={setPositionId} error={err('position_id')} />
         <ShiftSelect id="assign-shift" value={shift} onChange={setShift} />
         <FormField label={t('confirm.company.startDate')} htmlFor="assign-start" required error={err('start_date')}>
@@ -850,7 +856,7 @@ export function StopEmployeeDialog({ row, onClose, companyId, companyName }: { r
         </form>
       )}
       {row && confirming && (
-        <Summary rows={[[t('confirm.company.stopSummaryEmployee'), `${row.full_name} (${row.employee_number})`], [t('confirm.company.summaryCompany'), companyName], [t('confirm.company.stopSummaryLastDay'), formatDate(endDate)], [t('confirm.company.reason'), reason.trim()], ...(askSuccessor ? [[t('confirm.company.stopSummaryReplacement'), successor.type === 'temporary' ? t('confirm.company.stopSummaryTemporaryTakes', { date: formatDate(effectiveStart(endDate, successor)) }) : t('confirm.company.stopSummaryWaitingTakes', { date: formatDate(effectiveStart(endDate, successor)) })] as [string, string]] : []), ...(awayStop ? [[t('confirm.company.stopSummaryReplacement'), t('confirm.company.stopSummaryReplacementContinues')] as [string, string]] : []), [t('confirm.company.stopSummaryHrStatus'), t('confirm.company.stopSummaryNotChanged')]]} />
+        <Summary rows={[[t('confirm.company.stopSummaryEmployee'), `${row.full_name} (${row.employee_number})`], [t('confirm.company.summaryCompany'), companyName], [t('confirm.company.stopSummaryLastDay'), formatDate(endDate)], [t('confirm.company.reason'), reason.trim()], ...(askSuccessor ? [[t('confirm.company.stopSummaryReplacement'), t(stopSummaryReplacementKey(successor.type), { date: formatDate(effectiveStart(endDate, successor)) })] as [string, string]] : []), ...(awayStop ? [[t('confirm.company.stopSummaryReplacement'), t('confirm.company.stopSummaryReplacementContinues')] as [string, string]] : []), [t('confirm.company.stopSummaryHrStatus'), t('confirm.company.stopSummaryNotChanged')]]} />
       )}
     </Modal>
   );

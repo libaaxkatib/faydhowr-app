@@ -24,7 +24,7 @@ export function validateTeamMemberForm(form: TeamMemberForm): Partial<Record<key
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = tNow('validation.marketing.validEmail');
   if (form.phone.trim() === '') errors.phone = tNow('validation.marketing.enterPhone');
   if (form.password.length < MIN_PASSWORD_LENGTH) errors.password = tNow('validation.marketing.passwordLength', { min: MIN_PASSWORD_LENGTH });
-  if (form.team_id === '') errors.team_id = tNow('validation.marketing.chooseTeam');
+  // Owner decision E-8 (2026-11-06): a team is optional; a Marketing employee does not have to belong to Team A or Team B. (The server does not require one either, E-9.)
 
   return errors;
 }
@@ -40,6 +40,6 @@ export function buildAddMemberPayload(form: TeamMemberForm) {
     email: form.email.trim(),
     phone: form.phone.trim(),
     password: form.password,
-    team_id: Number(form.team_id),
+    team_id: form.team_id === '' ? null : Number(form.team_id),
   };
 }

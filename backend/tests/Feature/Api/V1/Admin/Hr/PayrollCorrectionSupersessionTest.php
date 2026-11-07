@@ -14,8 +14,10 @@ use App\Models\PayrollItem;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunSection;
 use App\Models\Position;
+use App\Support\Hr\Payroll\CorrectionSupersession;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Tests\Support\FinalizesCompanies;
@@ -299,5 +301,192 @@ class PayrollCorrectionSupersessionTest extends TestCase
         $this->assertSame(0, (int) PayrollItem::query()->where('payroll_run_id', $octId)->where('employee_id', $employee->id)->sum('other_deduction_cents'), 'a superseded overpayment is not deducted any more');
         $this->assertSame('superseded', $correction->fresh()->status, 'regenerating a later month (which refreshes the recovery ledger) never opens a superseded correction again');
         $this->assertNotNull(PayrollRun::query()->find($octId));
+    }
+
+    // ------------------------------------------------------------------------------------------------ owner decision C-1 (2026-11-06)
+    //
+    // A transaction of a SUPERSEDED correction may be voided when the undo is clean. In the application a correction that already holds any transaction cannot be
+    // superseded (CORRECTION_HAS_MONEY_MOVEMENT), so the situation is reproduced here by marking such a correction superseded directly, as older data could be.
+
+    private function supersedeDirectly(PayrollCorrection $correction): void
+    {
+        $correction->forceFill(['status' => PayrollCorrection::STATUS_SUPERSEDED, 'superseded_at' => now(), 'supersede_reason' => 'Legacy test data'])->save();
+    }
+
+    public function test_c1_an_underpayment_payment_of_a_superseded_correction_is_cancelled_by_a_clean_linked_reversal(): void
+    {
+        $this->addNewcomer();
+        $correction = $this->corrections()->sole();
+        $paidId = $this->as($this->super)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions", ['type' => 'underpayment_payment', 'amount' => '50.00', 'transaction_date' => '2026-11-05', 'idempotency_key' => 'pay-c1-underpayment-0001'])->assertStatus(201)->json('data.transaction_id');
+        $this->supersedeDirectly($correction);
+
+        $original = PayrollCorrectionTransaction::query()->findOrFail($paidId);
+        $originalRow = $original->getAttributes();
+        $originalPayment = EmployeePayment::query()->findOrFail($original->employee_payment_id);
+        $originalPaymentRow = $originalPayment->getAttributes();
+        $items = PayrollItem::query()->orderBy('id')->get()->map->getAttributes()->all();
+        $corrected = PayrollCorrection::query()->findOrFail($correction->id);
+        $correctionBefore = [$corrected->status, (int) $corrected->outstanding_cents, (int) $corrected->difference_cents, (string) $corrected->superseded_at];
+
+        // An HR Manager can never undo an underpayment payment, superseded or not; nothing is written by the refusal.
+        $txBefore = PayrollCorrectionTransaction::query()->count();
+        $this->as($this->hrManager)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions/{$paidId}/void", ['reason' => 'HR Manager must not do this'])
+            ->assertStatus(403)->assertJsonPath('error_code', 'PAYROLL_CORRECTION_NOT_ALLOWED');
+        $this->assertSame($txBefore, PayrollCorrectionTransaction::query()->count());
+
+        $this->as($this->super)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions/{$paidId}/void", ['reason' => 'Paid by mistake before the rebuild'])->assertOk();
+
+        // A linked reversal was added; the original transaction and the original payment row are exactly as they were; the pair nets to zero.
+        $this->assertSame($txBefore + 1, PayrollCorrectionTransaction::query()->count());
+        $this->assertSame($originalRow, PayrollCorrectionTransaction::query()->findOrFail($paidId)->getAttributes());
+        $this->assertSame($originalPaymentRow, EmployeePayment::query()->findOrFail($originalPayment->id)->getAttributes());
+        $reversal = PayrollCorrectionTransaction::query()->where('reverses_transaction_id', $paidId)->sole();
+        $this->assertSame(0, (int) round(((float) EmployeePayment::query()->whereIn('id', [$originalPayment->id, $reversal->employee_payment_id])->sum('amount')) * 100));
+
+        // The correction stays superseded with its amounts and its history; payroll lines are untouched; the audit trail says it was superseded.
+        $corrected = PayrollCorrection::query()->findOrFail($correction->id);
+        $this->assertSame($correctionBefore, [$corrected->status, (int) $corrected->outstanding_cents, (int) $corrected->difference_cents, (string) $corrected->superseded_at]);
+        $this->assertSame($items, PayrollItem::query()->orderBy('id')->get()->map->getAttributes()->all());
+        $log = AuditLog::query()->where('entity_type', PayrollCorrection::class)->where('entity_id', $correction->id)->latest('id')->firstOrFail();
+        $this->assertSame('underpayment_payment_voided', $log->metadata['event']);
+        $this->assertTrue($log->metadata['correction_superseded']);
+        $this->assertSame(0, $log->metadata['employee_payment_ledger_net_cents']);
+
+        // It can be reversed only once, and nothing new can be recorded against a superseded correction.
+        $this->as($this->super)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions/{$paidId}/void", ['reason' => 'A second time'])
+            ->assertStatus(422)->assertJsonPath('error_code', 'TRANSACTION_ALREADY_VOIDED');
+        $this->as($this->super)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions", ['type' => 'underpayment_payment', 'amount' => '10.00', 'transaction_date' => '2026-11-05', 'idempotency_key' => 'pay-c1-underpayment-0002'])
+            ->assertStatus(422)->assertJsonPath('error_code', 'CORRECTION_SUPERSEDED');
+    }
+
+    public function test_c1_a_repayment_of_a_superseded_overpayment_is_voided_cleanly_by_an_hr_manager(): void
+    {
+        $employee = $this->makeEmployee();
+        $first = $this->makeAssignment($employee, $this->co, null, 300, '2026-01-01');
+        $sept = $this->generate('2026-09');
+        $this->finalizeEveryCompany($sept, $this->super);
+        $this->as($this->super)->postJson("/api/v1/admin/hr/client-companies/{$this->co->id}/employees/{$first->id}/stop", ['end_date' => '2026-09-10', 'reason' => 'Left', 'correction_reason' => 'Left on 10 September'])->assertOk();
+        $correction = PayrollCorrection::query()->where('employee_id', $employee->id)->where('kind', 'overpayment')->where('period', '2026-09')->sole();
+        $repaidId = $this->as($this->hrManager)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions", ['type' => 'debt_repayment', 'amount' => '5.00', 'transaction_date' => '2026-11-05', 'idempotency_key' => 'repay-c1-0001'])->assertStatus(201)->json('data.transaction_id');
+        $this->supersedeDirectly($correction);
+
+        $items = PayrollItem::query()->orderBy('id')->get()->map->getAttributes()->all();
+        $corrected = PayrollCorrection::query()->findOrFail($correction->id);
+        $correctionBefore = [$corrected->status, (int) $corrected->outstanding_cents, (int) $corrected->difference_cents, (string) $corrected->superseded_at];
+        $txBefore = PayrollCorrectionTransaction::query()->count();
+
+        $this->as($this->hrManager)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions/{$repaidId}/void", ['reason' => 'Repayment recorded in error'])->assertOk();
+
+        // The row is marked void with who / when / why, nothing is deleted or added, the correction stays superseded and every payroll line is as it was.
+        $tx = PayrollCorrectionTransaction::query()->findOrFail($repaidId);
+        $this->assertTrue($tx->isVoided());
+        $this->assertSame('Repayment recorded in error', $tx->void_reason);
+        $this->assertSame($txBefore, PayrollCorrectionTransaction::query()->count());
+        $corrected = PayrollCorrection::query()->findOrFail($correction->id);
+        $this->assertSame($correctionBefore, [$corrected->status, (int) $corrected->outstanding_cents, (int) $corrected->difference_cents, (string) $corrected->superseded_at]);
+        $this->assertSame($items, PayrollItem::query()->orderBy('id')->get()->map->getAttributes()->all());
+        $log = AuditLog::query()->where('entity_type', PayrollCorrection::class)->where('entity_id', $correction->id)->latest('id')->firstOrFail();
+        $this->assertSame('debt_repayment_voided', $log->metadata['event']);
+        $this->assertTrue($log->metadata['correction_superseded']);
+
+        $this->as($this->hrManager)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions/{$repaidId}/void", ['reason' => 'A second time'])
+            ->assertStatus(422)->assertJsonPath('error_code', 'TRANSACTION_ALREADY_VOIDED');
+    }
+
+    // ------------------------------------------------------------------------------------------------ C-1: clean undo versus reopening (Final Remediation Audit, 2026-11-06)
+    //
+    // Voiding is a clean undo of one ledger row. It does not, by itself, give anyone permission to reopen payroll: the reopening gate counts every transaction of an
+    // OPEN correction (voided ones too) and ignores corrections that are already superseded. These tests pin that behaviour so the undo can never widen it.
+
+    /** @return array{0: PayrollCorrection, 1: PayrollRunSection} an open September overpayment (an employee who left on 10 September had been paid for the month) */
+    private function openSeptemberOverpayment(): array
+    {
+        $employee = $this->makeEmployee();
+        $first = $this->makeAssignment($employee, $this->co, null, 300, '2026-01-01');
+        $sept = $this->generate('2026-09');
+        $this->finalizeEveryCompany($sept, $this->super);
+        $this->as($this->super)->postJson("/api/v1/admin/hr/client-companies/{$this->co->id}/employees/{$first->id}/stop", ['end_date' => '2026-09-10', 'reason' => 'Left', 'correction_reason' => 'Left on 10 September'])->assertOk();
+
+        return [
+            PayrollCorrection::query()->where('employee_id', $employee->id)->where('kind', 'overpayment')->where('period', '2026-09')->sole(),
+            PayrollRunSection::query()->where('payroll_run_id', $sept)->where('client_company_id', $this->co->id)->firstOrFail(),
+        ];
+    }
+
+    private function repay(PayrollCorrection $correction, string $amount, string $key): int
+    {
+        return (int) $this->as($this->hrManager)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions", ['type' => 'debt_repayment', 'amount' => $amount, 'transaction_date' => '2026-11-05', 'idempotency_key' => $key])->assertStatus(201)->json('data.transaction_id');
+    }
+
+    public function test_c1_voiding_one_of_two_repayments_restores_only_that_amount_and_voiding_both_restores_the_whole_debt(): void
+    {
+        [$correction] = $this->openSeptemberOverpayment();
+        $whole = (int) $correction->fresh()->outstanding_cents;
+        $this->assertGreaterThan(800, $whole);
+
+        $first = $this->repay($correction, '5.00', 'repay-c1-two-0001');
+        $second = $this->repay($correction, '3.00', 'repay-c1-two-0002');
+        $this->assertSame($whole - 800, (int) $correction->fresh()->outstanding_cents);
+
+        $this->as($this->hrManager)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions/{$first}/void", ['reason' => 'The first repayment was entered twice'])->assertOk();
+        $this->assertSame($whole - 300, (int) $correction->fresh()->outstanding_cents, 'only the voided 5.00 came back');
+        $this->assertFalse(PayrollCorrectionTransaction::query()->findOrFail($second)->isVoided(), 'the other repayment is untouched');
+
+        $this->as($this->hrManager)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions/{$second}/void", ['reason' => 'The second one was also a mistake'])->assertOk();
+        $fresh = $correction->fresh();
+        $this->assertSame($whole, (int) $fresh->outstanding_cents, 'with every repayment voided the debt is whole again');
+        $this->assertSame('open', $fresh->status);
+
+        // Both rows are still in the ledger as history (voided, with who / why), and neither can be voided a second time: no double effect.
+        $this->assertSame(2, PayrollCorrectionTransaction::query()->where('payroll_correction_id', $correction->id)->whereNotNull('voided_at')->count());
+        foreach ([$first, $second] as $id) {
+            $this->as($this->hrManager)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions/{$id}/void", ['reason' => 'Again'])->assertStatus(422)->assertJsonPath('error_code', 'TRANSACTION_ALREADY_VOIDED');
+        }
+        $this->assertSame($whole, (int) $correction->fresh()->outstanding_cents);
+    }
+
+    public function test_c1_a_correction_whose_every_transaction_was_voided_still_blocks_the_reopening_for_everyone_and_nothing_changes(): void
+    {
+        [$correction, $septSection] = $this->openSeptemberOverpayment();
+        $id = $this->repay($correction, '5.00', 'repay-c1-block-0001');
+        $this->as($this->hrManager)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions/{$id}/void", ['reason' => 'Recorded in error'])->assertOk();
+
+        $before = $this->moneySnapshot($correction);
+        $auditBefore = AuditLog::query()->count();
+
+        foreach ([$this->hrManager, $this->super] as $who) {
+            $this->as($who)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$septSection->id}/reopen", ['reason' => 'September is rebuilt with the true end date'])
+                ->assertStatus(422)->assertJsonPath('error_code', 'CORRECTION_HAS_MONEY_MOVEMENT');
+        }
+
+        $this->assertSame('finalized', $septSection->fresh()->status, 'a clean undo is not a permission to reopen');
+        $this->assertSame($before, $this->moneySnapshot($correction));
+        $this->assertSame($auditBefore, AuditLog::query()->count());
+    }
+
+    public function test_c1_a_superseded_correction_never_blocks_a_reopening_even_when_it_holds_a_transaction(): void
+    {
+        [$correction, $septSection] = $this->openSeptemberOverpayment();
+        $id = $this->repay($correction, '5.00', 'repay-c1-gate-0001');
+
+        // While it is OPEN, the transaction (even once voided) is what blocks the reopening.
+        $blocked = null;
+        try {
+            CorrectionSupersession::assertCanSupersede($septSection, '2026-09');
+        } catch (HttpResponseException $e) {
+            $blocked = $e->getResponse()->getData(true)['error_code'] ?? null;
+        }
+        $this->assertSame('CORRECTION_HAS_MONEY_MOVEMENT', $blocked);
+
+        // Once superseded, the gate no longer looks at it: the existing rule, unchanged, and no new exception was added for it.
+        $this->supersedeDirectly($correction);
+        CorrectionSupersession::assertCanSupersede($septSection, '2026-09');
+        $this->addToAssertionCount(1);
+
+        // The clean undo of its transaction changes nothing about that, and the correction stays superseded.
+        $this->as($this->hrManager)->postJson("/api/v1/admin/hr/payroll-corrections/{$correction->id}/transactions/{$id}/void", ['reason' => 'Recorded in error'])->assertOk();
+        CorrectionSupersession::assertCanSupersede($septSection, '2026-09');
+        $this->assertSame('superseded', $correction->fresh()->status);
+        $this->assertSame('finalized', $septSection->fresh()->status, 'checking the gate reopened nothing');
     }
 }

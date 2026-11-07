@@ -13,6 +13,7 @@ import { useAuth } from '@/features/auth/useAuth';
 import { defaultTeamId, isMarketingUnrestricted } from '@/utils/marketingAccess';
 import { invalidateMarketing } from '@/utils/marketingCache';
 import { needLabel } from '@/utils/marketingLabels';
+import { appendFeedback } from '@/utils/marketingFormRules';
 import type { MarketingRecord } from '@/types/marketing';
 
 interface XarunFormDialogProps {
@@ -68,7 +69,7 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
               location: record.xarun.location ?? '',
               needs: record.xarun.needs ?? [],
               description: record.description ?? '',
-              feedback: record.feedback ?? '',
+              feedback: '', // owner decision E-7: the box holds only NEW feedback; the saved feedback is shown above it and stays
               assigned_team_id: record.assigned_team_id ? String(record.assigned_team_id) : '',
               assigned_admin_id: record.assigned_admin_id ? String(record.assigned_admin_id) : '',
               brought_by_admin_id: '',
@@ -97,7 +98,7 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
           ...(unrestricted && form.brought_by_admin_id ? { brought_by_admin_id: Number(form.brought_by_admin_id) } : {}),
         });
       }
-      return marketingApi.xarun.update(record!.id, { ...base, feedback: form.feedback || null });
+      return marketingApi.xarun.update(record!.id, { ...base, ...(form.feedback.trim() !== '' ? { feedback: appendFeedback(record!.feedback, form.feedback) } : {}) });
     },
     onSuccess: () => {
       // Everything Marketing shows may change with a record (lists, this record, dashboard counters, follow-ups, reports).
@@ -225,9 +226,17 @@ export function XarunFormDialog({ isOpen, onClose, mode, record }: XarunFormDial
         </FormField>
 
         {mode === 'edit' && (
-          <FormField label={t('option.marketing.feedback')} htmlFor="feedback" error={fieldErrors.feedback?.[0]}>
-            <textarea id="feedback" rows={3} className={inputClasses + ' h-auto py-2'} value={form.feedback} onChange={(e) => setForm({ ...form, feedback: e.target.value })} />
-          </FormField>
+          <>
+            {record?.feedback && (
+              <div className="mb-3 rounded-sm bg-surface-alt px-3 py-2 text-sm text-ink">
+                <p className="mb-0.5 text-xs font-medium text-ink-faint">{t('option.ownerDecisions1c.feedbackSoFar')}</p>
+                <p className="whitespace-pre-wrap">{record.feedback}</p>
+              </div>
+            )}
+            <FormField label={t('option.ownerDecisions1c.newFeedback')} htmlFor="feedback" error={fieldErrors.feedback?.[0]} hint={t('warning.ownerDecisions1c.feedbackAppendHint')}>
+              <textarea id="feedback" rows={3} className={inputClasses + ' h-auto py-2'} value={form.feedback} onChange={(e) => setForm({ ...form, feedback: e.target.value })} />
+            </FormField>
+          </>
         )}
       </form>
     </Modal>

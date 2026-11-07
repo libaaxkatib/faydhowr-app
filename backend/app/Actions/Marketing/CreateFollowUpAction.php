@@ -28,7 +28,7 @@ class CreateFollowUpAction
             FollowUpHistory::query()->create([
                 'follow_up_id' => $followUp->id,
                 'action' => FollowUpActionEnum::Created,
-                'note' => null,
+                'note' => $data['note'] ?? null,
                 'performed_by' => $actor->id,
             ]);
 

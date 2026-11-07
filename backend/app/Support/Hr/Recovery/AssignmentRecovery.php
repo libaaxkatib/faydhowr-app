@@ -18,6 +18,7 @@ use App\Models\PayrollRun;
 use App\Models\RecoveryCorrection;
 use App\Support\ApiResponse;
 use App\Support\Hr\AbsenceCycles;
+use App\Support\Hr\CoverConflicts;
 use App\Support\Hr\Payroll\PayrollPeriodLock;
 use App\Support\Hr\Payroll\PayrollRunCalculator;
 use App\Support\Hr\Payroll\PayrollSections;
@@ -341,6 +342,33 @@ final class AssignmentRecovery
             }
         }
 
+        // Owner decision O-1 (symmetrical): a Replacement's corrected dates may not share a day with a Temporary cover of the position it holds.
+        if (($startChanges || $endChanges) && ($finalEnd === null || $finalEnd >= $finalStart)) {
+            $coverInTheWay = CoverConflicts::findCoverOverlappingReplacement($a, $finalStart, $finalEnd, 'changed');
+
+            if ($coverInTheWay !== null) {
+                $blockers[] = $this->b('COVER_OVERLAPS_REPLACEMENT', $coverInTheWay['message']);
+            }
+        }
+
+        // Owner rule A7: a Replacement's corrected dates may not share a day with another Replacement of the same position (a day is paid once).
+        if (($startChanges || $endChanges) && ($finalEnd === null || $finalEnd >= $finalStart) && ($a->assignment_type ?? AssignmentType::Permanent) === AssignmentType::Replacement) {
+            $siblingOverlap = PositionSuccession::replacementOverlapConflict($a, $finalStart, $finalEnd, 'changed');
+
+            if ($siblingOverlap !== null) {
+                $blockers[] = $this->b(PositionSuccession::CODE_REPLACEMENT_OVERLAPS_REPLACEMENT, $siblingOverlap['message']);
+            }
+        }
+
+        // Owner decision F-A: a Replacement of a holder who has returned must end the day before the return at the latest.
+        if (($startChanges || $endChanges) && ($finalEnd === null || $finalEnd >= $finalStart)) {
+            $pastReturn = AbsenceCycles::replacementReturnConflict($a, $finalEnd);
+
+            if ($pastReturn !== null) {
+                $blockers[] = $this->b(AbsenceCycles::CODE_REPLACEMENT_PAST_RETURN, $pastReturn['message']);
+            }
+        }
+
         $changes[] = ['entity' => 'assignment', 'id' => $a->id, 'employee_id' => $a->employee_id, 'label' => "Assignment #{$a->id} ({$a->employee?->full_name})", 'before' => $before, 'after' => $after];
 
         if ($startChanges) {
@@ -481,6 +509,22 @@ final class AssignmentRecovery
                 }
 
                 $changes[] = ['entity' => 'assignment', 'id' => $ended->id, 'employee_id' => $ended->employee_id, 'label' => "Replacement #{$ended->id} (ends the day before the return)", 'before' => ['end_date' => $oldCoverEnd], 'after' => ['end_date' => $newCoverEnd]];
+            }
+        }
+
+        // Owner decision F-A: after the correction every Replacement of this absence must end the day before the (corrected) return at the latest. The one that
+        // ends at the old return follows it (above); any other must already be clear of it.
+        if ($returnChanges && $oldReturn !== null && $newReturn !== null) {
+            $oldCoverEndDay = CarbonImmutable::parse($oldReturn)->subDay()->toDateString();
+            $newCoverEndDay = CarbonImmutable::parse($newReturn)->subDay()->toDateString();
+            $followsReturn = $covers->first(fn (EmployeeWorkAssignment $c): bool => $c->end_date?->toDateString() === $oldCoverEndDay)?->id;
+
+            foreach ($covers as $cover) {
+                $endsOn = $cover->id === $followsReturn ? $newCoverEndDay : $cover->end_date?->toDateString();
+
+                if ($endsOn === null || $endsOn > $newCoverEndDay) {
+                    $blockers[] = $this->b(AbsenceCycles::CODE_REPLACEMENT_PAST_RETURN, "A Replacement must end no later than the day before the original employee returns. After this correction the return is {$newReturn}, but Replacement #{$cover->id} would last ".($endsOn === null ? 'with no end date' : "until {$endsOn}").". The latest allowed last day is {$newCoverEndDay}.");
+                }
             }
         }
 

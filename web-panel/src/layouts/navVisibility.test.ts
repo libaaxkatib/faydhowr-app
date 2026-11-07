@@ -34,7 +34,8 @@ test('HR Manager with the intended HR grant sees only Human Resources, nothing e
   assert.ok(!visibleGroups.includes('Mobile App Management'));
   assert.ok(!visibleGroups.includes('Marketing'));
   const systemItems = NAV_GROUPS.find((g) => g.label === 'System')!.items.filter((item) => isItemRenderable(item, hasPermission, false, 'hr_manager')).map((i) => i.label);
-  assert.deepEqual(systemItems, ['Audit Log'], 'no Admin Users, Roles & Permissions, Settings, Translations, Recovery Center or Data Issues for an HR Manager with only the HR grant');
+  // Owner decision TRANSLATION-POLICY (2026-11-06): the HR Manager may also PROPOSE wording changes, so Translations is listed next to the Audit Log.
+  assert.deepEqual(systemItems, ['Audit Log', 'Translations'], 'no Admin Users, Roles & Permissions, Settings, Recovery Center or Data Issues for an HR Manager with only the HR grant');
 
   const hrGroup = NAV_GROUPS.find((g) => g.label === 'Human Resources')!;
   const renderable = hrGroup.items.filter((item) => isItemRenderable(item, hasPermission, false, 'hr_manager')).map((i) => i.label);
@@ -77,13 +78,15 @@ test('HR Manager with zero grants sees no group at all - a title/submenu alone n
   assert.deepEqual(groupLabels(hasPermission, false), []);
 });
 
-test('Marketing Manager sees only Marketing', () => {
+test('Marketing Manager sees only Marketing, plus Translations (to propose wording changes) under System', () => {
   const hasPermission = permissionSetOf(['dashboard.view', 'marketing.view', 'marketing.manage']);
 
   const visibleGroups = groupLabels(hasPermission, false, 'marketing_manager');
-  assert.deepEqual(visibleGroups, ['Marketing']);
+  assert.deepEqual(visibleGroups, ['Marketing', 'System']);
   assert.ok(!visibleGroups.includes('Human Resources'));
   assert.ok(!visibleGroups.includes('Mobile App Management'));
+  const systemItems = NAV_GROUPS.find((g) => g.label === 'System')!.items.filter((item) => isItemRenderable(item, hasPermission, false, 'marketing_manager')).map((i) => i.label);
+  assert.deepEqual(systemItems, ['Translations'], 'owner decision TRANSLATION-POLICY: nothing else under System');
 });
 
 test('Mobile App Manager with customers.view sees Mobile App Management, with its comingSoon placeholders, but nothing else', () => {
@@ -174,15 +177,20 @@ test('the sidebar lists Human Resources, Marketing, Mobile App Management, Syste
   assert.deepEqual(groupLabels(permissionSetOf([]), true), labels);
 });
 
-test('the Translations page is listed for Super Admin only, whatever other permissions an admin holds', () => {
+test('owner decision TRANSLATION-POLICY: the Translations page is listed for the Super Admin and, to PROPOSE only, the HR Manager and the Marketing Manager - by role, whatever permissions an admin holds', () => {
   const system = NAV_GROUPS.find((group) => group.label === 'System')!;
   const translations = system.items.find((item) => item.to === '/system/translations')!;
-  assert.ok(translations.superAdminOnly);
+  assert.deepEqual(translations.roles, ['hr_manager', 'marketing_manager']);
+  assert.equal(translations.superAdminOnly, undefined);
+  assert.equal(translations.permission, undefined);
 
   const everyPermission = (): boolean => true;
-  assert.equal(isItemRenderable(translations, everyPermission, false), false);
-  assert.equal(isItemRenderable(translations, permissionSetOf(['settings.view', 'admins.manage', 'roles.manage']), false), false);
   assert.equal(isItemRenderable(translations, permissionSetOf([]), true), true);
+  assert.equal(isItemRenderable(translations, permissionSetOf([]), false, 'hr_manager'), true);
+  assert.equal(isItemRenderable(translations, permissionSetOf([]), false, 'marketing_manager'), true);
+  for (const role of ['manager', 'sales', 'hr_employee', 'marketing_employee', 'mobile_app_manager', undefined]) {
+    assert.equal(isItemRenderable(translations, everyPermission, false, role), false, `${role ?? 'no role'} holds every permission and still does not see it`);
+  }
 });
 
 test('an admin who may not open the Dashboard is sent to the first page they can use', () => {

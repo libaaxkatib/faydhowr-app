@@ -12,6 +12,7 @@ use App\Support\Hr\AbsenceCycles;
 use App\Support\Hr\AssignmentChain;
 use App\Support\Hr\CompanyEmployees\CompanyAssignmentGuard;
 use App\Support\Hr\ConcurrentAssignmentGuard;
+use App\Support\Hr\CoverConflicts;
 use App\Support\Hr\Payroll\ClosedPayrollCorrection;
 use App\Support\Hr\PermanentSuccession;
 use App\Support\Hr\PositionSuccession;
@@ -70,6 +71,19 @@ class ReopenEndedAssignmentAction
             'old' => ['end_date' => $oldEnd, 'status' => 'ended'],
             'new' => ['end_date' => null, 'status' => 'active'],
         ], fn (): EmployeeWorkAssignment => DB::transaction(function () use ($company, $assignment, $actor, $oldEnd, $reason, $employee): EmployeeWorkAssignment {
+            // Owner decision O-1 (symmetrical): a Replacement holds its position again from its start day once reopened, so no Temporary cover of that position
+            // may share a day with it. Lock order for every Replacement/cover writer: the Replacement's own row, then the position row (the row a cover takes
+            // when it is created or edited), so two requests cannot pass the check at the same moment and cannot deadlock. Refused here, nothing written yet.
+            if ($assignment->replaces_assignment_id !== null) {
+                EmployeeWorkAssignment::query()->whereKey($assignment->id)->lockForUpdate()->first();
+                EmployeeWorkAssignment::query()->whereKey($assignment->replaces_assignment_id)->lockForUpdate()->first();
+                // Only the days it takes back are judged: the days up to its old last day were already its own.
+                $regained = $oldEnd === null ? $assignment->start_date->toDateString() : CarbonImmutable::parse($oldEnd)->addDay()->toDateString();
+                CoverConflicts::assertReplacementFreeOfCovers($assignment, $regained, null);
+                // Owner rule A7: nor may it hold days another Replacement of the same position holds now (a swapped-out Replacement reopened next to its successor).
+                PositionSuccession::assertReplacementClearOfSiblings($assignment, $regained, null, 'reopened');
+            }
+
             $assignment->update([
                 'status' => WorkAssignmentStatus::Active,
                 'end_date' => null,

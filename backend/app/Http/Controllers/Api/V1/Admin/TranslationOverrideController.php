@@ -8,6 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Admin;
 use App\Models\SystemSetting;
 use App\Support\ApiResponse;
+use App\Support\I18n\LockedTranslations;
+use App\Support\I18n\TranslationOverrides;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,16 +24,18 @@ use Illuminate\Support\Facades\DB;
  */
 class TranslationOverrideController extends Controller
 {
-    public const CATEGORY = 'i18n';
+    public const CATEGORY = TranslationOverrides::CATEGORY;
 
     /** Upper bound on stored overrides, so the table cannot grow without limit. The built-in catalogue has about 3,200 messages. */
-    public const MAX_OVERRIDES = 5000;
+    public const MAX_OVERRIDES = TranslationOverrides::MAX_OVERRIDES;
 
     public const MAX_TEXT_LENGTH = 1000;
 
     public function index(): JsonResponse
     {
+        // An override stored for an owner-locked message is never handed out (the panel would ignore it anyway): locked wording stays as approved.
         $overrides = SystemSetting::query()->category(self::CATEGORY)->orderBy('key')->get()
+            ->reject(fn (SystemSetting $row): bool => LockedTranslations::isLocked($row->key))
             ->mapWithKeys(fn (SystemSetting $row): array => [$row->key => $this->clean($row->value)])
             ->filter()
             ->all();
@@ -50,6 +54,11 @@ class TranslationOverrideController extends Controller
             ],
         )->validate();
 
+        // Owner-approved wording is locked: not even the Super Admin's editor may store an override for it.
+        if (LockedTranslations::isLocked($key)) {
+            return LockedTranslations::refusal($key);
+        }
+
         // Only the languages that were sent and are not blank are edited; a blank one means "use the built-in wording" for that language.
         $value = array_filter([
             'en' => $this->normalise($validated['en'] ?? null),
@@ -64,25 +73,10 @@ class TranslationOverrideController extends Controller
         $actor = $request->user();
 
         return DB::transaction(function () use ($actor, $key, $value): JsonResponse {
-            $row = SystemSetting::query()->category(self::CATEGORY)->where('key', $key)->lockForUpdate()->first();
-
-            if ($row === null && SystemSetting::query()->category(self::CATEGORY)->count() >= self::MAX_OVERRIDES) {
+            // The same write the approval of a proposal uses (TranslationOverrides::save): limit, row lock, audit entry.
+            if (TranslationOverrides::save($actor, $key, $value, "Translation wording edited for \"{$key}\".") === null) {
                 return ApiResponse::error('The limit of edited messages has been reached.', 'LIMIT_REACHED', 422);
             }
-
-            $before = $row === null ? null : $this->clean($row->value);
-
-            $row ??= new SystemSetting(['category' => self::CATEGORY, 'key' => $key, 'is_sensitive' => false]);
-            $row->fill(['value' => $value, 'updated_by' => $actor->id])->save();
-
-            event(AuditEvent::record(
-                action: $before === null ? AuditAction::Create : AuditAction::Update,
-                admin: $actor,
-                description: "Translation wording edited for \"{$key}\".",
-                entityType: SystemSetting::class,
-                entityId: $row->id,
-                metadata: ['key' => $key, 'before' => $before, 'after' => $value],
-            ));
 
             return ApiResponse::success('Translation saved successfully.', ['key' => $key, 'override' => $value]);
         });

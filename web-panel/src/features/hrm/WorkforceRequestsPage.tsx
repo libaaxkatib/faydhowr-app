@@ -243,7 +243,7 @@ export function WorkforceRequestsPage() {
                     </Button>
                   </PermissionGate>
                 )}
-                {(request.status === 'open' || request.status === 'partially_filled') && (
+                {request.status !== 'cancelled' && (
                   <PermissionGate module="hr">
                     <Button size="sm" variant="ghost" onClick={() => setCancelling(request)}>
                       {t('action.cancelRequest')}
@@ -276,7 +276,7 @@ export function WorkforceRequestsPage() {
       <ConfirmDialog
         isOpen={cancelling !== null}
         title={t('confirm.uiAuditB.cancelRequestTitle')}
-        description={cancelling ? t('confirm.uiAuditB.cancelRequestBody', { name: requestTitle(cancelling, t('option.pipeline.companyNotRecorded')) }) : ''}
+        description={cancelling ? t(cancelling.status === 'fulfilled' ? 'confirm.ownerDecisions1c.cancelFulfilledBody' : 'confirm.uiAuditB.cancelRequestBody', { name: requestTitle(cancelling, t('option.pipeline.companyNotRecorded')) }) : ''}
         confirmLabel={t('action.uiAuditB.yesCancelRequest')}
         tone="danger"
         isLoading={cancelMutation.isPending}

@@ -23,6 +23,12 @@ use Illuminate\Support\Facades\DB;
  *    stay exactly as they were, every total that sums the payment ledger nets to zero for the pair, and the amount owed to the employee is restored.
  *    A payment can be reversed once (unique link in the database and a row lock here);
  *  - a write-off and a reversal themselves are never voided.
+ *
+ * Owner decision C-1 (2026-11-06): a transaction of a SUPERSEDED correction (its month was reopened and rebuilt) may be voided when the undo is clean. The
+ * mechanism above is the clean undo: it only adds a void mark or a linked reversal, never edits the original rows, never touches payroll lines or the
+ * correction's own record (refreshBalance leaves a superseded correction superseded, with its history and amounts as they were), and needs the same role.
+ * For a superseded correction the action also CHECKS that the payment pair nets to exactly zero before it commits; if not, it rolls everything back
+ * (TRANSACTION_NOT_CLEAN_UNDO). Nothing can be recorded against a superseded correction (RecordCorrectionTransactionAction refuses it).
  */
 class VoidCorrectionTransactionAction
 {
@@ -68,6 +74,7 @@ class VoidCorrectionTransactionAction
                 'amount_cents' => (int) $transaction->amount_cents,
                 'outstanding_before_cents' => $before,
                 'outstanding_after_cents' => (int) $correction->outstanding_cents,
+                'correction_superseded' => $correction->status === PayrollCorrection::STATUS_SUPERSEDED,
                 'reason' => $reason,
             ],
         ));
@@ -118,6 +125,13 @@ class VoidCorrectionTransactionAction
 
         $correction->refreshBalance();
 
+        // C-1: on a superseded correction the undo must be CLEAN - the original payment and its reversal cancel out exactly. Otherwise nothing is kept.
+        $net = (int) round(((float) EmployeePayment::query()->whereIn('id', [$original->id, $reversalPayment->id])->sum('amount')) * 100);
+
+        if ($correction->status === PayrollCorrection::STATUS_SUPERSEDED && $net !== 0) {
+            $this->fail('This payment cannot be undone cleanly (the payment and its reversal do not cancel out), so nothing was changed.', 'TRANSACTION_NOT_CLEAN_UNDO');
+        }
+
         event(AuditEvent::record(
             action: AuditAction::Payment,
             admin: $actor,
@@ -135,7 +149,8 @@ class VoidCorrectionTransactionAction
                 'amount_cents' => $cents,
                 'owed_before_cents' => $before,
                 'owed_after_cents' => (int) $correction->outstanding_cents,
-                'employee_payment_ledger_net_cents' => (int) round(((float) EmployeePayment::query()->where('employee_id', $correction->employee_id)->where(fn ($q) => $q->where('id', $original->id)->orWhere('id', $reversalPayment->id))->sum('amount')) * 100),
+                'employee_payment_ledger_net_cents' => $net,
+                'correction_superseded' => $correction->status === PayrollCorrection::STATUS_SUPERSEDED,
                 'reason' => $reason,
             ],
         ));

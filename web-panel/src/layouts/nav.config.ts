@@ -135,10 +135,12 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Admin Users', labelKey: 'nav.shell.adminUsers', to: '/system/admins', icon: 'users', permission: 'admins.manage', superAdminOnly: true },
       { label: 'Roles & Permissions', labelKey: 'nav.shell.rolesPermissions', to: '/system/roles', icon: 'shield', permission: 'roles.manage', superAdminOnly: true },
       { label: 'Settings', labelKey: 'nav.shell.settings', to: '/system/settings', icon: 'settings', permission: 'settings.view' },
-      { label: 'Translations', labelKey: 'nav.shell.translations', to: '/system/translations', icon: 'message-circle', superAdminOnly: true },
       { label: 'Recovery Center', labelKey: 'nav.recovery.center', to: '/system/recovery', icon: 'refresh', superAdminOnly: true },
       // READ-ONLY for the HR Manager and the Super Admin: the backend checks the role (EnsureAuditLogReader), no permission is involved.
       { label: 'Audit Log', labelKey: 'nav.shell.auditLog', to: '/system/audit-log', icon: 'list', roles: ['hr_manager'] },
+      // Super Admin edits and approves; the HR Manager and the Marketing Manager can only propose (TRANSLATION-POLICY). The backend checks the role on every
+      // call. Listed after the Audit Log so the page an HR Manager without HR permissions lands on is still the Audit Log.
+      { label: 'Translations', labelKey: 'nav.shell.translations', to: '/system/translations', icon: 'message-circle', roles: ['hr_manager', 'marketing_manager'] },
       { label: 'Data Issues & Reconciliation', labelKey: 'nav.shell.dataIssues', to: '/system/data-issues', icon: 'alert-triangle', permission: 'reconciliation.view' },
     ],
   },

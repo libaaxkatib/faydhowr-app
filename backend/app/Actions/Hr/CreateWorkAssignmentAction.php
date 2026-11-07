@@ -164,6 +164,12 @@ class CreateWorkAssignmentAction
         return DB::transaction(function () use ($employee, $data, $actor, $workLocation, $companyId) {
             $predecessor = $this->lockPredecessor($employee, $data, $companyId);
 
+            // Owner decision O-1 (symmetrical): a Replacement may not hold the position over days a Temporary cover of it already has. The position row was
+            // just locked (the row a cover locks when it is created or edited), so a cover being saved at this moment is either seen here or waits for us.
+            if ($predecessor !== null && ($data['assignment_type'] ?? AssignmentType::Permanent->value) === AssignmentType::Replacement->value) {
+                CoverConflicts::assertReplacementDaysFreeOfCovers($predecessor, CarbonImmutable::parse($data['start_date'])->toDateString(), empty($data['end_date']) ? null : CarbonImmutable::parse($data['end_date'])->toDateString());
+            }
+
             $assignment = EmployeeWorkAssignment::query()->create([
                 'employee_id' => $employee->id,
                 'work_location_id' => $workLocation?->id,
@@ -210,6 +216,11 @@ class CreateWorkAssignmentAction
                     ...(isset($data['salary_basis']) ? ['salary_basis' => $data['salary_basis']] : []),
                     ...(isset($data['shift']) ? ['shift' => $data['shift']] : []),
                     ...(isset($data['temporary_confirmation']) ? ['temporary_registered_as_replacement_confirmed' => $data['temporary_confirmation']] : []),
+                    // Owner decision B-Q2 (2026-11-06): a Temporary employee may hold a Permanent assignment. The two types are separate concepts: the employee stays
+                    // Temporary (nothing here changes it) and, while Temporary, payroll gives no Permanent monthly line for the assignment (PayrollRunCalculator).
+                    ...($employee->employment_type === 'temporary' && $assignment->assignment_type !== AssignmentType::Replacement
+                        ? ['temporary_employee_permanent_assignment' => ['employment_type' => 'temporary', 'employment_type_changed' => false, 'permanent_payroll_line' => false]]
+                        : []),
                 ],
             ));
 

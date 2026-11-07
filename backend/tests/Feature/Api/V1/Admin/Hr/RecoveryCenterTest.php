@@ -14,6 +14,7 @@ use App\Models\EmployeeWorkAssignment;
 use App\Models\PayrollRun;
 use App\Models\Position;
 use App\Models\RecoveryCorrection;
+use App\Models\TemporaryReplacement;
 use App\Support\Hr\AbsenceCycles;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -420,6 +421,24 @@ class RecoveryCenterTest extends TestCase
 
         $this->assertSame('2026-10-24', $a->refresh()->end_date->toDateString());
         $this->assertSame('ended', $a->status->value);
+    }
+
+    public function test_a_replacements_corrected_dates_may_not_share_a_day_with_a_temporary_cover_of_its_position(): void
+    {
+        // Owner decision O-1 (symmetrical): the same refusal the Edit and Reopen paths give, shown here as a blocker before anything is applied.
+        $holder = $this->makeAssignment($this->makeEmployee(), $this->company, null, 310, '2026-01-01');
+        $replacement = EmployeeWorkAssignment::query()->create([
+            'employee_id' => $this->makeEmployee()->id, 'client_company_id' => $this->company->id, 'replaces_assignment_id' => $holder->id, 'assignment_type' => 'replacement',
+            'start_date' => '2026-10-05', 'end_date' => '2026-10-10', 'salary_amount' => 310, 'salary_currency' => 'USD', 'salary_frequency' => 'monthly', 'status' => 'ended',
+        ]);
+        TemporaryReplacement::query()->create(['work_assignment_id' => $holder->id, 'replacement_employee_id' => $this->makeEmployee('active', 'temporary')->id, 'start_date' => '2026-10-20', 'end_date' => '2026-10-25', 'currency' => 'USD', 'status' => 'active']);
+
+        $into = $this->previewOf('correct_assignment_dates', $replacement, ['month' => '2026-10', 'end_date' => '2026-10-22']);
+        $this->assertFalse($into['can_apply']);
+        $this->assertContains('COVER_OVERLAPS_REPLACEMENT', array_column($into['blockers'], 'code'));
+
+        $clear = $this->previewOf('correct_assignment_dates', $replacement, ['month' => '2026-10', 'end_date' => '2026-10-15']);
+        $this->assertNotContains('COVER_OVERLAPS_REPLACEMENT', array_column($clear['blockers'], 'code'), 'a date that stays clear of the cover is not blocked by this rule');
     }
 
     public function test_a_date_correction_that_leaves_the_month_is_blocked_never_widened(): void

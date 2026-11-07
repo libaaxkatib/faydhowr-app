@@ -229,7 +229,7 @@ export function FollowUpsPage() {
 
                   <PermissionGate module="marketing">
                     <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => {
-                        setFeedbackText(fu.record_feedback ?? '');
+                        setFeedbackText(''); // owner decision E-7: new feedback is added after the saved feedback, so the editor starts empty
                         setEditor({ id: fu.id, kind: 'feedback' });
                       }}>
                       <Icon name="pencil" size={13} /> {t('action.marketing.addFeedback')}
@@ -278,16 +278,22 @@ export function FollowUpsPage() {
                 {editor?.id === fu.id && editor.kind === 'feedback' && (
                   <div className="mt-2.5 flex items-start gap-1.5 border-t border-border pt-2.5">
                     <div className="min-w-0 flex-1">
+                      {fu.record_feedback && (
+                        <div className="mb-1.5 rounded-sm bg-surface-alt px-2 py-1.5 text-xs text-ink">
+                          <p className="mb-0.5 font-medium text-ink-faint">{t('option.ownerDecisions1c.feedbackSoFar')}</p>
+                          <p className="whitespace-pre-wrap">{fu.record_feedback}</p>
+                        </div>
+                      )}
                       <textarea
                       rows={2}
-                      placeholder={t('option.marketing.feedbackPlaceholder')}
+                      placeholder={t('option.ownerDecisions1c.newFeedback')}
                       value={feedbackText}
                       onChange={(e) => setFeedbackText(e.target.value)}
                       className={inputClasses + ' h-auto w-full py-1.5 text-xs'}
                     />
-                      <p className="mt-1 text-[11px] text-ink-faint">{t('warning.marketing.feedbackReplacesHint')}</p>
+                      <p className="mt-1 text-[11px] text-ink-faint">{t('warning.ownerDecisions1c.feedbackAppendHint')}</p>
                     </div>
-                    <Button size="sm" disabled={!canSaveFeedback(feedbackText, fu.record_feedback)} isLoading={feedbackMutation.isPending} onClick={() => feedbackMutation.mutate(fu.id)}>
+                    <Button size="sm" disabled={!canSaveFeedback(feedbackText)} isLoading={feedbackMutation.isPending} onClick={() => feedbackMutation.mutate(fu.id)}>
                       {t('action.save')}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={closeEditor}>

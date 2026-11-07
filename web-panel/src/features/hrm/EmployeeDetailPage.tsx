@@ -1464,6 +1464,7 @@ export function EmployeeDetailPage() {
         <AssignWorkLocationModal
           isOpen
           employeeId={employeeId}
+          isTemporary={employee.employment_type === 'temporary'}
           onClose={() => setIsAssignOpen(false)}
           onSaved={() => {
             invalidate();
@@ -1619,11 +1620,14 @@ const OFFICE_CHOICE = 'office';
 function AssignWorkLocationModal({
   isOpen,
   employeeId,
+  isTemporary = false,
   onClose,
   onSaved,
 }: {
   isOpen: boolean;
   employeeId: number;
+  /** Owner decision B-Q2: a Temporary employee may receive a Permanent assignment; the dialog only says what stays the same. */
+  isTemporary?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -1737,6 +1741,11 @@ function AssignWorkLocationModal({
       }
     >
       {serverError && <div role="alert" className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3.5 py-2.5 text-sm text-danger">{serverError}</div>}
+      {isTemporary && (
+        <div role="status" className="mb-3 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs text-warning" data-testid="temporary-permanent-assignment-notice">
+          {t('warning.ownerDecisions1c.temporaryPermanentAssignment')}
+        </div>
+      )}
       <FormField label={t('option.employeeDetail.fieldCompany')} htmlFor="wa-company" required>
         <Select
           id="wa-company"

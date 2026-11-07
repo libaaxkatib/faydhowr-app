@@ -37,7 +37,8 @@ class StoreMarketingTeamMemberRequest extends FormRequest
             'email' => ['required', 'string', 'email', 'max:191', Rule::unique('admins', 'email')->whereNull('deleted_at')],
             'phone' => ['required', 'string', 'max:40', Rule::unique('admins', 'phone')->whereNull('deleted_at')],
             'password' => ['required', 'string', Password::min(8)],
-            'team_id' => ['required', 'integer', Rule::exists('marketing_teams', 'id')],
+            // Owner decision E-8 (2026-11-06): a team is optional - a Marketing employee does not have to belong to Team A or Team B.
+            'team_id' => ['nullable', 'integer', Rule::exists('marketing_teams', 'id')],
             'status' => ['sometimes', Rule::enum(AdminStatus::class)],
         ];
     }

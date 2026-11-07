@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { EMPTY_SUCCESSOR, effectiveStart, missingSuccessors, needsSuccessor, successorStartDate, toSuccessorPayload, validateSuccessor } from './successor.ts';
+import { EMPTY_SUCCESSOR, effectiveStart, missingSuccessors, needsSuccessor, stopSummaryReplacementKey, successorStartDate, toSuccessorPayload, validateSuccessor } from './successor.ts';
 
 test('only a Permanent assignment needs a replacement choice', () => {
   assert.equal(needsSuccessor('permanent'), true);
@@ -73,4 +73,11 @@ test('without an effective date the replacement starts the day after the last pa
   assert.equal(effectiveStart('2026-10-09', base), '2026-10-10');
   assert.deepEqual(toSuccessorPayload(base, '2026-10-09'), { type: 'temporary', employee_id: 4 });
   assert.deepEqual(missingSuccessors([1], { 1: { ...base, effectiveDate: '2026-10-09' } }, '2026-10-09'), [1], 'a separation also reports an invalid effective date');
+});
+
+test('the Stop confirmation never announces a replacement when "No replacement now" is chosen', () => {
+  assert.equal(stopSummaryReplacementKey(''), 'option.hr.successorNone', 'no successor is sent, so the summary must say there is none');
+  assert.equal(stopSummaryReplacementKey('temporary'), 'confirm.company.stopSummaryTemporaryTakes');
+  assert.equal(stopSummaryReplacementKey('person'), 'confirm.company.stopSummaryWaitingTakes');
+  assert.equal(toSuccessorPayload(EMPTY_SUCCESSOR, '2026-11-12'), null, 'and the request really carries no successor');
 });

@@ -66,6 +66,79 @@ final class AbsenceCycles
         return $event === null ? null : AssignmentAbsence::query()->find($event->absence_id);
     }
 
+    /** Owner decision F-A (2026-11-07): the stable error code of "this Replacement would still be working on or after the day its holder returned". */
+    public const CODE_REPLACEMENT_PAST_RETURN = 'REPLACEMENT_RUNS_PAST_HOLDER_RETURN';
+
+    /**
+     * Owner decision F-A: a Replacement must end no later than the day BEFORE the original holder's return date (holder returns 10 Nov: latest last day 9 Nov).
+     * Returns the absence whose recorded return limits this Replacement, or null when nothing does (not a Replacement, no cycle record, the holder has not
+     * returned yet, or the original was ended while away: then the cover keeps the position and there is no return).
+     */
+    public static function returnLimitOf(EmployeeWorkAssignment $replacement): ?AssignmentAbsence
+    {
+        if (($replacement->assignment_type ?? AssignmentType::Permanent) !== AssignmentType::Replacement) {
+            return null;
+        }
+
+        $absence = self::ofReplacement($replacement);
+
+        return $absence !== null && $absence->returned_on !== null && $absence->terminated_on === null ? $absence : null;
+    }
+
+    /**
+     * What is wrong when the Replacement's last day ($lastDay, null = no end) is on or after the day its holder returned; null when it is fine or not limited.
+     * The wording has no "nothing was changed" sentence: callers add it when they refuse, or show the text as a reason (company reopen, Recovery Center).
+     *
+     * @return ?array{message: string, return_date: string, latest_end_date: string}
+     */
+    public static function replacementReturnConflict(EmployeeWorkAssignment $replacement, ?string $lastDay): ?array
+    {
+        $absence = self::returnLimitOf($replacement);
+
+        if ($absence === null) {
+            return null;
+        }
+
+        $return = $absence->returned_on->toDateString();
+        $latest = CarbonImmutable::parse($return)->subDay()->toDateString();
+
+        if ($lastDay !== null && $lastDay <= $latest) {
+            return null;
+        }
+
+        $holder = $absence->workAssignment()->with('employee')->first()?->employee;
+        $who = $holder === null ? 'The original employee' : "{$holder->full_name} ({$holder->employee_number})";
+        $ending = $lastDay === null ? 'with no end date' : "on {$lastDay}";
+
+        return [
+            'message' => "A Replacement must end no later than the day before the original employee returns. {$who} returned on {$return}, so this Replacement can last until {$latest} at the latest, not {$ending}.",
+            'return_date' => $return,
+            'latest_end_date' => $latest,
+        ];
+    }
+
+    /**
+     * Refuses (422, nothing written) a Replacement whose last day is on or after the day its holder returned. The dates are never shortened or changed for
+     * the user. Callers run it before anything is written and again under the row locks.
+     *
+     * @throws HttpResponseException
+     */
+    public static function assertReplacementEndsBeforeReturn(EmployeeWorkAssignment $replacement, ?string $lastDay): void
+    {
+        $conflict = self::replacementReturnConflict($replacement, $lastDay);
+
+        if ($conflict === null) {
+            return;
+        }
+
+        self::fail($conflict['message'].' Nothing was changed.', self::CODE_REPLACEMENT_PAST_RETURN, [
+            'end_date' => ["The last day cannot be later than {$conflict['latest_end_date']}, the day before the original employee returned."],
+            'holder_return_date' => [$conflict['return_date']],
+            'latest_end_date' => [$conflict['latest_end_date']],
+            'requested_end_date' => [$lastDay ?? ''],
+        ]);
+    }
+
     /**
      * Starts a cycle: records the absence (the day after the last working day onwards) and its first event. Nothing is written when a rule refuses it.
      */

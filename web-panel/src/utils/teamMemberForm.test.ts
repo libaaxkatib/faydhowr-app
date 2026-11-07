@@ -5,8 +5,10 @@ import { buildAddMemberPayload, emptyTeamMemberForm, manageableTeams, validateTe
 
 const valid = { full_name: 'Amina Test', email: 'amina@example.test', phone: '+252611000000', password: 'long-enough', team_id: 1 as const };
 
-test('an empty form reports every required field', () => {
-  assert.deepEqual(Object.keys(validateTeamMemberForm(emptyTeamMemberForm)).sort(), ['email', 'full_name', 'password', 'phone', 'team_id']);
+test('an empty form reports every required field, and the team is not one of them (owner decision E-8: a team is optional)', () => {
+  assert.deepEqual(Object.keys(validateTeamMemberForm(emptyTeamMemberForm)).sort(), ['email', 'full_name', 'password', 'phone']);
+  assert.deepEqual(validateTeamMemberForm({ ...valid, team_id: '' }), {});
+  assert.equal(buildAddMemberPayload({ ...valid, team_id: '' }).team_id, null, 'no team chosen is sent as null, never as 0');
 });
 
 test('a complete form is accepted', () => {

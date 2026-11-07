@@ -85,12 +85,12 @@ export function AddTeamMemberDialog({ isOpen, onClose, teams }: AddTeamMemberDia
       }
     >
       <form onSubmit={handleSubmit} noValidate>
-        <FormField label={t('option.marketing.team')} htmlFor="member-team" required error={error('team_id')}>
+        <FormField label={t('option.marketing.team')} htmlFor="member-team" error={error('team_id')}>
           <Select
             id="member-team"
             value={form.team_id === '' ? '' : String(form.team_id)}
             onChange={(event) => setForm({ ...form, team_id: event.target.value === '' ? '' : Number(event.target.value) })}
-            placeholder={t('option.marketing.chooseTeam')}
+            placeholder={t('option.ownerDecisions1c.teamOptional')}
             options={teams.map((team) => ({ value: String(team.id), label: team.name }))}
           />
         </FormField>

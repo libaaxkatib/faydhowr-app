@@ -26,7 +26,6 @@ test('the Add Team Member checks are English by default and Somali on a Somali s
     email: 'Enter an e-mail address.',
     phone: 'Enter a phone number.',
     password: `Use at least ${MIN_PASSWORD_LENGTH} characters.`,
-    team_id: 'Choose a team.',
   });
   try {
     setActiveLanguage('so');
@@ -34,7 +33,6 @@ test('the Add Team Member checks are English by default and Somali on a Somali s
     assert.equal(somali.full_name, 'Geli magaca oo dhan.');
     assert.equal(somali.email, 'Geli cinwaan iimayl oo sax ah.');
     assert.equal(somali.password, `Isticmaal ugu yaraan ${MIN_PASSWORD_LENGTH} xaraf.`);
-    assert.equal(somali.team_id, 'Dooro koox.');
   } finally {
     setActiveLanguage('en');
   }

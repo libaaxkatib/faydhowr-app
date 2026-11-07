@@ -4,6 +4,9 @@
 //  - An override that adds, drops or renames a `{placeholder}` of the built-in text is ignored for that language, so an edit can never break a
 //    screen that fills in a name, a count or a date. The editor refuses such a text too, so this is a second safety net.
 //  - With no overrides the built-in catalogue object itself is returned, unchanged.
+//  - An override NEVER replaces an owner-approved message (review `approved`: the 161 locked messages, the 86 Release 1C approvals and the two named
+//    approved additions). Their approved wording is final and locked; an override stored for one of them is ignored here, whoever wrote it. The server
+//    refuses to store one too (App\Support\I18n\LockedTranslations), this is the layer that protects what the screens show.
 
 import { placeholdersOf, type Catalogue, type Entry } from './catalog.ts';
 
@@ -51,6 +54,11 @@ export function keepsPlaceholders(builtIn: string, text: string): boolean {
   return wanted.length === given.length && wanted.every((name, index) => name === given[index]);
 }
 
+/** True for an owner-approved message: its wording is locked and no override or proposal may change what is shown. */
+export function isLockedEntry(entry: Entry): boolean {
+  return entry.review === 'approved';
+}
+
 export function applyOverrides(base: Catalogue, overrides: Overrides): Catalogue {
   const keys = Object.keys(overrides);
   if (keys.length === 0) return base;
@@ -60,6 +68,7 @@ export function applyOverrides(base: Catalogue, overrides: Overrides): Catalogue
     const entry = base[key];
     const edit = overrides[key];
     if (!entry || !edit) continue;
+    if (isLockedEntry(entry)) continue;
 
     const en = typeof edit.en === 'string' && edit.en.trim() !== '' && keepsPlaceholders(entry.en, edit.en) ? edit.en : entry.en;
     const so = typeof edit.so === 'string' && edit.so.trim() !== '' && keepsPlaceholders(entry.en, edit.so) ? edit.so : entry.so;

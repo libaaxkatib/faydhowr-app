@@ -10,6 +10,7 @@ use App\Models\Admin;
 use App\Models\MarketingRecord;
 use App\Models\ProjectDetail;
 use App\Support\Marketing\MarketingRecordCodeGenerator;
+use App\Support\Marketing\WorkDateFollowUp;
 use Illuminate\Support\Facades\DB;
 
 class CreateProjectRecordAction
@@ -43,12 +44,16 @@ class CreateProjectRecordAction
                 'fayadhowr_work_date' => $data['fayadhowr_work_date'] ?? null,
             ]);
 
+            // Owner decision E-10: a Work Date recorded with the project gets its follow-up automatically.
+            $autoFollowUp = WorkDateFollowUp::ensure($record, $data['fayadhowr_work_date'] ?? null, $actor);
+
             event(AuditEvent::record(
                 action: AuditAction::Create,
                 admin: $actor,
                 description: "PROJECT registered ({$record->record_number}).",
                 entityType: MarketingRecord::class,
                 entityId: $record->id,
+                metadata: $autoFollowUp === null ? null : ['work_date_follow_up_id' => $autoFollowUp->id],
             ));
 
             return $record->load(['assignedTeam', 'assignedAdmin', 'broughtByAdmin', 'projectDetail']);

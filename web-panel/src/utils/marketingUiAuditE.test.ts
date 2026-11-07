@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { canManageMarketingTeams, canRecordCommissionAmounts, defaultTeamId, isMarketingUnrestricted } from './marketingAccess.ts';
 import { invalidateMarketing, isMarketingQueryKey } from './marketingCache.ts';
 import { firstFieldError, marketingErrorMessage } from './marketingErrors.ts';
-import { canSaveFeedback, canSaveStatusChange, validateCommissionEntry, validateRateValue, validateTeamName } from './marketingFormRules.ts';
+import { appendFeedback, canSaveFeedback, canSaveStatusChange, validateCommissionEntry, validateRateValue, validateTeamName } from './marketingFormRules.ts';
 import { localIsoDate, reportPresetRange } from './marketingReportRange.ts';
 
 const page = (name: string) => readFileSync(new URL(`../features/marketing/${name}`, import.meta.url), 'utf8');
@@ -93,14 +93,21 @@ test('E-6: the follow-up screen starts the status editor from the record status 
   assert.ok(source.includes('canSaveStatusChange(statusValue, fu.record_status)'));
 });
 
-test('E-7: the feedback editor starts from the saved feedback, says it replaces it, and cannot save an unchanged or empty text', () => {
-  assert.equal(canSaveFeedback('Asked for a price list.', 'Asked for a price list.'), false);
-  assert.equal(canSaveFeedback('   ', 'x'), false);
-  assert.equal(canSaveFeedback('New text', 'Old text'), true);
-  assert.equal(canSaveFeedback('First note', null), true);
+test('E-7 (owner decision 2026-11-06: APPEND): the feedback editor starts empty, shows the saved feedback read-only, says the text is added after it, and cannot save an empty text', () => {
+  assert.equal(canSaveFeedback('   '), false);
+  assert.equal(canSaveFeedback('New text'), true);
+  assert.equal(canSaveFeedback('Asked for a price list.'), true, 'the same words may be said again; it is a new entry, nothing is overwritten');
   const source = page('FollowUpsPage.tsx');
-  assert.ok(source.includes("setFeedbackText(fu.record_feedback ?? '')"));
-  assert.ok(source.includes('warning.marketing.feedbackReplacesHint'));
+  assert.ok(source.includes("setFeedbackText('')"));
+  assert.ok(!source.includes("setFeedbackText(fu.record_feedback"), 'the editor is no longer pre-filled with the saved feedback');
+  assert.ok(source.includes('warning.ownerDecisions1c.feedbackAppendHint'));
+  assert.ok(source.includes('option.ownerDecisions1c.feedbackSoFar'));
+});
+
+test('E-7: appendFeedback puts the new entry after the saved text with a blank line, like the server', () => {
+  assert.equal(appendFeedback(null, ' First note '), 'First note');
+  assert.equal(appendFeedback('First note', 'Second note'), 'First note\n\nSecond note');
+  assert.equal(appendFeedback('First note\r\n', 'Second note'), 'First note\n\nSecond note');
 });
 
 // ---------------------------------------------------------------- E-1 / E-2: commission

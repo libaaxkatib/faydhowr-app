@@ -84,8 +84,8 @@ class UpdateTemporaryReplacementAction
 
         $impact = $this->impact->forChange($replacement, ['start_date' => $start, 'end_date' => $end], false);
 
-        return $this->guard->run($actor, $replacement, $impact, $data['change_reason'] ?? null, 'cover_changed', ['old' => $impact['old'], 'new' => $impact['new']], function () use ($replacement, $assignment, $replacementEmployee, $start, $end, $reason, $notes, $employeeChanged, $impact, $actor, $data) {
-            return DB::transaction(function () use ($replacement, $assignment, $replacementEmployee, $start, $end, $reason, $notes, $employeeChanged, $impact, $actor, $data) {
+        return $this->guard->run($actor, $replacement, $impact, $data['change_reason'] ?? null, 'cover_changed', ['old' => $impact['old'], 'new' => $impact['new']], function () use ($replacement, $assignment, $replacementEmployee, $start, $end, $reason, $notes, $employeeChanged, $datesChanged, $impact, $actor, $data) {
+            return DB::transaction(function () use ($replacement, $assignment, $replacementEmployee, $start, $end, $reason, $notes, $employeeChanged, $datesChanged, $impact, $actor, $data) {
                 // Two people saving at the same moment must not both pass the overlap check (same locking order as when a cover is created).
                 EmployeeWorkAssignment::query()->whereKey($assignment->id)->lockForUpdate()->first();
                 Employee::query()->whereKey($replacementEmployee->id)->lockForUpdate()->first();
@@ -95,8 +95,12 @@ class UpdateTemporaryReplacementAction
                     throw new HttpResponseException(ApiResponse::error('This replacement was changed by someone else. Reload it and try again. Nothing was changed.', 'TEMPORARY_REPLACEMENT_CHANGED', 409));
                 }
 
-                // U12 / U1: the corrected cover must not overlap another Temporary cover of the position or of the person, nor the person's own assignment.
-                CoverConflicts::assertFree($assignment, $replacementEmployee, $start, $end, $replacement->id);
+                // U12 / U1 / O-1: the corrected cover must not overlap another Temporary cover of the position or of the person, the person's own assignment, or a
+                // Replacement of the position. Judged when the dates or the person change; an edit of the reason or notes alone changes no coverage period, so it
+                // is not re-judged (an old overlap that already existed no longer blocks a note being corrected; it is not made worse and not hidden).
+                if ($datesChanged || $employeeChanged) {
+                    CoverConflicts::assertFree($assignment, $replacementEmployee, $start, $end, $replacement->id);
+                }
 
                 $before = $this->snapshot($replacement);
 

@@ -3,6 +3,7 @@
 namespace App\Support\Hr;
 
 use App\Enums\AssignmentShift;
+use App\Enums\AssignmentType;
 use App\Enums\WorkAssignmentStatus;
 use App\Models\Employee;
 use App\Models\EmployeeWorkAssignment;
@@ -19,6 +20,14 @@ use Illuminate\Http\Exceptions\HttpResponseException;
  *        - of the SAME Temporary employee on another position, unless the two positions are on different recorded shifts.
  *   U1   A Temporary cover is refused when the Temporary employee already has an assignment of their own (Permanent or Replacement, not cancelled)
  *        whose dates overlap it, unless the two are on different recorded shifts. The refusal is written in Somali.
+ *   O-1  (owner decision 2026-11-06) A Temporary cover is refused when a REPLACEMENT assignment already holds the SAME position on any overlapping day -
+ *        a position has one holder at a time, whatever the shift. A Replacement is an assignment of type `replacement` linked to the position by
+ *        `replaces_assignment_id` (the Replace Employee flow); every one that was not cancelled counts, whether it is still open, ended or returned, for the
+ *        days it held the position. The rule is SYMMETRICAL (owner decision 2026-11-06): the reverse - a Replacement that would hold a position over days a
+ *        Temporary cover of it already has - is refused when the Replacement is created (Replace Employee), has its dates edited, is reopened or is
+ *        restored (findCoverInTheWayOfReplacement, code REPLACEMENT_OVERLAPS_TEMPORARY_COVER). Only NEW or EDITED periods are judged: a cover and a Replacement
+ *        that already overlap from before the rule are left exactly as they are (nothing is cancelled or recalculated) and are merely reported by the
+ *        expected-payment view, like any other old overlap; an edit that changes neither dates nor person (notes, reason) is not judged.
  *
  * Dates are compared as whole calendar days and are INCLUSIVE at both ends (a cover ending on the 10th and another starting on the 10th overlap;
  * ending on the 9th, they do not). An open end means "no end yet". A cover is only compared over the days its position exists (the covered
@@ -35,6 +44,12 @@ final class CoverConflicts
     public const CODE_EMPLOYEE = 'TEMPORARY_COVER_OVERLAPS_EMPLOYEE';
 
     public const CODE_OWN_ASSIGNMENT = 'TEMPORARY_EMPLOYEE_HAS_OVERLAPPING_ASSIGNMENT';
+
+    /** O-1: a Replacement assignment already holds the position over some of the cover's days. */
+    public const CODE_REPLACEMENT = 'TEMPORARY_COVER_OVERLAPS_REPLACEMENT';
+
+    /** O-1 reversed: reopening a Replacement would hold days a Temporary cover of the same position already has. */
+    public const CODE_REPLACEMENT_VS_COVER = 'REPLACEMENT_OVERLAPS_TEMPORARY_COVER';
 
     /** Two work periods on the same calendar day can only be told apart when both shifts are recorded and different. */
     public static function sameTime(?AssignmentShift $a, ?AssignmentShift $b): bool
@@ -57,7 +72,123 @@ final class CoverConflicts
             return null; // the cover lies entirely outside the position's own dates: it covers no day, so it can conflict with none
         }
 
-        return self::ownAssignment($position, $worker, $period) ?? self::otherCover($position, $worker, $period, $ignoreCoverId);
+        return self::ownAssignment($position, $worker, $period) ?? self::otherCover($position, $worker, $period, $ignoreCoverId) ?? self::replacementHolding($position, $period);
+    }
+
+    /**
+     * O-1 reversed (owner decision 2026-11-06, symmetrical): a Replacement may not hold a position over any day a Temporary cover of the SAME position
+     * already has. Judged whenever a Replacement's period is established or changed - created (Replace Employee), its dates edited, it is reopened or
+     * restored. Every cover counts, active or ended, for the days it really covers (cut to the position's own dates, like the cover rule itself). The
+     * caller locks the position row first. Read-only. Null when free.
+     *
+     * @param  string  $action  created | changed | reopened | restored (only used in the wording)
+     * @return ?array{code: string, message: string, conflicts: list<array<string, mixed>>}
+     */
+    public static function findCoverInTheWayOfReplacement(EmployeeWorkAssignment $position, string $start, ?string $end, string $action = 'created'): ?array
+    {
+        $held = [$start, $end];
+        $verb = ['created' => 'created', 'changed' => 'saved with these dates', 'reopened' => 'reopened', 'restored' => 'restored'][$action] ?? $action;
+
+        foreach (TemporaryReplacement::query()->with(['workAssignment.employee', 'workAssignment.clientCompany', 'workAssignment.workLocation.clientCompany', 'replacementEmployee'])->where('work_assignment_id', $position->id)->orderBy('start_date')->orderBy('id')->get() as $cover) {
+            $days = self::within($cover->start_date->toDateString(), $cover->end_date?->toDateString(), $position);
+
+            if ($days === null || ! self::overlap($held, $days)) {
+                continue;
+            }
+
+            return [
+                'code' => self::CODE_REPLACEMENT_VS_COVER,
+                'message' => "This Replacement cannot be {$verb}: the position already has a Temporary cover over some of the days it would hold: ".self::describeCover($cover).' A position has one holder at a time. End or correct that cover first, or choose dates that do not overlap it. Nothing was changed.',
+                'conflicts' => [self::coverRow($cover)],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @throws HttpResponseException 422 naming the cover that would share days with the Replacement
+     */
+    public static function assertReplacementDaysFreeOfCovers(EmployeeWorkAssignment $position, string $start, ?string $end, string $action = 'created'): void
+    {
+        $conflict = self::findCoverInTheWayOfReplacement($position, $start, $end, $action);
+
+        if ($conflict !== null) {
+            throw new HttpResponseException(ApiResponse::error($conflict['message'], $conflict['code'], 422, ['conflicts' => $conflict['conflicts']]));
+        }
+    }
+
+    /**
+     * Whether $replacement (an assignment of type Replacement) may hold its position over the given days (null = its own start, open end): the form used by
+     * reopen / restore / date edits, where the Replacement already exists. Null for anything that is not a linked, non-cancelled Replacement.
+     *
+     * @return ?array{code: string, message: string, conflicts: list<array<string, mixed>>}
+     */
+    public static function findCoverOverlappingReplacement(EmployeeWorkAssignment $replacement, ?string $start = null, ?string $end = null, string $action = 'reopened'): ?array
+    {
+        if ($replacement->replaces_assignment_id === null || $replacement->assignment_type !== AssignmentType::Replacement) {
+            return null;
+        }
+
+        $position = EmployeeWorkAssignment::query()->find($replacement->replaces_assignment_id);
+
+        return $position === null ? null : self::findCoverInTheWayOfReplacement($position, $start ?? $replacement->start_date->toDateString(), $start === null ? null : $end, $action);
+    }
+
+    /**
+     * @throws HttpResponseException 422 naming the cover that would share days with the reopened / restored / re-dated Replacement
+     */
+    public static function assertReplacementFreeOfCovers(EmployeeWorkAssignment $replacement, ?string $start = null, ?string $end = null, string $action = 'reopened'): void
+    {
+        $conflict = self::findCoverOverlappingReplacement($replacement, $start, $end, $action);
+
+        if ($conflict !== null) {
+            throw new HttpResponseException(ApiResponse::error($conflict['message'], $conflict['code'], 422, ['conflicts' => $conflict['conflicts']]));
+        }
+    }
+
+    /**
+     * O-1: a Replacement assignment of this position (not cancelled, any state) over some of the cover's days. Inclusive dates; an open end means "no end yet".
+     *
+     * @param  array{0: string, 1: ?string}  $period
+     * @return ?array{code: string, message: string, conflicts: list<array<string, mixed>>}
+     */
+    private static function replacementHolding(EmployeeWorkAssignment $position, array $period): ?array
+    {
+        $holders = EmployeeWorkAssignment::query()->with(['employee', 'clientCompany', 'workLocation.clientCompany'])
+            ->where('replaces_assignment_id', $position->id)
+            ->where('assignment_type', AssignmentType::Replacement->value)
+            ->where('status', '!=', WorkAssignmentStatus::Cancelled->value)
+            ->orderBy('start_date')->orderBy('id')
+            ->get();
+
+        foreach ($holders as $holder) {
+            $theirs = [$holder->start_date->toDateString(), $holder->end_date?->toDateString()];
+
+            if (! self::overlap($period, $theirs)) {
+                continue;
+            }
+
+            $until = $theirs[1] ?? 'no end date yet';
+
+            return [
+                'code' => self::CODE_REPLACEMENT,
+                'message' => "This position is already held by a Replacement over some of these days: Replacement #{$holder->id} ({$holder->employee?->full_name}, {$holder->employee?->employee_number}), from {$theirs[0]} until {$until}. "
+                    .'A position has one holder at a time. End or correct that Replacement first, or choose dates that do not overlap it.',
+                'conflicts' => [[
+                    'kind' => 'replacement',
+                    'id' => $holder->id,
+                    'assignment_type' => 'replacement',
+                    'replaces_assignment_id' => $position->id,
+                    'start_date' => $theirs[0],
+                    'end_date' => $theirs[1],
+                    'status' => $holder->status?->value,
+                    'company' => self::company($holder),
+                ]],
+            ];
+        }
+
+        return null;
     }
 
     /**

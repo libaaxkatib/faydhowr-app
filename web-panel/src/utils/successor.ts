@@ -90,3 +90,13 @@ export function optionalSuccessor(draft: SuccessorDraft, lastDay?: string): { er
 export function missingSuccessors(permanentAssignmentIds: number[], drafts: Record<number, SuccessorDraft>, lastDay?: string): number[] {
   return permanentAssignmentIds.filter((id) => validateSuccessor(drafts[id] ?? EMPTY_SUCCESSOR, lastDay) !== null);
 }
+
+/**
+ * The row "Replacement" of the Stop confirmation. "No replacement now" must say so: the request carries no successor in that case, so a summary that
+ * announced someone "appointed" would tell HR the position is filled when it is not.
+ */
+export function stopSummaryReplacementKey(type: SuccessorType | ''): 'option.hr.successorNone' | 'confirm.company.stopSummaryTemporaryTakes' | 'confirm.company.stopSummaryWaitingTakes' {
+  if (type === '') return 'option.hr.successorNone';
+
+  return type === 'temporary' ? 'confirm.company.stopSummaryTemporaryTakes' : 'confirm.company.stopSummaryWaitingTakes';
+}

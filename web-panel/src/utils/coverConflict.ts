@@ -9,10 +9,11 @@ import { tNow } from '../i18n/active.ts';
 export type CoverConflictCode =
   | 'TEMPORARY_COVER_OVERLAPS_POSITION'
   | 'TEMPORARY_COVER_OVERLAPS_EMPLOYEE'
+  | 'TEMPORARY_COVER_OVERLAPS_REPLACEMENT'
   | 'TEMPORARY_EMPLOYEE_HAS_OVERLAPPING_ASSIGNMENT';
 
 export interface CoverConflictRecord {
-  kind: 'cover' | 'assignment';
+  kind: 'cover' | 'assignment' | 'replacement';
   id: number;
   start_date: string;
   end_date: string | null;
@@ -27,7 +28,12 @@ export interface CoverConflict {
   conflicts: CoverConflictRecord[];
 }
 
-const CODES: readonly string[] = ['TEMPORARY_COVER_OVERLAPS_POSITION', 'TEMPORARY_COVER_OVERLAPS_EMPLOYEE', 'TEMPORARY_EMPLOYEE_HAS_OVERLAPPING_ASSIGNMENT'];
+const CODES: readonly string[] = [
+  'TEMPORARY_COVER_OVERLAPS_POSITION',
+  'TEMPORARY_COVER_OVERLAPS_EMPLOYEE',
+  'TEMPORARY_COVER_OVERLAPS_REPLACEMENT',
+  'TEMPORARY_EMPLOYEE_HAS_OVERLAPPING_ASSIGNMENT',
+];
 
 export function isCoverConflictCode(code: unknown): code is CoverConflictCode {
   return typeof code === 'string' && CODES.includes(code);
@@ -51,6 +57,63 @@ export function conflictFromError(error: unknown): CoverConflict | null {
   return { code: e.code, message: e.message, conflicts };
 }
 
+export const REPLACEMENT_VS_COVER_CODE = 'REPLACEMENT_OVERLAPS_TEMPORARY_COVER';
+
+/**
+ * Owner decision O-1, seen from the Replacement side: the server refuses to create, re-date, reopen or restore a Replacement that would hold a position
+ * over days a Temporary cover of it already has (code REPLACEMENT_OVERLAPS_TEMPORARY_COVER, the cover named in the error). Returns the refusal in the
+ * language the user chose, built from the catalogue and the cover the server named; null for any other error (or when no cover was named, in which case
+ * the server's own message is shown as received).
+ */
+export function replacementConflictMessage(error: unknown): string | null {
+  const e = error as { code?: unknown; errors?: unknown; details?: unknown; fieldErrors?: unknown } | null | undefined;
+  if (e?.code !== REPLACEMENT_VS_COVER_CODE) return null;
+
+  const bag = (e.errors ?? e.details ?? e.fieldErrors) as { conflicts?: unknown } | null | undefined;
+  const record = Array.isArray(bag?.conflicts) ? (bag.conflicts[0] as CoverConflictRecord | undefined) : undefined;
+  if (record === undefined || typeof record.id !== 'number') return null;
+
+  return tNow('warning.ownerDecisions1c.replacementOverlapsCover', { record: describe(record) });
+}
+
+export const REPLACEMENT_VS_REPLACEMENT_CODE = 'REPLACEMENT_OVERLAPS_REPLACEMENT';
+
+/**
+ * Owner rule A7 (a day of a position is paid once): the server refuses to re-date, reopen or restore a Replacement over days another Replacement of the
+ * same position already holds (code REPLACEMENT_OVERLAPS_REPLACEMENT, the other Replacement named in the error). Returns the refusal in the language the
+ * user chose; null for any other error (or when no Replacement was named, in which case the server's own message is shown as received).
+ */
+export function replacementSiblingMessage(error: unknown): string | null {
+  const e = error as { code?: unknown; errors?: unknown; details?: unknown; fieldErrors?: unknown } | null | undefined;
+  if (e?.code !== REPLACEMENT_VS_REPLACEMENT_CODE) return null;
+
+  const bag = (e.errors ?? e.details ?? e.fieldErrors) as { conflicts?: unknown } | null | undefined;
+  const record = Array.isArray(bag?.conflicts) ? (bag.conflicts[0] as CoverConflictRecord | undefined) : undefined;
+  if (record === undefined || typeof record.id !== 'number') return null;
+
+  return tNow('warning.ownerDecisions1c.replacementOverlapsReplacement', { record: describe(record) });
+}
+
+export const REPLACEMENT_PAST_RETURN_CODE = 'REPLACEMENT_RUNS_PAST_HOLDER_RETURN';
+
+/**
+ * Owner decision F-A: a Replacement must end no later than the day before the original holder's return date. The server refuses (code
+ * REPLACEMENT_RUNS_PAST_HOLDER_RETURN) and names the return date and the latest allowed last day; the user's dates are never shortened. Returns the refusal
+ * in the language the user chose; null for any other error (or when the server named no dates, in which case its own message is shown as received).
+ */
+export function replacementReturnMessage(error: unknown): string | null {
+  const e = error as { code?: unknown; errors?: unknown; details?: unknown; fieldErrors?: unknown } | null | undefined;
+  if (e?.code !== REPLACEMENT_PAST_RETURN_CODE) return null;
+
+  const bag = (e.errors ?? e.details ?? e.fieldErrors) as { holder_return_date?: unknown; latest_end_date?: unknown } | null | undefined;
+  const first = (value: unknown): string | undefined => (Array.isArray(value) && typeof value[0] === 'string' && value[0] !== '' ? value[0] : undefined);
+  const returnDate = first(bag?.holder_return_date);
+  const latestEnd = first(bag?.latest_end_date);
+  if (returnDate === undefined || latestEnd === undefined) return null;
+
+  return tNow('warning.ownerDecisions1c.replacementPastReturn', { returnDate, latestEnd });
+}
+
 /** The short heading above the message. */
 export function conflictHeading(code: CoverConflictCode): string {
   switch (code) {
@@ -58,6 +121,8 @@ export function conflictHeading(code: CoverConflictCode): string {
       return tNow('warning.pipeline.conflictHeadingPosition');
     case 'TEMPORARY_COVER_OVERLAPS_EMPLOYEE':
       return tNow('warning.pipeline.conflictHeadingEmployee');
+    case 'TEMPORARY_COVER_OVERLAPS_REPLACEMENT':
+      return tNow('warning.ownerDecisions1c.coverOverlapsReplacementHeading');
     case 'TEMPORARY_EMPLOYEE_HAS_OVERLAPPING_ASSIGNMENT':
       return tNow('warning.pipeline.conflictHeadingOwnAssignment');
   }
@@ -69,7 +134,12 @@ function until(endDate: string | null): string {
 
 function describe(record: CoverConflictRecord): string {
   const where = record.company ?? tNow('warning.pipeline.conflictOffice');
-  const key = record.kind === 'cover' ? 'warning.pipeline.conflictRecordCover' : 'warning.pipeline.conflictRecordAssignment';
+  const key =
+    record.kind === 'cover'
+      ? 'warning.pipeline.conflictRecordCover'
+      : record.kind === 'replacement'
+        ? 'warning.ownerDecisions1c.conflictRecordReplacement'
+        : 'warning.pipeline.conflictRecordAssignment';
 
   return tNow(key, { id: record.id, where, start: record.start_date, end: until(record.end_date) });
 }
@@ -90,6 +160,8 @@ export function conflictMessage(conflict: CoverConflict): string {
       return `${tNow('warning.pipeline.conflictPosition', { record: describe(record) })} ${tNow('warning.pipeline.conflictPositionAdvice')}`;
     case 'TEMPORARY_COVER_OVERLAPS_EMPLOYEE':
       return `${tNow('warning.pipeline.conflictEmployee', { record: describe(record) })} ${hint}`;
+    case 'TEMPORARY_COVER_OVERLAPS_REPLACEMENT':
+      return tNow('warning.ownerDecisions1c.coverOverlapsReplacement', { record: describe(record) });
     case 'TEMPORARY_EMPLOYEE_HAS_OVERLAPPING_ASSIGNMENT':
       return `${tNow('warning.pipeline.coverOwnAssignmentOverlap')} ${tNow('warning.pipeline.conflictEarlier', { record: describe(record) })} ${hint}`;
   }
