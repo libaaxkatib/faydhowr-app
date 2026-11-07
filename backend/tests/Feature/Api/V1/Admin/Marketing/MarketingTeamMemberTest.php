@@ -8,12 +8,13 @@ use App\Models\Admin;
 use App\Models\MarketingTeam;
 use App\Models\Permission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
- * Marketing -> Employees -> Add Team Member. Only the Super Admin and a Marketing Manager of the team may create or change team
+ * Marketing -> Employees -> Add Team Member. Only the Super Admin may create a team member (owner decision 2026-11-07); the Super Admin and the Marketing Manager may change existing team
  * members; the role is fixed on the server; Team A / Team B isolation holds for the new accounts and for every management call.
  */
 class MarketingTeamMemberTest extends TestCase
@@ -104,21 +105,116 @@ class MarketingTeamMemberTest extends TestCase
         $this->assertStringNotContainsString('Str0ng-pass-1', (string) DB::table('audit_logs')->pluck('metadata')->implode(' '), 'no password reaches the audit log');
     }
 
-    public function test_a_marketing_manager_creates_members_in_both_teams(): void
+    public function test_a_marketing_manager_cannot_create_team_members_in_any_team(): void
     {
-        $this->as($this->managerA)->postJson('/api/v1/admin/marketing/employees', $this->payload())->assertCreated()->assertJsonPath('data.teams.0.id', $this->teamA->id);
-        $this->as($this->managerA)->postJson('/api/v1/admin/marketing/employees', $this->payload(['email' => 'other@example.test', 'phone' => '+252611000009', 'team_id' => $this->teamB->id]))
-            ->assertCreated()->assertJsonPath('data.teams.0.id', $this->teamB->id)->assertJsonPath('data.role', 'marketing_employee');
-        $this->as($this->managerB)->postJson('/api/v1/admin/marketing/employees', $this->payload(['email' => 'third@example.test', 'phone' => '+252611000010', 'team_id' => $this->teamA->id]))->assertCreated();
+        // Owner decision 2026-11-07: the Marketing Manager manages Marketing only. Creating a team-member account is reserved for the Super Admin, so the
+        // manager is refused even with every approved Marketing permission (marketing.manage included), in either team, with or without a team.
+        foreach ([$this->managerA, $this->managerB, $this->managerNoTeam] as $manager) {
+            foreach ([$this->teamA, $this->teamB] as $team) {
+                $before = Admin::query()->count();
+                $response = $this->as($manager)->postJson('/api/v1/admin/marketing/employees', $this->payload(['team_id' => $team->id]))->assertForbidden();
 
-        $this->assertSame(3, Admin::query()->where('role', AdminRole::MarketingEmployee)->count());
+                $this->assertSame('MARKETING_SCOPE_FORBIDDEN', $response->json('error_code'));
+                $this->assertSame('Only the Super Admin can add Marketing team members.', $response->json('message'));
+                $this->assertSame($before, Admin::query()->count(), 'no account was created');
+            }
+        }
+
+        $this->as($this->managerA)->postJson('/api/v1/admin/marketing/employees', $this->payload(['team_id' => null]))->assertForbidden();
+        $this->assertSame(0, Admin::query()->where('role', AdminRole::MarketingEmployee)->count());
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'create', 'entity_type' => Admin::class, 'admin_id' => $this->managerA->id]);
     }
 
-    public function test_a_marketing_manager_needs_no_team_membership_to_manage_either_team(): void
+    public function test_the_action_itself_refuses_anyone_but_the_super_admin(): void
     {
-        $this->as($this->managerNoTeam)->postJson('/api/v1/admin/marketing/employees', $this->payload())->assertCreated();
-        $this->as($this->managerNoTeam)->postJson('/api/v1/admin/marketing/employees', $this->payload(['email' => 'nb@example.test', 'phone' => '+252611000012', 'team_id' => $this->teamB->id]))->assertCreated();
-        $this->assertSame(2, Admin::query()->where('role', AdminRole::MarketingEmployee)->count());
+        $this->expectException(HttpResponseException::class);
+
+        try {
+            app(CreateMarketingTeamMemberAction::class)->handle($this->managerA, $this->payload());
+        } finally {
+            $this->assertSame(0, Admin::query()->where('role', AdminRole::MarketingEmployee)->count(), 'the action created nothing');
+        }
+    }
+
+    /**
+     * The production shape of the approved change: the Marketing Manager ROLE holds exactly the five Marketing permissions (role-level rows, no per-admin
+     * overrides, no dashboard.view, no HR permission) and the account holds nothing of its own.
+     */
+    private function roleLevelManager(): Admin
+    {
+        $keys = ['marketing.view', 'marketing.manage', 'marketing.assign', 'marketing.commission.view', 'marketing.reports.view'];
+        DB::table('admin_role_permissions')->where('role', AdminRole::MarketingManager->value)->delete();
+
+        foreach ($keys as $key) {
+            DB::table('admin_role_permissions')->insert(['role' => AdminRole::MarketingManager->value, 'permission_id' => Permission::query()->where('key', $key)->value('id'), 'created_at' => now(), 'updated_at' => now()]);
+        }
+
+        return $this->account(AdminRole::MarketingManager, null, marketingPermissions: false);
+    }
+
+    public function test_a_marketing_manager_holding_exactly_the_five_role_level_permissions_manages_marketing_only(): void
+    {
+        $manager = $this->roleLevelManager();
+        $five = ['marketing.view', 'marketing.manage', 'marketing.assign', 'marketing.commission.view', 'marketing.reports.view'];
+
+        // No unrelated permission is introduced: the effective set is exactly the five approved keys.
+        $data = $this->as($manager)->getJson('/api/v1/admin/auth/permissions')->assertOk()->json('data');
+        $effective = collect($data['permissions'] ?? $data)->map(fn ($p) => is_array($p) ? $p['key'] : $p)->sort()->values()->all();
+        $this->assertSame(collect($five)->sort()->values()->all(), $effective);
+        $this->assertSame(0, DB::table('admin_permissions')->where('admin_id', $manager->id)->count(), 'no per-admin override');
+
+        // Authorized Marketing operations still work.
+        $record = $this->as($manager)->postJson('/api/v1/admin/marketing/xarun', ['facility_name' => 'Separation Check Facility'])->assertCreated()->json('data');
+        $this->as($manager)->patchJson("/api/v1/admin/marketing/records/{$record['id']}/status", ['status' => 'done'])->assertOk();
+        $this->as($manager)->postJson("/api/v1/admin/marketing/records/{$record['id']}/follow-ups", ['follow_up_date' => '2026-12-05'])->assertCreated();
+        $this->as($manager)->postJson("/api/v1/admin/marketing/records/{$record['id']}/quotations", ['amount' => 500])->assertCreated();
+        $this->as($manager)->postJson('/api/v1/admin/marketing/teams', ['name' => 'Team C'])->assertCreated();
+        foreach (['dashboard', 'teams', 'records', 'follow-ups', 'employees', 'commission/rates', 'commission/records', 'reports/summary'] as $path) {
+            $this->as($manager)->getJson("/api/v1/admin/marketing/{$path}")->assertOk();
+        }
+
+        // Option A: the manager still maintains EXISTING Marketing Employees (rename, phone, deactivate / reactivate) ...
+        $employee = $this->account(AdminRole::MarketingEmployee, $this->teamA);
+        $this->as($manager)->patchJson("/api/v1/admin/marketing/employees/{$employee->id}", ['full_name' => 'Renamed By Manager'])->assertOk()->assertJsonPath('data.full_name', 'Renamed By Manager');
+        $this->as($manager)->patchJson("/api/v1/admin/marketing/employees/{$employee->id}", ['phone' => '+252611000777'])->assertOk()->assertJsonPath('data.phone', '+252611000777');
+        $this->as($manager)->patchJson("/api/v1/admin/marketing/employees/{$employee->id}", ['status' => 'inactive'])->assertOk()->assertJsonPath('data.status', 'inactive');
+        $this->as($manager)->patchJson("/api/v1/admin/marketing/employees/{$employee->id}", ['status' => 'active'])->assertOk()->assertJsonPath('data.status', 'active');
+        $this->assertSame(['Renamed By Manager', '+252611000777', 'active'], [$employee->fresh()->full_name, $employee->fresh()->phone, $employee->fresh()->status->value]);
+
+        // ... but creates no account.
+        $before = Admin::query()->count();
+        $this->as($manager)->postJson('/api/v1/admin/marketing/employees', $this->payload())->assertForbidden()->assertJsonPath('error_code', 'MARKETING_SCOPE_FORBIDDEN');
+        $this->assertSame($before, Admin::query()->count());
+    }
+
+    public function test_a_marketing_manager_reaches_no_hr_route_and_workforce_requests_stay_restricted(): void
+    {
+        $manager = $this->roleLevelManager();
+
+        foreach ([
+            ['get', '/api/v1/admin/hr/employees'], ['post', '/api/v1/admin/hr/employees'], ['get', '/api/v1/admin/hr/workforce-requests'], ['post', '/api/v1/admin/hr/workforce-requests'],
+            ['patch', '/api/v1/admin/hr/workforce-requests/1/cancel'], ['post', '/api/v1/admin/hr/workforce-requests/1/confirm'],
+            ['get', '/api/v1/admin/hr/payroll-runs'], ['get', '/api/v1/admin/hr/attendance'], ['get', '/api/v1/admin/hr/compliance/findings'], ['get', '/api/v1/admin/hr/reports/leaves'],
+            ['get', '/api/v1/admin/hr/client-companies'], ['get', '/api/v1/admin/hr/temporary-replacements'], ['get', '/api/v1/admin/admins'], ['get', '/api/v1/admin/settings'],
+            ['get', '/api/v1/admin/roles/hr_manager/permissions'], ['get', '/api/v1/admin/dashboard'],
+        ] as [$method, $url]) {
+            $this->as($manager)->json($method, $url, [])->assertForbidden();
+        }
+    }
+
+    public function test_marketing_employees_and_other_roles_cannot_create_accounts_and_only_the_super_admin_can(): void
+    {
+        $member = $this->account(AdminRole::MarketingEmployee, $this->teamA);
+
+        foreach ([$member, $this->account(AdminRole::HrManager, null, marketingPermissions: false), $this->account(AdminRole::MobileAppManager, null, marketingPermissions: false)] as $who) {
+            $this->as($who)->postJson('/api/v1/admin/marketing/employees', $this->payload())->assertForbidden();
+        }
+
+        $this->assertSame(1, Admin::query()->where('role', AdminRole::MarketingEmployee)->count(), 'only the pre-existing member exists');
+
+        // The Super Admin still creates team members (with or without a team).
+        $this->as($this->superAdmin)->postJson('/api/v1/admin/marketing/employees', $this->payload())->assertCreated()->assertJsonPath('data.role', 'marketing_employee');
+        $this->as($this->superAdmin)->postJson('/api/v1/admin/marketing/employees', $this->payload(['email' => 'noteam@example.test', 'phone' => '+252611000031', 'team_id' => null]))->assertCreated();
     }
 
     public function test_the_role_cannot_be_chosen_through_the_request(): void

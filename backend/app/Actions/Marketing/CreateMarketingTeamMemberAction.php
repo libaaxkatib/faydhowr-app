@@ -9,6 +9,7 @@ use App\Events\Audit\AuditEvent;
 use App\Models\Admin;
 use App\Models\MarketingTeam;
 use App\Models\Permission;
+use App\Support\Marketing\MarketingScope;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -31,6 +32,9 @@ class CreateMarketingTeamMemberAction
      */
     public function handle(Admin $actor, array $data): Admin
     {
+        // Defence in depth: whatever calls this action, only the Super Admin may create the account (the controller refuses first).
+        MarketingScope::requireSuperAdmin($actor, 'Only the Super Admin can add Marketing team members.');
+
         // Owner decision E-8: the team is optional. Without one the account sees only the records assigned to, created by or brought by the person (MarketingScope).
         $team = isset($data['team_id']) ? MarketingTeam::query()->findOrFail((int) $data['team_id']) : null;
 

@@ -180,3 +180,17 @@ test('E-14: completed follow-ups can be listed (All tab) and are not offered Res
   for (const name of ['XarunFormDialog.tsx', 'ProjectFormDialog.tsx']) assert.ok(!/grid grid-cols-2/.test(page(name)), name);
   assert.ok(page('TeamsPage.tsx').includes('confirm.marketing.removeMemberTitle'));
 });
+
+// ---------------------------------------------------------------- Owner decision 2026-11-07: only the Super Admin creates team-member accounts
+test('Add Team Member is offered to the Super Admin only; the Marketing Manager keeps maintaining existing Marketing Employees', () => {
+  const source = page('MarketingEmployeesPage.tsx');
+
+  // The button needs the Super Admin AND the permission; the Marketing Manager role is no longer part of the condition (the server refuses it as well).
+  assert.ok(source.includes("const canAddMember = isSuperAdmin && hasPermission('marketing.manage');"));
+  assert.ok(source.includes('canAddMember && manageable.length > 0 ? ('));
+  assert.ok(!/canAddMember[^\n]*marketing_manager/.test(source), 'the Marketing Manager role does not unlock Add Team Member');
+
+  // Option A is unchanged: the manager still sees inactive people and the activate / deactivate action.
+  assert.ok(source.includes("const canSeeManagement = (isSuperAdmin || admin?.role === 'marketing_manager') && hasPermission('marketing.manage');"));
+  assert.ok(source.includes('canManage'));
+});

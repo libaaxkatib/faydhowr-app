@@ -26,11 +26,11 @@ class MarketingEmployeeController extends Controller
 
     /**
      * Add Team Member: creates a Marketing Employee account and places it in a team. The role is fixed on the server (never
-     * taken from the request); only the Super Admin and a Marketing Manager may do it (either team).
+     * taken from the request); only the Super Admin may do it (owner decision 2026-11-07: the Marketing Manager manages Marketing only and creates no accounts).
      */
     public function store(StoreMarketingTeamMemberRequest $request, CreateMarketingTeamMemberAction $action): JsonResponse
     {
-        MarketingScope::requireUnrestricted($request->user(), 'Only the Marketing Manager can add team members.');
+        MarketingScope::requireSuperAdmin($request->user(), 'Only the Super Admin can add Marketing team members.');
 
         // Owner decision E-8: the team is optional; a chosen team is still checked.
         if ($request->validated('team_id') !== null) {

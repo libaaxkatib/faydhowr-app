@@ -163,6 +163,14 @@ final class MarketingScope
         }
     }
 
+    /** Owner decision (2026-11-07): creating Marketing team-member accounts is reserved for the Super Admin; the Marketing Manager manages Marketing only. */
+    public static function requireSuperAdmin(Admin $actor, string $message): void
+    {
+        if ($actor->role !== AdminRole::SuperAdmin) {
+            self::refuse($message);
+        }
+    }
+
     private static function refuse(string $message): never
     {
         throw new HttpResponseException(

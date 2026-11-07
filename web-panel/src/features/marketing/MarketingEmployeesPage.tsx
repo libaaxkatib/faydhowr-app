@@ -38,6 +38,8 @@ export function MarketingEmployeesPage() {
   const { hasPermission } = useEffectivePermissions();
   // Management (inactive people, teams, Add Team Member) is for Super Admin and the Marketing Manager role AND needs the real permission.
   const canSeeManagement = (isSuperAdmin || admin?.role === 'marketing_manager') && hasPermission('marketing.manage');
+  // Owner decision 2026-11-07: only the Super Admin creates team-member accounts (the server refuses everyone else).
+  const canAddMember = isSuperAdmin && hasPermission('marketing.manage');
   const [isAddOpen, setIsAddOpen] = useState(false);
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -75,7 +77,7 @@ export function MarketingEmployeesPage() {
         title={t('nav.employees')}
         breadcrumb={[{ label: t('nav.marketing.marketing'), to: '/marketing' }, { label: t('nav.employees') }]}
         actions={
-          manageable.length > 0 ? (
+          canAddMember && manageable.length > 0 ? (
             <Button onClick={() => setIsAddOpen(true)}>
               <Icon name="plus" size={15} />
               {t('action.marketing.addTeamMember')}
