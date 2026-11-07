@@ -429,18 +429,24 @@ class PayrollSourceFreshnessGuardTest extends TestCase
         $this->as($this->super)->json('POST', '/api/v1/admin/hr/payroll/'.self::P."/companies/{$this->alpha->id}/generate")->assertStatus(422)->assertJsonPath('error_code', 'PAYROLL_COMPANY_LOCKED');
     }
 
-    public function test_a_section_generated_before_the_guard_existed_has_no_snapshot_and_is_judged_as_before(): void
+    // Owner decision O2 (2026-11-07) replaced the earlier behaviour "a section without a snapshot is judged as before": it is now REFUSED until Generate stores one
+    // (the full set of cases is in PayrollSnapshotRequiredTest). The warnings read still reports "no change" for such a section because there is nothing to compare.
+    public function test_a_section_generated_before_the_guard_existed_has_no_snapshot_and_must_be_generated_again(): void
     {
         $this->generate($this->alpha);
         PayrollRunSection::query()->whereKey($this->section($this->alpha)->id)->update(['generation_inputs' => null]);
         $this->annAssignment->forceFill(['end_date' => '2026-10-20'])->save();
 
         $this->assertFresh($this->alpha);
+        $this->review($this->alpha)->assertStatus(409)->assertJsonPath('error_code', 'PAYROLL_SNAPSHOT_MISSING');
+        $this->assertSame('draft', $this->section($this->alpha)->status);
+
+        $this->generate($this->alpha);
         $this->review($this->alpha)->assertOk();
         $this->finalize($this->alpha)->assertOk();
     }
 
-    public function test_a_legacy_approved_section_without_a_snapshot_is_untouched_by_changes_and_still_finalizes(): void
+    public function test_a_legacy_approved_section_without_a_snapshot_is_untouched_by_changes_and_cannot_finalize_until_regenerated(): void
     {
         $this->generate($this->alpha);
         $section = $this->section($this->alpha);
@@ -448,8 +454,8 @@ class PayrollSourceFreshnessGuardTest extends TestCase
         $this->annAssignment->forceFill(['end_date' => '2026-10-20'])->save();
 
         $this->warnings($this->alpha)->assertJsonPath('data.source_inputs_changed', false);
-        $this->finalize($this->alpha)->assertOk();
-        $this->assertSame('finalized', $this->section($this->alpha)->status);
+        $this->finalize($this->alpha)->assertStatus(409)->assertJsonPath('error_code', 'PAYROLL_SNAPSHOT_MISSING');
+        $this->assertSame('approved', $this->section($this->alpha)->status);
     }
 
     // ------------------------------------------------------------------------------------------------ both guards, and the size of the answer

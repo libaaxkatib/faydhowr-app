@@ -166,7 +166,8 @@ class PayrollSectionBackfillTest extends TestCase
         $this->assertSame($approvedRun, PayrollRun::query()->findOrFail($approved)->getAttributes(), 'the run itself is untouched');
     }
 
-    public function test_a_month_linked_by_the_backfill_can_be_finalized_company_by_company_without_regenerating(): void
+    // Owner decision O2 (2026-11-07): a backfilled section has no stored snapshot, so it is refused (untouched) until its own company is generated, company by company.
+    public function test_a_month_linked_by_the_backfill_must_be_generated_per_company_before_it_can_be_finalized(): void
     {
         $this->world();
         $runId = $this->legacyDraft();
@@ -174,11 +175,17 @@ class PayrollSectionBackfillTest extends TestCase
         PayrollSectionBackfill::run();
         $alpha = PayrollRunSection::query()->whereHas('clientCompany', fn ($q) => $q->where('name', 'Alpha Co'))->firstOrFail();
 
+        $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$alpha->id}/review")->assertStatus(409)->assertJsonPath('error_code', 'PAYROLL_SNAPSHOT_MISSING');
+        $this->assertSame($before, $this->lines($runId), 'the refusal never touches a line');
+        $this->assertSame(['draft', 'draft', 'draft'], PayrollRunSection::query()->orderBy('id')->pluck('status')->all());
+
+        $period = PayrollRun::query()->findOrFail($runId)->period;
+        $this->as($this->super)->json('POST', "/api/v1/admin/hr/payroll/{$period}/companies/{$alpha->client_company_id}/generate")->assertCreated();
+
         foreach (['review', 'finalize'] as $step) {
             $this->as($this->super)->patchJson("/api/v1/admin/hr/payroll-run-sections/{$alpha->id}/{$step}")->assertOk();
         }
 
-        $this->assertSame($before, $this->lines($runId), 'finalizing a company never touches a line');
         $this->assertSame(['finalized', 'draft', 'draft'], PayrollRunSection::query()->orderBy('id')->pluck('status')->all());
         $this->assertSame('draft', PayrollRun::query()->findOrFail($runId)->status);
         $this->assertSame(1, ClientCompany::query()->where('name', 'Alpha Co')->count());

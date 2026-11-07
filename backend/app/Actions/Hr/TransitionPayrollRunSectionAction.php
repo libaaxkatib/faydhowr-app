@@ -96,6 +96,8 @@ class TransitionPayrollRunSectionAction
 
         // Release 1B freshness guard: a penalty / advance registered, corrected, voided or waived since Generate must not be locked in unseen.
         if (in_array($to, [PayrollRunSection::STATUS_REVIEWED, PayrollRunSection::STATUS_APPROVED, PayrollRunSection::STATUS_FINALIZED], true)) {
+            // Owner decision O2 (2026-11-07): without a stored snapshot the guards below cannot judge anything, so Review and Finalize refuse; Generate / refresh draft stores it.
+            PayrollSourceInputs::assertSnapshotted($section, $run);
             DeductionInputsFingerprint::assertFresh($section, $run);
             // ... and so must an assignment, a salary row or a Temporary cover changed since Generate (PayrollSourceInputs).
             PayrollSourceInputs::assertFresh($section, $run);

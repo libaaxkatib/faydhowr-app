@@ -15,8 +15,17 @@ class AuthenticatedUserController extends Controller
 {
     public function show(Request $request, GetAuthenticatedCustomerAction $getAuthenticatedCustomer): JsonResponse
     {
-        /** @var User $user */
         $user = $request->user();
+
+        // This is the CUSTOMER profile route. A valid token that belongs to someone else (an admin token) is authenticated but not a customer: answer 403
+        // instead of letting the customer action fail on a wrong type and come back as an internal error.
+        if (! $user instanceof User) {
+            return ApiResponse::error(
+                'This endpoint is for customer accounts.',
+                'FORBIDDEN',
+                403,
+            );
+        }
 
         try {
             $authenticatedUser = $getAuthenticatedCustomer->handle($user);

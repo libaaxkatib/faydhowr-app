@@ -94,9 +94,37 @@ final class PayrollSourceInputs
         return ['v' => self::VERSION, 'period' => $period, 'assignments' => $assignments, 'salaries' => $salaries, 'covers' => $covers, 'absences' => $absences];
     }
 
+    /** True when Generate stored a snapshot of this version for this period; a section built before the guard existed (or by an older version) has none. */
+    public static function hasSnapshot(PayrollRunSection $section, string $period): bool
+    {
+        $snapshot = $section->generation_inputs;
+
+        return is_array($snapshot) && ($snapshot['v'] ?? null) === self::VERSION && ($snapshot['period'] ?? null) === $period;
+    }
+
+    /**
+     * Owner decision O2 (2026-11-07): a company cannot be reviewed or finalized without a valid stored snapshot, because without one the freshness
+     * guard cannot tell whether the lines still match the data. Generate / refresh draft stores the snapshot. Nothing is changed when this refuses.
+     */
+    public static function assertSnapshotted(PayrollRunSection $section, PayrollRun $run): void
+    {
+        if (self::hasSnapshot($section, $run->period)) {
+            return;
+        }
+
+        $name = $section->clientCompany?->name ?? 'this company';
+
+        throw new HttpResponseException(ApiResponse::error(
+            "Payroll {$run->period} for {$name} has no valid stored snapshot of the data it was calculated from (it was built before snapshot protection or by an older version), so it cannot be reviewed or finalized as it is. Nothing was changed. Press \"Generate / refresh draft\" for {$name}, check the lines, then review it again.",
+            'PAYROLL_SNAPSHOT_MISSING',
+            409,
+            ['company_id' => $section->client_company_id, 'period' => $run->period, 'required_action' => 'generate'],
+        ));
+    }
+
     /**
      * What changed in the source data since this DRAFT section was generated, one entry per change. Empty when nothing changed, when the section is
-     * locked (finalized / approved), or when it has no snapshot (generated before this release).
+     * locked (finalized / approved), or when it has no snapshot (generated before this release; Review and Finalize now refuse such a section: see assertSnapshotted).
      *
      * @return list<array<string, mixed>>
      */
